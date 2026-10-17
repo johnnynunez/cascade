@@ -863,6 +863,9 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
         kin, safe_arm, memory, beliefs, trace, cfg,
     )
     runtime.rig = rig
+    # ASPIRE (spec §4.2): the note library is read ONCE, here; run.json records
+    # it and every trace row carries its sha. Config only: no arm is touched.
+    _stamp_run(runtime, trace, cfg)
     _wire_held_payload(runtime)
     runtime._kitchen_camera_renderer = kitchen_renderer
     # Where to persist the world model on shutdown (None = disabled).
@@ -1064,6 +1067,52 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
 
     print(f"[cascade] capabilities: {format_matrix(capability_matrix(runtime))}")
     return runtime, arm
+
+
+#: run.json `purpose` values (preflight R18), from CASCADE_RUN_PURPOSE: the
+#: verifier and acceptance stacks set theirs; harvest and grading count only
+#: "live" runs, so a stack's own runs never teach the library.
+RUN_PURPOSES = ("live", "verify", "acceptance")
+
+
+def _run_purpose() -> str:
+    """CASCADE_RUN_PURPOSE, case and surrounding space aside: unset or empty is
+    "live"; any value outside RUN_PURPOSES is "unknown" (never "live")."""
+    raw = os.environ.get("CASCADE_RUN_PURPOSE", "")
+    value = raw.strip().lower()
+    if not value:
+        return "live"
+    if value in RUN_PURPOSES:
+        return value
+    logger.warning("CASCADE_RUN_PURPOSE=%r is none of %s: this run records purpose \"unknown\"",
+                   raw, "/".join(RUN_PURPOSES))
+    return "unknown"
+
+
+def _stamp_run(runtime, trace, cfg) -> None:
+    """Take the runtime's one note-library snapshot (`runtime.learned`) and
+    record the run in `run.json` (spec §4.2, preflight R18/R23); later trace rows
+    carry its `library_sha`. Never fails the build: a library that cannot be read
+    is served as empty (`notes.config_snapshot`), and a run.json that cannot be
+    written leaves the rows unstamped and serves no note, since a served note
+    must be on record."""
+    import dataclasses
+    from datetime import datetime, timezone
+
+    from .. import sim_profile
+    from ..skills import notes
+
+    snapshot = notes.config_snapshot(cfg, sim_profile.profile_class(cfg))
+    meta = {"schema": 1, **snapshot.manifest(), "arm_types": sim_profile.arm_types(cfg),
+            "sim_retry": sim_profile.sim_retry_enabled(cfg), "purpose": _run_purpose(),
+            "started": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+    try:
+        trace.stamp(meta)
+    except Exception as e:  # noqa: BLE001 -- the run record never stops a robot
+        logger.warning("ASPIRE notes: run manifest %s not written (%s: %s); serving no note this session",
+                       trace.run_dir / "run.json", type(e).__name__, e)
+        snapshot = dataclasses.replace(snapshot, served=())
+    runtime.learned = snapshot
 
 
 def _probe_grasp_backend(runtime) -> None:

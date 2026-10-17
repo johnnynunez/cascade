@@ -10,6 +10,12 @@ Per run directory:
                     `keyframe_after_wrists`: `{stream: path}`, null when the
                     rig has none -- the judge then repeats the front image)
     summary.txt   - final human-readable outcome
+    run.json      - the run's manifest (`stamp`, written once at build): the
+                    ASPIRE note library the run read (`library_sha`), the notes
+                    it served, its profile class and purpose. Every row
+                    recorded after the stamp carries the same `library_sha`
+                    (null when nothing stamped the run: mobile, composed and
+                    microduck runtimes, or a manifest that could not be written)
 
 ASPIRE's ablation credits this per-primitive evidence with the single largest
 success jump (14% -> 62%); it is also what makes post-hoc debugging of a live
@@ -19,7 +25,9 @@ demo possible.
 from __future__ import annotations
 
 import json
+import os
 import time
+import uuid
 from pathlib import Path
 from typing import Any, Callable
 
@@ -28,6 +36,10 @@ import numpy as np
 
 
 class TraceLogger:
+    #: sha256 of the ASPIRE note library this run read (`stamp`); None until
+    #: stamped. A class default, so loggers built with `__new__` read None too.
+    library_sha: str | None = None
+
     def __init__(self, run_dir: str | Path):
         self.run_dir = Path(run_dir)
         (self.run_dir / "keyframes").mkdir(parents=True, exist_ok=True)
@@ -35,6 +47,28 @@ class TraceLogger:
         self._step = 0
         #: optional () -> dict of verified sidecar backends, appended to summaries
         self.backends_fn: Callable[[], dict] | None = None
+
+    def stamp(self, meta: dict[str, Any]) -> None:
+        """Write `run.json` = `meta` atomically (a temporary file in the run
+        directory, then `os.replace`), then stamp every later row with
+        `meta["library_sha"]`. A write that fails raises OSError, leaves any
+        earlier run.json as it was and stamps nothing."""
+        path = self.run_dir / "run.json"
+        tmp = self.run_dir / f".run.json.{os.getpid()}.{uuid.uuid4().hex}.tmp"
+        data = (json.dumps(_jsonable(meta), indent=2) + "\n").encode("utf-8")
+        try:
+            with os.fdopen(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644), "wb") as f:
+                f.write(data)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, path)
+        except BaseException:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
+        self.library_sha = meta.get("library_sha")
 
     def save_keyframe(self, rgb: np.ndarray | None, tag: str) -> str | None:
         if rgb is None:
@@ -71,6 +105,8 @@ class TraceLogger:
             # none so a reader can tell "no wrist camera" from "none saved"
             "keyframe_before_wrists": dict(keyframe_before_wrists) if keyframe_before_wrists else None,
             "keyframe_after_wrists": dict(keyframe_after_wrists) if keyframe_after_wrists else None,
+            # the note library this run read (`stamp`); null when unstamped
+            "library_sha": self.library_sha,
         }
         with open(self._trace_path, "a") as f:
             f.write(json.dumps(rec) + "\n")

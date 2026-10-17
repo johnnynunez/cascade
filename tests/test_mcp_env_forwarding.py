@@ -189,7 +189,8 @@ def test_premise_the_scan_sees_the_brain_endpoint_the_detector_profile_reads():
     # those placeholders as runtime reads, so they must be classified too.
     # The complete current set is pinned: a new placeholder is a new read.
     assert {"cameras", "arms", "llm", "bases", "robots"} <= _loader_kinds()
-    assert _config_placeholders() == {name: {"demo.yaml"} for name in PERCEPTION}
+    assert _config_placeholders() == {**{name: {"demo.yaml"} for name in PERCEPTION},
+                                      "CASCADE_ASPIRE_LIBRARY": {"arms/isaac_kitchen.yaml"}}
     assert set(PERCEPTION) <= _runtime_reads()
 
 
@@ -313,7 +314,7 @@ def test_the_forwarded_set_is_pinned():
         "CASCADE_MICRODUCK_MODEL_IDENTITY_SHA256", "CASCADE_MICRODUCK_BRIDGE_PORT", "CASCADE_MICRODUCK_ENGINE",
         "CASCADE_MICRODUCK_DEVICE", "CASCADE_MCP_READONLY_LANE", "CASCADE_NVBLOX_MAP",
         "CASCADE_PERCEPTION_URL", "CASCADE_PERCEPTION_MODEL", "CASCADE_PERCEPTION_KEY_FILE",
-        "CASCADE_SIM_RETRY"}
+        "CASCADE_SIM_RETRY", "CASCADE_ASPIRE_LIBRARY", "CASCADE_RUN_PURPOSE"}
 
 
 def test_the_sim_retry_kill_switch_reaches_the_robot_server():
@@ -324,6 +325,19 @@ def test_the_sim_retry_kill_switch_reaches_the_robot_server():
     assert "CASCADE_SIM_RETRY" in reg.FORWARDED and "CASCADE_SIM_RETRY" not in reg.NOT_FORWARDED
     assert reg.forwarded_env({"CASCADE_SIM_RETRY": "0"}) == {"CASCADE_SIM_RETRY": "0"}
     assert "sim_profile.py" in _runtime_literals()["CASCADE_SIM_RETRY"]
+
+
+def test_the_aspire_library_and_run_purpose_reach_the_robot_server():
+    # ASPIRE A2 (preflight R3/R18): the kitchen profile reads its note library
+    # from ${CASCADE_ASPIRE_LIBRARY:-...} and run.json records CASCADE_RUN_PURPOSE,
+    # both in the MCP server process; a verifier or acceptance stack's values
+    # must ride the registration or its runs read the live library as "live".
+    reg = _registry()
+    environ = {"CASCADE_ASPIRE_LIBRARY": "/verify/lib", "CASCADE_RUN_PURPOSE": "verify"}
+    assert reg.forwarded_env(environ) == environ
+    assert not set(environ) & set(reg.NOT_FORWARDED)
+    assert "apps/demo.py" in _runtime_literals()["CASCADE_RUN_PURPOSE"]
+    assert _config_placeholders()["CASCADE_ASPIRE_LIBRARY"] == {"arms/isaac_kitchen.yaml"}
 
 
 def test_the_brain_endpoint_reaches_the_robot_server_and_the_key_never_does():
@@ -363,7 +377,8 @@ def _values(names, tmp_path: Path) -> dict[str, str]:
         "CASCADE_DETECT_CLASSES": "cup,b63 bowl", "CASCADE_MEMORY_EMBEDDER": "hash",
         "CUDA_VISIBLE_DEVICES": "", "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
         "CASCADE_MICRODUCK_ENGINE": "physx", "CASCADE_MICRODUCK_DEVICE": "cuda:0",
-        "CASCADE_SIM_RETRY": "0",
+        "CASCADE_SIM_RETRY": "0", "CASCADE_RUN_PURPOSE": "verify",
+        "CASCADE_ASPIRE_LIBRARY": str(tmp_path / "aspire_library"),
     }
     values, port = {}, 46520
     for name in names:

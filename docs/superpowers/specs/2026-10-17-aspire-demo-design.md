@@ -193,14 +193,22 @@ paraphrases of harm (no rule word) stay a limit of a structural gate, carried by
 - The robot runtime loads ONE read-only snapshot at build (`load_snapshot`; it never creates the directory) and keeps
   it for the session: the prompt block, `robot_knowledge`, the chat line and the trace stamp all come from it, so a
   nightly write never changes a running session.
-- Library location per profile: `memory.skill_library_path`. A1 sets the kitchen profiles to
+- Library location per profile: `memory.skill_library_path`. A2 sets the kitchen profiles (`isaac_kitchen` and
+  every profile that extends it) to
   `${CASCADE_ASPIRE_LIBRARY:-~/.cascade/aspire/sim/library}`; every other profile keeps today's default
   (`<repo>/skills_library`). B7 sets `rebot_rs` to `${CASCADE_ASPIRE_LIBRARY:-~/.cascade/aspire/real/library}`.
 - Every run built by `apps.demo.build_runtime` writes `run.json` beside `trace.jsonl` at build:
-  `{schema: 1, library_sha, served_notes: [ids], profile_class, arm_types, sim_retry, started}` (the physics engine is
+  `{schema: 1, library_sha, served_notes: [ids], block_notes: [ids], profile_class, arm_types, sim_retry, purpose,
+  started}` (the physics engine is
   not known at build: the lazy Isaac arm learns it from the bridge on first use; the verifier records it from its own
-  launch). Every trace row gets a top-level `library_sha` (null for runtimes that load no library: mobile,
-  robot_runtime, microduck).
+  launch). `block_notes` = the top 2 as the block renders them (preflight R23: B3 grades them and cannot recover them
+  later). `purpose` = `CASCADE_RUN_PURPOSE` (`live` | `verify` | `acceptance`, forwarded to the robot server; unset or
+  empty = `live`, any other value = `unknown`, never `live`; preflight R18): harvest and grading count only `live` runs.
+  `started` = UTC ISO 8601 (seconds). Every trace row gets a top-level `library_sha` (null for runtimes that load no
+  library: mobile, robot_runtime, microduck). Fail closed, never a failed build: a configured path that is no path,
+  a file, an unreadable directory or any read error serves nothing (the empty library's sha, one warning with the
+  reason); a missing directory is an empty library (never created); a `run.json` that cannot be written leaves the
+  rows unstamped (null) and serves nothing, since a served note must be on record.
 
 ### 4.3 How notes reach Qwen
 

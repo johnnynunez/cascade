@@ -101,8 +101,10 @@ FORWARDED: dict[str, str] = {
     "CASCADE_PERCEPTION_URL": "brain endpoint that identifies objects (detector.base_url)",
     "CASCADE_PERCEPTION_MODEL": "served brain model that identifies objects (detector.model)",
     "CASCADE_PERCEPTION_KEY_FILE": "path of the brain's api key file (detector.api_key_file), never the key",
-    # ---- ASPIRE notes (cascade.sim_profile) ----
+    # ---- ASPIRE notes (cascade.sim_profile, apps.demo run.json, kitchen profiles) ----
     "CASCADE_SIM_RETRY": "kill switch of the sim-only bounded retry (0 = off; sim profiles only)",
+    "CASCADE_ASPIRE_LIBRARY": "ASPIRE note library the runtime serves (read-only snapshot; kitchen profiles)",
+    "CASCADE_RUN_PURPOSE": "run.json purpose (live|verify|acceptance); harvest counts only live runs",
 }
 
 #: why a variable the runtime reads is not copied from the registering shell

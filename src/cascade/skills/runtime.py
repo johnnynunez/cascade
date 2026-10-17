@@ -785,6 +785,10 @@ class SkillRuntime:
     #: LinkSelfMask | None (B39): set by the app wiring when
     #: `workspace_filter.link_self_mask` is on; see perception/link_mask.py.
     _link_self_mask: "LinkSelfMask | None" = None
+    #: ASPIRE note library snapshot (`skills.notes.LibrarySnapshot`), taken once
+    #: by `apps.demo.build_runtime`; None for runtimes built any other way (bare
+    #: `__new__` fixtures, MCP fakes), which serve no note (preflight R29).
+    learned = None
 
     @property
     def arm(self):

@@ -45,6 +45,7 @@ import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 
+from ..config import PACKAGE_ROOT
 from .library import read_note_text
 
 log = logging.getLogger(__name__)
@@ -1320,3 +1321,60 @@ def load_snapshot(root: Path | None, profile_class: str, *, min_tasks: int = 2) 
         served = ()
     return LibrarySnapshot(root=root, sha=_sha_of(entries), profile_class=klass, notes=tuple(notes),
                            served=served, skipped=tuple(skipped))
+
+
+# ── the library a configuration serves ─────────────────────────────────────
+
+#: The library of a profile whose `memory` names no `skill_library_path`: the
+#: repo's `skills_library/` that scripts/learn_from_runs.py fills (spec §4.2). Read
+#: each time a snapshot is taken, so the test suite pins it to a path that never
+#: exists (preflight R24) and no machine's own notes reach a test runtime.
+DEFAULT_LIBRARY = PACKAGE_ROOT / "skills_library"
+
+_ABSENT = object()
+
+
+def library_root(cfg) -> Path:
+    """The library directory `cfg` names: `memory.skill_library_path` (`~`
+    expanded), or `DEFAULT_LIBRARY` when the key is absent. Raises ValueError for
+    a value that is no path (null, empty, not a string) or a missing or
+    non-mapping `memory` section; `config_snapshot` fails closed on it."""
+    memory = cfg.get("memory")
+    try:
+        value = memory.get("skill_library_path", _ABSENT)
+    except AttributeError:
+        raise ValueError(f"memory is not a mapping: {type(memory).__name__}") from None
+    if value is _ABSENT:
+        return DEFAULT_LIBRARY
+    if isinstance(value, os.PathLike):
+        value = os.fspath(value)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"not a path: {value!r}")
+    return Path(value).expanduser()
+
+
+def config_snapshot(cfg, profile_class: str) -> LibrarySnapshot:
+    """The snapshot a runtime built from `cfg` serves for its whole session: the
+    library at `library_root(cfg)`, read once with `memory.skill_min_tasks`.
+    Never raises. A directory that does not exist yet is an empty library (never
+    created). A library that cannot be read -- a configured value that is no
+    path, a file, an unreadable directory, any error while reading -- fails
+    closed: no root, the empty library's sha, nothing served, and one warning line
+    with the reason."""
+    klass = "sim" if profile_class == "sim" else "real"
+    root = None
+    try:
+        root = library_root(cfg)
+        # load_snapshot would read a path it cannot list (a file, a directory
+        # without read permission) as an empty library; only a path that does not
+        # exist yet is one, so the library is listed here first
+        try:
+            with os.scandir(root):
+                pass
+        except FileNotFoundError:
+            pass
+        return load_snapshot(root, klass, min_tasks=cfg.get("memory").get("skill_min_tasks"))
+    except Exception as e:  # noqa: BLE001 -- fail closed: a broken library never stops a robot
+        log.warning("ASPIRE notes: library %s (memory.skill_library_path) not read (%s: %s); serving no note",
+                    "?" if root is None else root, type(e).__name__, e)
+        return LibrarySnapshot(root=None, sha=library_sha(None), profile_class=klass, notes=(), served=())

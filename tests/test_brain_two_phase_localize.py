@@ -2105,6 +2105,12 @@ def test_the_naming_mask_overhang_and_foreign_colour_are_evidence_only():
     assert ref.detection is None and "disagree" in ref.reason, ref
     assert ref.naming_overhang == pytest.approx((0.0, 0.0, 120 / 82, 0.0), abs=1e-6)
     assert ref.naming_foreign_share == pytest.approx(720 / (obj.sum() + 720), abs=1e-6)
+    # A neighbour larger than the object merged on the right: the object's
+    # colour is the median INSIDE the brain's box, never the mask's majority.
+    big = synthetic_tabletop()
+    big.rgb[199:261, 361:461] = GREEN
+    ref = reference(big, (279, 199, 361, 261), obj | np.all(big.rgb == GREEN, axis=-1))
+    assert ref.naming_foreign_share == pytest.approx(6200 / (obj.sum() + 6200), abs=1e-6), ref
     # A two-tone object: the part outside a tight box in its other colour reads foreign too
     # (the rule the rig data must price), and the part inside a box never does.
     c = synthetic_tabletop()

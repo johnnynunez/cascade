@@ -7135,6 +7135,8 @@ class SkillRuntime:
                 reset = validate_isaac_reset(raw.reset_props())
                 out["props_reset"] = reset["props_reset"]
                 out["reset_verification"] = reset["reset_verification"]
+                if reset.get("seed") is not None:  # seeded layout (bridge set_reset_seed)
+                    out["scene_seed"] = reset["seed"]
             except Exception as e:  # noqa: BLE001
                 out["world_error"] = str(e)
                 out["error"] = f"Isaac prop reset failed: {e}"

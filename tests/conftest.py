@@ -37,6 +37,8 @@ def load_isaac_bridge_definitions(names, env):
         wanted.add("_gripper_joint_snapshot")
     if "Handler" in wanted:
         wanted.add("_attachment_state_snapshot")
+        # Boot state of every bridge: no seeded reset layout armed (ping reads it).
+        env.setdefault("_RESET_SEED", None)
     if "_refresh_frames" in wanted or "_settle_props" in wanted:
         wanted.add("_camera_capture_due")
     if "_refresh_frames" in wanted:

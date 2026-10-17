@@ -31,8 +31,9 @@ import sys
 import time
 import threading
 from collections import deque
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, field
+from typing import NamedTuple
 
 import numpy as np
 
@@ -148,6 +149,25 @@ ESCAPE_SAMPLE_VOXEL_M = 0.01
 ESCAPE_MAX_INTERIOR_SAMPLES = 16
 
 
+class GateCtx(NamedTuple):
+    """Where a map clearance gate ran, for its refusal report (spec §3.3,
+    `SafetyHarness.drain_clearance_reports`): `phase` is approve (a
+    streamed step) | vet_step (a preflight step) | vet_pose | route_end;
+    `q_prev` is None for the static vets; `T_tcp` is the base-frame TCP
+    pose at `q`."""
+
+    phase: str
+    q: np.ndarray
+    q_prev: np.ndarray | None
+    T_tcp: np.ndarray
+
+
+def _point_gate(i: int) -> str:
+    """Report name of TCP/joint-origin clearance point `i`: point 0 is the
+    TCP, point i >= 1 is joint origin `links[i]` ("link/joint i+1")."""
+    return "tcp" if i == 0 else f"link {i + 1}"
+
+
 def _unknown_blocks(occupancy) -> bool:
     """Does this map treat unobserved space as an obstacle? An OccupancyMap
     says so itself (`unobserved: blocked`); a stand-in without the property
@@ -232,6 +252,10 @@ class SafetyHarness:
         #: per-motion contact monitor summaries, drained into the run trace
         #: by the skill runtime (bounded: an unattended run must not grow it)
         self._contact_reports: deque = deque(maxlen=64)
+        #: (dedupe key, report) per clearance refusal, drained into the run
+        #: trace by the skill runtime (`drain_clearance_reports`); bounded to
+        #: the map's `refusal_snapshot.max_reports` at every append
+        self._clearance_reports: deque = deque()
         #: the last contact the monitor detected (its trip event), or None
         self.last_contact: dict | None = None
         #: spots where the arm was blocked; the TCP may not re-enter one
@@ -431,6 +455,106 @@ class SafetyHarness:
         out = list(self._contact_reports)
         self._contact_reports.clear()
         return out
+
+    # ── clearance refusal reports (spec §3.3) ────────────────────────────
+
+    def drain_clearance_reports(self) -> list[dict]:
+        """The map snapshots filed since the last drain, oldest first, and
+        forget them. One report per refusal of the TCP/joint, attached or
+        tool-volume map gate (`_file_clearance_report`); the skill runtime
+        drains them at the start of each call (stale) and into its trace
+        row at the end (`context.clearance`). Keys:
+
+        - `phase` (approve / vet_step / vet_pose / route_end), `gate` (tcp,
+          link N, attached, or the tool part name; a refusal that names no
+          sample, the map giving no answer, names the checked set: arm,
+          attached, tool volume), `reason` (exactly the refusal returned);
+        - `q`, `q_prev` (None for static vets), `tcp` (base-frame 4x4);
+        - `sample` (map frame), `sample_tcp` (TCP frame), `clearance_m`
+          (None if non-finite), `margin_m`;
+        - `exemption` ({"cylinder": [cx, cy, r, z_min(, z_max)]} or None);
+        - `map` ({refreshes, age_s, voxel_m, occupied});
+        - `voxels`: occupied voxel centres near the sample, [x, y, z, d],
+          nearest first, rounded to 1 mm;
+        - `snapshot_error`, only when the snapshot failed.
+        """
+        out = [report for _, report in self._clearance_reports]
+        self._clearance_reports.clear()
+        return out
+
+    def _file_clearance_report(self, ctx: GateCtx, gate: str, reason: str, hit, exempt,
+                               T_frame: np.ndarray) -> None:
+        """File the report of ONE refusal a map gate has already decided.
+
+        Called only with a reason in hand, so an admitted step never builds
+        one. `hit` = (index, sample, clearance) of the offending sample in
+        the map frame or None; `T_frame` is the TCP pose in that frame.
+        Bookkeeping only: it never raises and never changes the reason.
+        """
+        try:
+            self._clearance_report(ctx, gate, reason, hit, exempt, T_frame)
+        except Exception:  # noqa: BLE001 -- a report never changes a gate outcome
+            return
+
+    def _clearance_report(self, ctx, gate, reason, hit, exempt, T_frame) -> None:
+        from ..perception.occupancy import RefusalSnapshot
+
+        occ = self.occupancy
+        bounds = getattr(occ, "refusal_snapshot", None)
+        if not isinstance(bounds, RefusalSnapshot):
+            bounds = RefusalSnapshot()
+        reports = self._clearance_reports
+        if reports.maxlen != bounds.max_reports:
+            reports = self._clearance_reports = deque(reports, maxlen=bounds.max_reports)
+        sample = None if hit is None else np.asarray(hit[1], dtype=float).reshape(3)
+        lock = getattr(occ, "_refresh_lock", None)
+        # One commit for the map record and its voxels: nearby_occupied
+        # takes the same (reentrant) refresh lock the gate's read took.
+        with lock if lock is not None else nullcontext():
+            refreshes = getattr(occ, "refreshes", None)
+            # Dedupe per drain, keyed BEFORE any snapshot work: a refusal
+            # already on file for this gate, spot (1 cm) and map commit is
+            # not built again. The newest report stays the last one kept.
+            key = (gate, None if sample is None else tuple(np.round(sample, 2).tolist()), refreshes)
+            if any(k == key for k, _ in reports):
+                return
+            report = {
+                "phase": ctx.phase, "gate": gate, "reason": reason,
+                "q": np.asarray(ctx.q, dtype=float).tolist(),
+                "q_prev": None if ctx.q_prev is None else np.asarray(ctx.q_prev, dtype=float).tolist(),
+                "tcp": np.asarray(ctx.T_tcp, dtype=float).tolist(),
+                "sample": None, "sample_tcp": None, "clearance_m": None,
+                "margin_m": float(self.limits.min_clearance_m),
+                "exemption": None if exempt is None else {"cylinder": [
+                    float(exempt[0][0]), float(exempt[0][1]), *(float(v) for v in exempt[1:])]},
+                "map": None, "voxels": [],
+            }
+            try:
+                if sample is not None:
+                    T = np.asarray(T_frame, dtype=float)
+                    report["sample"] = sample.tolist()
+                    report["sample_tcp"] = (T[:3, :3].T @ (sample - T[:3, 3])).tolist()
+                    d = float(hit[2])
+                    report["clearance_m"] = d if np.isfinite(d) else None
+                last, voxel = getattr(occ, "_last_refresh", None), getattr(occ, "_grid_voxel", None)
+                occupied = getattr(occ, "_occupied", None)
+                report["map"] = {
+                    "refreshes": None if refreshes is None else int(refreshes),
+                    "age_s": None if last is None else round(max(time.monotonic() - float(last), 0.0), 3),
+                    "voxel_m": float(voxel) if voxel else None,
+                    "occupied": None if occupied is None else int(len(occupied)),
+                }
+                if sample is not None:
+                    nearby = getattr(occ, "nearby_occupied", None)
+                    if nearby is None:
+                        raise AttributeError("the occupancy map has no nearby_occupied")
+                    rows = np.asarray(nearby(sample, bounds.radius_m, bounds.max_voxels), dtype=float)
+                    report["voxels"] = [[round(float(v), 3) for v in row]
+                                        for row in rows.reshape(-1, 4)[: bounds.max_voxels]]
+            except Exception as exc:  # noqa: BLE001 -- the refusal stands without its snapshot
+                report["voxels"] = []
+                report["snapshot_error"] = f"{type(exc).__name__}: {exc}"
+        reports.append((key, report))
 
     @property
     def contact_zones(self) -> list[dict]:
@@ -957,6 +1081,9 @@ class SafetyHarness:
                 reject(f"link/joint {i} at z={p[2]:.3f} would hit the table")
 
         if self.occupancy is not None:
+            # Each map gate files a snapshot report only once it refuses
+            # (spec 3.3); an admitted step builds none.
+            ctx = GateCtx("approve" if live_checks else "vet_step", q_next, q_prev, T)
             # The same TCP + links at q_prev, read in the same map query, so
             # an arm already inside the margin may strictly retreat (spec 3.1);
             # an escaping step is also sampled along its interior.
@@ -967,17 +1094,18 @@ class SafetyHarness:
                 prev_points=prev_points,
                 hold=bool(np.allclose(q_prev, q_next, rtol=0.0, atol=1e-9)),
                 interior=lambda: self._step_interior(q_prev, q_next, points, prev_points),
+                ctx=ctx,
             )
             if reason is not None:
                 reject(reason)
 
-            reason = self._payload_occupancy_violation(q_next, self._grasp_exempt)
+            reason = self._payload_occupancy_violation(q_next, self._grasp_exempt, ctx=ctx)
             if reason is not None:
                 reject(reason)
 
             # The gripper's own volume (wrist camera, jaws), with a retreat
             # rule: an arm already too close may back away, never close in.
-            reason = self._tool_volume_violation(T, self._grasp_exempt, q_prev=q_prev)
+            reason = self._tool_volume_violation(T, self._grasp_exempt, q_prev=q_prev, ctx=ctx)
             if reason is not None:
                 reject(reason)
 
@@ -1070,13 +1198,14 @@ class SafetyHarness:
                 return f"link/joint {i} at z={p[2]:.3f} would hit the table"
 
         if self.occupancy is not None:
-            reason = self._occupancy_violation(np.vstack([tcp[None, :], links[1:]]), exempt)
+            ctx = GateCtx("vet_pose", q, None, T)
+            reason = self._occupancy_violation(np.vstack([tcp[None, :], links[1:]]), exempt, ctx=ctx)
             if reason is not None:
                 return reason
-            reason = self._payload_occupancy_violation(q, exempt)
+            reason = self._payload_occupancy_violation(q, exempt, ctx=ctx)
             if reason is not None:
                 return reason
-            reason = self._tool_volume_violation(T, exempt)
+            reason = self._tool_volume_violation(T, exempt, ctx=ctx)
             if reason is not None:
                 return reason
         # Same inter-arm gate approve() applies per waypoint, so a grasp
@@ -1096,11 +1225,13 @@ class SafetyHarness:
         if self.kin is None or self.occupancy is None:
             return None
         q = np.asarray(q, dtype=float)
+        T = self.kin.fk(q)
         links = self.kin.link_positions(q)
         return self._occupancy_violation(
-            np.vstack([self.kin.fk(q)[:3, 3][None, :], links[1:]]), self._grasp_exempt)
+            np.vstack([T[:3, 3][None, :], links[1:]]), self._grasp_exempt,
+            ctx=GateCtx("route_end", q, None, T))
 
-    def _payload_occupancy_violation(self, q, exempt):
+    def _payload_occupancy_violation(self, q, exempt, *, ctx: GateCtx | None = None):
         points_fn = getattr(self.occupancy, "payload_points", None)
         if points_fn is None:
             return None
@@ -1110,12 +1241,17 @@ class SafetyHarness:
         points = points_fn(pose)
         if not len(points):
             return None
-        reason = self._occupancy_violation(points, exempt, attached=True)
-        return f"attached object {reason}" if reason else None
+        reason, hit = self._occupancy_check(points, exempt, attached=True)
+        if not reason:
+            return None
+        reason = f"attached object {reason}"
+        if ctx is not None:
+            self._file_clearance_report(ctx, "attached", reason, hit, exempt, pose)
+        return reason
 
     def _occupancy_violation(self, points: np.ndarray, exempt: tuple | None, *, attached=False,
                              prev_points: np.ndarray | None = None, hold: bool = False,
-                             interior=None) -> str | None:
+                             interior=None, ctx: GateCtx | None = None) -> str | None:
         """Occupancy-map check: any query point closer than min_clearance_m
         to a cached obstacle, outside the active grasp exemption.
 
@@ -1141,22 +1277,38 @@ class SafetyHarness:
         ONE read of the ends and the interior together. The first read of the
         ends only finds the escaping points, so a step with none keeps its
         single read and computes no interior FK.
+
+        With `ctx` (the gates of `_approve_step`, `vet_pose` and
+        `route_end_violation`; `points` are then the TCP + joint origins), a
+        refusal files its map snapshot report (`drain_clearance_reports`).
         """
+        reason, hit = self._occupancy_check(points, exempt, attached=attached, prev_points=prev_points,
+                                            hold=hold, interior=interior)
+        if reason is not None and ctx is not None:
+            gate = "attached" if attached else ("arm" if hit is None else _point_gate(hit[0]))
+            self._file_clearance_report(ctx, gate, reason, hit, exempt, ctx.T_tcp)
+        return reason
+
+    def _occupancy_check(self, points, exempt, *, attached=False, prev_points=None, hold=False,
+                         interior=None):
+        """`_occupancy_violation`'s decision: (refusal or None, (index,
+        sample, clearance) of the sample it names, or None)."""
         if attached and prev_points is not None:
-            return "attached-payload samples never escape (prev_points given with attached=True)"
-        reason, escaping = self._clearance_read(points, exempt, attached, prev_points, hold)
+            return "attached-payload samples never escape (prev_points given with attached=True)", None
+        reason, escaping, hit = self._clearance_read(points, exempt, attached, prev_points, hold)
         if reason is None and escaping.any() and interior is not None:
             mid = interior()
             if mid.size:
                 # Decide on a new read of the ends WITH the interior: a map
                 # refresh between two reads must never mix two grids.
-                reason, _ = self._clearance_read(points, exempt, attached, prev_points, hold, mid)
-        return reason
+                reason, _, hit = self._clearance_read(points, exempt, attached, prev_points, hold, mid)
+        return reason, hit
 
     def _clearance_read(self, points, exempt, attached, prev_points, hold, mid=None):
         """One map read for `_occupancy_violation`: (refusal or None, the
-        mask of points admitted only by the escape). `mid` (k, n, 3) adds
-        the step's interior samples to the same read."""
+        mask of points admitted only by the escape, (index, sample,
+        clearance) of the sample the refusal names or None). `mid` (k, n, 3)
+        adds the step's interior samples to the same read."""
         query = self.occupancy.payload_clearance if attached else self.occupancy.clearance
         observed_required = attached or _unknown_blocks(self.occupancy)
         n = len(points)
@@ -1168,7 +1320,7 @@ class SafetyHarness:
             dist = query(np.vstack(rows))
         if dist is None:
             reason = "clearance unavailable (fresh observed distance grid required)"
-            return (reason if observed_required else None), escaping
+            return (reason if observed_required else None), escaping, None
         min_c = self.limits.min_clearance_m
         retreating = inside_before = None
         if prev_points is not None:
@@ -1180,7 +1332,7 @@ class SafetyHarness:
         for i, (p, d) in enumerate(zip(points, dist)):
             if not np.isfinite(d) and observed_required and not self._in_cylinder(p, exempt):
                 return (f"point {i} has unobserved clearance (occupancy map)"
-                        f" at [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}]"), escaping
+                        f" at [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}]"), escaping, (i, p, d)
             if d < min_c and not self._in_cylinder(p, exempt):
                 if retreating is not None and retreating[i]:
                     escaping[i] = True
@@ -1191,7 +1343,7 @@ class SafetyHarness:
                 return (f"point {i} clearance {d:.9f} m below {min_c:.9f} m "
                         f"(shortfall {(min_c - d) * 1000:.6f} mm; occupancy map)"
                         f" at [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}]"
-                        + (ESCAPE_NOTE if started_inside else "")), escaping
+                        + (ESCAPE_NOTE if started_inside else "")), escaping, (i, p, d)
         if mid is not None:
             # Interior samples get no grasp exemption: an escaping point is
             # outside it at q_next, and NaN never passes `>=`.
@@ -1202,11 +1354,12 @@ class SafetyHarness:
                     p, d = mid[bad[0], i], mid_dist[bad[0], i]
                     where = f" at [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}]"
                     if np.isnan(d):
-                        return f"point {i} has unobserved clearance (occupancy map, mid-step){where}", escaping
+                        return (f"point {i} has unobserved clearance (occupancy map, mid-step){where}",
+                                escaping, (int(i), p, d))
                     return (f"point {i} clearance {d:.9f} m below {min_c:.9f} m "
                             f"(shortfall {(min_c - d) * 1000:.6f} mm; occupancy map, mid-step)"
-                            f"{where}" + ESCAPE_NOTE), escaping
-        return None, escaping
+                            f"{where}" + ESCAPE_NOTE), escaping, (int(i), p, d)
+        return None, escaping, None
 
     def _clearance_points(self, q: np.ndarray) -> np.ndarray:
         """The TCP and joint origins (`links[1:]`) at joint pose `q`."""
@@ -1261,7 +1414,7 @@ class SafetyHarness:
         return bad
 
     def _tool_volume_violation(self, T_next: np.ndarray, exempt: tuple | None, *,
-                               q_prev=None) -> str | None:
+                               q_prev=None, ctx: GateCtx | None = None) -> str | None:
         """Why the wrist camera box / jaws at TCP pose `T_next` are too close
         to a mapped obstacle, or None.
 
@@ -1270,14 +1423,20 @@ class SafetyHarness:
         brings no sample closer and no new sample inside the margin -- else a
         stop next to an obstacle (or an obstacle that appears next to a
         resting arm) would strand it. Entering the margin is always refused.
+        With `ctx`, a refusal files its map snapshot report, gate = the part.
         """
         vol = self.tool_volume
         if vol is None or self.occupancy is None or self.kin is None:
             return None
         pts, dist = self._tool_volume_clearance(T_next, exempt)
         if dist is None:
-            return ("tool volume clearance unavailable (fresh observed distance grid required)"
-                    if _unknown_blocks(self.occupancy) else None)
+            if not _unknown_blocks(self.occupancy):
+                return None
+            reason = "tool volume clearance unavailable (fresh observed distance grid required)"
+            if ctx is not None:
+                self._file_clearance_report(ctx, "tool volume", reason, None, exempt,
+                                            self._tool_frame(T_next))
+            return reason
         bad = self._tool_volume_bad(dist)
         if not bad.any():
             return None
@@ -1293,9 +1452,18 @@ class SafetyHarness:
         name, p, d = vol.names[int(vol.part[i])], pts[i], dist[i]
         where = f" at [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}]"
         if not np.isfinite(d):
-            return f"{name} has unobserved clearance (occupancy map){where}"
-        return (f"{name} clearance {d:.3f} m below {self.limits.min_clearance_m:.3f} m "
-                f"(occupancy map){where}")
+            reason = f"{name} has unobserved clearance (occupancy map){where}"
+        else:
+            reason = (f"{name} clearance {d:.3f} m below {self.limits.min_clearance_m:.3f} m "
+                      f"(occupancy map){where}")
+        if ctx is not None:
+            self._file_clearance_report(ctx, name, reason, (i, p, d), exempt, self._tool_frame(T_next))
+        return reason
+
+    def _tool_frame(self, T_tcp: np.ndarray) -> np.ndarray:
+        """The TCP pose in the frame the tool-volume samples are read in."""
+        T = np.asarray(T_tcp, dtype=float)
+        return T if self.base_pose is None else self.base_pose @ T
 
     def _in_grasp_cylinder(self, p: np.ndarray) -> bool:
         return self._in_cylinder(p, self._grasp_exempt)

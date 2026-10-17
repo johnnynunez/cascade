@@ -905,6 +905,11 @@ class SkillRuntime:
         return [h for h in self._arm_harnesses()
                 if h is not None and callable(getattr(h, "drain_contact_reports", None))]
 
+    def _clearance_harnesses(self) -> list:
+        """Harnesses of every arm that files clearance-refusal reports."""
+        return [h for h in self._arm_harnesses()
+                if h is not None and callable(getattr(h, "drain_clearance_reports", None))]
+
     def _skill_halt_baselines(self, arm) -> list:
         """(harness, its halt generation now) for `arm` and every rig arm:
         taken when execute() starts a motion skill (registry only, like
@@ -1437,6 +1442,11 @@ class SkillRuntime:
         contact_harnesses = self._contact_harnesses()
         for harness in contact_harnesses:
             harness.drain_contact_reports()
+        # Map snapshots of clearance refusals (spec 3.3), the same way: a
+        # report filed outside this call (between calls) is stale.
+        clearance_harnesses = self._clearance_harnesses()
+        for harness in clearance_harnesses:
+            harness.drain_clearance_reports()
         from ..robot_context import arm_profiles
 
         profiles = arm_profiles(self.cfg)
@@ -1876,6 +1886,9 @@ class SkillRuntime:
         contact_reports = [r for h in contact_harnesses for r in h.drain_contact_reports()]
         if contact_reports:
             trace_context["contact_monitor"] = contact_reports
+        clearance_reports = [r for h in clearance_harnesses for r in h.drain_clearance_reports()]
+        if clearance_reports:
+            trace_context["clearance"] = clearance_reports
         if perception_timings:
             # Two-phase localization (B1): where the time went. The result
             # carries the latest localization of the object the call names

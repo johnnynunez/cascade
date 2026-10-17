@@ -59,6 +59,18 @@ occupancy:
   clear_on_start: false
   # region_min/region_max: AABB to query for occupied points; defaults to
   # safety.workspace min/max if omitted.
+  # Every clearance refusal or mid-motion halt (TCP/joints, held object, wrist
+  # camera, jaws) files a report into the call's trace row
+  # (`context.clearance`, docs/NVBLOX.md): the offending sample, gate, joints
+  # and map state, plus the occupied voxel centres within radius_m of the
+  # sample (at most max_voxels, nearest first, 1 mm). At most max_reports per
+  # call (the newest), one per gate, spot and map refresh. Built only after a
+  # gate refused; a failing snapshot never changes the refusal. Diagnostics
+  # only: no margin depends on these values.
+  refusal_snapshot:
+    radius_m: 0.05         # (0, 0.5] m
+    max_voxels: 64         # 1..1024
+    max_reports: 32        # 1..256
 
 grasp:
   # Grasp planner: "obb" (analytic, always available) or "graspgenx"

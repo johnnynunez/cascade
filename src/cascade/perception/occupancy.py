@@ -47,6 +47,8 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from collections.abc import Mapping
+from typing import NamedTuple
 
 import numpy as np
 
@@ -57,6 +59,55 @@ logger = logging.getLogger(__name__)
 #: masks only; a mesh-masked arm's old frames would replay unmasked.
 _PAYLOAD_VS_MESH = ("payload tracking cannot be combined with a mesh body mask (`body_mask: mesh`): "
                     "the payload replay re-sends history with render masks only")
+
+
+class RefusalSnapshot(NamedTuple):
+    """Bounds of the map snapshot the safety harness files with every
+    clearance refusal (`occupancy.refusal_snapshot`, spec §3.3): occupied
+    voxel centres within `radius_m` of the offending sample, at most
+    `max_voxels` of them per report, at most `max_reports` reports (the
+    newest) per skill call."""
+
+    radius_m: float = 0.05
+    max_voxels: int = 64
+    max_reports: int = 32
+
+
+#: Upper bounds of a configured snapshot: refusal-path work stays bounded.
+_REFUSAL_SNAPSHOT_MAX = RefusalSnapshot(radius_m=0.5, max_voxels=1024, max_reports=256)
+
+
+def _refusal_snapshot(value) -> RefusalSnapshot:
+    """`occupancy.refusal_snapshot` (a mapping, a RefusalSnapshot or None =
+    the defaults) checked: a positive finite radius up to 0.5 m, integer
+    counts from 1 up to the limits above, no unknown keys."""
+    if value is None:
+        return RefusalSnapshot()
+    if isinstance(value, RefusalSnapshot):
+        given = value._asdict()
+    else:
+        if hasattr(value, "as_dict"):          # a config.Cfg block
+            value = value.as_dict()
+        if not isinstance(value, Mapping):
+            raise OccupancyError(f"occupancy.refusal_snapshot must be a mapping, got {value!r}")
+        unknown = sorted(set(value) - set(RefusalSnapshot._fields))
+        if unknown:
+            raise OccupancyError(f"occupancy.refusal_snapshot: unknown keys {unknown} "
+                                 f"(expected {list(RefusalSnapshot._fields)})")
+        given = {**RefusalSnapshot()._asdict(), **value}
+    radius = given["radius_m"]
+    ok = (not isinstance(radius, bool) and isinstance(radius, (int, float, np.integer, np.floating))
+          and np.isfinite(radius) and 0.0 < radius <= _REFUSAL_SNAPSHOT_MAX.radius_m)
+    if not ok:
+        raise OccupancyError("occupancy.refusal_snapshot.radius_m must be within "
+                             f"(0, {_REFUSAL_SNAPSHOT_MAX.radius_m}] m, got {radius!r}")
+    counts = {}
+    for key in ("max_voxels", "max_reports"):
+        n, top = given[key], getattr(_REFUSAL_SNAPSHOT_MAX, key)
+        if isinstance(n, bool) or not isinstance(n, (int, np.integer)) or not 1 <= n <= top:
+            raise OccupancyError(f"occupancy.refusal_snapshot.{key} must be an integer within 1..{top}, got {n!r}")
+        counts[key] = int(n)
+    return RefusalSnapshot(float(radius), counts["max_voxels"], counts["max_reports"])
 
 
 class OccupancyError(RuntimeError):
@@ -189,10 +240,14 @@ class OccupancyMap:
         required: bool = False,
         unobserved: str | None = None,
         ready_timeout_s: float = 3.0,
+        refusal_snapshot=None,
     ):
         if type(required) is not bool:
             raise OccupancyError("occupancy.required must be a boolean")
         self.required = required
+        #: bounds of the map snapshot the harness files with each clearance
+        #: refusal (`SafetyHarness.drain_clearance_reports`, `nearby_occupied`)
+        self.refusal_snapshot = _refusal_snapshot(refusal_snapshot)
         try:
             ready = float(ready_timeout_s)
         except (TypeError, ValueError):
@@ -658,6 +713,8 @@ class OccupancyMap:
             enabled = cfg is not None and bool(cfg.get("enabled", True))
         if cfg is None or not enabled:
             return None
+        # checked before the client exists: a bad block leaks no socket
+        refusal_snapshot = _refusal_snapshot(cfg.get("refusal_snapshot"))
         try:
             client = OccupancyClient(
                 host=str(cfg.get("host", "127.0.0.1")),
@@ -684,6 +741,7 @@ class OccupancyMap:
             required=required,
             unobserved=cfg.get("unobserved", None),
             ready_timeout_s=cfg.get("ready_timeout_s", 3.0),
+            refusal_snapshot=refusal_snapshot,
         )
         m.allowed_contact_paths = set(cfg.get("allowed_contact_paths", []))
         m.probe(timeout_ms=int(cfg.get("probe_timeout_ms", 300)))
@@ -1455,6 +1513,31 @@ class OccupancyMap:
         if not inside.any():
             return None
         return float(pts[inside, 2].max()) + voxel / 2.0, voxel
+
+    def nearby_occupied(self, point, radius_m: float, limit: int) -> np.ndarray:
+        """Occupied voxel centres within `radius_m` of `point`, nearest
+        first: rows `[x, y, z, d]` (d = distance from `point` to the centre),
+        at most `limit` of them. Empty (0, 4) without a cache.
+
+        The evidence the safety harness files with a clearance refusal (spec
+        §3.3, `SafetyHarness.drain_clearance_reports`): it reads the cache
+        the gate read, under `_refresh_lock` (never `view_snapshot()`), and
+        selects outside the lock (`_commit_grid` replaces the arrays, never
+        mutates them). The harness calls it while holding that (reentrant)
+        lock itself, so the report's map record is the same commit. Never
+        talks to the bridge; called only on the refusal path."""
+        with self._refresh_lock:
+            cloud = self._occupied
+        if cloud is None or not len(cloud) or int(limit) <= 0:
+            return np.zeros((0, 4))
+        p = np.asarray(point, dtype=float).reshape(3)
+        r = float(radius_m)
+        pts = np.asarray(cloud, dtype=float)
+        pts = pts[np.all(np.abs(pts - p) <= r, axis=1)]          # cheap box cut first
+        d = np.linalg.norm(pts - p, axis=1)
+        pts, d = pts[d <= r], d[d <= r]
+        order = np.argsort(d, kind="stable")[: int(limit)]
+        return np.column_stack([pts[order], d[order]])
 
     def _check_required_age(self) -> None:
         """Interpolation must finish inside the same observation lifetime."""

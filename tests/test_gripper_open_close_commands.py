@@ -92,7 +92,7 @@ def test_release_bookkeeping_is_unchanged():
     assert rt.held_object is None and rt._held_det_label is None
 
 
-def test_only_the_rebot_profile_waits():
+def test_the_rebot_profile_waits_6_s_and_the_mock_profile_does_not_wait():
     from cascade.config import load_demo_config
 
     rebot = load_demo_config(arm="rebot_rs", camera="mock", llm="mock")

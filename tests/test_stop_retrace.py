@@ -219,6 +219,7 @@ def test_reset_scene_after_a_stop_at_the_object_retraces_then_resets(rebot, monk
     stopped_at_the_object(rt, monkeypatch)
     res = rt.execute("reset_scene", {})
     assert res.get("stage") is None and "could not reach home" not in str(res.get("error")), res
+    assert res["stop_retrace"].startswith("completed"), res
     assert at_home(rt)
     from cascade.skills import stop_retrace
 
@@ -574,7 +575,7 @@ def explicit(rt, root="move_home"):
 
     if rt._motion_scope is None:
         rt._motion_scope = threading.local()
-    rt._motion_scope.context = {"root_skill": root}
+    rt._motion_scope.context = {"root_skill": root, "enabled": False}
 
 
 @pytest.mark.parametrize("change", ["arm", "raw", "planner", "carry", "contact_episode", "tcp_outside"])
@@ -653,3 +654,145 @@ def test_the_explicit_retrace_streams_to_the_pregrasp_inside_the_capped_column(r
     assert harness._grasp_exempt is None                              # released
     np.testing.assert_allclose(rt.arm.get_state().q, kept.q_pre, atol=1e-6)
     assert stop_retrace.kept(rt) is None
+
+
+def run_explicit(rt, root="move_home", **kw):
+    from cascade.skills import stop_retrace
+
+    explicit(rt, root)
+    try:
+        return stop_retrace.retrace(rt, **kw)
+    finally:
+        rt._motion_scope.context = None
+
+
+def test_the_retrace_carries_the_callers_halt_generation(rebot, monkeypatch):
+    """reset_scene passes its start generation: a halt raised since then
+    (outside any skill scope here) refuses the retrace before its first
+    command instead of being cleared by its begin_motion."""
+    rt = rebot
+    stopped_at_the_object(rt, monkeypatch)
+    from cascade.skills import stop_retrace
+
+    harness = rt.arm.harness
+    harness.clear_halt()
+    generation = harness._halt_generation
+    harness.halt("operator")
+    n0 = commands(rt)
+    with pytest.raises(MotionHalted):
+        run_explicit(rt, "reset_scene", halt_generation=generation)
+    assert commands(rt) == n0 and stop_retrace.kept(rt) is not None
+
+
+def test_the_end_pose_check_is_part_of_the_vetting(rebot, monkeypatch):
+    rt = rebot
+    stopped_at_the_object(rt, monkeypatch)
+    from cascade.skills import stop_retrace
+
+    harness = rt.arm.harness
+    monkeypatch.setattr(harness, "route_end_violation", lambda q: "point 3 clearance 0.020 m (test)")
+    n0 = commands(rt)
+    with pytest.raises(SkillError, match="stop retrace refused: route ends inside the margin: point 3"):
+        run_explicit(rt)
+    assert commands(rt) == n0 and stop_retrace.kept(rt) is not None
+
+
+def test_a_retained_episode_that_owns_the_exemption_refuses_the_retrace(rebot, monkeypatch):
+    rt = rebot
+    stopped_at_the_object(rt, monkeypatch)
+    from cascade.skills import stop_retrace
+
+    harness = rt.arm.harness
+    monkeypatch.setattr(harness, "_pending_model_withdrawal", object())
+    n0 = commands(rt)
+    with pytest.raises(SkillError, match="a retained episode owns the grasp exemption"):
+        run_explicit(rt)
+    assert commands(rt) == n0 and stop_retrace.kept(rt) is not None
+
+
+def test_a_retrace_that_does_not_settle_fails_and_keeps_the_column(rebot, monkeypatch):
+    rt = rebot
+    stopped_at_the_object(rt, monkeypatch)
+    from cascade.skills import stop_retrace
+
+    monkeypatch.setattr(rt, "_move_joints", lambda *a, **k: False)
+    with pytest.raises(SkillError, match="stop retrace did not settle at the pregrasp hover"):
+        run_explicit(rt)
+    assert stop_retrace.kept(rt) is not None
+
+
+def test_feedback_that_is_not_a_pose_refuses_and_keeps_the_column(rebot, monkeypatch):
+    rt = rebot
+    stopped_at_the_object(rt, monkeypatch)
+    from cascade.skills import stop_retrace
+
+    real = rt.arm.get_state
+
+    def nan_state(*a, **k):
+        state = real(*a, **k)
+        return dataclasses.replace(state, q=np.full_like(np.asarray(state.q, float), np.nan))
+
+    monkeypatch.setattr(rt.arm, "get_state", nan_state)
+    with pytest.raises(SkillError, match="not a finite pose"):
+        run_explicit(rt)
+    assert stop_retrace.kept(rt) is not None
+
+
+def test_a_slow_lift_profile_keeps_its_slower_retrace(rebot, monkeypatch):
+    """A heavy / fragile grip lifts at half speed: so does its retrace."""
+    rt = rebot
+    stopped_at_the_object(rt, monkeypatch, skill=("grasp_object", {"label": "red cube", "material": "heavy"}))
+    from cascade.skills import stop_retrace
+
+    descend = float(rt.cfg.grasp.get("descend_duration_s", 2.0))
+    assert stop_retrace.kept(rt).duration_s == pytest.approx(descend / 0.5)
+
+
+def test_a_pregrasp_without_a_finite_hover_keeps_nothing():
+    from cascade.skills import stop_retrace
+
+    rt = stub(generation=1)
+    assert stop_retrace.keep(rt, COLUMN, np.array([0.30, 0.0, np.nan]), failure=MotionHalted("h"),
+                             halt_generation=0, duration_s=2.0, ceiling_m=CEILING_M) is None
+    assert stop_retrace.kept(rt) is None
+
+
+def test_the_stream_revets_on_its_bound_start(rebot, monkeypatch):
+    """The checks run again inside the stream on the start feedback it bound
+    (a map that changed after the first vet refuses before any command)."""
+    rt = rebot
+    stopped_at_the_object(rt, monkeypatch)
+    from cascade.skills import stop_retrace
+
+    harness = rt.arm.harness
+    calls = []
+
+    def end(q):
+        calls.append(1)
+        return None if len(calls) == 1 else "point 3 clearance 0.020 m (changed map, test)"
+
+    monkeypatch.setattr(harness, "route_end_violation", end)
+    n0 = commands(rt)
+    with pytest.raises(SafetyViolation, match="stop retrace became unsafe: route ends inside the margin"):
+        run_explicit(rt)
+    assert len(calls) == 2 and commands(rt) == n0
+    assert stop_retrace.kept(rt) is not None
+
+
+def test_move_home_hands_its_callers_halt_generation_to_the_retrace(rebot, monkeypatch):
+    """reset_scene's home move carries the reset's (or an older recovery's)
+    generation: a halt since then refuses the retrace, never cleared by it."""
+    rt = rebot
+    stopped_at_the_object(rt, monkeypatch)
+    harness = rt.arm.harness
+    harness.clear_halt()
+    generation = harness._halt_generation
+    harness.halt("operator")
+    n0 = commands(rt)
+    explicit(rt, "reset_scene")
+    try:
+        with pytest.raises(MotionHalted):
+            rt.skill_move_home(_halt_generation=generation)
+    finally:
+        rt._motion_scope.context = None
+    assert commands(rt) == n0

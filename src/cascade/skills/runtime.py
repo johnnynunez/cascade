@@ -4696,21 +4696,20 @@ class SkillRuntime:
         finally:
             self.arm.harness.clear_grasp_exemption()
             contact_episode.finish(self, episode, completed=contact_completed)
-            if not contact_completed and next_after is None:
-                # An operator STOP below the pregrasp (descent, close, lift,
-                # the pre-close retreat) leaves the arm in or at the target:
-                # keep this approach's column + pregrasp for the NEXT
-                # EXPLICIT move_home / reset_scene to retrace (never an
-                # automatic move; stop_retrace.py decides what is a stop).
-                descend_s = float(gcfg.get("descend_duration_s", 2.0))
-                try:
-                    stop_retrace.keep(
-                        self, approach_column, q_pre, failure=stop_failure,
-                        halt_generation=scene_halt_generation,
-                        duration_s=max(descend_s, descend_s / max(profile.lift_speed_scale, 0.2)),
-                        ceiling_m=SkillRuntime.AIR_GRASP_EXIT_CEILING_M)
-                except Exception:  # noqa: BLE001 -- bookkeeping never replaces the stop
-                    logger.exception("could not keep the approach column after a stop")
+            # An operator STOP below the pregrasp (descent, close, lift, the
+            # pre-close retreat) leaves the arm in or at the target: keep this
+            # approach's column + pregrasp for the NEXT EXPLICIT move_home /
+            # reset_scene to retrace (never an automatic move). keep() decides
+            # what is a stop; nothing is kept without a raised refusal.
+            descend_s = float(gcfg.get("descend_duration_s", 2.0))
+            try:
+                stop_retrace.keep(
+                    self, approach_column, q_pre, failure=stop_failure,
+                    halt_generation=scene_halt_generation,
+                    duration_s=max(descend_s, descend_s / max(profile.lift_speed_scale, 0.2)),
+                    ceiling_m=SkillRuntime.AIR_GRASP_EXIT_CEILING_M)
+            except Exception:  # noqa: BLE001 -- bookkeeping never replaces the stop
+                logger.exception("could not keep the approach column after a stop")
 
         if next_after is not None:
             return SkillRuntime._grasp_next_observed_candidate(

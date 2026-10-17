@@ -892,7 +892,8 @@ def test_two_arms_each_row_carries_only_its_own_calls_reports(tmp_path):
     try:
         arms = {name: runtime.arm_rig.get(name) for name in ("so101_left", "so101_right")}
         home = {name: np.asarray(a.get_state().q, dtype=float) for name, a in arms.items()}
-        tcp = {name: a.harness.kin.fk(home[name])[:3, 3] for name, a in arms.items()}
+        # each TCP where it physically is: the map is in the table frame (#348)
+        tcp = {name: (a.harness.base_pose @ a.harness.kin.fk(home[name]))[:3, 3] for name, a in arms.items()}
         # each arm reads its own map; the right one has a box 4.5 cm under its TCP
         maps = {"so101_left": live_map(FAR),
                 "so101_right": live_map(centred_box(tcp["so101_right"] + [0., 0., -.055], [.04, .04, .02]))}

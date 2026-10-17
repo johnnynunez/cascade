@@ -182,8 +182,38 @@ def _camera_fusion(ccfg, extrinsics) -> tuple[bool, bool | None]:
     return bool(ccfg.get("fuse_beliefs", "extrinsics" in ccfg)), ccfg.get("map_depth")
 
 
-def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg):
-    """One arm: kinematics -> backend (maybe lazy) -> own harness -> SafeArm.
+def _arm_safety(acfg, occupancy, fallback_cfg):
+    """One arm's (kinematics, SafetyHarness), built before any backend exists.
+
+    The harness constructor is where a bad arm safety config refuses: a
+    malformed `safety.tool_volume` block, a tool volume on a tilted
+    `base_pose`, `link_radii_m` that do not fit the chain. It needs no arm,
+    so it is built first: the refusal comes before `make_arm` and, on an
+    eager build, before `connect()` (torque on a real arm), never after it.
+    `_build_runtime` builds every arm's pair in a pre-pass, so a second arm
+    that refuses never finds the first one already connected.
+    """
+    view = acfg.get("resolved") or fallback_cfg
+    kin = Kinematics(
+        model_path=acfg.model,
+        ee_frame=acfg.get("ee_frame", "gripper_end"),
+        n_controlled=int(acfg.get("n_joints", 6)),
+        joint_signs=acfg.get("joint_signs"),
+        ik_task_weights=acfg.get("ik_task_weights"),
+    )
+    harness = SafetyHarness(
+        SafetyLimits.from_config(view.safety), kinematics=kin, occupancy=occupancy,
+        base_pose=_base_transform(acfg),
+        # the wrist camera box + open jaws as clearance samples (opt-in per
+        # profile: `safety.tool_volume`; a bad block fails the build here)
+        tool_volume=build_tool_volume(view, acfg),
+        arm_name=str(acfg.get("name", acfg.get("type", "arm"))),
+    )
+    return kin, harness
+
+
+def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg, safety=None):
+    """One arm: kinematics -> own harness -> backend (maybe lazy) -> SafeArm.
 
     Each arm resolves its safety envelope from ITS OWN view of the config
     (`acfg.resolved`, see load_demo_config): workspace box, table height,
@@ -202,17 +232,14 @@ def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg):
     past `max_age_s` and be treated as "no data, skip the check" -- an
     obstacle gate that silently stops gating. The per-arm half of that check
     (`min_clearance_m`) already lives in each arm's own SafetyLimits.
+
+    `safety`: this arm's `_arm_safety(...)` pair when the caller validated
+    it already (build_runtime's pre-pass); None builds it here, still before
+    the backend.
     """
-    view = acfg.get("resolved") or fallback_cfg
     n_joints = int(acfg.get("n_joints", 6))
     body_mask = None
-    kin = Kinematics(
-        model_path=acfg.model,
-        ee_frame=acfg.get("ee_frame", "gripper_end"),
-        n_controlled=n_joints,
-        joint_signs=acfg.get("joint_signs"),
-        ik_task_weights=acfg.get("ik_task_weights"),
-    )
+    kin, harness = _arm_safety(acfg, occupancy, fallback_cfg) if safety is None else safety
     motion_planner = None
     if acfg.get("motion_planner") is not None:
         from ..planning.runtime import RuntimeMotionPlanner
@@ -233,13 +260,6 @@ def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg):
     else:
         arm = make_arm(acfg, kinematics=kin)
         arm.connect()
-    harness = SafetyHarness(
-        SafetyLimits.from_config(view.safety), kinematics=kin, occupancy=occupancy,
-        base_pose=_base_transform(acfg),
-        # the wrist camera box + open jaws as clearance samples (opt-in per
-        # profile: `safety.tool_volume`; a bad block fails the build here)
-        tool_volume=build_tool_volume(view, acfg),
-    )
     # Optional profile-defined rest pose for the shutdown park (see
     # _park_pose). Defaults to the clamped all-zero fallback when absent.
     park_q = acfg.get("park_q")
@@ -407,6 +427,33 @@ def _base_transform(acfg):
     return pose_to_transform(pose)
 
 
+def _shared_map_region(cfg, arm_cfgs):
+    """Default region of the ONE occupancy map every arm shares: the union of
+    the arms' workspaces, in the map's frame (the TABLE frame).
+
+    A workspace is stated in its arm's base frame, so an arm with a
+    `base_pose` contributes the bounding box of its 8 workspace corners
+    lifted by that pose; an arm without one contributes its workspace as
+    given (the base frame IS the table frame), which keeps a single-arm rig's
+    region exactly the old one. Returns (min [3], max [3]) as lists.
+    """
+    import itertools
+
+    lows, highs = [], []
+    for a in arm_cfgs:
+        ws = a.get("resolved").safety.workspace if a.get("resolved") else cfg.safety.workspace
+        lo, hi = ws.min, ws.max
+        T = _base_transform(a)
+        if T is not None:
+            corners = np.array(list(itertools.product(*zip(lo, hi))), dtype=float)
+            lifted = corners @ T[:3, :3].T + T[:3, 3]
+            lo, hi = [float(v) for v in lifted.min(axis=0)], [float(v) for v in lifted.max(axis=0)]
+        lows.append(lo)
+        highs.append(hi)
+    return ([min(v[i] for v in lows) for i in range(3)],
+            [max(v[i] for v in highs) for i in range(3)])
+
+
 def _wire_neighbors(arm_rig, raw_arms) -> None:
     """Let every arm's harness see the others' links in the table frame.
 
@@ -526,21 +573,24 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
     # arm this is exactly the old expression; with several, the union is the
     # honest default -- a region covering only the primary would leave the
     # second arm's half of the table unmapped, and unmapped reads as clear.
+    # The map lives in the TABLE frame, so each workspace is lifted by its
+    # arm's `base_pose` first (_shared_map_region).
     # An explicit `occupancy.region_min/max` still wins (see from_config).
-    ws_min = [a.get("resolved").safety.workspace.min if a.get("resolved")
-              else cfg.safety.workspace.min for a in arm_cfgs]
-    ws_max = [a.get("resolved").safety.workspace.max if a.get("resolved")
-              else cfg.safety.workspace.max for a in arm_cfgs]
+    region_min, region_max = _shared_map_region(cfg, arm_cfgs)
     occupancy = OccupancyMap.from_config(
         cfg.get("occupancy"),
-        workspace_min=[min(v[i] for v in ws_min) for i in range(3)],
-        workspace_max=[max(v[i] for v in ws_max) for i in range(3)],
+        workspace_min=region_min,
+        workspace_max=region_max,
     )
     started.occupancy = occupancy
 
+    # Every arm's harness is built (its safety config validated) BEFORE any
+    # arm is made: an eager build connects each arm in `_build_arm`, and a
+    # second arm that refuses must not find the first one connected.
+    arm_safety = [_arm_safety(acfg, occupancy, cfg) for acfg in arm_cfgs]
     raw_arms, safe_arms, arm_names, kins = [], [], [], []
-    for i, acfg in enumerate(arm_cfgs):
-        raw, safe, k = _build_arm(acfg, lazy_arm, occupancy, cfg)
+    for i, (acfg, safety) in enumerate(zip(arm_cfgs, arm_safety, strict=True)):
+        raw, safe, k = _build_arm(acfg, lazy_arm, occupancy, cfg, safety=safety)
         raw_arms.append(raw)
         safe_arms.append(safe)
         arm_names.append(str(acfg.get("name", f"arm{i}")))
@@ -828,8 +878,7 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
     from .map_tile import MapTile, map_tile_settings
 
     map_settings = map_tile_settings(scfg, occupancy=occupancy, occupancy_cfg=cfg.get("occupancy"))
-    map_workspace = ([min(v[i] for v in ws_min) for i in range(3)],
-                     [max(v[i] for v in ws_max) for i in range(3)])
+    map_workspace = (list(region_min), list(region_max))
 
     def _map_tile():
         if not map_settings.enabled:

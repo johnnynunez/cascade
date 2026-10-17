@@ -376,7 +376,7 @@ def _camera_volume(rt, poses, s: Settings):
                                     f"{np.round(kmin, 3).tolist()}..{np.round(kmax, 3).tolist()}")
     if s.camera_occupancy and getattr(harness, "occupancy", None) is not None:
         for b in boxes:
-            reason = harness._occupancy_violation(b.points(0.02), None)
+            reason = harness._arm_occupancy_violation(b.points(0.02), None)
             if reason:
                 return "wrist_camera", f"{what}: {reason}"
     return None

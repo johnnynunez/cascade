@@ -196,6 +196,72 @@ def test_so101_grasp_exemption_covers_the_arms_own_target(so101_pair, phase):
         h.clear_grasp_exemption()
 
 
+# ── 3. the default map region spans every arm's table-frame workspace ────
+
+
+@needs_pin_so101
+def test_default_map_region_covers_each_arms_outer_strip(monkeypatch, tmp_path):
+    from cascade.apps.demo import build_runtime, shutdown_runtime
+    from cascade.config import load_demo_config
+    from cascade.perception.occupancy import OccupancyMap
+
+    captured = {}
+
+    def from_config(block, workspace_min=None, workspace_max=None):
+        lo, hi = np.asarray(workspace_min, dtype=float), np.asarray(workspace_max, dtype=float)
+        occ = OccupancyMap(client=GridBridge([], voxel=0.01), region_min=lo, region_max=hi, required=False)
+        occ.probe()
+        captured.update(region=(lo, hi), map=occ)
+        return occ
+
+    monkeypatch.setattr(OccupancyMap, "from_config", staticmethod(from_config))
+    cfg = load_demo_config(arms=["so101_left", "so101_right"], camera="mock", llm="mock")
+    runtime, arm = build_runtime(cfg, tmp_path / "run", view=False, serve=False)
+    try:
+        lo, hi = captured["region"]
+        occ = captured["map"]
+        far = np.array([0.2, -0.52, 0.1])                 # so101_right's base y -0.30, on the table
+        assert np.all(far >= lo) and np.all(far <= hi), (lo, hi)
+
+        right = runtime.arm_rig.get("so101_right")
+        h = right.harness
+        q = np.asarray(right.get_state().q, dtype=float)
+        q[0] += 1.5                                        # pan outward, away from the left arm
+        tcp = lift(h.base_pose, h.kin.fk(q)[:3, 3])
+        assert tcp[1] < -0.36                              # outside the old base-frame union
+        _put_voxel(occ, tcp + [0.0, 0.0, 0.5])            # control: a clear map admits the pose
+        assert h.vet_pose(q) is None
+        occ._client.boxes = [centred_box(far, [0.04] * 3), centred_box(tcp, [0.01] * 3)]
+        occ.refresh(depth_frame(), T_CAM)
+        assert occ.last_error is None
+        assert occ.clearance(far[None, :])[0] < 0.01        # mapped, not "outside the map = inf"
+        reason = h.vet_pose(q)
+        assert reason is not None and "occupancy map" in reason, reason
+    finally:
+        shutdown_runtime(runtime, arm)
+
+
+def test_default_map_region_is_unchanged_for_arms_without_base_pose(monkeypatch, tmp_path):
+    from cascade.apps.demo import build_runtime
+    from cascade.config import load_demo_config
+    from cascade.perception.occupancy import OccupancyMap
+
+    class Captured(Exception):
+        pass
+
+    def from_config(block, workspace_min=None, workspace_max=None):
+        raise Captured(workspace_min, workspace_max)
+
+    monkeypatch.setattr(OccupancyMap, "from_config", staticmethod(from_config))
+    cfg = load_demo_config(camera="mock", llm="mock")
+    assert cfg.arm.get("base_pose") is None
+    with pytest.raises(Captured) as got:
+        build_runtime(cfg, tmp_path / "run", view=False, serve=False)
+    ws = cfg.safety.workspace
+    assert [float(v) for v in got.value.args[0]] == [float(v) for v in ws.min]
+    assert [float(v) for v in got.value.args[1]] == [float(v) for v in ws.max]
+
+
 # ── 4. the exemption is compared in the frame of the lifted points ───────
 #
 # g: the grasp target in the arm's BASE frame (the frame of its IK targets and

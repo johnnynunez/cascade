@@ -407,6 +407,33 @@ def _base_transform(acfg):
     return pose_to_transform(pose)
 
 
+def _shared_map_region(cfg, arm_cfgs):
+    """Default region of the ONE occupancy map every arm shares: the union of
+    the arms' workspaces, in the map's frame (the TABLE frame).
+
+    A workspace is stated in its arm's base frame, so an arm with a
+    `base_pose` contributes the bounding box of its 8 workspace corners
+    lifted by that pose; an arm without one contributes its workspace as
+    given (the base frame IS the table frame), which keeps a single-arm rig's
+    region exactly the old one. Returns (min [3], max [3]) as lists.
+    """
+    import itertools
+
+    lows, highs = [], []
+    for a in arm_cfgs:
+        ws = a.get("resolved").safety.workspace if a.get("resolved") else cfg.safety.workspace
+        lo, hi = ws.min, ws.max
+        T = _base_transform(a)
+        if T is not None:
+            corners = np.array(list(itertools.product(*zip(lo, hi))), dtype=float)
+            lifted = corners @ T[:3, :3].T + T[:3, 3]
+            lo, hi = [float(v) for v in lifted.min(axis=0)], [float(v) for v in lifted.max(axis=0)]
+        lows.append(lo)
+        highs.append(hi)
+    return ([min(v[i] for v in lows) for i in range(3)],
+            [max(v[i] for v in highs) for i in range(3)])
+
+
 def _wire_neighbors(arm_rig, raw_arms) -> None:
     """Let every arm's harness see the others' links in the table frame.
 
@@ -526,15 +553,14 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
     # arm this is exactly the old expression; with several, the union is the
     # honest default -- a region covering only the primary would leave the
     # second arm's half of the table unmapped, and unmapped reads as clear.
+    # The map lives in the TABLE frame, so each workspace is lifted by its
+    # arm's `base_pose` first (_shared_map_region).
     # An explicit `occupancy.region_min/max` still wins (see from_config).
-    ws_min = [a.get("resolved").safety.workspace.min if a.get("resolved")
-              else cfg.safety.workspace.min for a in arm_cfgs]
-    ws_max = [a.get("resolved").safety.workspace.max if a.get("resolved")
-              else cfg.safety.workspace.max for a in arm_cfgs]
+    region_min, region_max = _shared_map_region(cfg, arm_cfgs)
     occupancy = OccupancyMap.from_config(
         cfg.get("occupancy"),
-        workspace_min=[min(v[i] for v in ws_min) for i in range(3)],
-        workspace_max=[max(v[i] for v in ws_max) for i in range(3)],
+        workspace_min=region_min,
+        workspace_max=region_max,
     )
     started.occupancy = occupancy
 
@@ -828,8 +854,7 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
     from .map_tile import MapTile, map_tile_settings
 
     map_settings = map_tile_settings(scfg, occupancy=occupancy, occupancy_cfg=cfg.get("occupancy"))
-    map_workspace = ([min(v[i] for v in ws_min) for i in range(3)],
-                     [max(v[i] for v in ws_max) for i in range(3)])
+    map_workspace = (list(region_min), list(region_max))
 
     def _map_tile():
         if not map_settings.enabled:

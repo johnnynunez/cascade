@@ -6,6 +6,10 @@ Sources: the Step 0 design report (`cascade-wt/base-pose-guard/.superpowers/sdd/
 §1.1-1.4, §2 Option 2, "Fix round 1" addendum), the #352 review (Minors 1-4) and the PR-A final review (M6).
 Line numbers are for main `ec2d95c`. Re-anchor them by symbol after PR-A merges (§8).
 
+Amended 2026-10-18 after the pre-flight review (rulings R1-R20, decided with the recommended option under the
+owner's rule). Each amended passage names its ruling: R1 and R2 (§0.8, §7), R3, R4, R7, R8 and R13 (§3.2, §3.7),
+R5 (§3.4 D9, §5), R9 (§3.7, §5, §9), R10 (§3.3), R11 (§3.5), R12 (§4), R14 (§3.4), R15 (§7), R19 (§8).
+
 ## 0. Decisions on one screen
 
 1. **One frame inside a skill.** Inside a skill call, everything is in the RUNNING arm's base frame. The call
@@ -33,7 +37,9 @@ Line numbers are for main `ec2d95c`. Re-anchor them by symbol after PR-A merges 
    main and also fixes PR-A's review finding M6.
 8. **Acceptance.** The so101 pair places a picked object at the world target:
    - mock pair in CI: the FK of the commanded joints, lifted by base_pose, lands within 5 mm;
-   - MuJoCo pair in a scratch venv: the physics position lands within 3 cm (`DEST_TOLERANCE_M`).
+   - MuJoCo pair in a scratch venv: physical equivariance (R1). The prop's physics position in rig B (the pair)
+     lands within 1 cm of T · its position in rig A (the same arm without a base_pose, scene moved by T⁻¹), with
+     the same CONFIRMED (physics) postcondition. place_at also keeps the absolute 3 cm bar (`DEST_TOLERANCE_M`).
 
 ## 1. Problem (verified on main ec2d95c)
 
@@ -116,21 +122,34 @@ pose.
     `held_observation.binding()` identities stable across calls.
 - Overrides that belong to the whole rig stay top-level: `workspace_filter`, `memory`, `perception_loop`,
   `detector`, `object_descriptions`, `occupancy`.
+- The rig-level grasp services stay top-level too (R13). `runtime._graspgenx`, HUG and the VLA executor are built
+  once from the primary's `grasp`, so the view overlays `grasp.{backend, executor, graspgenx, hug, vla}` from the
+  top level. A non-primary arm therefore never names a service the rig did not build.
+- The view keeps the top-level `arms` list (R7). #357's `_running_arm_profile` resolves a non-primary through
+  `cfg.arms[rig index]`, so the bound view must still carry it, or a sim arm would count as a real gripper.
 - A test walks the `overrides:` keys of every shipped profile, so a new key forces a choice.
+- The build pre-pass validates each arm's resolved `grasp` section (R8): `open_wait_timeout_s` is checked on every
+  arm's view, not only the top level, before any arm is made. A non-primary's `grasp` becomes live under Q4 a.
 
 **Properties.** `SkillRuntime.kin`, `.cfg`, `.T_world_base`, `._grip_open`, `._grip_closed` and `._max_width`
 become properties.
 - They read the bound frame (`_arm_override.frame`), or the primary's when nothing is bound.
 - Their setters write the primary.
-- The frame is bound and restored exactly where `_arm_override.arm` is today (runtime.py:1511/1560).
+- **The bind window (R3).** `.arm` and `.frame` are bound together, right after the D4 refusal and #352's guard,
+  and restored together in one `finally` after the postcondition fold (`annotate_result`). The window is wider
+  than the old `.arm` binding (only around the skill body). The pre-state snapshot, the verifier (`gripper_frac`,
+  the world table height of §3.7) and the move_home hint now read the RUNNING arm. Before, a
+  `close_gripper(arm="so101_right")` was CONFIRMED from the LEFT jaw. `skill_halt` stays taken with the effective
+  arm, as before.
 - Other threads see the primary: the MCP stop reader, the stream server and the watcher.
 
-**D4: fail closed.** At `_execute_skill`'s guard site (runtime.py:1353-1357), before any perception, keyframe,
-snapshot or command, these calls are refused:
+**D4: fail closed.** At `_execute_skill`'s guard site, before any perception, keyframe, snapshot or command, these
+calls are refused:
 - a selected non-primary arm with no registered binding;
 - an `ArmFrameError`.
 
 The error reads `"<skill> refused on arm 'X': <why>; no motion was sent"`. The result carries no move_home hint.
+`halt_motion` is never refused this way: a halt is never deniable.
 
 **D5: eye-in-hand cameras.** A rig with an eye-in-hand camera and any base_pose arm refuses to build, in the
 pre-pass, before any arm is made. The reason: `Extrinsics.cam_to_base()` composes the PRIMARY's FK, which is a
@@ -147,6 +166,12 @@ refuses wrist cameras on a rig.
 | Agent coordinates | `place_at(x, y, z)` (4916); z omitted -> the arm's own release height, computed in B after converting (x, y) | `to_arm` |
 | Viewer directions | `spatial_moves.viewer_axes` (242) | camera rotation through `cam_to_arm` |
 | Observed-finger gate | `observed_scene.for_runtime` (789-797): the arm-frame frame's T, and its static-T fallback through `cam_to_arm` | arm frame, matching the base-frame FK finger hulls |
+| Camera point vs the arm (R10) | `skill_probe_point` / `skill_locate_pixel` -> `perception/probe.py`: its workspace check and its gripper distance (`from_gripper`) | workspace on `to_arm(p)`; gripper distance with `to_world(tcp)` |
+
+Frame readers live outside `skills/` too (R10). The guard's call-graph derivation (§3.10) follows `self`-passing
+calls into `perception/probe.py`, `perception/visual_interface.py`, `skills/spatial_moves.py`,
+`skills/held_observation.py` and `grasping/observed_scene.py`. probe_point and locate_pixel join the equivariance
+skills or the frame-free list with a reason.
 
 Once every perceived point is in B, several things hold with no further code:
 - the base-origin heuristics (top-down yaw `atan2(y, x)`, reach annuli, the 5-DoF approach plane);
@@ -164,12 +189,23 @@ Once every perceived point is in B, several things hold with no further code:
   `mark_removed(near=)`.
 - **Traces** keep the args (agent input, frame W) and the results (now W). `grasp_evidence.localized` adds
   `T_world_base`, so an offline replay can lift. Motion evidence is joint space and needs nothing.
-- **Viewer overlays** (`visual_interface`, the stream server) lift the TCP and the workspace box by the primary's
-  T, because viewers run on unbound threads.
+- **Viewer overlays** (`visual_interface`, the stream server) lift the TCP and the workspace box with the
+  `T_world_base` property (R14). On a skill thread (`annotated_view`, `analyze_scene` call `annotate_frame`) that
+  is the bound frame, so the drawn TCP is the running arm's. On viewer threads (the stream server) nothing is bound,
+  so it is the primary's. `_tcp_world_if_awake()` = `to_world(self.T_world_base, self._tcp_if_awake())`. Lifting
+  the bound arm's TCP by the primary's T drew so101_right's TCP 44 cm off.
 - **D9: what stays in B.** The derived envelope scalars (`tcp_z_at_grasp_m`, `object_height_m`, ...) and the held
-  offset. The held offset belongs to the grasping arm. `_promote_held` records that arm as `_held_arm`, and
-  place_at, place_on_object, throw and handover on any other arm are refused before any command. The
-  held-observation binding, which already invalidates the offset on another arm or Cfg, stays as a second layer.
+  offset. The held offset belongs to the grasping arm. The held-observation binding, which already invalidates the
+  offset on another arm or Cfg, stays as a second layer. The holding arm `_held_arm` (R5):
+  - it is recorded at all three sites that set `held_object`: `_promote_held`, `_reconcile_held` and
+    `_adopt_unknown_held`. `_held_provisional` carries its arm too;
+  - `_reconcile_held` neither promotes nor refutes a provisional hold while another arm is bound: it would judge
+    the hold by the wrong jaws;
+  - place_at, place_on_object, throw and handover on any other arm are refused before any command;
+  - `open_gripper` on an arm that does not hold the object opens its own jaws and keeps the held state and the carry
+    attachment;
+  - `reset_scene` with `_held_arm` set and different from the running arm refuses before any motion:
+    "<obj> is held by arm 'Y'".
 
 ### 3.5 Agent contract text (D7; #352 Minors 1-3)
 
@@ -179,6 +215,15 @@ Once every perceived point is in B, several things hold with no further code:
   - One sentence is added: "the same numbers for every arm on this rig".
   - Rigs with no base_pose keep byte-identical specs.
 - **`list_arms`:** #352's sentence is removed.
+- **Agent text outside the tool specs (R11).** The same condition (any arm declares a base_pose) switches:
+  - `robot_context.describe_robot` ("Cartesian tool targets use the robot base frame"), which reaches the system
+    prompt, the advisor and the MCP domains;
+  - the plausibility prompt's "World model (robot base frame, ...)" (`agent/prompts.py`), whose beliefs are
+    table-frame.
+
+  Rigs with no base_pose keep both strings byte-identical (golden digests beside the tool-spec ones). AGENTS.md:49
+  ("every other position in this codebase is in the ROBOT BASE frame") needs the same correction. AGENTS.md is
+  approval-gated, so the exact paste text goes into the PR body.
 - **Tilted-mount refusal (Minor 2).** Its `next_action` names only skills that complete on so101: move_home,
   move_to_rest, rotate_joint, open_gripper, close_gripper. move_relative and rotate_gripper refuse at the so101
   home pose.
@@ -213,9 +258,11 @@ today. Every shipped base_pose has z = 0, which hides the mismatch.
 | place release height (`skill_place_at` 4929-4931), `_reachable_place_xy` (6328) | consistent once x and y are in B |
 | obb_grasp `object_vertical_span` and grasp floor, 308-431 | consistent |
 | gripper_clearance `object_box` / `target_box`, 122-153 | consistent |
-| mujoco_withdrawal: MuJoCo plane z vs `table_z` (243), released body vs `table_z` (483) | world vs base: compare with `table_z_in_world(T, table_z)` |
+| verifier lift fallback `z0 = (start or [0, 0, table_z])[2]` (effects.py, `PostconditionChecker(table_z=...)` frozen at attach to the primary's B height) (R4) | world vs base: the checker takes `table_z_fn=self._table_z_world`, evaluated per call inside the R3 bind window |
+| mujoco_withdrawal: MuJoCo plane z vs `table_z` (243), released body vs `table_z` (483) (R9) | unreachable, not converted: the withdrawal and placement observers admit only an articulation root at the kinematic origin, so a rig arm at its base_pose already refuses there. A base_pose arm's place_at refuses a model release before any command (§5) |
 
-Each site gets a RED test on a base 3 cm above the table plane (`base_pose` z = 0.03, `safety.table_z: -0.03`).
+Each converted site gets a RED test on a base 3 cm above the table plane (`base_pose` z = 0.03,
+`safety.table_z: -0.03`).
 
 ### 3.8 WorkspaceFilter (D6)
 
@@ -254,9 +301,14 @@ Each site gets a RED test on a base 3 cm above the table plane (`base_pose` z = 
 - **No base_pose, or the identity:**
   - `arm_frame._rigid_apply` is never called, and every helper returns the same object;
   - the command, jaw, result, belief and tool-spec diff against main is 0 rows on rebot_rs (MockArm),
-    isaac_kitchen (MockArm, mock camera), mock, so101_mock and the identity pair (calls on its primary).
+    isaac_kitchen (MockArm, mock camera), mock, so101_mock and the identity rig (calls on its primary).
+  - The identity rig (R12) is left `[0, 0, 0, 0, 0, 0]` (exact identity, so T is None) plus right
+    `[0, -0.44, 0, 0, 0, 0]` (the shipped 0.44 m spacing). Both bases at the origin would make the neighbour gate
+    refuse every grasp, so a pair of identities proves nothing. The single-arm `so101_left` with `[0]*6` is also
+    compared with no base_pose.
   - `execute(arm=<non-primary>)` uses that arm's own profile (Q4 a), so a non-primary call can differ from main
-    by design. Example: pick_and_place's default drop zone.
+    by design. Example: pick_and_place's default drop zone. Joint-only calls on the pair's right arm may differ only
+    in the verifier's `gripper_frac` and its evidence text (R3: the running arm's jaws are read now).
 - **A level base_pose arm:**
   - sends the same commands as the matching no-base_pose arm whose scene moved with it (equivariance);
   - its results and beliefs are those of the no-base_pose arm, transformed by T.
@@ -272,8 +324,11 @@ Each site gets a RED test on a base 3 cm above the table plane (`base_pose` z = 
 | Tilted base_pose + world-target skill | refused: tilt text with roll and pitch in degrees, plus the §3.5 `next_action` | 0 | none |
 | Tilted base_pose + joint or relative skill | runs as today | as today | as today |
 | Eye-in-hand camera + any base_pose arm | the build refuses in the pre-pass | 0 make / 0 connect | none |
-| Release skill on the arm that does not hold the object | refused by `_check_holding_arm`: "<obj> is held by arm 'Y', not 'X'" (the held-observation binding stays a second layer) | 0 | none |
-| `place_at` with a MuJoCo region plan on a base_pose arm | refused: "region placement is not supported on a base_pose arm" | 0 | none |
+| Release skill (place_at, place_on_object, throw, handover) on the arm that does not hold the object | refused by `_check_holding_arm`: "<obj> is held by arm 'Y', not 'X'" (the held-observation binding stays a second layer) | 0 | none |
+| `open_gripper` on an arm that does not hold the object (R5) | opens that arm's own jaws; `held_object`, `_held_arm` and the carry attachment stay | that arm's jaw only | none |
+| `reset_scene` while another arm holds the object (R5) | refused: "<obj> is held by arm 'Y'" | 0 | none |
+| Provisional hold, another arm bound (R5) | `_reconcile_held` neither promotes nor refutes it | as today | as today |
+| `place_at` on a base_pose arm with a MuJoCo region plan (`_model_plan`) or a declared `mj_delivery_area` / `mj_release_*` (R9) | refused: "region placement / model release is not supported on a base_pose arm" | 0 | none |
 | Anything else on a level base_pose | the same as a no-base_pose arm with the scene moved | equivariant | equivariant |
 
 ## 6. Tests
@@ -317,20 +372,34 @@ Each site gets a RED test on a base 3 cm above the table plane (`base_pose` z = 
     right drop zone in W, (0.20, -0.34), corrected by the held offset.
   - `grasp_object`, then `place_at(x=0.22, y=-0.30, arm="so101_right")`: the same check against (0.22, -0.30).
   - The beliefs end within 5 mm of each target. so101_left sends no command.
-- **MuJoCo pair** (scratch venv layered on the rig venv, mujoco 3.12.0 and websockets 17.2 from uv.lock;
-  `scripts/fetch_robot_assets.py so101`).
-  - Setup: `--arms so101_left_mujoco,so101_right_mujoco --camera mock_small`, the same two sequences.
-  - The prop's physics position (MuJoCo truth channel, W) lies within 0.03 m of each target.
-  - The postcondition is CONFIRMED by physics, and the left arm's joints do not move.
-  - Control run first: a single-arm `so101_mujoco` + `mock_small` pick_and_place passes on main.
+- **MuJoCo pair** (scratch venv layered on the rig venv; `scripts/fetch_robot_assets.py so101`, or a copy of the
+  gitignored `assets/mjcf/so101/`). Install with `uv pip install --python <S>/venv/bin/python --offline
+  mujoco==3.12.0 websockets==17.2 numpy==2.5.1` (versions from uv.lock). Without the numpy pin the scratch
+  site-packages shadow the rig venv's numpy (R15).
+  - Rig B: `--arms so101_left_mujoco,so101_right_mujoco --camera mock_small`, calls with `arm=so101_right_mujoco`,
+    the same two sequences.
+  - Rig A, the control (R1, R2): `so101_right_mujoco` alone, with `base_pose` and `mj_prefix` popped (a lone rig
+    arm keeps its prefix and fails: "joint 'so101_right_mujoco/shoulder_pan' not in ..."), cameras moved by T⁻¹,
+    so the prop sits at B (0.198, 0.12). The single-arm `so101_mujoco` is no control: it declares `mj_release_*`
+    and `mj_delivery_area`, so its place_at takes the model-release path the rig arms never take.
+  - Criterion, physical equivariance (R1). For each sequence:
+    - rig B's prop physics position (MuJoCo truth channel, W) lies within 1 cm of T · rig A's;
+    - both postconditions are CONFIRMED by physics;
+    - the left arm's joints change by less than 1e-3 rad.
+  - place_at also keeps the absolute bar: within `DEST_TOLERANCE_M` (0.03 m) of its target (rig A: 3.6 mm).
+  - Known pre-existing limit, out of scope (R1): rig A's pick_and_place leaves the prop 5.0 cm from its drop zone,
+    tipped, deterministically, and the verifier still CONFIRMS it (a self-reported target is refuted only above
+    2 × `SAME_PLACE_M`). Record it in RESULTS; do not tune physics.
+  - Environment sanity only: single-arm `so101_mujoco` + `mock_small` pick_and_place passes on main.
 - **Full suite.** The failing-ID diff against main shows no new IDs.
 
 ## 8. Merge order
 
 1. PR-A (`feat/nvblox-object-aware`, head 73bd9eb) merges. It rewrites the runtime's halt, pregrasp and air-grasp
    exit code, which this plan edits.
-2. Rebase this branch onto that main. It holds only docs so far, so this is cheap; keep a backup ref. Then
-   re-anchor the plan's line numbers by symbol.
+2. Bring this branch onto that main. It holds only docs so far, so this is cheap. Done 2026-10-18 by
+   `git merge --no-ff origin/main` (3e82f10 = main f5ad8ab plus the docs; R19), not a rebase. Line numbers are
+   re-anchored by symbol in the pre-flight review.
 3. Run Tasks 1-8. If another runtime PR merges meanwhile, run `git merge --no-ff origin/main` before the
    pre-final round.
 4. Open a draft PR. Mark it ready after the final review, both acceptance runs and green CI.
@@ -342,7 +411,8 @@ Each site gets a RED test on a base 3 cm above the table plane (`base_pose` z = 
 - A tilted base_pose keeps refusing the world-target skills.
 - Isaac multi-arm rigs are out of scope; no profile ships one.
 - The MuJoCo placement and withdrawal observers (`mj_delivery_area`, `mj_release_*`) stay single-owner and are
-  not declared on rig arms.
+  not declared on rig arms. They admit only a root at the kinematic origin and are not converted (R9). A base_pose
+  arm that declares them refuses place_at's model release.
 - One envelope file still serves all arms; each arm's scalars are in its own frame.
 
 ## 10. Open questions

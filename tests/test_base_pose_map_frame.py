@@ -13,7 +13,10 @@ part 22 cm away was refused, in vet_pose, vet_step and approve. Pinned here:
 3. the grasp exemption (given in the arm's BASE frame, where its IK targets
    live) is compared in the frame of the lifted points and of the voxels: it
    still covers the arm's own target and nothing 22 cm away;
-4. an arm without `base_pose` (the live reBot, the kitchen sim) is unchanged.
+4. an arm without `base_pose` (the live reBot, the kitchen sim) is unchanged;
+5. the tool volume's table band (`table_z` + `table_band_m`, a base-frame
+   height) is compared with map-frame voxels only after lifting it by
+   `base_pose`, and a tilted mount with a tool volume refuses to build.
 """
 
 from __future__ import annotations
@@ -393,3 +396,99 @@ def test_spatial_wrist_camera_box_is_checked_where_it_physically_is(pose):
     found = camera_volume(lift(Tb, box.center))           # the box physically on a voxel
     assert found is not None and found[0] == "wrist_camera" and "occupancy map" in found[1], found
     assert camera_volume(box.center) is None              # the box's base-frame numbers: 13-22 cm off
+
+
+# ── 6. the tool volume's table band is a height in the MAP frame ─────────
+#
+# `clearance_excluding` drops occupied voxels at or below `below_z` (the table
+# plane plus `table_band_m`), and those voxels are map-frame points, while
+# `table_z` is a base-frame height. Every scene below has its physical table
+# top at map z = 0, so an arm mounted `bz` above the table frame states
+# `table_z = -bz`. Read unlifted, the band sits `bz` too high for a base below
+# the table frame (a real object above the band is dropped: fail-open) and
+# `bz` too low for one above it (the table itself blocks: fail-closed).
+
+#: one tool-volume sample 12 cm ahead of and 10 cm below the TCP: the TCP and
+#: the elbow (8 cm under it) stay > 3 cm from the table and from the object
+LOW_JAW = np.array([0.12, 0.0, -0.10])
+#: a 2 cm object resting 2.5 cm above the table top: voxel centres at map z
+#: 0.025..0.045, above the 2 cm band, so it is an obstacle for every mount
+OBJECT = np.array([0.30, -0.15, 0.035])
+BESIDE_OBJECT = OBJECT + [0.0, 0.025, 0.0]          # 1.5 cm from its face
+OVER_TABLE = np.array([0.30, -0.125, 0.02])         # 2 cm over the bare table: inside the band's reach
+LEVEL = {
+    "base 5 cm below": [0.0, -0.22, -0.05, 0.0, 0.0, 0.0],
+    "base 5 cm below yaw0.4": [0.05, -0.22, -0.05, 0.0, 0.0, 0.4],
+    "base 5 cm above": [0.0, -0.22, 0.05, 0.0, 0.0, 0.0],
+    "base 5 cm above yaw0.4": [0.05, -0.22, 0.05, 0.0, 0.0, 0.4],
+}
+MOUNTS = {"none": None, "identity": np.eye(4), **{k: pose_to_transform(v) for k, v in LEVEL.items()}}
+
+
+def _low_jaws():
+    return ToolVolume(local=LOW_JAW[None, :], part=np.array([0]), names=("jaws",))
+
+
+def table_scene(*objects):
+    """The table layer at map z = 0 plus optional 2 cm objects (optional map)."""
+    from occupancy_grid_bridge import TABLE
+
+    bridge = GridBridge([TABLE, *[centred_box(p, [0.02] * 3) for p in objects]], voxel=0.01)
+    occ = make_map(bridge, required=False, unobserved="free")
+    occ.refresh(depth_frame(), T_CAM)
+    assert occ.last_error is None and occ.usable()
+    return occ
+
+
+def on_the_table(base_pose, occ):
+    """A tool-volume harness whose `table_z` puts the table top at map z = 0."""
+    bz = 0.0 if base_pose is None else float(base_pose[2, 3])
+    limits = SafetyLimits(np.array([-1.0, -1.0, -0.2]), np.array([1.0, 1.0, 1.0]), table_z=-bz)
+    return SafetyHarness(limits, Kin(), occupancy=occ, base_pose=base_pose, tool_volume=_low_jaws())
+
+
+def jaw_at(base_pose, point):
+    """The q whose tool sample sits at map point `point`."""
+    Tb = np.eye(4) if base_pose is None else base_pose
+    q = lift(np.linalg.inv(Tb), point) - LOW_JAW
+    assert np.allclose(_low_jaws().points(Tb @ Kin().fk(q)), [point])
+    return q
+
+
+@pytest.mark.parametrize("phase", PHASES)
+@pytest.mark.parametrize("mount", sorted(MOUNTS))
+def test_an_object_above_the_table_band_blocks_the_tool_volume(mount, phase):
+    """Fail-open before the fix for a base below the table frame: the band
+    read 5 cm too high and dropped the object's voxels."""
+    Tb = MOUNTS[mount]
+    q = jaw_at(Tb, BESIDE_OBJECT)
+    reason = decide(on_the_table(Tb, table_scene(OBJECT)), phase, q)
+    assert reason is not None and "jaws" in reason, reason
+    assert decide(on_the_table(Tb, table_scene()), phase, q) is None        # premise: the object decides
+
+
+@pytest.mark.parametrize("phase", PHASES)
+@pytest.mark.parametrize("mount", sorted(MOUNTS))
+def test_the_table_inside_its_band_does_not_block_the_tool_volume(mount, phase):
+    """Fail-closed before the fix for a base above the table frame: the band
+    read 5 cm too low and the table top itself blocked the jaws."""
+    Tb = MOUNTS[mount]
+    q = jaw_at(Tb, OVER_TABLE)
+    assert decide(on_the_table(Tb, table_scene()), phase, q) is None
+    occ = table_scene()
+    assert occ.clearance(OVER_TABLE[None, :])[0] < 0.03                     # premise: the grid alone would block
+
+
+@pytest.mark.parametrize("rpy", [(0.1, 0.0, 0.0), (0.0, -0.1, 0.0), (0.05, 0.05, 0.4)],
+                         ids=["roll", "pitch", "roll+pitch+yaw"])
+def test_a_tilted_mount_with_a_tool_volume_refuses_to_build(rpy):
+    """No horizontal table band exists in the map for a tilted base: fail
+    closed at construction instead of guessing one."""
+    Tb = pose_to_transform([0.0, -0.22, 0.0, *rpy])
+    with pytest.raises(ValueError, match="level base_pose"):
+        on_the_table(Tb, table_scene())
+    # without a tool volume there is no band to place: the arm still builds
+    assert synthetic(Tb, table_scene()).base_pose is not None
+    # and a level mount (any yaw, any height) builds with one
+    for pose in LEVEL.values():
+        assert on_the_table(pose_to_transform(pose), table_scene()).tool_volume is not None

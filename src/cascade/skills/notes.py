@@ -256,6 +256,13 @@ def _is_note_name(name: str) -> bool:
     return _NOTE_NAME_RE.fullmatch(name) is not None
 
 
+def is_note_id(note_id) -> bool:
+    """`note_id` is the id of a safe note file name (`_NOTE_NAME_RE`, the rule every
+    hashed and served note passed): no comma, space, "-->", control character, upper
+    case or non-ASCII byte, so it can stand in a LEARNED.md header line."""
+    return isinstance(note_id, str) and _is_note_name(f"{note_id}.md")
+
+
 def _read_regular(path: Path) -> tuple[bytes | None, str]:
     """(bytes, "") of the regular file at `path`, else (None, why). The open never
     follows a symlink (O_NOFOLLOW, so a link swapped in after the listing is refused

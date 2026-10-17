@@ -412,7 +412,17 @@ demo is ready. The desktop launcher attaches to this same installation; existing
 sessions stay unchanged.
 
 An authenticated visitor gets three live cameras and chat with the `cascade-demo` agent and
-its six attendee tools. Send one order at a time; "Let's start over." resets. Requests without
+its seven attendee tools. Send one order at a time; "Let's start over." resets. Requests without
 credentials receive HTTP 401. The public surface excludes the OpenClaw Control UI,
 administration, configuration, tool policy and raw backend APIs; the gateway token never
 leaves the Spark.
+
+**Learned notes.** Each launch writes `LEARNED.md` beside the kitchen workspace's
+`AGENTS.md` from the note library (`~/.cascade/aspire/sim/library`, or
+`CASCADE_ASPIRE_LIBRARY`); the agent reads it right after `AGENTS.md`.
+1. The launch log says `learned notes: wrote|removed|unchanged <path> library_sha=<sha>`,
+   then `learned notes: matches ...` after the proof.
+2. `WARNING: learned notes:` means the demo runs without notes (library changed after the
+   launch, or the file could not be written). A hand-written `LEARNED.md` is never used or
+   overwritten: move it away.
+3. Ask "What have you learned from earlier runs?" to see every served note.

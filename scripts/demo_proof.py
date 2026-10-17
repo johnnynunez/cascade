@@ -386,6 +386,11 @@ def make_spark_witness(repo, evidence, *, object_name, destination_name):
         port=int(os.environ.get("CASCADE_BRIDGE_PORT", "8611")))
 
 
+#: the attendee tools that only inspect (attendee-tools.json minus pick_and_place and
+#: reset_scene): a Spark proof turn may call any of them besides its expected action
+SPARK_READ_TOOLS = ("describe_scene", "localize_object", "camera_snapshot", "world_state", "robot_knowledge")
+
+
 def _run_spark_cases(repo, state_dir, evidence, report, owner, baseline, *, persistent=False):
     """Native OpenClaw orders, each followed by an observed same-world reset."""
     from pathlib import Path
@@ -411,8 +416,7 @@ def _run_spark_cases(repo, state_dir, evidence, report, owner, baseline, *, pers
         # visitor's message or constrain native model selection.
         result = agent_turn(session, model, message, output, timeout, tool)
         summary = result["meta"]["toolSummary"]
-        read_tools = {prefix + name for name in
-                      ("describe_scene", "localize_object", "camera_snapshot", "world_state")}
+        read_tools = {prefix + name for name in SPARK_READ_TOOLS}
         if not set(summary["tools"]).issubset(read_tools | {prefix + tool}):
             raise ProofError("Spark acceptance used an unexpected action or non-attendee tool")
         # Current owner-bound trace validators count motion/reset calls. A

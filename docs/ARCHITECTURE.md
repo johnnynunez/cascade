@@ -333,6 +333,16 @@ keyword-matched notes into tier 3 **only once promoted** (≥ 2 distinct tasks,
 ASPIRE's rule; `memory.skill_min_tasks: 1` relaxes it). Details:
 [retry evidence admission](DREAM_RSI_ADAPTATION.md).
 
+**Learned notes on the kitchen route.** A runtime reads its note library once
+(`skills/notes.py`; the kitchen reads `${CASCADE_ASPIRE_LIBRARY:-~/.cascade/aspire/sim/library}`)
+and records its `library_sha` in `run.json` beside `trace.jsonl`. At launch
+`skills/learned_block.py` writes `LEARNED.md` into the kitchen workspace: one header
+line with that sha, then the top-2 note block (at most 2000 bytes). The kitchen prompt
+plugin injects it right after `AGENTS.md`; no `AGENTS.md` is edited. After the proof the
+launcher compares it with the proof robot server's `run.json` and removes it on any
+difference (a warning line). `robot_knowledge`, the seventh attendee tool, lists every
+served note.
+
 **Memory embedder (opt-in).** `memory.embedder.backend` is `none` in the shipped
 profile. `hash` is deterministic and dependency-free (separate image and text
 spaces; notes match at cosine ≥ `text_floor` OR a guard-word overlap). `siglip` /

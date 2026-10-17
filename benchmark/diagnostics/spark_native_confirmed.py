@@ -23,7 +23,7 @@ PROOF_CASES = (("green_cube", "green square"), ("orange", "open box"))
 CAMPAIGN_CASES = PROOF_CASES + (("pink_cube", "green square"),
                                ("lemon", "open box"), ("tomato_can", "green square"))
 PROPS = {obj for obj, _ in CAMPAIGN_CASES}
-READ_TOOLS = {"describe_scene", "localize_object", "camera_snapshot", "world_state"}
+READ_TOOLS = {"describe_scene", "localize_object", "camera_snapshot", "world_state", "robot_knowledge"}
 PHASES = ("pick_begin", "pick_end", "reset_begin", "reset_end")
 COMMON_CHECKS = frozenset("""
 complete_observation all_phase_boundaries live_prop_names_match_expected

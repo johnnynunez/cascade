@@ -54,7 +54,8 @@ def spark_boundary(host_boundary, monkeypatch):
                 stream.write(json.dumps(row) + "\n")
         tools = ["cascade__" + required_tool]
         if h["extra_inspection"] and required_tool == "pick_and_place":
-            tools.insert(0, "cascade__describe_scene")
+            extra = h["extra_inspection"]
+            tools.insert(0, extra if isinstance(extra, str) else "cascade__describe_scene")
         return {"meta": {"toolSummary": {"calls": 2 if h["duplicate_call"] else len(tools),
                 "tools": tools, "failures": 0}}}
 
@@ -144,6 +145,18 @@ def test_natural_pick_allows_an_inspection_before_its_single_motion(spark_bounda
     h = spark_boundary
     h["extra_inspection"] = True
     assert demo_proof.run_proof(h["repo"], h["state"], "isaac", True)["verified"] is True
+
+
+@pytest.mark.parametrize("tool, verified", [("cascade__robot_knowledge", True), ("cascade__move_home", False)])
+def test_natural_pick_may_read_learned_notes_but_no_other_tool_first(spark_boundary, tool, verified):
+    # ASPIRE spec §4.3: robot_knowledge is the 7th attendee tool and read-only
+    h = spark_boundary
+    h["extra_inspection"] = tool
+    if verified:
+        assert demo_proof.run_proof(h["repo"], h["state"], "isaac", True)["verified"] is True
+    else:
+        with pytest.raises(demo_proof.ProofError, match="unexpected action"):
+            demo_proof.run_proof(h["repo"], h["state"], "isaac", True)
 
 
 def test_all_kitchen_cases_keep_one_world_and_every_reset(spark_boundary, monkeypatch):

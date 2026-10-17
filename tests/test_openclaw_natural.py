@@ -8,9 +8,11 @@ from test_spark_openclaw_prompt import run_hook
 
 
 ROOT = Path(__file__).resolve().parents[1]
-NAMES = ["describe_scene", "localize_object", "pick_and_place", "reset_scene", "camera_snapshot", "world_state"]
+NAMES = ["describe_scene", "localize_object", "pick_and_place", "reset_scene", "camera_snapshot", "world_state",
+         "robot_knowledge"]
 SETUP = r'''
-const names = ['describe_scene', 'localize_object', 'pick_and_place', 'reset_scene', 'camera_snapshot', 'world_state'];
+const names = ['describe_scene', 'localize_object', 'pick_and_place', 'reset_scene', 'camera_snapshot', 'world_state',
+  'robot_knowledge'];
 const available = [...names, 'get_observation', 'analyze_scene', 'move_joint', 'place_at'];
 const nativeTools = available.map(name => ({name: 'cascade__' + name,
   description: 'Original advanced schema.', parameters: {type: 'object', properties: {}}}));
@@ -171,3 +173,46 @@ console.log(JSON.stringify(hook({prompt: 'What can you see on the table?', messa
     assert "only clearly visible items" in prompt
     assert "Do not guess the identities of cropped or unclear background objects" in prompt
     assert "state uncertainty" in prompt
+
+
+ROBOT_KNOWLEDGE = {
+    "name": "robot_knowledge",
+    "description": ("What earlier runs taught this robot: learned notes with where they were learned and whether "
+                    "a verifier passed them. Read-only, never moves the robot."),
+    "parameters": {"type": "object", "properties": {}, "required": [], "additionalProperties": False},
+}
+
+
+def _module(path, name):
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(name, ROOT / path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_every_copy_of_the_attendee_tool_list_follows_the_catalog():
+    """ASPIRE spec §4.3 + preflight R25: robot_knowledge joins as the 7th attendee tool,
+    and every pinned copy of the list moves with attendee-tools.json in the same change."""
+    from test_demo_proof import demo_proof
+
+    catalog = json.loads((ROOT / "demo/kitchen/openclaw-plugin/attendee-tools.json").read_text())
+    names = [tool["name"] for tool in catalog]
+    assert names == NAMES and len(names) == 7 and catalog[-1] == ROBOT_KNOWLEDGE
+    assert _module("deploy/brev/visitor_chat.py", "a4_visitor_chat").TOOLS == set(names)
+    reads = set(names) - {"pick_and_place", "reset_scene"}                       # inspection only, never motion
+    assert set(demo_proof.SPARK_READ_TOOLS) == reads
+    assert _module("benchmark/diagnostics/spark_native_campaign.py", "a4_campaign").READ_TOOLS == reads
+    assert _module("benchmark/diagnostics/spark_native_confirmed.py", "a4_confirmed").READ_TOOLS == reads
+    guide = (ROOT / "docs/DGX_SPARK_SETUP.md").read_text()
+    assert "seven attendee tools" in guide and "six attendee tools" not in guide
+
+
+def test_robot_knowledge_reaches_the_attendee_model_read_only(tmp_path):
+    result = run_hook(tmp_path, SETUP + r'''
+console.log(JSON.stringify((await stream(model, {messages, tools: nativeTools}, {})).tools));
+''')
+    knowledge = {tool["function"]["name"]: tool["function"] for tool in result}["cascade__robot_knowledge"]
+    assert knowledge["description"] == ROBOT_KNOWLEDGE["description"] and len(knowledge["description"]) < 650
+    assert knowledge["parameters"] == ROBOT_KNOWLEDGE["parameters"]

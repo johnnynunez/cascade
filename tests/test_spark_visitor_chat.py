@@ -55,7 +55,10 @@ def finished(chat):
     return chat.status()["order"]
 
 
-def test_private_profile_identity_and_exact_six_tools_are_required(chat):
+def test_private_profile_identity_and_exact_seven_tools_are_required(chat):
+    # the attendee catalog (ASPIRE spec §4.3: robot_knowledge is the 7th tool) is the one list
+    catalog = json.loads((HERE.parents[1] / "demo/kitchen/openclaw-plugin/attendee-tools.json").read_text())
+    assert chat_module.TOOLS == {tool["name"] for tool in catalog} and len(chat_module.TOOLS) == 7
     chat.configuration()
     path = chat.state / "openclaw/openclaw.json"
     config = json.loads(path.read_text())

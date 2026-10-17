@@ -985,6 +985,32 @@ judge_pass() {
     # <<< judge pass
 }
 
+# ASPIRE learned notes on the kitchen route (spec §4.3): write <workspace>/LEARNED.md
+# from the note library the robot server reads (same arm, cameras and environment),
+# or with --check-run compare it with the run.json of the robot server the proof
+# bound. Never stops the launch (preflight R26): on any failure warn, remove only a
+# LEARNED.md this generator wrote, and go on with the kitchen prompt notes off.
+learned_notes() {
+    local workspace="$1" out="" first=""
+    shift
+    if [[ $DRY == 1 ]]; then
+        printf '        $ %s\n' "python -m cascade.skills.learned_block --workspace $workspace $*"
+        return 0
+    fi
+    if out="$(cd "$REPO/models" && CASCADE_ARM="$ARM" CASCADE_CAMERAS="$CAMERAS" \
+            PYTHONPATH="$REPO/src${PYTHONPATH:+:$PYTHONPATH}" \
+            "$PY" -m cascade.skills.learned_block --workspace "$workspace" "$@" 2>&1)"; then
+        log "learned notes: $out"
+        return 0
+    fi
+    warn "learned notes: ${out:-the generator did not report}; the kitchen prompt runs without learned notes"
+    if [[ -f "$workspace/LEARNED.md" && ! -L "$workspace/LEARNED.md" ]]; then
+        first="$(head -c 30 "$workspace/LEARNED.md" 2>/dev/null || true)"
+        if [[ "$first" == "<!-- cascade-learned-notes v1 " ]]; then rm -f "$workspace/LEARNED.md"; fi
+    fi
+    return 0
+}
+
 # On Linux the agent lives in an OpenShell sandbox: steps 4-6 of that route
 # (robot server as the instance's unit, sandbox, proof inside it, chat) are
 # scripts/launch_openshell.sh, which ends the launch.
@@ -1180,6 +1206,10 @@ sys.path.insert(0, str(Path(sys.argv[1]) / 'demo/kitchen'))
 from visitor_instructions import sync_visitor_instructions
 sync_visitor_instructions(Path(sys.argv[2]))
 PYEOF
+        # The learned-notes block the kitchen plugin injects right after AGENTS.md
+        # (never an AGENTS.md edit); checked against the proof's robot server below.
+        LEARNED_WORKSPACE="$PROFILE_WORKSPACE"
+        learned_notes "$PROFILE_WORKSPACE"
     fi
 fi
 
@@ -1246,6 +1276,15 @@ print(len(tools), int(need <= set(tools)))
     PROOF_VERIFIED="$(printf '%s' "$PROOF_JSON" | "$PY" -c 'import json,sys; print(int(json.load(sys.stdin)["verified"]))')"
     PROOF_TRACE="$(printf '%s' "$PROOF_JSON" | "$PY" -c 'import json,sys; print(json.load(sys.stdin).get("trace", ""))')"
     BRAIN_DESC="$(printf '%s' "$PROOF_JSON" | "$PY" -c 'import json,sys; print(json.load(sys.stdin)["model"])')"
+    # The proof bound the robot server visitors talk to: its run.json must record
+    # the library LEARNED.md renders, else the file goes (a visible warning).
+    if [[ -n "${LEARNED_WORKSPACE:-}" ]]; then
+        if [[ -n "${PROOF_TRACE:-}" ]]; then
+            learned_notes "$LEARNED_WORKSPACE" --check-run "$(dirname "$PROOF_TRACE")"
+        elif [[ -f "$LEARNED_WORKSPACE/LEARNED.md" ]]; then
+            warn "learned notes: $LEARNED_WORKSPACE/LEARNED.md is not checked against a robot server (no robot proof)"
+        fi
+    fi
 
     # Judge as a METRIC of the proof turn (opt-in, advisory; ROADMAP #6).
     # scripts/judge_proof.py reads proof.json (never writes it), runs

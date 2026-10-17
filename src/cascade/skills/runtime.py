@@ -2251,6 +2251,8 @@ class SkillRuntime:
                 self.memory.add("note", f"not giving up: attempt {attempt}/{max_attempts} on {object!r}")
                 try:
                     self.skill_move_home()
+                except MotionHalted:
+                    raise  # STOP during the re-home ends this skill: no re-scan, no retry
                 except (SkillError, SafetyViolation):
                     pass
                 self._reobserve()
@@ -5565,6 +5567,8 @@ class SkillRuntime:
                     )
                     try:  # clear the camera view so the re-scan actually sees
                         self.skill_move_home()
+                    except MotionHalted:
+                        raise  # STOP during the re-home ends this skill: no re-scan, no retry
                     except (SkillError, SafetyViolation):
                         pass
                     self._reobserve()
@@ -5672,6 +5676,8 @@ class SkillRuntime:
                     )
                     try:  # carry it home first: clears the view of the arm
                         self.skill_move_home()  # + held object for the re-scan
+                    except MotionHalted:
+                        raise  # STOP during the re-home ends this skill: no re-scan, no retry
                     except (SkillError, SafetyViolation):
                         pass
                     self._reobserve()
@@ -6240,6 +6246,8 @@ class SkillRuntime:
                 # not eat the whole sort
                 res = self._grasp_with_persistence(
                     query, budget_s=float(self.cfg.grasp.get("sort_object_persist_seconds", 40.0)))
+            except MotionHalted:
+                raise  # the operator's halt ends the sort, not just this object
             except (SkillError, SafetyViolation) as e:
                 failed.append({"label": query, "error": str(e)})
                 continue
@@ -6411,13 +6419,16 @@ class SkillRuntime:
         Returns the move record; a failed grasp is reported in it (the loop
         may go on), a failed place sets `holding` (the caller must stop:
         something is in the jaws) and `stop` marks a release/retreat failure
-        after which no further motion is safe.
+        after which no further motion is safe. An operator halt raises
+        MotionHalted: the caller's next step would clear it and move.
         """
         x, y = float(target_xy[0]), float(target_xy[1])
         rec: dict = {"label": query, "kind": kind, "to": [round(x, 3), round(y, 3)], "ok": False}
         before = self.effects.snapshot(query) if self.effects is not None else {}
         try:
             res = self._grasp_with_persistence(query, budget_s=budget_s)
+        except MotionHalted:
+            raise  # the operator's halt ends the caller's loop too: no clear-view home
         except (SkillError, SafetyViolation) as e:
             res = {"ok": False, "held": False, "error": f"{type(e).__name__}: {e}"}
         rec["grasp_attempts"] = res.get("grasp_attempts")
@@ -6429,6 +6440,8 @@ class SkillRuntime:
             else:
                 try:  # never leave the arm over the table after a failed attempt
                     self.skill_move_home()
+                except MotionHalted:
+                    raise  # the caller's next step would clear the halt and move
                 except (SkillError, SafetyViolation):
                     pass
             return rec
@@ -6457,6 +6470,8 @@ class SkillRuntime:
         if not place.get("home_skipped"):
             try:  # clear the camera view for the re-scan that follows
                 self.skill_move_home()
+            except MotionHalted:
+                raise  # the caller's next step would clear the halt and move
             except (SkillError, SafetyViolation):
                 pass
         return rec

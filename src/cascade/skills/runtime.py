@@ -234,6 +234,37 @@ OBSERVED_NEAR_COPY_M = 0.01
 OBSERVED_NEAR_COPY_DEG = 15.
 
 
+#: Stall band of the close-feedback wait (`_wait_gripper_closed`, the wait
+#: after each close stage when `grasp.close_feedback_timeout_s` is set): the
+#: jaws count as stopped once every read stays within this fraction of jaw
+#: travel of an anchor for 0.5 s. Per arm profile: `gripper.close_stall_band`.
+#: The Isaac profiles set 0.01: on Newton the jaws slowly turn a cube grasped
+#: 10-30 deg off its faces square, 0.003-0.004 per 0.5 s, which this default
+#: reads as moving until the 8 s timeout refuses the lift
+#: (configs/arms/isaac.yaml).
+CLOSE_STALL_BAND = 0.002
+#: Exclusive upper limit of a profile's band, a sanity bound. Keep a band
+#: well under the free-closing step (>= 0.028 per Newton bridge iteration),
+#: or a closing jaw reads as stopped.
+CLOSE_STALL_BAND_MAX = 0.05
+
+
+def close_stall_band(gripper_cfg) -> float:
+    """`gripper.close_stall_band` of an arm profile, CLOSE_STALL_BAND when unset.
+
+    Anything but a number in (0, CLOSE_STALL_BAND_MAX) raises SkillError:
+    build_runtime checks every arm profile before any arm exists, and the
+    close checks it again before its first jaw command."""
+    band = gripper_cfg.get("close_stall_band") if gripper_cfg is not None else None
+    if band is None:
+        return CLOSE_STALL_BAND
+    # NaN, inf, True/False (1/0) and anything that is no number fall outside
+    if not isinstance(band, (int, float)) or not 0.0 < band < CLOSE_STALL_BAND_MAX:
+        raise SkillError(f"gripper.close_stall_band must be a fraction of jaw travel in "
+                         f"(0, {CLOSE_STALL_BAND_MAX}), got {band!r}")
+    return float(band)
+
+
 def open_wait_timeout_s(grasp_cfg) -> float | None:
     """`grasp.open_wait_timeout_s` in seconds, None when unset.
 
@@ -5360,10 +5391,12 @@ class SkillRuntime:
             self._gripper_closes_commanded += 1
             return
         timeout = self.cfg.grasp.get("close_feedback_timeout_s")
+        band = CLOSE_STALL_BAND
         if timeout is not None:
             timeout = float(timeout)
             if not np.isfinite(timeout) or timeout <= 0:
                 raise SkillError("close_feedback_timeout_s must be finite and positive")
+            band = close_stall_band(self.cfg.arm.get("gripper"))
         span = self._grip_closed - self._grip_open
         for frac, eff in (
             (profile.close_frac_stage1, profile.effort * 0.7),
@@ -5380,7 +5413,7 @@ class SkillRuntime:
             self._gripper_closes_commanded += 1
             time.sleep(float(self.cfg.grasp.get("close_settle_s", 0.0)))
             if timeout is not None:
-                self._wait_gripper_closed(1.0 - frac, timeout)
+                self._wait_gripper_closed(1.0 - frac, timeout, band)
 
     def _hold_squeeze_frac(self) -> float | None:
         """`gripper.hold_squeeze_frac` of the arm profile, validated (None = off).
@@ -5477,12 +5510,13 @@ class SkillRuntime:
                 return None
             time.sleep(.05)
 
-    def _wait_gripper_closed(self, target_open: float, timeout_s: float) -> None:
+    def _wait_gripper_closed(self, target_open: float, timeout_s: float, band: float) -> None:
         """Wait for commanded travel or a measured stall before lifting.
 
         A fixed dwell expires while rate-limited sim jaws are still closing
         when physics runs slower than wall time. A stall is only a completion
         signal here; the existing post-lift check still adjudicates the grip.
+        `band` is the profile's `gripper.close_stall_band` (close_stall_band).
         """
         deadline = time.monotonic() + timeout_s
         anchor = None
@@ -5493,7 +5527,7 @@ class SkillRuntime:
             if width is not None and np.isfinite(width):
                 if width <= target_open + .01:
                     return
-                if anchor is None or abs(width - anchor) > .002:
+                if anchor is None or abs(width - anchor) > band:
                     anchor, stable_since = width, now
                 elif width < .95 and now - stable_since >= .5:
                     return

@@ -1897,6 +1897,13 @@ def _short_args(args: dict) -> str:
 
 
 def _text_result(payload: dict, is_error: bool = False) -> dict:
+    if is_error and isinstance(payload, dict):
+        # A refusal the server answers itself (hidden or withheld tool, queued
+        # or cancelled call, reset refusal, camera error) says it failed the
+        # same way a failed skill result does (falsy ok; idempotent).
+        from ..skills.runtime import _with_failure_instruction
+
+        payload = _with_failure_instruction(dict(payload))
     return {
         "content": [{"type": "text", "text": json.dumps(payload)}],
         "isError": is_error,

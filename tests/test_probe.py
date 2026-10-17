@@ -315,6 +315,153 @@ def test_locate_pixel_returns_both_pixel_and_normalized():
     assert out["normalized"][1] == pytest.approx(v / (H - 1), abs=1e-3)
 
 
+# ── locate_pixel never answers ok with a different kind of object ─────────
+
+
+SQUARE = _belief("green translucent square", [0.14, -0.27, 0.02])
+
+
+def test_locate_pixel_refuses_a_label_that_lacks_the_query_noun():
+    """r3 (16 Oct kitchen run): "green cube" came back ok=true as the green
+    translucent square (one shared word, the colour), and the agent grasped
+    at that pixel."""
+    out = PointProbe(_runtime(beliefs=[SQUARE])).locate_pixel("green cube")
+    assert out["ok"] is False
+    assert "green cube" in out["error"]
+    assert out["candidates"] == ["green translucent square"]
+    assert "pixel" not in out
+
+
+def test_locate_pixel_prefers_the_object_that_has_the_noun():
+    cube = _belief("green cube", [0.18, 0.06, 0.10])
+    out = PointProbe(_runtime(beliefs=[SQUARE, cube])).locate_pixel("green cube")
+    assert out["ok"] and out["label"] == "green cube"
+
+
+@pytest.mark.parametrize("query, label", [
+    ("cube", "green cube"),                 # no colour asked: any cube
+    ("green cubes", "green cube"),          # plural query
+    ("pink object", "pink cube"),           # a generic noun constrains nothing but the colour
+    ("the red mug", "red coffee mug"),      # article, extra label words
+    ("red mug on the shelf", "red mug"),    # a relation ends the object part of the query
+])
+def test_locate_pixel_still_finds_matching_names(query, label):
+    out = PointProbe(_runtime(beliefs=[_belief(label, [0.18, 0.06, 0.10])])).locate_pixel(query)
+    assert out["ok"] and out["label"] == label
+
+
+def test_locate_pixel_refuses_another_colour_of_the_same_noun():
+    out = PointProbe(_runtime(beliefs=[_belief("red cube", [0.18, 0.06, 0.10])])).locate_pixel("green cube")
+    assert out["ok"] is False and out["candidates"] == ["red cube"]
+
+
+def test_locate_pixel_matches_a_detector_alias():
+    toy = SimpleNamespace(label="green toy", position=[0.18, 0.06, 0.10], aliases={"green cube"})
+    out = PointProbe(_runtime(beliefs=[toy])).locate_pixel("green cube")
+    assert out["ok"] and out["label"] == "green toy"
+
+
+# Review p3: the noun check refused the right object when the agent's words
+# and the detector's differ only in form (punctuation, a count, a synonym, a
+# plural, the object named inside a longer phrase).
+@pytest.mark.parametrize("query, label", [
+    ("green cube?", "green cube"),          # trailing punctuation
+    ("the green cube.", "green cube"),
+    ("green cube 2", "green cube"),         # a count or index is not the noun
+    ("2 green cubes", "green cube"),
+    ("green cube", "green block"),          # synonyms, both ways
+    ("green block", "green cube"),
+    ("cube", "block"),
+    ("red cup", "red mug"),
+    ("red mug", "red cup"),
+    ("cyan mug", "light blue mug"),         # colour synonym, both ways
+    ("light blue mug", "cyan mug"),
+    ("grey cube", "gray cube"),
+    ("orange fruit", "orange"),             # the label's head noun is a query noun
+    ("bag of chips", "chips"),
+    ("cherries", "cherry"),                 # irregular plurals, both ways
+    ("red cherry", "cherries"),
+    ("knives", "knife"),
+    ("tomatoes", "tomato"),
+    ("mug on the red shelf", "white mug"),  # the relation's colour is not the mug's
+    ("can of tomatoes", "tomatoes"),        # the contents after 'of', in the same number
+    ("light blue mug", "blue mug"),         # a shade is compatible with its base colour
+    ("blue mug", "light blue mug"),
+    ("dark green cube", "green cube"),
+])
+def test_locate_pixel_accepts_another_form_of_the_same_name(query, label):
+    out = PointProbe(_runtime(beliefs=[_belief(label, [0.18, 0.06, 0.10])])).locate_pixel(query)
+    assert out["ok"], out
+    assert out["label"] == label
+
+
+@pytest.mark.parametrize("query, label", [
+    ("green cube", "green translucent square"),  # r3: another object of that colour
+    ("green cube", "red cube"),                  # another colour of the same noun
+    ("green cube", "red block"),                 # a synonym never excuses the colour
+    ("cyan mug", "blue mug"),
+    ("orange cube", "orange"),                   # the colour word is not the fruit
+    ("orange fruit", "orange cube"),
+    ("red mug on the shelf", "shelf"),           # the relation's object is not the query
+    ("lemon next to the orange", "orange"),
+    # Re-review: a modifier word names another object than the head noun
+    # ("tomato can" is a can); only the contents after 'of', in the same
+    # number, and a colour word under a category head name the object.
+    ("tomato can", "tomato"),
+    ("can of tomatoes", "tomato"),
+    ("apple box", "apple"),
+    ("lemon squeezer", "lemon"),
+    ("cube tray", "green cube"),
+    ("mug rack", "red mug"),
+    ("lemon juice", "lemon"),
+    # a shade keeps its base colour, never another one
+    ("light blue mug", "red mug"),
+    ("blue mug", "cyan mug"),
+    ("dark green cube", "red cube"),
+])
+def test_locate_pixel_still_refuses_another_object(query, label):
+    out = PointProbe(_runtime(beliefs=[_belief(label, [0.18, 0.06, 0.10])])).locate_pixel(query)
+    assert out["ok"] is False and out["candidates"] == [label], out
+
+
+# Re-review (minor): a shade stated on BOTH sides must match; a shade against
+# a plain base colour stays accepted both ways; a hyphenated shade reads as
+# the two words ("dark-green" = "dark green").
+@pytest.mark.parametrize("query, label", [
+    ("light blue mug", "dark blue mug"),
+    ("dark blue mug", "light blue mug"),
+    ("light-blue mug", "dark blue mug"),
+    ("dark-green cube", "red cube"),
+    ("dark-green cube", "light green cube"),
+    ("dark green cube", "light-green cube"),
+])
+def test_two_stated_shades_must_match(query, label):
+    out = PointProbe(_runtime(beliefs=[_belief(label, [0.18, 0.06, 0.10])])).locate_pixel(query)
+    assert out["ok"] is False and out["candidates"] == [label], out
+
+
+@pytest.mark.parametrize("query, label", [
+    ("light blue mug", "blue mug"),         # a shade against its plain base colour, both ways
+    ("blue mug", "dark blue mug"),
+    ("dark-green cube", "green cube"),
+    ("green cube", "dark-green cube"),
+    ("dark-green cube", "dark green cube"),  # hyphenated or not, the same shade
+    ("dark green cube", "dark-green cube"),
+    ("pale blue mug", "light blue mug"),    # pale = light, deep = dark
+    ("deep red cup", "dark red cup"),
+])
+def test_a_shade_matches_the_same_shade_or_its_plain_base(query, label):
+    out = PointProbe(_runtime(beliefs=[_belief(label, [0.18, 0.06, 0.10])])).locate_pixel(query)
+    assert out["ok"] and out["label"] == label, out
+
+
+def test_a_count_in_the_query_is_not_a_name():
+    out = PointProbe(_runtime(beliefs=[SQUARE])).locate_pixel("green cube 2")
+    assert out["ok"] is False and "no tracked object is a 'green cube'" in out["error"]
+    out = PointProbe(_runtime(beliefs=[_belief("tray 2", [0.18, 0.06, 0.10])])).locate_pixel("cube 2")
+    assert out["ok"] is False and "candidates" not in out  # a shared count is no shared word
+
+
 # ── the human-facing mark stays separate from the agent's numbers ────────
 
 

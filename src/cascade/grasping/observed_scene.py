@@ -13,6 +13,7 @@ import hashlib
 import itertools
 import json
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -28,6 +29,70 @@ PHYSX_GEOMETRY = ROOT / "assets/grasp_geometry/rebot_rs_fingers_physx.json"
 # See docs/evidence/observed-finger-gate/open-jaw-tracking.json. Not a universal
 # actuator-noise bound; departures abort, never expand it adaptively.
 OPEN_TRACKING_ENVELOPE_M = .0001
+# A refusal names a tracked object whose observed surface lies within this gap
+# of the refused point; farther away the text names nothing. Wording only:
+# the veto itself never reads tracked objects.
+NEAR_OBJECT_M = .03
+# Within this gap the refused point IS that object's surface ("finger would
+# enter the lemon"); farther out it is another surface near it ("would hit an
+# observed surface 1.0 cm from the lemon"). Calling a neighbouring surface the
+# lemon made the agent blame an object the finger never reached.
+ON_OBJECT_M = .005
+# A tracked object whose centre lies this close to the grasped target's is the
+# target itself (never named as the obstacle).
+SAME_OBJECT_M = .03
+
+
+@dataclass(frozen=True)
+class TrackedObject:
+    """A world-model object, frozen when the scene is built, used only to say
+    WHICH object a refused point belongs to ("finger would enter the lemon")."""
+    label: str
+    points: np.ndarray    # (N, 3) base frame: its last real-mask cloud, or its centre
+    radius_m: float = 0.  # 0 for a cloud; half its size when only a centre is known
+
+
+def tracked_objects(beliefs, target_position=None, target_label=None) -> list[TrackedObject]:
+    """World-model beliefs -> TrackedObjects, without the grasped target.
+
+    The target is every belief within SAME_OBJECT_M of `target_position`
+    (skipped, never named). Another belief with the target's own label
+    (`target_label`: the fix's / detection's label) is named "other <label>":
+    "the finger would enter the green cube" reads as the cube the agent asked
+    for. A belief near the target lends it no label: a second lemon touching
+    the grasped cube is "the lemon", never "the other lemon"."""
+    out = []
+    target = None if target_position is None else np.asarray(target_position, dtype=float)[:3]
+    target_labels = {str(target_label).strip().lower()} if target_label else set()
+    kept = []
+    for b in beliefs:
+        try:
+            centre = np.asarray(b.position, dtype=float)[:3]
+            if centre.shape != (3,) or not np.isfinite(centre).all():
+                continue
+            if target is not None and np.linalg.norm(centre - target) < SAME_OBJECT_M:
+                continue
+            kept.append((b, centre))
+        except (AttributeError, TypeError, ValueError):
+            continue  # a malformed belief only loses its name in a refusal text
+    for b, centre in kept:
+        try:
+            label = str(b.label)
+            if label.strip().lower() in target_labels:
+                label = f"other {label}"
+            cloud = getattr(b, "points", None)
+            cloud = None if cloud is None else np.asarray(cloud, dtype=float).reshape(-1, 3)
+            if cloud is not None and len(cloud) and np.isfinite(cloud).all():
+                out.append(TrackedObject(label, cloud.copy(), 0.))
+                continue
+            size = getattr(b, "diameter_m", None)
+            if size is None and getattr(b, "extent", None) is not None:
+                size = float(np.max(np.asarray(b.extent, dtype=float)))
+            radius = float(size) / 2 if size is not None and np.isfinite(float(size)) else 0.
+            out.append(TrackedObject(label, centre[None].copy(), max(radius, 0.)))
+        except (AttributeError, TypeError, ValueError):
+            continue
+    return out
 
 
 def precommand_refusal(message, conflict):
@@ -214,7 +279,7 @@ class FingerGeometry:
 
 
 class ObservedScene:
-    def __init__(self, frame, target_mask, T_base_cam, *, source, robot_id, epoch):
+    def __init__(self, frame, target_mask, T_base_cam, *, source, robot_id, epoch, tracked=()):
         from scipy.spatial import cKDTree
 
         capture = frame.capture
@@ -270,13 +335,21 @@ class ObservedScene:
         self._inverse_K = np.linalg.inv(K)
         self._T_base_cam = T.copy()
         self.identity = (source, robot_id, epoch)
+        # Names for refusal texts only; never an input to any veto below.
+        self.tracked = tuple(tracked)
         self.receipt = {"camera": capture["camera"], "capture_t": capture["t"],
                         "source": source, "robot_id": robot_id, "epoch": epoch,
                         "observed_points": len(rows), "target_points": int(self.is_target.sum()),
                         "robot_pixels_excluded": int(robot.sum()),
                         "scope": "observed surfaces only; no occlusion or continuous-path certificate"}
 
-    def conflict(self, T_base_tcp, envelopes, *, allow_target_contact=False):
+    def conflict(self, T_base_tcp, envelopes, *, allow_target_contact=False, name_near=True):
+        """First observed point inside `envelopes` at this TCP pose, or None.
+
+        `name_near=False`: no tracked-object name (`_near`) for a non-target
+        hit. For queries whose volume is not the finger itself (the neighbour
+        ranking's grown volume): "the finger would enter the lemon" would be
+        false there. The hit itself never depends on it."""
         T = _array(T_base_tcp, (4, 4), "TCP transform")
         R, t = T[:3, :3], T[:3, 3]
         if (not np.array_equal(T[3], [0, 0, 0, 1]) or np.linalg.det(R) <= 0
@@ -301,10 +374,38 @@ class ObservedScene:
                 hits = np.flatnonzero(np.all(subset @ planes[:, :3].T + planes[:, 3] <= 0, axis=1))
                 if len(hits):
                     i = int(ids[start + hits[0]])
+                    target = bool(self.is_target[i])
                     return {"finger": name, "component": part,
-                            "surface": "target" if self.is_target[i] else "other observed surface",
+                            "surface": "target" if target else "other observed surface",
+                            **({} if target or not name_near else self._near(self.points[i], "enter", "hit")),
                             "pixel_rc": self.pixels[i].tolist(), "point_base_m": self.points[i].tolist()}
         return None
+
+    def _near(self, point, on, beside):
+        """{"near": ...} naming the tracked object whose surface is nearest
+        the refused point, graded by that gap; {} beyond NEAR_OBJECT_M.
+
+        Within ON_OBJECT_M the point is that object: "finger would <on> the
+        lemon at [x, y, z]". Farther out it is only near it: "finger would
+        <beside> an observed surface 1.0 cm from the lemon at [x, y, z]". The
+        agent relays this text: on the kitchen run 'other observed surface'
+        plus coordinates made it blame the target's corner while the finger
+        was in the neighbouring lemon."""
+        point = np.asarray(point, dtype=float)
+        best = None
+        for obj in self.tracked:
+            gap = float(np.min(np.linalg.norm(obj.points - point, axis=1))) - obj.radius_m
+            if gap <= NEAR_OBJECT_M and (best is None or gap < best[0]):
+                best = (gap, obj.label)
+        if best is None:
+            return {}
+        gap, label = best
+        at = [round(float(x), 3) + 0. for x in point]
+        # Graded at 0.1 mm so a point placed exactly ON_OBJECT_M away reads
+        # the same however the subtraction rounds.
+        if round(gap, 4) < ON_OBJECT_M:
+            return {"near": f"finger would {on} the {label} at {at}"}
+        return {"near": f"finger would {beside} an observed surface {gap * 100:.1f} cm from the {label} at {at}"}
 
     def occluded(self, T_base_tcp, envelopes, *, check=None):
         """Find a finger ray interval behind observed non-target depth.
@@ -372,10 +473,13 @@ class ObservedScene:
                 checked()
                 if len(hits):
                     i = int(hits[0])
+                    z = float(self._depth[rr[i], cc[i]])
+                    seen = self._T_base_cam[:3, :3] @ (rays[i] * z) + self._T_base_cam[:3, 3]
                     return {"finger": name, "component": part,
                             "surface": "occluded behind observed non-target depth",
+                            **self._near(seen, "pass behind", "pass behind"),
                             "pixel_rc": [int(rr[i]), int(cc[i])],
-                            "observed_depth_z_m": float(self._depth[rr[i], cc[i]]),
+                            "observed_depth_z_m": z,
                             "finger_ray_near_z_m": float(near[i]),
                             "finger_ray_far_z_m": float(far[i])}
         checked()
@@ -506,7 +610,9 @@ class ObservedFingerGate:
         the tool). A candidate that clears a neighbour by less than that passes
         the planned-pose vet and is then refused at the measured pose. Same
         surfaces and conflict test as `pose`/`closing_pose`; the target is
-        excluded so a scene without neighbours ranks exactly as before.
+        excluded so a scene without neighbours ranks exactly as before. The
+        grown volume only comes NEAR its hit, so the hit names no tracked
+        object (a refusal's "finger would enter the lemon" would be false).
         """
         T = _array(T_base_tcp, (4, 4), "TCP transform")
         if type(lateral_m) not in (int, float) or not np.isfinite(lateral_m) or lateral_m < 0:
@@ -514,7 +620,7 @@ class ObservedFingerGate:
         envelopes = self.closing_envelopes if closing else self.envelopes
         return self.scene.conflict(
             T, _horizontal_dilation(envelopes, T[:3, :3], float(lateral_m), _envelope_vertices(envelopes)),
-            allow_target_contact=True)
+            allow_target_contact=True, name_near=False)
 
 
 def _rigid(rotation):
@@ -689,8 +795,15 @@ def for_runtime(runtime, frame, fix, state):
         ext = runtime.extrinsics
         if (capture.get("camera") == primary and getattr(ext, "mode", None) == "eye_to_hand"):
             T = ext.T
+    try:  # names for refusal texts only; a world-model fault never blocks the gate
+        beliefs = runtime.beliefs.all() if getattr(runtime, "beliefs", None) is not None else ()
+        target_label = getattr(fix, "label", None) or getattr(getattr(fix, "detection", None), "label", None)
+        tracked = tracked_objects(beliefs, getattr(fix, "position", None), target_label)
+    except Exception:  # noqa: BLE001
+        tracked = ()
     scene = ObservedScene(frame, fix.detection.mask, T, source=raw._client._addr,
-                          robot_id=raw._cfg.get("bridge_robot_id"), epoch=state.physics_clock["epoch"])
+                          robot_id=raw._cfg.get("bridge_robot_id"), epoch=state.physics_clock["epoch"],
+                          tracked=tracked)
     gate = ObservedFingerGate(scene, geometry, runtime.kin, state,
                               uncertainty_m=OPEN_TRACKING_ENVELOPE_M)
     from . import evidence

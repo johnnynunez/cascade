@@ -352,6 +352,41 @@ def test_a_cancel_from_another_session_does_not_touch_this_motion(server, tmp_pa
     assert not is_err, payload
 
 
+def test_a_connection_timeout_cancel_of_initialize_does_not_touch_a_running_pick(tmp_path):
+    """OpenClaw's MCP client aborts its connect signal at connectionTimeoutMs
+    (120 s, deploy/openshell/openclaw.json) and sends notifications/cancelled
+    for the INITIALIZE request id of the same session, while a ~140 s pick of
+    that session is still running (6 of 9 such cancels landed mid-pick in the
+    16 Oct kitchen run). Only a cancel naming the running call may stop it.
+    The MCP TS SDK numbers a session's requests from 0, so OpenClaw's
+    initialize id is 0, as here."""
+    server = HttpMcp(tmp_path)
+    server._id = -1  # HttpMcp.start(): the session's first request (initialize) carries id 0
+    server.start()
+    try:
+        initialize_id = 0
+        server.rpc("tools/call", {"name": "get_observation", "arguments": {}})
+        out: dict = {}
+
+        def pick():
+            out["msg"] = server.rpc("tools/call", {"name": "pick_and_place",
+                                                   "arguments": {"object": "red object"}})
+
+        worker = threading.Thread(target=pick)
+        worker.start()
+        time.sleep(0.5)
+        assert server.notify("notifications/cancelled",
+                             {"requestId": initialize_id, "reason": "AbortError: timeout"})[0] == 202
+        assert worker.is_alive(), "the pick ended before the cancel arrived; the check proves nothing"
+        worker.join(120)
+        payload, _ = _payload(out["msg"])
+        assert "e-stop" not in json.dumps(payload) and not payload.get("cancelled"), payload
+        payload, is_err = _payload(server.rpc("tools/call", {"name": "move_home", "arguments": {}}))
+        assert not is_err, payload
+    finally:
+        server.close()
+
+
 # ── TLS for a NemoClaw trusted-private endpoint ────────────────────────────
 
 

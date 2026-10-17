@@ -736,23 +736,33 @@ def test_a_streamed_halt_takes_over_the_matching_report_and_moves_last(monkeypat
     assert len(calls) == 2 and kept["voxels"]                # one snapshot per cell: its voxels stayed
 
 
-def test_reports_carry_the_base_pose_and_each_gate_reads_its_own_frame():
-    """`sample` is in the frame the gate queried the map in: the arm base
-    frame for the TCP and joint origins, `base_pose @` that for a held object
-    and the tool parts; `sample_tcp` is the TCP frame for every gate."""
+def test_reports_carry_the_base_pose_and_every_gate_reads_the_map_frame():
+    """`sample` is in the frame the gate queried the map in, the MAP (table)
+    frame for every gate: `base_pose @` FK for the TCP and joint origins
+    (#348), a held object and the tool parts; `sample_tcp` is the TCP frame
+    (base_pose @ FK) for every gate, and the snapshot is centred on the
+    map-frame sample."""
     from cascade.types import pose_to_transform
 
     base = pose_to_transform([0., .22, 0., 0., 0., .3])
     q = np.array([.3, 0., .3])
     _, _, h0 = case()
     T = h0.kin.fk(q)
-    # the TCP gate: base frame
-    h = SafetyHarness(h0.limits, h0.kin, occupancy=live_map(UNDER), base_pose=base)
+    tcp_map = (base @ T)[:3, 3]
+    # the TCP gate: a box 2 cm under the TCP where it physically is
+    h = SafetyHarness(h0.limits, h0.kin, occupancy=live_map(centred_box(tcp_map - [0., 0., .04], [.04, .04, .04])),
+                      base_pose=base)
     assert h.vet_pose(q).startswith("point 0 clearance")
     (r,) = h.drain_clearance_reports()
     assert r["base_pose"] == np.round(base, 6).tolist() and r["base_pose"] != np.eye(4).tolist()
-    np.testing.assert_allclose(r["sample"], q)
-    np.testing.assert_allclose(r["sample_tcp"], (np.linalg.inv(T) @ [*r["sample"], 1.])[:3], atol=1e-12)
+    np.testing.assert_allclose(r["sample"], tcp_map, atol=1e-12)
+    np.testing.assert_allclose(r["sample_tcp"], [0., 0., 0.], atol=1e-12)
+    np.testing.assert_allclose(r["sample_tcp"], (np.linalg.inv(base @ T) @ [*r["sample"], 1.])[:3], atol=1e-12)
+    assert r["snapshot"]["centre"] == r["sample"] and r["voxels"]
+    assert r["voxels"][0][3] == pytest.approx(.02, abs=.006)      # the box top, measured from the lifted TCP
+    # the same box at the TCP's raw base-frame numbers: 22 cm from the arm
+    h = SafetyHarness(h0.limits, h0.kin, occupancy=live_map(UNDER), base_pose=base)
+    assert h.vet_pose(q) is None and h.drain_clearance_reports() == []
     # a held sample 10 cm under the TCP: queried in the table frame
     held = (base @ T @ [0., 0., -.1, 1.])[:3]
     occ = live_map(centred_box(held - [0., 0., .03], [.04, .04, .02]))     # its top 2 cm under it

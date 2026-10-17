@@ -168,15 +168,19 @@ def test_so101_pair_gates_each_arm_where_it_physically_is(so101_pair, name, part
     h = safe.harness
     assert h.base_pose is not None and abs(abs(h.base_pose[1, 3]) - 0.22) < 1e-9
     q = np.asarray(raw.get_state().q, dtype=float)
+    # the stepping phases close in from a pan 0.05 rad away: a HOLD inside the
+    # margin is admitted by the escape rule (PR-A spec 3.1), so a hold proves
+    # nothing about the frame
+    q_prev = q + np.eye(len(q))[0] * 0.05
     base_point = kin.fk(q)[:3, 3] if part == "tcp" else kin.link_positions(q)[2]
     table_point = lift(h.base_pose, base_point)
 
     _put_voxel(occ, table_point)                         # ON the part: refused
-    reason = decide(h, phase, q, q_prev=q)
+    reason = decide(h, phase, q, q_prev=q_prev)
     assert reason is not None and "occupancy map" in reason, reason
 
     _put_voxel(occ, base_point)                          # 22 cm from the part: admitted
-    assert decide(h, phase, q, q_prev=q) is None
+    assert decide(h, phase, q, q_prev=q_prev) is None
 
 
 @needs_pin_so101
@@ -189,13 +193,14 @@ def test_so101_grasp_exemption_covers_the_arms_own_target(so101_pair, phase):
     raw, safe, kin = arms["so101_right"]
     h = safe.harness
     q = np.asarray(raw.get_state().q, dtype=float)
+    q_prev = q + np.eye(len(q))[0] * 0.05                # closing in (a hold inside the margin escapes)
     target = kin.fk(q)[:3, 3]
     _put_voxel(occ, lift(h.base_pose, target), size=0.02)
-    assert "occupancy map" in (decide(h, phase, q, q_prev=q) or "")    # premise: the object blocks
+    assert "occupancy map" in (decide(h, phase, q, q_prev=q_prev) or "")    # premise: the object blocks
     exempt = {"exempt_xy": target[:2], "exempt_radius_m": 0.07, "exempt_z_min": -0.06}
     h.allow_grasp_descent(target[:2], radius_m=0.07, z_min=-0.06)
     try:
-        assert decide(h, phase, q, q_prev=q, exempt=exempt) is None
+        assert decide(h, phase, q, q_prev=q_prev, exempt=exempt) is None
     finally:
         h.clear_grasp_exemption()
 

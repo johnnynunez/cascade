@@ -495,12 +495,12 @@ class SafetyHarness:
           set: arm, attached, tool volume), `reason` (exactly the refusal
           returned or raised);
         - `q`, `q_prev` (None for static vets), `tcp` (base-frame 4x4 FK);
-        - `sample` in the frame its gate queried the map in: the arm base
-          frame for tcp / link N (the TCP and joint origins go to the map
-          as FK gives them), `base_pose @` that (the table frame) for
-          attached and the tool parts; `sample_tcp` (the same sample in the
-          TCP frame, for every gate), `clearance_m` (None if non-finite),
-          `margin_m`;
+        - `sample` in the frame its gate queried the map in, the map (table)
+          frame for every gate: `base_pose @` FK for an arm with a base_pose
+          (tcp / link N, attached, the tool parts, an escaping step's
+          interior sample), FK itself without one; `sample_tcp` (the same
+          sample in the frame of the TCP at `q`, `base_pose @ tcp`),
+          `clearance_m` (None if non-finite), `margin_m`;
         - `base_pose` (4x4, 1e-6), only when this arm has one;
         - `exemption` ({"cylinder": [cx, cy, r, z_min(, z_max)]} or None);
         - `map` (`OccupancyMap.clearance_record()`: refreshes, age_s,
@@ -1314,7 +1314,7 @@ class SafetyHarness:
         q = np.asarray(q, dtype=float)
         T = self.kin.fk(q)
         links = self.kin.link_positions(q)
-        return self._occupancy_violation(
+        return self._arm_occupancy_violation(
             np.vstack([T[:3, 3][None, :], links[1:]]), self._grasp_exempt,
             ctx=self._gate_ctx("route_end", q, None, T))
 
@@ -1390,7 +1390,18 @@ class SafetyHarness:
                                  interior=None, ctx: GateCtx | None = None) -> str | None:
         """The arm gate's map query: TCP / joint-origin / camera-box points
         given in this arm's BASE frame, checked where they physically are.
-        The escape-rule keywords pass through to `_occupancy_violation`."""
+        The escape rule's samples go the same way: `prev_points` (the same
+        points at q_prev) and `interior()`'s (k, n, 3) configurations along
+        the step are lifted too, so a step compares one frame with itself;
+        a refusal's report then carries map-frame samples."""
+        if self.base_pose is not None:
+            if prev_points is not None:
+                prev_points = self._to_map_frame(prev_points)
+            if interior is not None:
+                base_interior = interior
+
+                def interior():
+                    return self._to_map_frame(base_interior())
         return self._occupancy_violation(self._to_map_frame(points), exempt, prev_points=prev_points,
                                          hold=hold, interior=interior, ctx=ctx)
 
@@ -1451,7 +1462,8 @@ class SafetyHarness:
         single read and computes no interior FK.
 
         With `ctx` (the gates of `_approve_step`, `vet_pose` and
-        `route_end_violation`; `points` are then the TCP + joint origins), a
+        `route_end_violation`; `points` are then the TCP + joint origins,
+        lifted by `_arm_occupancy_violation`), a
         refusal files its map snapshot report (`drain_clearance_reports`),
         and so does a required map that refuses by RAISING (stale, a failed
         refresh, a body-mask fault): that report is filed and the same
@@ -1467,7 +1479,8 @@ class SafetyHarness:
             raise
         if reason is not None and ctx is not None:
             gate = "attached" if attached else ("arm" if hit is None else _point_gate(hit[0]))
-            self._file_clearance_report(ctx, gate, reason, hit, exempt, ctx.T_tcp)
+            # `points` (and so the sample) are map-frame: the TCP frame too
+            self._file_clearance_report(ctx, gate, reason, hit, exempt, self._tool_frame(ctx.T_tcp))
         return reason
 
     def _occupancy_check(self, points, exempt, *, attached=False, prev_points=None, hold=False,
@@ -1506,13 +1519,14 @@ class SafetyHarness:
         # `points` are in the map frame, the exemption cylinder in this arm's
         # base frame: the cylinder test reads them taken back into it.
         in_base = points if exempt is None else self._to_base_frame(points)
-        retreating = inside_before = None
+        retreating = inside_before = prev_in_base = None
         if prev_points is not None:
             dist = np.asarray(dist, dtype=float)
             dist, before, mid_dist = dist[:n], dist[n:2 * n], dist[2 * n:]
             inside_before = before < min_c                # NaN compares False: never inside
             retreating = inside_before & ((hold & (dist >= before))
                                           | (dist > before + CLEARANCE_ESCAPE_TOL_M))
+            prev_in_base = prev_points if exempt is None else self._to_base_frame(prev_points)
         for i, (p, d) in enumerate(zip(points, dist)):
             if not np.isfinite(d) and observed_required and not self._in_cylinder(in_base[i], exempt):
                 return (f"point {i} has unobserved clearance (occupancy map)"
@@ -1523,7 +1537,7 @@ class SafetyHarness:
                     continue
                 started_inside = inside_before is not None and any(
                     inside_before[j] and not self._in_cylinder(b, exempt)
-                    for j, b in enumerate(prev_points))
+                    for j, b in enumerate(prev_in_base))
                 return (f"point {i} clearance {d:.9f} m below {min_c:.9f} m "
                         f"(shortfall {(min_c - d) * 1000:.6f} mm; occupancy map)"
                         f" at [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}]"
@@ -1585,14 +1599,22 @@ class SafetyHarness:
         pts = vol.points(T)
         excluding = getattr(self.occupancy, "clearance_excluding", None)
         if excluding is not None:
-            frame = {} if self.base_pose is None or exempt is None else {"cylinder_frame": self.base_pose}
-            dist = excluding(pts, below_z=self._table_band_top_in_map(vol.table_band_m),
-                             cylinder=exempt, within=float(self.limits.min_clearance_m), **frame)
+            dist = excluding(pts, **self._tool_volume_exclusions(exempt))
         else:
             dist = self.occupancy.clearance(pts)
             if dist is not None and exempt is not None:
                 dist = np.where([self._in_cylinder(p, exempt) for p in self._to_base_frame(pts)], np.inf, dist)
         return pts, (None if dist is None else np.asarray(dist, dtype=float))
+
+    def _tool_volume_exclusions(self, exempt: tuple | None) -> dict:
+        """`clearance_excluding`'s keywords for this arm's tool samples: the
+        table band as a MAP height, the exemption cylinder (z_max included)
+        in this arm's base frame (`cylinder_frame` with a base_pose), and the
+        margin as `within`. The offline replay re-measures with the same."""
+        band = 0.0 if self.tool_volume is None else float(self.tool_volume.table_band_m)
+        frame = {} if self.base_pose is None or exempt is None else {"cylinder_frame": self.base_pose}
+        return {"below_z": self._table_band_top_in_map(band), "cylinder": exempt,
+                "within": float(self.limits.min_clearance_m), **frame}
 
     def _tool_volume_bad(self, dist: np.ndarray) -> np.ndarray:
         bad = dist < self.limits.min_clearance_m          # NaN compares False
@@ -1659,7 +1681,8 @@ class SafetyHarness:
         return reason, name, (i, p, d)
 
     def _tool_frame(self, T_tcp: np.ndarray) -> np.ndarray:
-        """The TCP pose in the frame the tool-volume samples are read in."""
+        """The base-frame TCP pose `T_tcp` in the map frame, the frame every
+        map gate reads its samples in (`base_pose @ T_tcp`)."""
         T = np.asarray(T_tcp, dtype=float)
         return T if self.base_pose is None else self.base_pose @ T
 

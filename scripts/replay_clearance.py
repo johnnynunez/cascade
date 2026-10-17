@@ -26,6 +26,11 @@ and re-runs the arm's own SafetyHarness at the recorded joints, per lever
   camera box + measured parts); without one it is `old` with the shipped
   volume.
 
+Frames. Reports carry map-frame samples; an arm with a `base_pose` (recorded
+in the report) reads the map at `base_pose @ FK(q)` and compares voxels with
+its exemption cylinder in its base frame. The replay builds its harness with
+that `base_pose`, so every lever lifts exactly as the live gate did.
+
 Distance model. The live gates read `OccupancyMap.clearance`: a trilinear
 read of the bridge's grid, whose nodes are the voxel centres and whose values
 are distances between voxel centres (nvblox's ESDF, the warp / voxel EDT). The
@@ -62,8 +67,8 @@ reason>", its own bucket): a map that refused by RAISING (stale, failed, body
 mask: `raised`); a phase the harness never writes; no measured sample, no
 voxels or voxel size; an unobserved (NaN) clearance; joints that do not fit
 `--arm`; a `margin_m` other than the replaying profile's; voxel centres off a
-`voxel_m` lattice (1 mm rounding allowed); a malformed exemption or snapshot
-record; a report entry that is not a mapping.
+`voxel_m` lattice (1 mm rounding allowed); a malformed exemption, base_pose
+or snapshot record; a report entry that is not a mapping.
 
 Never connects to anything (no bridge, arm, camera or service) and never
 writes: it reads trace files and the arm profile, prints one JSON line per
@@ -229,7 +234,8 @@ class ReplayMap:
     def clearance(self, points) -> np.ndarray:
         return self._grid_read(points)
 
-    def clearance_excluding(self, points, *, below_z=None, cylinder=None, within=None) -> np.ndarray:
+    def clearance_excluding(self, points, *, below_z=None, cylinder=None, within=None,
+                            cylinder_frame=None) -> np.ndarray:
         pts = np.atleast_2d(np.asarray(points, dtype=float))
         dist = self.clearance(pts)
         if within is None or (below_z is None and cylinder is None):
@@ -243,10 +249,14 @@ class ReplayMap:
             cand = cand[cand[:, 2] > float(below_z)]
         if cylinder is not None and len(cand):
             center, radius, z_min = cylinder[:3]
-            inside = ((np.linalg.norm(cand[:, :2] - np.asarray(center, dtype=float)[:2], axis=1) <= float(radius))
-                      & (cand[:, 2] >= float(z_min) - 1e-6))
+            local = cand            # the cylinder's frame: an arm's base frame (`cylinder_frame`, as live)
+            if cylinder_frame is not None:
+                inv = np.linalg.inv(np.asarray(cylinder_frame, dtype=float))
+                local = cand @ inv[:3, :3].T + inv[:3, 3]
+            inside = ((np.linalg.norm(local[:, :2] - np.asarray(center, dtype=float)[:2], axis=1) <= float(radius))
+                      & (local[:, 2] >= float(z_min) - 1e-6))
             if len(cylinder) > 3:
-                inside &= cand[:, 2] <= float(cylinder[3]) + 1e-6
+                inside &= local[:, 2] <= float(cylinder[3]) + 1e-6
             cand = cand[~inside]
         sub = pts[near]
         exact = np.minimum(self._nearest(sub, cand), self._ruled_out(sub))
@@ -476,6 +486,14 @@ def _why_not_replayable(report: dict, model) -> str | None:
         same = False
     if not same:
         return f"margin_m {margin!r} recorded, the replaying profile's min_clearance_m is {own:g}"
+    base_pose = report.get("base_pose")
+    if base_pose is not None:
+        try:
+            T = np.asarray(base_pose, dtype=float)
+        except (TypeError, ValueError):
+            T = np.zeros(0)
+        if T.shape != (4, 4) or not np.all(np.isfinite(T)) or not np.allclose(T[3], [0.0, 0.0, 0.0, 1.0]):
+            return f"bad base_pose {base_pose!r:.80}"
     exemption = report.get("exemption")
     if exemption is not None and not isinstance(exemption, dict):
         return f"exemption is not a mapping: {exemption!r:.80}"
@@ -529,10 +547,12 @@ def _exemption(report: dict):
 def _static_reason(h: SafetyHarness, q, exempt) -> str | None:
     """vet_pose's map gates at `q`, in its order, under `exempt` with its
     ceiling (vet_pose itself takes no z_max): TCP + joint origins, the held
-    payload, the tool volume. No escape rule; no report filed (no ctx).
+    payload, the tool volume, each read where the arm is (`base_pose @` FK
+    for an arm with the recorded base_pose). No escape rule; no report filed
+    (no ctx).
     Pinned to vet_pose by a parity test: an edit of vet_pose's map gates
     updates this copy (global constraints, B4-B6)."""
-    return (h._occupancy_violation(h._clearance_points(q), exempt)
+    return (h._arm_occupancy_violation(h._clearance_points(q), exempt)
             or h._payload_occupancy_violation(q, exempt)
             or h._tool_volume_violation(h.kin.fk(q), exempt))
 
@@ -667,9 +687,7 @@ def replay(report: dict, *, arm: str, tool_volume_override=None) -> dict:
     if gate in ("tcp", "attached") or gate.startswith("link "):
         d = h.occupancy.clearance(sample[None, :])[0]
     else:   # a tool part: obstacles attributed by where they are, as the gate reads them
-        band = 0.0 if model.volume is None else float(model.volume.table_band_m)
-        d = h.occupancy.clearance_excluding(sample[None, :], below_z=float(model.limits.table_z) + band,
-                                            cylinder=exempt, within=float(model.limits.min_clearance_m))[0]
+        d = h.occupancy.clearance_excluding(sample[None, :], **h._tool_volume_exclusions(exempt))[0]
     return {"run": report.get("run"), "step": report.get("step"), "skill": report.get("skill"),
             "phase": phase, "gate": report.get("gate"), "recorded": report.get("reason"),
             "clearance_m": report.get("clearance_m"), "replay_clearance_m": float(d) if np.isfinite(d) else None,

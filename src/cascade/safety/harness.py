@@ -156,7 +156,7 @@ class SafetyHarness:
     _motion_uncounted: bool = False
 
     def __init__(self, limits: SafetyLimits, kinematics=None, occupancy=None,
-                 base_pose=None, tool_volume=None):
+                 base_pose=None, tool_volume=None, arm_name: str | None = None):
         self.limits = limits
         self.kin = kinematics
         # OccupancyMap | None (see perception/occupancy.py). Optional and
@@ -180,7 +180,8 @@ class SafetyHarness:
         # arm's base the canonical frame; a table frame is the same idea
         # without privileging a robot.
         self.base_pose = None if base_pose is None else np.asarray(base_pose, dtype=float)
-        self._check_level_tool_mount()
+        # `arm_name` (the profile name) only labels a build refusal; not kept.
+        self._check_level_tool_mount(arm_name)
         #: name -> callable returning that arm's link points in the TABLE
         #: frame, or None when it cannot be read cheaply/safely.
         self._neighbors: dict = {}
@@ -1040,19 +1041,30 @@ class SafetyHarness:
 
         return transform_points(np.linalg.inv(self.base_pose), points)
 
-    def _check_level_tool_mount(self) -> None:
+    def _check_level_tool_mount(self, arm_name: str | None = None) -> None:
         """Refuse a tool volume on a tilted mount (fail closed at build).
 
         The tool-volume gate drops map voxels at or below a horizontal table
         band (`_table_band_top_in_map`). With roll or pitch the base frame's
         table plane is tilted in the map, so no single map height describes
-        it; rather than guess one, the harness does not build."""
+        it; rather than guess one, the harness does not build. The refusal
+        names the arm (when given) and the mount's roll / pitch."""
         if self.tool_volume is None or self.base_pose is None:
             return
         if not np.allclose(self.base_pose[2, :3], [0.0, 0.0, 1.0], rtol=0.0, atol=1e-9):
+            # roll and pitch of the Z(yaw) @ Y(pitch) @ X(roll) mount
+            # (types.pose_to_transform) both live in the rotation's z row,
+            # which yaw leaves alone
+            r20, r21, r22 = (float(v) for v in self.base_pose[2, :3])
+            roll = float(np.degrees(np.arctan2(r21, r22)))
+            pitch = float(np.degrees(np.arctan2(-r20, np.hypot(r21, r22))))
+            who = "" if arm_name is None else f"arm {arm_name!r}: "
             raise ValueError(
-                "safety.tool_volume needs a level base_pose (roll = pitch = 0): its table band is a "
-                "horizontal plane in the shared map, and a tilted mount's table plane is not")
+                f"{who}safety.tool_volume needs a level base_pose (roll = pitch = 0), but this base_pose "
+                f"has roll {round(roll, 2) + 0.0:.2f} deg, pitch {round(pitch, 2) + 0.0:.2f} deg. The "
+                "tool volume's table band is a horizontal plane in the shared map and a tilted mount's "
+                "table plane is not, so the arm does not build: level its base_pose or remove "
+                "safety.tool_volume from its profile")
 
     def _table_band_top_in_map(self, band_m: float) -> float:
         """The tool volume's table band top (`table_z` + band) as a MAP z.

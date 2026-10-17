@@ -2497,11 +2497,11 @@ class SkillRuntime:
 
         The loop holds the skill halt baseline execute() takes for a motion
         skill (`_skill_halt_scope`; inside a skill the outer, older baseline
-        stays): an operator halt from here on refuses every later motion of
-        the loop before its first command, also for a caller outside
-        execute(). Without it, a halt the re-home's skip checks found, or one
-        raised after the re-home or during the re-scan, was cleared by the
-        next motion (merged-tree halt matrix: 75-225 arm commands after it)."""
+        stays), also for a caller outside execute(): after an operator halt
+        every later motion of the loop is refused before its first command,
+        and a halt the re-home's skip checks found, or one raised after the
+        re-home or during the re-scan, raises MotionHalted before the next
+        attempt."""
         with self._skill_halt_scope(self._skill_halt_baselines(self.arm)):
             return self._persistent_grasp_attempts(object, material, budget_s)
 

@@ -241,6 +241,23 @@ def _halt_around_rehome(r, monkeypatch, where):
 
 AROUND_REHOME = [(p, w) for p in RETRY_PROFILES + ["mock"] for w in ("entry", "status", "after", "rescan")
                  if w != "status" or p == "fr3"]
+#: the re-home's own refusal: SafeArm refuses its first command
+REFUSED = "halt received during route planning or execution"
+#: the loop's check before its next attempt (`_end_on_halt`)
+NOT_RETRYING = "motion halted: operator: stop; not retrying"
+
+
+def _around_rehome_halt_text(profile, where):
+    """What ends the loop for a halt at `where` around its first re-home.
+
+    A halt on entry to a direct home move (rebot_rs, mock) or at fr3's
+    view-home status line (after its skip checks) is refused by that move.
+    fr3's skip checks find a halt raised on entry, so its view-home return is
+    skipped (a SkillError the loop swallows); that halt, and one raised after
+    the re-home or during the re-scan, ends the loop before its next attempt."""
+    if where == "status" or (where == "entry" and profile != "fr3"):
+        return REFUSED
+    return NOT_RETRYING
 
 
 @pytest.mark.parametrize("profile, where", AROUND_REHOME, ids=[f"{p}-{w}" for p, w in AROUND_REHOME])
@@ -260,10 +277,7 @@ def test_grasp_with_persistence_called_directly_ends_on_a_halt_around_its_rehome
     with pytest.raises(MotionHalted) as raised:
         r.runtime._grasp_with_persistence("red cube")
 
-    # the re-home's own refusal (rebot_rs / mock entry, fr3 status) or the
-    # loop's check before the next attempt (the rest)
-    assert str(raised.value) in ("halt received during route planning or execution", HALT,
-                                 "motion halted: operator: stop; not retrying"), raised.value
+    assert str(raised.value) == _around_rehome_halt_text(profile, where)
     assert r.at_stop is not None, "the halt was never raised"
     assert r.sends == r.at_stop, f"{r.sends - r.at_stop} arm commands went out after the halt"
     assert r.grasps == 1, "the loop tried again after the halt"

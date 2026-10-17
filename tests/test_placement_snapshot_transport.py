@@ -13,6 +13,7 @@ import base64
 import contextlib
 from copy import deepcopy
 import gzip
+import hashlib
 import io
 import json
 from pathlib import Path
@@ -49,6 +50,10 @@ NEWTON_FORCE_SOURCE = "MJWarp efc.force via SolverMuJoCo.update_contacts"
 #: The generated line that serializes the GPU proof sample; the wire tail follows it.
 PAYLOAD_LINE = '_obs_payload = _obs_json.dumps(_gpu_observed, separators=(",",":"), allow_nan=False)'
 READER_ONLY = ("observed_samples", "observation_wall_s", "evidence_path", "evidence_sha256")
+#: sha256 of snapshot_codec's generated tails (`encode_code`, `compressed_envelope_code`).
+CODEC_TAIL_SHA256 = {
+    "encode_code": "c1960d0cb712117f1a967fa908143b3bb2266b3ede4c0aa01619ef5337a492ab",
+    "compressed_envelope_code": "3b57bfa7fae0b6fef8d767dbdd40fa04b57d312c1407ff47a18c11697243dea9"}
 
 
 def recorded_receipt():
@@ -322,3 +327,35 @@ def test_snapshot_without_scene_geometry_keeps_the_plain_receipt():
     code = placement._auditor().gpu.snapshot_code(object_name="pink_cube")
     assert "print('KITCHEN_OBSERVER ' + _obs_payload)" in code
     assert "KITCHEN_OBSERVER_ZLIB" not in code
+
+
+def test_generated_codec_tails_are_byte_identical():
+    # The generated tails as of 6ebb2ad, when their bounds were literals. Taking the bounds
+    # from MAX_LINE / MAX_PAYLOAD changes no byte; receipts record the code's sha256.
+    codec = placement._auditor().gpu.codec
+    assert {name: hashlib.sha256(getattr(codec, name)().encode()).hexdigest()
+            for name in CODEC_TAIL_SHA256} == CODEC_TAIL_SHA256
+
+
+@pytest.mark.parametrize("engine", ["physx", "newton"])
+@pytest.mark.parametrize("bound", ["MAX_LINE", "MAX_PAYLOAD"])
+def test_producer_guards_use_the_reader_bounds(monkeypatch, engine, bound):
+    # The generated guards read snapshot_codec's MAX_LINE / MAX_PAYLOAD, the bounds its
+    # reader enforces. At the tightest bound that admits the sample both sides pass it;
+    # one byte less and both refuse.
+    expected = recorded_receipt()["expected_scene_geometry"]
+    codec = placement._auditor().gpu.codec
+    sample = engine_samples(engine)[0]
+    line = wire_line(verifier_code(expected), sample)
+    tightest = len(line) + 1 if bound == "MAX_LINE" else plain_bytes(sample)
+    monkeypatch.setattr(codec, bound, tightest)
+    reply = bridge_exec(verifier_code(expected), sample)
+    assert reply["ok"], reply["error"]
+    assert reply["stdout"] == line + "\n" and json.loads(codec.snapshot_payload(line)) == sample
+    monkeypatch.setattr(codec, bound, tightest - 1)
+    reply = bridge_exec(verifier_code(expected), sample)
+    assert not reply["ok"]
+    assert ("RuntimeError: Observer compressed snapshot exceeds safe bridge stdout size" if bound == "MAX_LINE"
+            else f"RuntimeError: Observer decoded snapshot exceeds {tightest - 1} bytes") in reply["error"]
+    with pytest.raises(ValueError):
+        codec.snapshot_payload(line)

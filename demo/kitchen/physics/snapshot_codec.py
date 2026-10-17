@@ -18,6 +18,17 @@ MAX_LINE = 7400
 ARRAYS_V1 = 'geometry_arrays_f32_u16_le_v1'
 ARRAYS_V2 = 'geometry_arrays_f32_column_u16_i16delta_le_zlib_v2'
 ARRAY_KEYS = {'vertices_m', 'face_vertex_counts', 'face_vertex_indices'}
+# Generated tail: one bounded zlib+base64 line for the serialized `_obs_payload`.
+# The bridge keeps only the last 8000 characters of an exec job's stdout, so the
+# line stays under MAX_LINE; the decoded size is bounded as the reader bounds it.
+_ENVELOPE_CODE = '''if len(_obs_payload.encode("utf-8")) > 65536:
+    raise RuntimeError("Observer decoded snapshot exceeds 65536 bytes")
+_obs_encoded = _obs_base64.b64encode(_obs_zlib.compress(_obs_payload.encode("utf-8"), 6)).decode("ascii")
+_obs_line = "KITCHEN_OBSERVER_ZLIB " + _obs_encoded
+if len(_obs_line.encode("utf-8")) >= 7400:
+    raise RuntimeError("Observer compressed snapshot exceeds safe bridge stdout size")
+print(_obs_line)
+'''
 
 
 def snapshot_payload(stdout):
@@ -76,14 +87,15 @@ for _obs_key in ("vertices_m", "face_vertex_counts", "face_vertex_indices"):
     del _obs_geom[_obs_key]
 _obs_geom["geometry_arrays_f32_column_u16_i16delta_le_zlib_v2"] = _obs_arrays
 _obs_payload = _obs_json.dumps(_gpu_observed, separators=(",", ":"), allow_nan=False)
-if len(_obs_payload.encode("utf-8")) > 65536:
-    raise RuntimeError("Observer decoded snapshot exceeds 65536 bytes")
-_obs_encoded = _obs_base64.b64encode(_obs_zlib.compress(_obs_payload.encode("utf-8"), 6)).decode("ascii")
-_obs_line = "KITCHEN_OBSERVER_ZLIB " + _obs_encoded
-if len(_obs_line.encode("utf-8")) >= 7400:
-    raise RuntimeError("Observer compressed snapshot exceeds safe bridge stdout size")
-print(_obs_line)
-'''
+''' + _ENVELOPE_CODE
+
+
+def compressed_envelope_code():
+    """Drop-in generated tail for an already serialized receipt without convex arrays.
+
+    Same bounded compressed line as `encode_code`; every field stays bit-exact.
+    """
+    return 'import zlib as _obs_zlib\n' + _ENVELOPE_CODE
 
 
 def _shape(key, shape):

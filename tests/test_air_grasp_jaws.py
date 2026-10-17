@@ -947,3 +947,92 @@ def test_restore_and_search_say_the_jaws_stayed_closed(monkeypatch, composite):
     assert out["ok"] is False, out
     assert JAWS_CLOSED in out["next_action"] and out["next_action"].count(MOVE_HOME_FIRST) == 1, out
     assert out["air_grasp_jaws_closed"] is True and "arm_withdrew_above_object" not in out
+
+
+# ── the jaw wait: Newton-sized on Isaac, validated before anything moves ────
+
+
+def _isaac_arm_profiles():
+    from cascade.config import CONFIG_DIR, load_profile
+
+    return sorted(p.stem for p in (CONFIG_DIR / "arms").glob("*.yaml")
+                  if load_profile("arms", p.stem).get("type") == "isaac")
+
+
+ISAAC_ARMS = _isaac_arm_profiles()
+#: Newton runs arm and jaw motion about 4x slower than real time
+NEWTON_SLOWDOWN = 4
+
+
+def test_every_isaac_arm_profile_is_covered():
+    assert {"isaac", "isaac_kitchen", "isaac_kitchen_gpu"} <= set(ISAAC_ARMS), ISAAC_ARMS
+
+
+@pytest.mark.parametrize("arm", ISAAC_ARMS)
+def test_isaac_profiles_size_the_jaw_wait_for_newton(arm):
+    """Round 2, M3: the empty-jaws wait is wall clock. On Newton the reopen
+    took 1.1-1.5 s wall at load ~5, about half the real-time bound, so a
+    loaded host timed it out while the jaws were still opening."""
+    from cascade.config import load_demo_config
+
+    cfg = load_demo_config(arm=arm, camera="mock", llm="mock")
+    bound = runtime_mod.SkillRuntime._jaws_open_timeout_s(SimpleNamespace(cfg=cfg))
+    assert bound >= NEWTON_SLOWDOWN * runtime_mod.JAWS_OPEN_TIMEOUT_S, bound
+
+
+#: values `grasp.open_wait_timeout_s` refuses (None = unset is valid)
+BAD_WAITS = [0, -1., float("nan"), float("inf"), True, "6"]
+WAIT_REFUSAL = "open_wait_timeout_s must be finite and positive"
+
+
+@pytest.mark.parametrize("bad", BAD_WAITS, ids=repr)
+def test_an_invalid_jaw_wait_refuses_the_build_before_any_arm_exists(tmp_path, monkeypatch, bad):
+    """Round 2, M6: checked with the other pure-config checks of the build,
+    before any arm is made (an eager build connects it)."""
+    from cascade.apps import demo
+    from cascade.config import load_demo_config
+
+    made = []
+
+    def make_arm(acfg, kinematics=None):
+        made.append(acfg)
+        raise RuntimeError("an arm was made")
+    monkeypatch.setattr(demo, "make_arm", make_arm)
+    monkeypatch.setenv("CASCADE_GRASP_BACKEND", "obb")
+    cfg = load_demo_config(camera="mock", arm="mock", llm="mock")
+    cfg._data["grasp"]["open_wait_timeout_s"] = bad
+    with pytest.raises(ValueError, match=WAIT_REFUSAL):
+        demo.build_runtime(cfg, tmp_path / "run", lazy_arm=False)
+    assert made == []
+
+
+@pytest.mark.parametrize("bad", BAD_WAITS, ids=repr)
+@pytest.mark.parametrize("close", ["held", "air"])
+def test_an_invalid_jaw_wait_refuses_the_grasp_before_anything_moves(monkeypatch, bad, close):
+    """Round 2, M6: not first after the close, inside the air-grasp branch
+    (gate on)."""
+    r = rig(monkeypatch, stall_at=.35 if close == "held" else None)
+    r.rt.cfg._data["grasp"]["open_wait_timeout_s"] = bad
+    with pytest.raises(SkillError, match=WAIT_REFUSAL):
+        grasp(r)
+    assert commands(r.calls) == []
+
+
+@needs_pin
+def test_an_invalid_jaw_wait_refuses_the_grasp_before_anything_moves_gate_off(mock_rt):
+    rt, arm = mock_rt.rt, mock_rt.arm
+    rt.cfg.grasp._data["open_wait_timeout_s"] = 0
+    n0 = len(arm.commands)
+    with pytest.raises(SkillError, match=WAIT_REFUSAL):
+        rt.skill_grasp_object("red cube")
+    assert mock_rt.grips == [] and len(arm.commands) == n0
+
+
+@pytest.mark.parametrize("bad", BAD_WAITS, ids=repr)
+def test_an_invalid_jaw_wait_refuses_open_gripper_before_the_jaws_move(bad):
+    from test_gripper_open_close_commands import opener
+
+    rt, sent, reads = opener([.07], timeout=bad)
+    with pytest.raises(SkillError, match=WAIT_REFUSAL):
+        rt.skill_open_gripper()
+    assert sent == [] and reads == []

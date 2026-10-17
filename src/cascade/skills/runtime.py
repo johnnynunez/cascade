@@ -216,7 +216,8 @@ OBSERVED_RANK_TIME_SLICE_S = 0.3
 #: Longest wait for EMPTY jaws to reach a commanded opening (an air grasp's
 #: reopen, a grasp that starts with closed jaws), unless the profile sets
 #: `grasp.open_wait_timeout_s`. A bound only: the wait ends at the first
-#: feedback read that confirms the opening.
+#: feedback read that confirms the opening. Wall clock: the Isaac profiles
+#: set a Newton-sized bound (configs/arms/isaac.yaml).
 JAWS_OPEN_TIMEOUT_S = 3.0
 #: Feedback read interval of that wait.
 JAWS_OPEN_POLL_S = 0.05
@@ -231,6 +232,21 @@ OBSERVED_NEAR_COPY_M = 0.01
 #: orientation). A grasp at the same centre with the jaws turned further puts
 #: the fingers elsewhere and stays a candidate.
 OBSERVED_NEAR_COPY_DEG = 15.
+
+
+def open_wait_timeout_s(grasp_cfg) -> float | None:
+    """`grasp.open_wait_timeout_s` in seconds, None when unset.
+
+    Anything but a finite positive number raises SkillError: build_runtime
+    checks it before any arm exists, and every skill that waits on it checks
+    it before it moves anything (never first after a grasp's close)."""
+    timeout = grasp_cfg.get("open_wait_timeout_s")
+    if timeout is None:
+        return None
+    if (isinstance(timeout, bool) or not isinstance(timeout, (int, float))
+            or not math.isfinite(timeout) or timeout <= 0):
+        raise SkillError(f"grasp.open_wait_timeout_s must be finite and positive (seconds), got {timeout!r}")
+    return float(timeout)
 
 
 def _air_grasp_stop(harness, generation) -> str | None:
@@ -3830,6 +3846,10 @@ class SkillRuntime:
         # B36: the post-contact hold for this backend, validated before
         # anything moves (None = the plain two-stage close).
         hold_squeeze = SkillRuntime._grasp_hold_squeeze(self)
+        # The bound on waiting for empty jaws to open (the opening of closed
+        # jaws before selection, an air grasp's reopen), validated before
+        # anything moves, not first after the close.
+        SkillRuntime._jaws_open_timeout_s(self)
         # Ranking distance for candidates beside an observed neighbour, read
         # and validated before anything moves. Ranking only: it never admits
         # or refuses a candidate (0 = rank as main).
@@ -4952,13 +4972,8 @@ class SkillRuntime:
     def _jaws_open_timeout_s(self) -> float:
         """The bound on waiting for empty jaws to open: the profile's
         `grasp.open_wait_timeout_s`, else JAWS_OPEN_TIMEOUT_S."""
-        timeout = self.cfg.grasp.get("open_wait_timeout_s")
-        if timeout is None:
-            return JAWS_OPEN_TIMEOUT_S
-        timeout = float(timeout)
-        if not np.isfinite(timeout) or timeout <= 0:
-            raise SkillError("open_wait_timeout_s must be finite and positive")
-        return timeout
+        timeout = open_wait_timeout_s(self.cfg.grasp)
+        return JAWS_OPEN_TIMEOUT_S if timeout is None else timeout
 
     def _open_empty_jaws(self, open_pos: float, opened: Callable, *, halt_generation, check) -> str | None:
         """Command `open_pos` to jaws that hold nothing and wait until
@@ -7489,6 +7504,8 @@ class SkillRuntime:
         return spatial_moves.undo_move(self, steps=steps)
 
     def skill_open_gripper(self) -> dict:
+        # The wait's bound is validated before the jaws move (round 2, M6).
+        timeout = open_wait_timeout_s(self.cfg.grasp)
         self._set_gripper(self._grip_open, effort=0.8)
         self._gripper_opens_completed += 1
         if self.held_object:
@@ -7500,9 +7517,8 @@ class SkillRuntime:
         # is released now, so nothing remains to promote.
         self._held_provisional = None
         self._held_width_m = None
-        timeout = self.cfg.grasp.get("open_wait_timeout_s")
         if timeout is not None:
-            self._wait_gripper_opened(float(timeout))
+            self._wait_gripper_opened(timeout)
         return {"gripper": "open"}
 
     def _wait_gripper_opened(self, timeout_s: float) -> None:

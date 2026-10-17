@@ -651,6 +651,31 @@ def test_a_refresh_between_the_gate_read_and_its_report_is_flagged(monkeypatch, 
     assert r["gate_refreshes"] == 1 and r["map"]["refreshes"] == 2 and r["snapshot_newer_map"] is True
 
 
+def test_a_halt_that_takes_over_a_report_rechecks_the_newer_map_flag(monkeypatch):
+    """A preflight read commit 1 and filed a snapshot of commit 2 (flagged);
+    a streamed halt at the same cell that read commit 2 takes the report
+    over, and its account is exact again."""
+    occ = live_map(UNDER)
+    _, _, h = case(occupancy=occ)
+    q_prev, q = np.array([.3, 0., .31]), np.array([.3, 0., .3])
+    original = occ.clearance
+
+    def read_then_commit(points):
+        out = original(points)
+        if occ.refreshes == 1:
+            occ.refresh(depth_frame(), T_CAM)
+        return out
+
+    monkeypatch.setattr(occ, "clearance", read_then_commit)
+    assert h.vet_pose(q)
+    monkeypatch.setattr(occ, "clearance", original)
+    reason, exc = _refuse(h, "approve", q_prev, q)
+    assert exc is not None
+    (r,) = h.drain_clearance_reports()
+    assert r["phase"] == "approve" and r["reason"] == reason
+    assert r["gate_refreshes"] == r["map"]["refreshes"] == 2 and "snapshot_newer_map" not in r
+
+
 def test_a_streamed_halt_takes_over_the_matching_report_and_moves_last(monkeypatch):
     """One report per gate, 1 cm spot and map commit. A repeat moves it last
     (the refusal that ended the call is the last one), and a streamed halt
@@ -773,6 +798,21 @@ def test_nearby_occupied_equals_the_float64_cut(n):
             want = _nearby_reference(cloud, point, radius, limit)
             assert got.shape == want.shape and np.array_equal(got, want)
     assert len(occ.nearby_occupied(p, .05, 10 ** 6)) > 1
+
+
+def test_nearby_occupied_keeps_float64_edge_voxels():
+    """A float64 cache (a stand-in, or a future bridge): a voxel whose x lies
+    one float64 step beyond the rounded bound yet inside the exact cut (the
+    float64 subtraction rounds it in). The pre-cut's widening keeps it."""
+    for p0, r, x in ((0.02559258618412316, .03, -0.004407413815876838),
+                     (0.05511730714318658, .05, 0.005117307143186574),
+                     (-0.07784265105538583, .05, -0.027842651055385827),
+                     (0.03532548277782002, .03, 0.005325482777820022)):
+        p = np.array([p0, .1, .2])
+        occ = OccupancyMap()
+        occ._occupied = np.array([[x, .1, .2], [p0, .1, .2]])
+        got = occ.nearby_occupied(p, r, 8)
+        assert len(got) == 2 and np.array_equal(got, _nearby_reference(occ._occupied, p, r, 8))
 
 
 # ── the runtime drains each call's reports into its trace row ──────────────

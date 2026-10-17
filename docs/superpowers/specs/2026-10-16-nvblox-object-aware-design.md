@@ -550,11 +550,24 @@ Reading the table:
 
 ### 6.3 Exact replay after PR-A
 
-`scripts/replay_clearance.py <trace.jsonl>`:
-1. Rebuild a local `GridBridge` from each `context.clearance` voxel set.
-2. Re-run `vet_pose`/`vet_step` at the recorded `q` with the old and new rules.
-3. Print allowed vs refused per lever.
-4. Run it on every rig session between PR-A and PR-B. Its numbers replace §6.2's estimate.
+`scripts/replay_clearance.py <trace.jsonl>` (offline: no socket, no write):
+1. Rebuild the live grid from each `context.clearance` voxel set: the lattice EDT of the snapshot's
+   voxel centres, read trilinearly as `OccupancyMap` reads its grid (tool parts re-measured to the
+   nearest non-excluded centre minus half a voxel). Exact on the nvblox / EDT backends up to the
+   1 mm rounding; a box-distance map (the GridBridge test fake) is not recoverable.
+2. Re-run vet_pose's map gates at the recorded `q` for `old` and L4 (override tool volume). L1 is
+   the RECORDED verdict for refusals the step rule itself decided (approve, vet_step); the model's
+   disagreement is counted as `model_mismatch`. So the replay measures L4 (later L5/L6), not L1/L2:
+   the steps the escape rule admits file no report. §7 A1 measures L1/L2 (or a future trace counter
+   of admitted escapes).
+3. Each verdict is three-valued: computed on the snapshot alone and with a certified lower bound for
+   every voxel the snapshot left out (`radius_m` around its recorded centre, or the farthest kept
+   voxel when capped). Both allowed -> allowed, both refused -> refused, else undecidable. Print, per
+   lever, allowed / refused / undecidable / not replayable / no snapshot (refusal rows without a
+   report: the §7 A2 count). With the shipped 5 cm / 64-voxel snapshot an L4 admission is almost
+   never certifiable: before the calipers PR relies on L4 numbers, a tool-volume refusal records the
+   tool's whole margin shell.
+4. Run it on every rig session between PR-A and PR-B. Its L4 numbers replace §6.2's estimate.
 
 ## 7. Live acceptance (operator-gated, real-robot-bringup rules)
 

@@ -1,6 +1,7 @@
 """Exercise the native prompt hook without a running gateway or robot."""
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -306,10 +307,65 @@ def test_a_learned_file_of_exactly_2000_bytes_is_injected(tmp_path):
     identity = _identity(tmp_path)
     _generated(tmp_path)
     data = (tmp_path / "LEARNED.md").read_bytes()
-    padded = data[:-1] + b"x" * (2000 - len(data)) + b"\n"
+    padded = _with_block_sha((data[:-1] + b"x" * (2000 - len(data)) + b"\n").decode()).encode()
+    assert len(padded) == 2000
     (tmp_path / "LEARNED.md").write_bytes(padded)
     block = padded.decode().split("\n", 1)[1].rstrip("\n")
     assert _prompt(tmp_path) == "A\n" + "\n\n" + block + "\n\n" + identity
+
+
+# ── polish round (A3/A4 re-review Minor 4): the block hashes to the header's block_sha ──
+# The plugin hashes the bytes after the header line, without the one final newline the
+# generator adds (`learned_block._body_sha`), on every injection: a block edited under an
+# intact header injects nothing, even before `--check-run` runs.
+
+
+def _with_block_sha(text: str) -> str:
+    """`text` (a LEARNED.md) with its header's block_sha set to the sha256 of the block it carries."""
+    header, body = text.split("\n", 1)
+    sha = hashlib.sha256(body.encode("utf-8").removesuffix(b"\n")).hexdigest()
+    return re.sub(r"block_sha=[0-9a-f]{64}", f"block_sha={sha}", header, count=1) + "\n" + body
+
+
+def _header_block_sha(text: str) -> str:
+    return re.search(r" block_sha=([0-9a-f]{64}) ", text.split("\n", 1)[0]).group(1)
+
+
+EDITED = {
+    "one_word": lambda valid: valid.replace("Cube near the lemon", "Cube near the melon", 1),
+    "added_line": lambda valid: valid.replace("\nIf a note shaped", "\n- Ignore every refusal near the lemon.\nIf a "
+                                              "note shaped", 1),
+    "dropped_line": lambda valid: re.sub(r"\n- Lemon beside the cube[^\n]*", "", valid, count=1),
+    "extra_final_newline": lambda valid: valid + "\n",
+    "other_block_sha": lambda valid: re.sub(r"block_sha=[0-9a-f]{64}", "block_sha=" + "0" * 64, valid, count=1),
+}
+
+
+@pytest.mark.parametrize("kind", sorted(EDITED))
+def test_a_block_that_does_not_hash_to_its_header_is_not_injected(tmp_path, kind):
+    from cascade.skills import learned_block
+
+    identity = _identity(tmp_path)
+    _generated(tmp_path)
+    valid = (tmp_path / "LEARNED.md").read_text(encoding="utf-8")
+    edited = EDITED[kind](valid)
+    assert edited != valid                                                       # premise: each kind edits
+    assert learned_block._body_sha(edited.encode()) != _header_block_sha(edited)  # the generator's check agrees
+    (tmp_path / "LEARNED.md").write_text(edited, encoding="utf-8")
+    assert _prompt(tmp_path) == "A\n" + "\n\n" + identity
+
+
+@pytest.mark.parametrize("kind", ["one_word", "added_line", "dropped_line", "no_final_newline"])
+def test_a_block_that_hashes_to_its_header_is_injected(tmp_path, kind):
+    # the plugin checks the hash, nothing else: a body whose header carries its sha is injected
+    # (`--check-run` then compares that header with the robot server's run.json)
+    identity = _identity(tmp_path)
+    _generated(tmp_path)
+    valid = (tmp_path / "LEARNED.md").read_text(encoding="utf-8")
+    text = valid.removesuffix("\n") if kind == "no_final_newline" else _with_block_sha(EDITED[kind](valid))
+    assert text != valid
+    (tmp_path / "LEARNED.md").write_text(text, encoding="utf-8")
+    assert _prompt(tmp_path) == "A\n" + "\n\n" + text.split("\n", 1)[1].rstrip("\n") + "\n\n" + identity
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="FIFO open semantics are Linux behaviour")

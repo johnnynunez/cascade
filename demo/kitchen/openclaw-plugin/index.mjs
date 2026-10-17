@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { closeSync, constants, fstatSync, openSync, readFileSync, readSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 
@@ -16,11 +17,14 @@ const identity = "You control the CASCADE robot simulation through the provided 
 // header line, then the learned-notes block. It is injected after AGENTS.md only
 // from a regular file (never a symlink, FIFO or directory) of at most 2000 bytes of
 // UTF-8 (a byte-order mark is kept, so such a file never matches) whose first line is
-// exactly the header; anything else injects nothing. LEARNED_NOTE is A1's note
-// file-name rule without ".md" (notes._NOTE_NAME_RE; a test pins the two together).
+// exactly the header and whose block hashes to the header's block_sha (the bytes after
+// the header line without the one final newline the generator adds, as
+// learned_block._body_sha reads them: a block edited under an intact header is never
+// injected); anything else injects nothing. LEARNED_NOTE is A1's note file-name rule
+// without ".md" (notes._NOTE_NAME_RE; a test pins the two together).
 const LEARNED_MAX_BYTES = 2000;
 const LEARNED_NOTE = "[a-z0-9][a-z0-9_.-]{0,63}";
-const LEARNED_HEADER = new RegExp("^<!-- cascade-learned-notes v1 library_sha=[0-9a-f]{64} block_sha=[0-9a-f]{64} "
+const LEARNED_HEADER = new RegExp("^<!-- cascade-learned-notes v1 library_sha=[0-9a-f]{64} block_sha=([0-9a-f]{64}) "
   + "notes=" + LEARNED_NOTE + "(?:," + LEARNED_NOTE + ")* -->$");
 
 function learnedBlock(workspaceDir) {
@@ -36,7 +40,11 @@ function learnedBlock(workspaceDir) {
     if (size > LEARNED_MAX_BYTES) return "";
     const text = new TextDecoder("utf-8", {fatal: true, ignoreBOM: true}).decode(buffer.subarray(0, size));
     const newline = text.indexOf("\n");
-    if (newline < 0 || !LEARNED_HEADER.test(text.slice(0, newline))) return "";
+    const header = newline < 0 ? null : LEARNED_HEADER.exec(text.slice(0, newline));
+    if (header === null) return "";
+    // the header line is ASCII, so the newline's character index is also its byte offset
+    const end = size > newline + 1 && buffer[size - 1] === 0x0a ? size - 1 : size;
+    if (createHash("sha256").update(buffer.subarray(newline + 1, end)).digest("hex") !== header[1]) return "";
     return text.slice(newline + 1).trimEnd();
   } catch {
     return "";

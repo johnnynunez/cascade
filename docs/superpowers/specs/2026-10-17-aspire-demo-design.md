@@ -298,7 +298,10 @@ paraphrases of harm (no rule word) stay a limit of a structural gate, carried by
    non-blocking open, then fstat: never a symlink, FIFO or directory) of <= 2000 bytes of valid UTF-8 whose first line
    is exactly the header; otherwise it injects nothing (fail-closed, no throw). It decodes with `fatal` and
    `ignoreBOM`, so a byte-order mark is kept and such a file never matches the header (ruling 5); the header's
-   note-id pattern is A1's file-name rule without `.md` (a test pins the two, ruling 6). The generator, the check and
+   note-id pattern is A1's file-name rule without `.md` (a test pins the two, ruling 6). On every injection it also
+   hashes the block (`node:crypto` sha256 of the bytes after the header line, without the one final newline, as
+   `learned_block._body_sha` reads them) and injects nothing unless that is the header's `block_sha`: a block edited
+   under an intact header never reaches Qwen, also before `--check-run` runs (polish round). The generator, the check and
    the library read every file through A1's one safe reader (`notes.read_regular`: lstat + O_NOFOLLOW, O_NONBLOCK,
    fstat, a byte limit; ruling 7).
    `systemPrompt = AGENTS.md + "\n\n" + block + "\n\n" + identity`. Absent file -> exactly today's prompt.
@@ -595,7 +598,7 @@ elsewhere. When it runs: Q2.
 | library dir missing, unreadable note, bad front matter | that note skipped; snapshot of the rest; sha still computed over the bytes present |
 | note fails lint | stored, never served, listed as `lint` in the nightly report |
 | `LEARNED.md` without header, oversize, or a symlink | plugin injects nothing; generator refuses to overwrite and the launch warns naming the file, then runs without notes (R26) |
-| `LEARNED.md` library or block differs from the proof's robot server `run.json` (or its block from its own `block_sha`) | file removed, launch warning; the prompt runs without notes |
+| `LEARNED.md` library or block differs from the proof's robot server `run.json` (or its block from its own `block_sha`) | file removed, launch warning; the prompt runs without notes; a block that does not hash to its header's `block_sha` is never injected by the plugin, before or after the check |
 | The per-launch library freeze fails (library unreadable, profile not reading `CASCADE_ASPIRE_LIBRARY`, write error) | one launch warning; every robot server of the launch and `LEARNED.md` read a new empty directory (notes off); the launch goes on (R26) |
 | `learning.json` missing or malformed | `/state` has no `learning` key; panel section hidden |
 | arm type unknown or config error in `profile_class` | `real` (no retry, verified-only notes) |

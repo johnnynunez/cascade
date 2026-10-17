@@ -342,7 +342,8 @@ so every robot server of the launch and `LEARNED.md` read the same bytes (a fail
 points it at an empty directory: notes off, one warning line). Then
 `skills/learned_block.py` writes `LEARNED.md` into the kitchen workspace: one header
 line with both shas, then the top-2 note block (at most 2000 bytes). The kitchen prompt
-plugin injects it right after `AGENTS.md`; no `AGENTS.md` is edited. After the proof the
+plugin injects it right after `AGENTS.md`, only when the block hashes to the header's
+`block_sha`; no `AGENTS.md` is edited. After the proof the
 launcher still compares it with the proof robot server's `run.json` and removes it on any
 difference (a warning line). `robot_knowledge`, the seventh attendee tool, lists every
 served note.

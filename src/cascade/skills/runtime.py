@@ -2530,11 +2530,7 @@ class SkillRuntime:
             raise
         if not getattr(state, "gripper_valid", True):
             return None
-        span = self._grip_closed - self._grip_open
-        if abs(span) < 1e-9:
-            return 0.0
-        closed_frac = (state.gripper_pos - self._grip_open) / span  # 1 at closed
-        return float(np.clip(1.0 - closed_frac, 0.0, 1.0))
+        return self._open_frac_of(state.gripper_pos)
 
     # ── language -> world resolution ─────────────────────────────────────
 
@@ -4631,7 +4627,7 @@ class SkillRuntime:
                                                     halt_generation=scene_halt_generation)
                     grasp_evidence.event("jaws_reopen", outcome=reopen)
                     if reopen.startswith("refused"):
-                        recovery = "skipped: the jaws did not reopen"
+                        recovery = "skipped: the jaws were not confirmed open"
                     else:
                         recovery = self._air_grasp_exit(approach_column, exit_move, hover_q=q_pre,
                                                         halt_generation=scene_halt_generation)
@@ -4641,7 +4637,8 @@ class SkillRuntime:
                 grasp_evidence.event("exit_withdrawal", outcome=recovery)
                 error = "air grasp: gripper closed fully, object not held"
                 if reopen.startswith("refused"):
-                    error += f"; jaws not reopened: {reopen.removeprefix('refused: ')}"
+                    # never "did not open": a jaw command may have moved them
+                    error += f"; the jaws were not confirmed open: {reopen.removeprefix('refused: ')}"
                 elif recovery.startswith(("refused", "did not settle")):
                     error += f"; exit withdrawal {recovery}"
                 return {
@@ -4899,8 +4896,10 @@ class SkillRuntime:
         while the jaws open propagates (MotionHalted / SafetyViolation
         "e-stop latched") and nothing else is commanded.
 
-        Returns "reopened", "refused: <why>" (the jaws were not confirmed open)
-        or "skipped: <why>".
+        Returns "reopened", "refused: <why>" (the jaws were not confirmed open:
+        refused before the command, or commanded but not confirmed; a jaw
+        fault that is not a SafetyViolation is "refused: jaw command failed:
+        <error>") or "skipped: <why>".
         """
         if getattr(self, "_held_provisional", None) is not None:
             return "skipped: provisional hold (the jaws may hold the object)"
@@ -4940,6 +4939,14 @@ class SkillRuntime:
             if stop:   # an e-stop or a halt that landed with the refusal: a stop, never a string
                 raise _air_grasp_stop_error(harness, stop) from exc
             return f"refused: {exc}"
+        except Exception as exc:  # noqa: BLE001 -- a jaw fault: the reopen was not confirmed
+            # Round 2, M1: a bus timeout or a failed feedback read keeps the
+            # air grasp's result (as reset_scene reports its jaw fault); the
+            # exit is skipped and nothing else is commanded.
+            stop = _air_grasp_stop(harness, generation)
+            if stop:
+                raise _air_grasp_stop_error(harness, stop) from exc
+            return f"refused: jaw command failed: {exc}"
         return "reopened" if why is None else f"refused: {why}"
 
     def _jaws_open_timeout_s(self) -> float:
@@ -4973,7 +4980,7 @@ class SkillRuntime:
             if time.monotonic() >= deadline:
                 break
             time.sleep(JAWS_OPEN_POLL_S)
-        return f"the jaws did not open within {timeout:g} s"
+        return f"no feedback confirmed the opening within {timeout:g} s"
 
     def _open_closed_jaws_before_selection(self, frame, fix, halt_generation, state) -> bool:
         """A grasp that starts empty-handed with closed jaws opens them before
@@ -5021,12 +5028,13 @@ class SkillRuntime:
         why = self._open_empty_jaws(self._grip_open, probe.fingers_open,
                                     halt_generation=halt_generation, check=check)
         if why is not None:
-            raise SkillError(f"the jaws are closed and did not open before this grasp: {why}")
+            raise SkillError(f"the jaws were closed and were not confirmed open before this grasp: {why}")
         grasp_evidence.phase("planning")   # selection goes on with the opened jaws
         return True
 
     def _open_frac_of(self, pos: float) -> float:
-        """The open fraction (0 closed, 1 open) of gripper position `pos`."""
+        """The open fraction (0 closed, 1 open) of gripper position `pos`: a
+        linear map of the motor travel (`_gripper_width_frac`, `_jaw_open_frac`)."""
         span = self._grip_closed - self._grip_open
         if abs(span) < 1e-9:
             return 0.0
@@ -8355,13 +8363,15 @@ _REFUSED_GRASP_LEFT_IN_PLACE = (
 _AIR_GRASP_WITHDREW_NOT_HOMED = (
     "The last grasp attempt closed on air; the jaws were reopened and the arm withdrew above the "
     "object, but it was not moved back: call move_home before any other grasp.")
-#: ... and after an air grasp whose jaws were NOT reopened (refused before the
-#: command, or not confirmed open): no withdrawal ran, so the arm stays at the
-#: grasp hover. A grasp that starts with closed empty jaws opens them first
-#: (observed-finger gate), as does reset_scene (PR-A jaws round, ruling 3).
+#: ... and after an air grasp whose jaws were NOT confirmed open (refused
+#: before the command, a jaw fault, or commanded but not confirmed): no
+#: withdrawal ran, so the arm stays at the grasp hover. A jaw command may have
+#: moved them, so the step never says they are closed (round 2, M2). A grasp
+#: that starts with closed empty jaws opens them first (observed-finger
+#: gate), as does reset_scene (PR-A jaws round, ruling 3).
 _AIR_GRASP_JAWS_CLOSED = (
-    "The last grasp attempt closed on air and the jaws could not be reopened there: the jaws are "
-    "still closed (or only partly open) and the arm was left at the grasp hover above the object: "
+    "The last grasp attempt closed on air and the jaws were not confirmed open afterwards: they may "
+    "still be closed (or only partly open), and the arm was left at the grasp hover above the object: "
     "call move_home before any other grasp; the next grasp (or reset_scene) opens empty closed jaws first.")
 _MOVE_HOME_STEPS = (_REFUSED_GRASP_LEFT_IN_PLACE, _AIR_GRASP_WITHDREW_NOT_HOMED, _AIR_GRASP_JAWS_CLOSED)
 #: Skills whose failure is a failed grasp the agent's next grasp would start from.
@@ -8380,7 +8390,7 @@ def _withdrew_above_object(result) -> bool:
 
 def _jaws_left_closed(result) -> bool:
     """The failed grasp behind `result` closed on air and its jaws were NOT
-    reopened: its own `jaws_reopen` was refused, or the `air_grasp_jaws_closed`
+    confirmed open: its own `jaws_reopen` was refused, or the `air_grasp_jaws_closed`
     mark `_with_move_home_first` left on the grasp result a composite read."""
     if not isinstance(result, dict):
         return False
@@ -8395,7 +8405,7 @@ def _with_move_home_first(result: dict, source: dict | None = None) -> dict:
     result a composite built `result` from (default: `result` itself); when
     its exit withdrawal completed, the step says the jaws were reopened and
     the arm withdrew above the object and `result` is marked
-    `arm_withdrew_above_object`; when its jaws were not reopened, the step
+    `arm_withdrew_above_object`; when its jaws were not confirmed open, the step
     says so and `result` is marked `air_grasp_jaws_closed`. Idempotent."""
     origin = result if source is None else source
     withdrew = _withdrew_above_object(origin)

@@ -47,6 +47,18 @@ from test_grasp_evidence import receipt, synthetic_git_metadata  # noqa: F401 --
 from test_grasp_evidence import runtime as evidence_runtime
 
 AIR = "air grasp: gripper closed fully, object not held"
+#: what a reopen that was refused or not confirmed says (round 2, M2): a jaw
+#: command may have moved the jaws, so never "did not open"
+NOT_OPEN = "the jaws were not confirmed open"
+#: the exit withdrawal after such a reopen
+SKIPPED = f"skipped: {NOT_OPEN}"
+
+
+def unconfirmed(timeout):
+    """Why a jaw opening was not confirmed within `timeout` s."""
+    return f"no feedback confirmed the opening within {timeout:g} s"
+
+
 #: the calibrated finger stroke (m), as the bridge serializes it (float32)
 UPPER = float(np.float32(.05))
 #: the rig's grasp position and home TCP (translation-only kinematics: q = TCP)
@@ -278,11 +290,11 @@ def test_jaws_that_do_not_reopen_leave_the_arm_where_it_is(monkeypatch):
     r.bridge.on_gripper.append(lambda pos: setattr(r.bridge, "stuck", pos == 1. and r.bridge.gripper_pos < 1.))
     res = grasp(r)
     timeout = runtime_mod.JAWS_OPEN_TIMEOUT_S
-    assert res["jaws_reopen"] == f"refused: the jaws did not open within {timeout:g} s", res
-    assert res["exit_withdrawal"] == "skipped: the jaws did not reopen"
-    assert res["error"] == f"{AIR}; jaws not reopened: the jaws did not open within {timeout:g} s"
+    assert res["jaws_reopen"] == f"refused: {unconfirmed(timeout)}", res
+    assert res["exit_withdrawal"] == SKIPPED
+    assert res["error"] == f"{AIR}; {NOT_OPEN}: {unconfirmed(timeout)}"
     reopen = len(r.calls) - r.calls[::-1].index(("gripper", 1., .8)) - 1
-    assert commands(r.calls[reopen + 1:]) == [], "the arm moved with jaws that did not reopen"
+    assert commands(r.calls[reopen + 1:]) == [], "the arm moved with jaws that were not confirmed open"
     np.testing.assert_allclose(r.bridge.q, HOVER, atol=1e-9)
 
 
@@ -298,6 +310,53 @@ def test_the_reopen_never_opens_jaws_that_may_hold_the_object(monkeypatch, why):
     out = r.rt._air_grasp_reopen(1., gate, halt_generation=0)
     assert out.startswith("skipped: ") and "may hold the object" in out, out
     assert commands(r.calls[n0:]) == []
+
+
+def _jaw_fault_on_reopen(r, where, *, latch=None):
+    """The reopen after the close meets a jaw fault (not a SafetyViolation):
+    the bridge refuses the command, or the first feedback read after it
+    fails. `latch` (a stop) lands with the fault. Returns the call index of
+    the fault (a list, filled when it happens)."""
+    at = []
+
+    def fault():
+        at.append(len(r.calls))
+        if latch is not None:
+            latch(r.harness)
+        raise RuntimeError("gripper bus timeout")
+
+    if where == "command":
+        def on_reopen(pos):
+            if pos == 1. and r.bridge.gripper_pos < 1. and not at:
+                fault()
+        r.bridge.on_gripper.append(on_reopen)
+    else:
+        armed, read = [], r.bridge.state
+        r.bridge.on_gripper.append(
+            lambda pos: armed.append(1) if pos == 1. and r.bridge.gripper_pos < 1. else None)
+
+        def state(*, timeout_s=None):
+            if armed and not at:
+                fault()
+            return read(timeout_s=timeout_s)
+        r.bridge.state = state
+    return at
+
+
+@pytest.mark.parametrize("where", ["command", "feedback"])
+def test_a_jaw_fault_while_the_jaws_reopen_is_a_reopen_that_was_not_confirmed(monkeypatch, where):
+    """Round 2, M1: a jaw fault that is not a SafetyViolation (a bus timeout)
+    keeps the air-grasp result: `jaws_reopen` says the jaw command failed, the
+    exit is skipped, the error is the air grasp's, and the arm stays at the
+    hover (as reset_scene reports its jaw fault and goes on)."""
+    r = rig(monkeypatch)
+    at = _jaw_fault_on_reopen(r, where)
+    res = grasp(r)
+    assert res["jaws_reopen"] == "refused: jaw command failed: gripper bus timeout", res
+    assert res["exit_withdrawal"] == SKIPPED
+    assert res["error"] == f"{AIR}; {NOT_OPEN}: jaw command failed: gripper bus timeout"
+    assert at and commands(r.calls[at[0]:]) == [], "a command after the jaw fault"
+    np.testing.assert_allclose(r.bridge.q, HOVER, atol=1e-9)
 
 
 # ── a halt or an e-stop: 0 further commands, the jaws included ──────────────
@@ -350,6 +409,18 @@ def test_a_stop_while_the_jaws_reopen_ends_the_grasp(monkeypatch, stop):
     assert commands(r.calls[at[0]:]) == [], "a command after the stop"
 
 
+@pytest.mark.parametrize("where", ["command", "feedback"])
+@pytest.mark.parametrize("stop", sorted(STOPS))
+def test_a_stop_that_lands_with_a_jaw_fault_stays_a_stop(monkeypatch, stop, where):
+    r = rig(monkeypatch)
+    latch, error, text = STOPS[stop]
+    at = _jaw_fault_on_reopen(r, where, latch=latch)
+    with pytest.raises(error, match=text) as info:
+        grasp(r)
+    assert isinstance(info.value, MotionHalted) == (stop == "halt")
+    assert commands(r.calls[at[0]:]) == [], "a command after the stop"
+
+
 # ── a grasp that starts with closed empty jaws ──────────────────────────────
 
 
@@ -366,8 +437,11 @@ def test_closed_jaws_that_may_not_open_here_refuse_the_grasp(monkeypatch):
 def test_closed_jaws_that_do_not_open_refuse_the_grasp(monkeypatch):
     r = rig(monkeypatch, stall_at=.35)
     r.bridge.gripper_pos, r.bridge.stuck = .15, True
-    with pytest.raises(SkillError, match="the jaws are closed and did not open"):
+    timeout = runtime_mod.JAWS_OPEN_TIMEOUT_S
+    with pytest.raises(SkillError) as info:
         grasp(r)
+    assert str(info.value) == (f"the jaws were closed and were not confirmed open before this grasp: "
+                               f"{unconfirmed(timeout)}")
     assert commands(r.calls) == [("gripper", 1., .8)]
 
 
@@ -414,8 +488,8 @@ def test_jaws_that_stop_short_of_the_checked_opening_are_not_reopened(monkeypatc
         lambda pos: setattr(r.bridge, "open_stall", .97) if pos == pytest.approx(.15) else None)
     res = grasp(r)
     assert np.all(.97 * UPPER < r.gates[-1].lower), r.gates[-1].lower       # premise: outside the interval
-    assert res["jaws_reopen"] == "refused: the jaws did not open within 0.3 s", res
-    assert res["exit_withdrawal"] == "skipped: the jaws did not reopen"
+    assert res["jaws_reopen"] == f"refused: {unconfirmed(.3)}", res
+    assert res["exit_withdrawal"] == SKIPPED
     assert fingers(r) == pytest.approx(.97 * UPPER)
     np.testing.assert_allclose(r.bridge.q, HOVER, atol=1e-9)
 
@@ -470,7 +544,7 @@ def test_the_wait_for_the_jaws_is_bounded_in_time(monkeypatch):
     t0 = runtime_mod.time.monotonic()
     out = r.rt._air_grasp_reopen(1., gate, halt_generation=0)
     timeout = runtime_mod.JAWS_OPEN_TIMEOUT_S
-    assert out == f"refused: the jaws did not open within {timeout:g} s"
+    assert out == f"refused: {unconfirmed(timeout)}"
     elapsed = runtime_mod.time.monotonic() - t0
     assert timeout <= elapsed <= timeout + runtime_mod.JAWS_OPEN_POLL_S + .1, elapsed
 
@@ -541,7 +615,8 @@ def test_unknown_jaws_are_left_as_they_are_at_the_grasp_start(monkeypatch):
         return sample
     r.bridge.state = no_gripper_pos
     r.rt.grasp_memory = SimpleNamespace(record=lambda *a, **k: None)
-    with pytest.raises(Exception):   # the jaw check cannot verify a grip without feedback
+    # the close cannot settle without jaw feedback (round 2, M5: this error only)
+    with pytest.raises(SkillError, match="^gripper closure did not settle; refusing to lift$"):
         grasp(r)
     assert len(r.gates) == 1          # no probe gate, no opening before selection
 
@@ -647,8 +722,31 @@ def test_mapping_only_jaws_that_do_not_reopen_leave_the_arm_in_place(mock_rt, mo
     exit_ = rt._air_grasp_exit
     monkeypatch.setattr(rt, "_air_grasp_exit", lambda *a, **k: n0.__setitem__(0, "ran") or exit_(*a, **k))
     res = rt.skill_grasp_object("red cube")
-    assert res["jaws_reopen"].startswith("refused: the jaws did not open"), res
-    assert res["exit_withdrawal"] == "skipped: the jaws did not reopen" and n0 == [None]
+    assert res["jaws_reopen"] == f"refused: {unconfirmed(.3)}", res
+    assert res["exit_withdrawal"] == SKIPPED and n0 == [None]
+    assert res["error"] == f"{AIR}; {NOT_OPEN}: {unconfirmed(.3)}"
+
+
+@needs_pin
+def test_a_jaw_fault_while_the_jaws_reopen_keeps_the_air_grasp_result(mock_rt):
+    """Round 2, M1 (review probe P6), through execute(): the result keeps the
+    air grasp's context and the move_home step says the jaws were not
+    confirmed open, instead of "unexpected RuntimeError"."""
+    rt, arm = mock_rt.rt, mock_rt.arm
+    send, closed = arm.set_gripper, []
+
+    def faulty(pos, effort=1.0):
+        if float(pos) == rt._grip_open and closed:   # the reopen after the close
+            raise RuntimeError("gripper bus timeout")
+        send(pos, effort)
+        if float(pos) != rt._grip_open:
+            closed.append(float(pos))
+    arm.set_gripper = faulty
+    res = rt.execute("grasp_object", {"label": "red cube"})
+    assert res["jaws_reopen"] == "refused: jaw command failed: gripper bus timeout", res
+    assert res["exit_withdrawal"] == SKIPPED
+    assert res["error"] == f"{AIR}; {NOT_OPEN}: jaw command failed: gripper bus timeout"
+    _says_the_jaws_stayed_closed(res)
 
 
 @needs_pin
@@ -767,8 +865,10 @@ def test_reset_scene_with_unreadable_jaws_leaves_them_and_resets(mock_rt, monkey
 
 # ── what the agent reads after an air grasp ────────────────────────────────
 
-#: the step after an air grasp whose jaws could not be reopened
-JAWS_CLOSED = "the jaws are still closed"
+#: the step after an air grasp whose jaws were not confirmed open (round 2,
+#: M2: a jaw command may have moved them, so never "still closed")
+JAWS_CLOSED = ("the jaws were not confirmed open afterwards: they may still be closed (or only partly "
+               "open), and the arm was left at the grasp hover")
 
 
 def test_after_a_completed_exit_the_step_says_the_jaws_were_reopened():
@@ -782,8 +882,8 @@ def test_after_a_completed_exit_the_step_says_the_jaws_were_reopened():
 
 def test_after_a_refused_reopen_the_step_says_the_jaws_are_closed_and_the_arm_stayed():
     out = runtime_mod._with_move_home_first(
-        {"ok": False, "error": f"{AIR}; jaws not reopened: x", "jaws_reopen": "refused: x",
-         "exit_withdrawal": "skipped: the jaws did not reopen"})
+        {"ok": False, "error": f"{AIR}; {NOT_OPEN}: x", "jaws_reopen": "refused: x",
+         "exit_withdrawal": SKIPPED})
     action = out["next_action"]
     assert JAWS_CLOSED in action and "left at the grasp hover" in action, action
     assert action.count(MOVE_HOME_FIRST) == 1 and "opens empty closed jaws first" in action
@@ -798,8 +898,8 @@ def _jaws_closed_air_grasp(move):
     air and could not be reopened, so the exit withdrawal was skipped."""
     def grasp(*_a, **_k):
         move()
-        return {"ok": False, "error": f"{AIR}; jaws not reopened: test refusal",
-                "jaws_reopen": "refused: test refusal", "exit_withdrawal": "skipped: the jaws did not reopen"}
+        return {"ok": False, "error": f"{AIR}; {NOT_OPEN}: test refusal",
+                "jaws_reopen": "refused: test refusal", "exit_withdrawal": SKIPPED}
     return grasp
 
 

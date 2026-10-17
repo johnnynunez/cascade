@@ -14,10 +14,11 @@
 
 ``retrieve(library, task)``
     Load keyword-matched PROMOTED notes into the built-in orchestrator at task
-    start. Upstream ASPIRE's cross-task rule (``skills/library.py``): an entry
-    is promoted only once it recurs in >= ``PROMOTION_MIN_TASKS`` (2) distinct
-    tasks; one confirmed retry in one task stays a stored candidate and is not
-    retrieved. ``SkillLibrary(root, min_tasks=1)`` is the explicit relaxation.
+    start. An entry is promoted only once it recurs in >= ``PROMOTION_MIN_TASKS``
+    (2) distinct tasks (cascade's own rule; ``skills/library.py`` says how
+    upstream differs); one confirmed retry in one task stays a stored candidate
+    and is not retrieved. ``SkillLibrary(root, min_tasks=1)`` is the explicit
+    relaxation.
 
 Harvesting runs offline through ``scripts/learn_from_runs.py``. This module
 does not execute retries, change a controller or independently re-evaluate

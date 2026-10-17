@@ -55,8 +55,8 @@ if TYPE_CHECKING:  # annotation only; the runtime import stays local (import cyc
     from ..control.arm_rig import ArmRig
     from ..perception.link_mask import LinkSelfMask
     from ..types import ObjectFix
-from ..types import (ContactDetected, Detection, Frame, GraspFailed, MotionHalted, SafetyViolation, SkillError,
-                     SkillStuck, make_transform, transform_points)
+from ..types import (ContactDetected, Detection, Frame, GraspFailed, GripperFault, MotionHalted, SafetyViolation,
+                     SkillError, SkillStuck, make_transform, transform_points)
 
 logger = logging.getLogger(__name__)
 
@@ -476,6 +476,56 @@ _MOTION_SKILLS = {
 #: callers that move nothing. Background detector work (the brain's watcher
 #: inventories, SAM track steps) never competes with their localization.
 _FOREGROUND_PERCEPTION_SKILLS = _MOTION_SKILLS | {"preview_grasp", "localize_object"}
+
+#: Skills that turn a perceived position (`_localize`, `_belief_pose`,
+#: `fix_at_pixel`) or agent world coordinates (place_at's x, y) into an arm
+#: target. Those positions are in the shared TABLE frame, while the runtime
+#: solves IK in the running arm's base frame and converts nothing, so on an
+#: arm mounted with a `base_pose` they aim (and place their exemption columns)
+#: the base_pose's offset away from the object. execute() refuses them on such
+#: an arm until world targets are converted (`_mounted_off_table_origin`).
+#: Pinned against the call graph by tests/test_base_pose_world_target_guard.py.
+_WORLD_TARGET_SKILLS = frozenset({
+    "grasp_object", "pick_and_place", "preview_grasp", "grasp_at_pixel", "place_at",
+    "place_on_object", "push_object", "point_at", "move_near_object", "sort_by_color",
+    "search_for_object", "restore_scene", "turn_screw", "throw", "handover",
+})
+#: Why a world-target skill is refused on an arm with a base_pose.
+_BASE_POSE_WORLD_TARGET_REFUSAL = (
+    "this arm is mounted off the table origin (base_pose); world targets are not converted yet")
+
+
+def _mounted_off_table_origin(arm) -> bool:
+    """The arm's safety harness declares a `base_pose` other than the identity.
+
+    Reads instance dicts only (like `_arm_harnesses`): no backend probe, and a
+    standby LazyArm stays unmaterialized. No harness or no base_pose (every
+    single-arm profile: the reBot, the kitchen arm) and the exact identity are
+    False, so execute() runs exactly as before. Any other value, including one
+    that is not a 4x4 matrix, is True: fail closed.
+    """
+    harness = (getattr(arm, "__dict__", None) or {}).get("harness")
+    pose = (getattr(harness, "__dict__", None) or {}).get("base_pose")
+    if pose is None:
+        return False
+    try:
+        return not np.array_equal(np.asarray(pose, dtype=float), np.eye(4))
+    except (TypeError, ValueError):
+        return True
+
+
+def _world_target_refusal(name: str, arm_name) -> dict:
+    """The result of a world-target skill refused on a base_pose arm: nothing
+    was perceived, commanded or moved, so there is no move_home step."""
+    who = "this arm" if arm_name in (None, "default") else f"arm {arm_name!r}"
+    return {
+        "ok": False,
+        "outcome": OUTCOME_FAILED,
+        "error": f"{name} refused on {who}: {_BASE_POSE_WORLD_TARGET_REFUSAL}; no motion was sent",
+        "next_action": ("Do not retry this skill on this arm. Only joint-space and relative "
+                        "skills (move_home, move_to_rest, rotate_joint, move_relative, "
+                        "rotate_gripper, wave, open_gripper, close_gripper) run on it."),
+    }
 
 #: Labels that name hollow things -- what Pigey's occlusion search lifts
 #: first ("start with the largest/hollowest container (bowl, basket, box),
@@ -1359,10 +1409,21 @@ class SkillRuntime:
                              halt_generation: int | None = None) -> dict:
         """Return without changing the jaws or clearing any safety latch.
 
-        `halt_generation`: the harness's halt generation when the skill
-        started, for execute()'s return after the skill body left its halt
-        scope; the move then refuses a halt raised since then (None: the
-        running skill's scope, if any, decides)."""
+        `halt_generation`: the harness's halt generation when the calling
+        skill started. execute() passes the skill's baseline for its return
+        after the skill body (outside the skill's halt scope by then), and
+        `skill_move_home(_halt_generation=...)` passes its caller's (e.g. the
+        reset's); inside a skill's scope the scope's baseline applies too
+        (the harness checks both). The move then refuses a halt raised since
+        then, also one raised after the skip checks below. With None and no
+        skill scope, the move's begin_motion clears a halt raised after those
+        checks.
+        A halt the skip checks find before the move returns status
+        "skipped" (reason "motion halted: ..."). A halt that refuses or
+        stops the move, or that the check right after it finds, returns
+        status "halted" (reason: the MotionHalted text) and never calls
+        `arm.stop()`, which would latch an e-stop; an e-stop stays the
+        e-stop."""
         reason = self._home_return_skip_reason(failure)
         if reason:
             return {"ok": False, "status": "skipped", "reason": reason}
@@ -1399,6 +1460,11 @@ class SkillRuntime:
                 raise SkillError("did not settle at the saved home pose")
             reason = self._home_return_skip_reason()
             if reason:
+                halted = getattr(self.arm.harness, "halted", None)
+                if halted and reason == f"motion halted: {halted}":
+                    # The halt came after the route's last approved command:
+                    # still the operator's halt, never an arm.stop() latch.
+                    raise MotionHalted(f"halted: {halted}")
                 raise SkillError(reason)
             final_q = np.asarray(self.arm.get_state().q, dtype=float).reshape(-1)
             if len(final_q) != len(home) or not np.isfinite(final_q).all():
@@ -1408,8 +1474,9 @@ class SkillRuntime:
                 raise SkillError(f"home feedback error {error:.4f} rad exceeds {tol:.4f} rad")
             return {"ok": True, "status": "returned", "home_q": target, "joint_error_rad": error}
         except MotionHalted as exc:
-            # The operator's halt stops the return and stays a halt: no stop
-            # latch on the arm (A3 review; a halt is not the e-stop).
+            # The operator's halt stopped the return (or refused it before
+            # the first command) and stays a halt: no stop latch on the arm
+            # (a halt is not the e-stop).
             return {"ok": False, "status": "halted", "reason": str(exc)}
         except Exception as exc:
             try:
@@ -1491,6 +1558,11 @@ class SkillRuntime:
             next((key for key, arm in self.arm_rig.arms.items() if arm is effective_arm), None)
             if self.arm_rig is not None else "default"
         )
+        # The RUNNING arm (the `arm=` selection included) decides, before any
+        # perception, status line, keyframe or command: a base_pose arm would
+        # aim a table-frame target in its own base frame (_WORLD_TARGET_SKILLS).
+        if name in _WORLD_TARGET_SKILLS and _mounted_off_table_origin(effective_arm):
+            return _world_target_refusal(name, resolved_arm)
         trace_context = {"arm": resolved_arm, "held_object": self.held_object}
         # Motor-feedback contact monitor: this call's trace row carries only
         # its own motions' tracking reports (safety.contact_monitor).
@@ -1764,8 +1836,11 @@ class SkillRuntime:
             if not home_return["ok"] and result.get("ok", False):
                 result["action_ok"] = True
                 result["ok"] = False
-                reason = home_return.get("error") or home_return.get("reason")
-                result["error"] = f"return to saved home {home_return['status']}: {reason}"
+                reason = str(home_return.get("error") or home_return.get("reason"))
+                status = home_return["status"]
+                # A halt's own text already starts with "halted: ": say it once.
+                result["error"] = ("return to saved home " + reason if reason.startswith(f"{status}: ")
+                                   else f"return to saved home {status}: {reason}")
         if name in _MOTION_SKILLS:
             # Readiness can fail DURING a motion as well as before it. A
             # trajectory abort latches STOP; handing that failure back to
@@ -2441,7 +2516,7 @@ class SkillRuntime:
                 try:
                     self.skill_move_home()
                 except MotionHalted:
-                    raise  # STOP during the re-home ends this skill too: no re-scan, no retry
+                    raise  # STOP during the re-home ends this skill: no re-scan, no retry
                 except (SkillError, SafetyViolation):
                     pass
                 self._reobserve()
@@ -6118,7 +6193,7 @@ class SkillRuntime:
                     try:  # clear the camera view so the re-scan actually sees
                         self.skill_move_home()
                     except MotionHalted:
-                        raise  # STOP during the re-home ends this skill too: no re-scan, no retry
+                        raise  # STOP during the re-home ends this skill: no re-scan, no retry
                     except (SkillError, SafetyViolation):
                         pass
                     self._reobserve()
@@ -6233,6 +6308,8 @@ class SkillRuntime:
                     )
                     try:  # carry it home first: clears the view of the arm
                         self.skill_move_home()  # + held object for the re-scan
+                    except MotionHalted:
+                        raise  # STOP during the re-home ends this skill: no re-scan, no retry
                     except (SkillError, SafetyViolation):
                         pass
                     self._reobserve()
@@ -6981,6 +7058,15 @@ class SkillRuntime:
         may go on), a failed place sets `holding` (the caller must stop:
         something is in the jaws) and `stop` marks a release/retreat failure
         after which no further motion is safe.
+
+        An operator halt that ends the grasp's persistence loop (raised in a
+        grasp attempt, its re-home or its re-scan) or a clear-view home here
+        raises MotionHalted, so the caller's loop ends too. A halt in the
+        place call comes back as the place's failure in the record
+        (`holding` names what the jaws still hold; the caller stops on it).
+        Under execute() the skill's halt baseline refuses every later motion
+        of the call either way, so a caller that goes on gets MotionHalted
+        from its next grasp before any command.
         """
         x, y = float(target_xy[0]), float(target_xy[1])
         rec: dict = {"label": query, "kind": kind, "to": [round(x, 3), round(y, 3)], "ok": False}
@@ -6988,7 +7074,7 @@ class SkillRuntime:
         try:
             res = self._grasp_with_persistence(query, budget_s=budget_s)
         except MotionHalted:
-            raise  # the operator's halt ends the composite: no re-home (A3 review)
+            raise  # the operator's halt ends the caller's loop too: no clear-view home
         except (SkillError, SafetyViolation) as e:
             res = {"ok": False, "held": False, "error": f"{type(e).__name__}: {e}"}
         rec["grasp_attempts"] = res.get("grasp_attempts")
@@ -7004,6 +7090,8 @@ class SkillRuntime:
             elif not self._estopped():  # the operator stopped the arm: no re-home (A3 review)
                 try:  # never leave the arm over the table after a failed attempt
                     self.skill_move_home()
+                except MotionHalted:
+                    raise  # the caller's next step would clear the halt and move
                 except (SkillError, SafetyViolation):
                     pass
             return rec
@@ -7032,6 +7120,8 @@ class SkillRuntime:
         if not place.get("home_skipped"):
             try:  # clear the camera view for the re-scan that follows
                 self.skill_move_home()
+            except MotionHalted:
+                raise  # the caller's next step would clear the halt and move
             except (SkillError, SafetyViolation):
                 pass
         return rec
@@ -7646,12 +7736,21 @@ class SkillRuntime:
         the jaws."""
         out: dict = {"props_reset": [], "world": None, "observation_refreshed": False,
                      "objects_visible": []}
-        # A halt from here on keeps the empty jaws as they are (below).
+        # The reset's ONE halt generation, taken when it starts (before its
+        # carry check): a halt from here on ends the reset. The home move and
+        # the one jaw command at home below (the release, or the opening of
+        # closed empty jaws) carry it.
         reset_generation = getattr(self.arm.harness, "_halt_generation", None)
         try:
             carry_attachment.check(self)
         except carry_attachment.AttachmentInvalid as exc:
             return {**out, **carry_attachment.failure_result(self, exc)}
+        if self.held_object and self._drives_real_gripper():
+            # The release happens at home: a real gripper would drop the
+            # object from there (~0.44 m on the reBot). Refuse before any
+            # motion; the object stays held.
+            return {**out, "ok": False, "stage": "release", "home_skipped": True, "beliefs_forgotten": 0,
+                    "error": f"holding {self.held_object}: place it first (place_at), then reset"}
         occupancy = getattr(self.arm.harness, "occupancy", None)
         recovery_generation = None
         recovery_cancellation = None
@@ -7723,55 +7822,48 @@ class SkillRuntime:
                 recovery_generation = out["withdrawal_recovery"]["generation"]
                 recovery_cancellation = out["withdrawal_recovery"]["cancellation"]
             else:
-                self.skill_move_home(_halt_generation=recovery_generation) if recovery_generation is not None else self.skill_move_home()
+                generation = recovery_generation if recovery_generation is not None else reset_generation
+                self.skill_move_home(_halt_generation=generation) if generation is not None else self.skill_move_home()
         except (SkillError, SafetyViolation) as e:
             out.update(ok=False, stage="home", home_error=str(e), beliefs_forgotten=0,
                        error=f"Scene reset could not reach home: {e}")
             return out
         if recovery_cancelled():
             return out
-        # PR-A jaws round, ruling 2: a scene reset starts the next pick with
-        # open jaws. Closed EMPTY jaws (an air grasp whose reopen was refused,
-        # an explicit close) open here, at home. Never while an object may be
-        # held: reset's own release below decides that case, as before. A halt
-        # since the reset started, or an e-stop, refuses the command and ends
-        # the reset.
-        if (not self.held_object and getattr(self, "_held_provisional", None) is None
-                and carry_attachment.active(self) is None):
-            try:
-                width = self._gripper_width_frac()
-            except Exception:  # noqa: BLE001 -- unknown jaws stay as they are
-                width = None
-            if width is not None and width < 1.0 - float(self.cfg.grasp.get("air_grasp_frac", 0.04)):
-                try:
-                    self._set_gripper(self._grip_open, effort=0.8, _halt_generation=(
-                        recovery_generation if recovery_generation is not None else reset_generation))
-                except SafetyViolation as e:
-                    out.update(ok=False, stage="jaws", beliefs_forgotten=0,
-                               error=f"Scene reset stopped before opening the empty jaws: {e}")
-                    return out
-                except Exception as e:  # noqa: BLE001 -- a jaw fault does not stop the scene reset
-                    out["jaws_open_error"] = str(e)
-                else:
-                    out["jaws_open_commanded"] = True
-        # release anything the runtime still thinks it holds: a reset while
-        # carrying is the operator's decision that the episode is over
+        # At most ONE jaw command at home, to the profile's OPEN position
+        # (gripper.open_pos: jaw positions are motor travel in each profile's
+        # units, so a raw 1.0 was nearly closed on the reBot (open 6.2) and
+        # fully closed on the mock (open 0.0)), effort 0.8, carrying one halt
+        # generation (a recovery's, else the reset's): a halt since the reset
+        # started, or an e-stop, refuses it before the driver.
+        # - Holding (simulated and mock arms only, see above): the release. A
+        #   reset while carrying is the operator's decision that the episode is
+        #   over.
+        # - Empty-handed with closed jaws (an air grasp whose reopen was
+        #   refused, an explicit close): the opening, so the next pick starts
+        #   with open jaws (PR-A jaws round, ruling 2). Never while an object
+        #   may be held (a provisional hold, an active carry attachment), never
+        #   on jaws that read open or unknown.
+        jaw_generation = recovery_generation if recovery_generation is not None else reset_generation
+        jaw_kw = {} if jaw_generation is None else {"_halt_generation": jaw_generation}
         if self.held_object:
             try:
-                kwargs = {} if recovery_generation is None else {"_halt_generation": recovery_generation}
-                self._set_gripper(1.0, **kwargs)
+                self._set_gripper(self._grip_open, effort=0.8, **jaw_kw)
             except Exception as exc:  # noqa: BLE001
                 if recovery_generation is not None:
                     out.update(ok=False, stage="reset_recovery", recovery_error=str(exc),
                                beliefs_forgotten=0, error=f"Scene recovery could not release safely: {exc}")
                     return out
-                pass
-            self.held_object = None
-            self._held_det_label = None
-            self._held_color = None
-            self._held_offset = None
-            self._held_width_m = None
-            self._held_support_offset_m = None
+                return self._reset_release_failed(out, exc)
+            self._forget_held_object()
+        elif self._reset_finds_closed_empty_jaws():
+            try:
+                self._set_gripper(self._grip_open, effort=0.8, **jaw_kw)
+            except Exception as exc:  # noqa: BLE001
+                if self._reset_jaws_open_failed(out, exc):
+                    return out
+            else:
+                out["jaws_open_commanded"] = True
         world = None
         raw = getattr(self.arm, "raw", None)
         # MujocoArm exposes its shared world; a LazyArm that never
@@ -7871,6 +7963,136 @@ class SkillRuntime:
                         return {**out, "ok": False, "stage": "reset_completion", "error": str(exc)}
         return out
 
+    #: Arm types (configs/arms `type:`) whose jaws open in a simulator or a
+    #: mock. Every other type -- and an unknown or missing one -- drives a
+    #: real gripper.
+    _SIM_ARM_TYPES = ("isaac", "mujoco", "mock")
+
+    def _running_arm_profile(self):
+        """The profile of the arm this call drives: `cfg.arm` for the
+        primary, else the `cfg.arms` entry of the arm execute()'s `arm=`
+        selected (rig order = `cfg.arms` order). None when the running arm
+        is neither (cannot be told). Identity only: a standby LazyArm is
+        never probed."""
+        running = self.arm
+        if running is getattr(self, "_arm", None):
+            return self.cfg.get("arm") or {}
+        rig = getattr(self, "arm_rig", None)
+        index = next((i for i, arm in enumerate(rig or ()) if arm is running), None)
+        profiles = self.cfg.get("arms") or []
+        return profiles[index] if index is not None and index < len(profiles) else None
+
+    def _drives_real_gripper(self) -> bool:
+        """The arm this call drives (the `arm=` selection included) has a
+        real gripper: its type is not isaac*, mujoco* or mock*; an unknown
+        type or arm counts as real."""
+        arm = self._running_arm_profile() or {}
+        return not str(arm.get("type") or "").startswith(self._SIM_ARM_TYPES)
+
+    def _forget_held_object(self) -> None:
+        """The jaws let the held object go: clear every held-object field."""
+        self.held_object = None
+        self._held_det_label = None
+        self._held_color = None
+        self._held_offset = None
+        self._held_width_m = None
+        self._held_support_offset_m = None
+
+    def _reset_release_failed(self, out: dict, exc: Exception) -> dict:
+        """End reset_scene after its jaw opening raised; the reset goes no
+        further. Only a measured open jaw lets the runtime forget the object.
+
+        - Any other SafetyViolation: SafeArm refused before the driver (a
+          halt since the reset started, an e-stop, a gripper gate), so nothing
+          moved and the object is still held.
+        - GripperFault: the driver raised AFTER its commands went out (opening
+          blocked part-way, referencing closed onto the object). The jaws may
+          have moved: report the measured width; the object stays held unless
+          that width shows the jaws open.
+        - Any other error (bus or bridge timeout): the object stays held and
+          the error is recorded.
+        """
+        obj = self.held_object
+        out.update(ok=False, stage="release", release_error=str(exc), beliefs_forgotten=0)
+        if isinstance(exc, SafetyViolation) and not isinstance(exc, GripperFault):
+            out["error"] = f"Scene reset stopped before the release: {exc}"
+            return out
+        # Outcome first, the object named once, the driver's own text last:
+        # the agent's failure line keeps only the first 240 characters of the
+        # error (a 60-character name still leaves the outcome inside them).
+        if not isinstance(exc, GripperFault):
+            out["error"] = (f"Scene reset stopped: {obj} is kept as held: the release failed and whether "
+                            f"the jaws moved is unknown; check the gripper. Error: {exc}")
+            return out
+        width, measured = self._reset_measured_jaws(out)
+        if width is not None and width >= self._reset_open_frac():
+            self._forget_held_object()
+            out["error"] = (f"Scene reset stopped: {obj} is no longer held and may have dropped from "
+                            f"home height: the gripper faulted while releasing it and the jaws measured "
+                            f"{measured}. Gripper fault: {exc}")
+        else:
+            out["error"] = (f"Scene reset stopped: {obj} is kept as held, but it may have dropped: the "
+                            f"gripper faulted while releasing it and the jaws measured {measured}; "
+                            f"check the gripper. Gripper fault: {exc}")
+        return out
+
+    def _reset_open_frac(self) -> float:
+        """The jaw width fraction that counts as AT the open position (the
+        tolerance `_reconcile_held` uses)."""
+        return 1.0 - float((self.cfg.get("grasp") or {}).get("air_grasp_frac", 0.04))
+
+    def _reset_measured_jaws(self, out: dict) -> tuple[float | None, str]:
+        """After a jaw command at reset raised a GripperFault: measure the jaw
+        width, record it as `gripper_open_frac` and return (width, its text)."""
+        try:
+            width = self._gripper_width_frac()
+        except Exception:  # noqa: BLE001 -- unknown width
+            width = None
+        out["gripper_open_frac"] = round(width, 2) if width is not None else "unknown"
+        return width, (f"{width:.0%} open" if width is not None else "at an unknown width")
+
+    def _reset_finds_closed_empty_jaws(self) -> bool:
+        """reset_scene opens the jaws when nothing is or may be held (no held
+        object, no provisional hold, no active carry attachment) and they read
+        closed (short of the `_reconcile_held` open tolerance). Jaws that read
+        open or cannot be read are left as they are."""
+        if (self.held_object or getattr(self, "_held_provisional", None) is not None
+                or carry_attachment.active(self) is not None):
+            return False
+        try:
+            width = self._gripper_width_frac()
+        except Exception:  # noqa: BLE001 -- unknown jaws stay as they are
+            return False
+        return width is not None and width < self._reset_open_frac()
+
+    def _reset_jaws_open_failed(self, out: dict, exc: Exception) -> bool:
+        """reset_scene's opening of closed EMPTY jaws raised. True ends the
+        reset. The same three classes, stage ("release") and `release_error`
+        as `_reset_release_failed`, outcome first; nothing is held, so nothing
+        can drop.
+
+        - Any other SafetyViolation: SafeArm refused before the driver (a halt
+          since the reset started, an e-stop, a gripper gate): nothing moved;
+          the reset ends.
+        - GripperFault: the driver raised AFTER its command went out: the jaws
+          may have moved; the measured width is reported; the reset ends.
+        - Any other error (bus or bridge timeout): recorded as
+          `jaws_open_error`; the reset goes on (nothing is held, and the next
+          grasp opens closed empty jaws first).
+        """
+        if not isinstance(exc, SafetyViolation):
+            out["jaws_open_error"] = (f"the empty jaws were not confirmed open (whether they moved is "
+                                      f"unknown): {exc}")
+            return False
+        out.update(ok=False, stage="release", release_error=str(exc), beliefs_forgotten=0)
+        if not isinstance(exc, GripperFault):
+            out["error"] = f"Scene reset stopped before opening the empty jaws: {exc}"
+            return True
+        _, measured = self._reset_measured_jaws(out)
+        out["error"] = (f"Scene reset stopped: the gripper faulted while opening the empty jaws and the jaws "
+                        f"measured {measured}; check the gripper. Gripper fault: {exc}")
+        return True
+
     @motion_evidence.phase("home")
     def skill_move_home(self, *, _halt_generation=None) -> dict:
         carry_attachment.check(self)
@@ -7889,7 +8111,8 @@ class SkillRuntime:
         else:
             home = self._profile_q("home_q", "move home")
         if self._home_policy_enabled():
-            result = self._return_to_view_home(home, self.cfg.arm)
+            # The caller's halt generation (the reset's) reaches this move too.
+            result = self._return_to_view_home(home, self.cfg.arm, halt_generation=_halt_generation)
             if not result["ok"]:
                 if result["status"] == "halted":
                     raise MotionHalted(result["reason"])     # a halt stays a halt
@@ -9192,7 +9415,10 @@ TOOL_SPECS: list[dict] = [
             "Start over between demos: arm home, every simulated prop back on "
             "its spawn pose, the world model and the task memory cleared, one "
             "fresh observation. On a real robot the props do not move back "
-            "(props_reset is empty): ask the human to replace them. Not a "
+            "(props_reset is empty): ask the human to replace them. On a real "
+            "robot it also refuses while the gripper holds an object, before "
+            "any motion (opening at home would drop it): place it first "
+            "(place_at), then reset. Not a "
             "recovery tool for a failed grasp -- use it when a task or a "
             "visitor is done."
         ),
@@ -9305,7 +9531,10 @@ TOOL_SPECS: list[dict] = [
             "by default. Read-only and safe to call at any time. Call this "
             "before using the `arm` parameter, so you use a real name: on a "
             "single-arm rig it reports one arm and `arm` can be omitted "
-            "entirely."
+            "entirely. An arm mounted off the table origin (its profile "
+            "declares a base_pose) refuses every skill that aims at a "
+            "perceived object or table coordinates until world targets are "
+            "converted; joint-space and relative skills still run on it."
         ),
         "parameters": {"type": "object", "properties": {}, "required": []},
     },

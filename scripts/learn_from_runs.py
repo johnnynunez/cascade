@@ -49,7 +49,7 @@ def main() -> int:
                     help="ASPIRE skill library directory")
     ap.add_argument("--min-tasks", type=int, default=PROMOTION_MIN_TASKS,
                     help="distinct tasks a note must recur in before it is promoted "
-                         f"(default {PROMOTION_MIN_TASKS}, upstream ASPIRE's rule; 1 = retrieve "
+                         f"(default {PROMOTION_MIN_TASKS}, cascade's own rule; 1 = retrieve "
                          "after one confirmed retry, explicit relaxation)")
     ap.add_argument("--envelope", default="~/.cascade/envelope.json",
                     help="persisted operating-envelope model")

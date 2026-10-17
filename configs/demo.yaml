@@ -393,8 +393,8 @@ memory:
   size_gate: true
   # ASPIRE skill library (skills_library/*.md, written offline by
   # scripts/learn_from_runs.py): a distilled note is retrieved into the agent
-  # context only after it recurred in this many DISTINCT tasks (upstream
-  # ASPIRE's promotion rule). Notes seen in one task stay stored candidates.
+  # context only after it recurred in this many DISTINCT tasks (cascade's own
+  # rule, not upstream ASPIRE's). Notes seen in one task stay stored candidates.
   # 1 = retrieve after a single confirmed retry -- an explicit relaxation, not
   # a default. Must be >= 1.
   skill_min_tasks: 2

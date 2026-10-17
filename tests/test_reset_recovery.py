@@ -38,7 +38,9 @@ def recovery_case(*, watched):
     main = stream("main")
     rt = runtime(main)
     rt.detector = SimpleNamespace(detect=lambda *a, **kw: [])
-    rt.cfg = Cfg({"arm": {"home_q": [0.] * 6}})
+    # An Isaac rig (physics prop reset, payload map): reset_scene releases a
+    # held object at home only on a simulated arm type.
+    rt.cfg = Cfg({"arm": {"type": "isaac", "home_q": [0.] * 6}})
     rt.arm.harness.occupancy = occupancy
     rt.arm.set_gripper = lambda *a, **kw: events.append(("release",))
     reset_props = rt.arm.raw.reset_props

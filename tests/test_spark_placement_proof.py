@@ -8,6 +8,7 @@ import importlib.util
 import io
 import json
 from pathlib import Path
+import zlib
 
 import numpy as np
 import pytest
@@ -192,6 +193,32 @@ def test_snapshot_is_read_only_and_keeps_exact_convex_codec(object_name, destina
     with contextlib.redirect_stdout(output):
         exec('import zlib as _obs_zlib' + code.split('import zlib as _obs_zlib', 1)[1], namespace)
     assert gpu.original.parse_snapshot_reply({"ok": True, "stdout": output.getvalue()}) == sample
+
+
+@pytest.mark.parametrize("object_name,destination", proof.CASES)
+def test_plain_base_receipt_gets_the_codec_envelope_with_unchanged_stdout(monkeypatch, object_name, destination):
+    # Every witness carries scene geometry, so its base code already ends with the codec's
+    # compressed line. A base receipt that still ends with the plain line gets the codec's
+    # one bounded envelope, not a private copy, and prints the same bytes as before.
+    monkeypatch.setattr(gpu.GpuProofObserver, "_snapshot_code", lambda self: gpu.snapshot_code(
+        object_name=self.object_name, expected_props=self.expected_props))
+    witness = proof.SparkKitchenWitness(ROOT / "runs/unused-synthetic-test",
+        scene_config=ROOT / "demo/scene/kitchen_config.json", object_name=object_name, destination_name=destination)
+    code = witness._snapshot_code()
+    assert code.endswith(gpu.codec.compressed_envelope_code())
+    assert "KITCHEN_OBSERVER '" not in code and code.count("import zlib as _obs_zlib") == 1
+    rows, _ = trajectory(object_name, destination)
+    for row in rows[:3]:
+        sample = deepcopy(row["physics"])
+        sample.pop("scene_geometry")  # a plain base receipt reads no scene geometry
+        payload = json.dumps(sample, separators=(",", ":"), allow_nan=False)
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            exec('import zlib as _obs_zlib' + code.split('import zlib as _obs_zlib', 1)[1],
+                 {"_obs_payload": payload, "_obs_base64": base64})
+        compressed = base64.b64encode(zlib.compress(payload.encode("utf-8"), 6)).decode("ascii")
+        assert output.getvalue() == "KITCHEN_OBSERVER_ZLIB " + compressed + "\n"
+        assert gpu.original.parse_snapshot_reply({"ok": True, "stdout": output.getvalue()}) == sample
 
 
 @pytest.mark.parametrize("object_name,destination", [

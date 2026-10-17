@@ -1281,7 +1281,8 @@ def test_a_halt_during_the_fr3_home_return_stays_a_halt(tmp_path, skill, when):
     else:
         assert res["return_home"] == {"ok": False, "status": "halted", "reason": "halted: operator"}, res
         assert res["ok"] is False and res["action_ok"] is True
-        assert res["error"] == "return to saved home halted: halted: operator"
+        # main's #357 text rule: the halt's own "halted: " is said once
+        assert res["error"] == "return to saved home halted: operator"
 
 
 def test_after_a_halted_skill_the_next_fr3_move_home_runs(tmp_path):

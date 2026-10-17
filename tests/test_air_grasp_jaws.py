@@ -863,6 +863,10 @@ def test_reset_scene_with_open_jaws_sends_no_jaw_command(mock_rt):
 
 @needs_pin
 def test_reset_scene_never_opens_held_jaws_before_its_release(mock_rt):
+    """Holding on the mock (a simulated arm): exactly ONE jaw command, the
+    reset's own release to the profile's open position (#357); no extra
+    empty-jaws opening before it. A real profile refuses instead
+    (test_reset_release_opens, test_reset_jaws_compose)."""
     rt, arm = mock_rt.rt, mock_rt.arm
     arm.object_stop_frac = .5                 # the jaws stall on something: a plausible hold
     rt.execute("close_gripper", {})
@@ -870,7 +874,7 @@ def test_reset_scene_never_opens_held_jaws_before_its_release(mock_rt):
     n0 = len(mock_rt.grips)
     out = rt.execute("reset_scene", {})
     assert "jaws_open_commanded" not in out, out
-    assert mock_rt.grips[n0:] == [1.0]          # only reset's own release, as before
+    assert mock_rt.grips[n0:] == [rt._grip_open]   # only reset's own release
 
 
 @needs_pin
@@ -896,7 +900,9 @@ def test_a_stop_before_reset_opens_the_jaws_sends_nothing(mock_rt, monkeypatch, 
     monkeypatch.setattr(rt, "skill_move_home", home_then_stop)
     n0 = len(mock_rt.grips)
     out = rt.execute("reset_scene", {}) if call == "execute" else rt.skill_reset_scene()
-    assert out["ok"] is False and out.get("stage") == "jaws", out
+    # the reset's jaw step at home: the same stage and fields as its release
+    assert out["ok"] is False and out.get("stage") == "release" and out["release_error"], out
+    assert out["error"].startswith("Scene reset stopped before opening the empty jaws: "), out
     assert mock_rt.grips[n0:] == [] and rt._gripper_width_frac() < .5
     if stop == "e-stop":
         harness.reset_estop()
@@ -933,7 +939,9 @@ def test_a_jaw_fault_in_reset_scene_is_reported_and_the_reset_goes_on(mock_rt, m
     monkeypatch.setattr(arm, "jaws_stuck", True, raising=False)
     monkeypatch.setattr(arm, "set_gripper", faulty)
     out = rt.skill_reset_scene()
-    assert out["ok"] is True and out["jaws_open_error"] == "gripper bus timeout", out
+    assert out["ok"] is True, out
+    assert out["jaws_open_error"] == ("the empty jaws were not confirmed open (whether they moved is "
+                                      "unknown): gripper bus timeout"), out
     assert "jaws_open_commanded" not in out and out["observation_refreshed"] is True
 
 

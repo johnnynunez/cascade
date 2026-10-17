@@ -202,6 +202,10 @@ to the morning baseline after a bad streak (restart the server to load the resto
 
 ## 9. Simulated kitchen on DGX Spark (presenter card)
 
+To explain the demo: [simple overview](assets/paai_demo_simple_light.png) for visitors,
+[full pipeline](assets/paai_demo_pipeline_light.png) for technical questions
+(dark: [simple](assets/paai_demo_simple_dark.png), [pipeline](assets/paai_demo_pipeline_dark.png)).
+
 1. Start: `python3 scripts/desktop.py launch --repo "$PWD"` from the installed checkout (Spark profile, Qwen brain).
    Wait for **READY**, then check the cameras and the `grasp_planner=graspgenx (learned 6-DoF)` banner.
 2. Demo: one request at a time, e.g. "What can you see on the table?", then

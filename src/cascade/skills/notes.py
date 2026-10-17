@@ -11,7 +11,7 @@ never rendered. A v1 body has no ``## Advice``: its advice is the first paragrap
 ``## Strategy`` (a longer one than `ADVICE_MAX_CHARS` fails the lint: the note is
 skipped, never cut into acceptance). Only regular files (never a symlink) of at most
 `NOTE_MAX_BYTES` whose name is a safe id (`_NOTE_NAME_RE`) are notes, hashed or
-served; every other `*.md` entry and every note that fails the lint is listed in the
+served (`read_regular`, the one safe reader LEARNED.md is read with too); every other `*.md` entry and every note that fails the lint is listed in the
 snapshot's `skipped` with its reason and logged, never dropped silently.
 
 Notes are advice TEXT. This module renders them and nothing else: no value in a
@@ -273,34 +273,61 @@ def is_note_id(note_id) -> bool:
     return isinstance(note_id, str) and _is_note_name(f"{note_id}.md")
 
 
-def _read_regular(path: Path) -> tuple[bytes | None, str]:
-    """(bytes, "") of the regular file at `path`, else (None, why). The open never
-    follows a symlink (O_NOFOLLOW, so a link swapped in after the listing is refused
-    too) and never blocks on a FIFO (O_NONBLOCK, then fstat). A file over
-    `NOTE_MAX_BYTES` is `too_large` on its fstat size, before any read; the read stops
-    one byte past the cap too, so a file that grows after the fstat is never read whole."""
-    flags = os.O_RDONLY | os.O_NONBLOCK | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
+class UnsafeFile(ValueError):
+    """A path `read_regular` refuses to read: `reason` is "symlink", "not_a_file" or
+    "too_large" (the snapshot's skip reasons)."""
+
+    def __init__(self, path, reason: str):
+        super().__init__(f"{path}: {reason}")
+        self.path, self.reason = path, reason
+
+
+def read_regular(path, limit: int, *, whole: bool) -> bytes:
+    """The bytes of the regular file at `path`: with `whole`, the whole file, refused as
+    "too_large" when it is over `limit` bytes -- on its fstat size, before any byte is read,
+    and when it grows past the cap meanwhile (the read stops one byte past it); without
+    `whole`, its first `limit` bytes. The one safe reader of the note library and of the
+    kitchen's LEARNED.md / run.json (`learned_block`): a symlink is never followed (lstat,
+    then an O_NOFOLLOW open, so a link swapped in after the lstat is refused too) and a FIFO
+    never blocks (O_NONBLOCK, then fstat: anything but a regular file is "not_a_file").
+    Raises `UnsafeFile`, or the OSError of the lstat / open / read (FileNotFoundError when
+    nothing is there)."""
+    if stat.S_ISLNK(os.lstat(path).st_mode):
+        raise UnsafeFile(path, "symlink")
     try:
-        fd = os.open(path, flags)
+        fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0))
     except OSError as exc:
-        return None, "symlink" if exc.errno == errno.ELOOP else "unreadable"
+        if exc.errno == errno.ELOOP:
+            raise UnsafeFile(path, "symlink") from None
+        raise
     try:
         st = os.fstat(fd)
         if not stat.S_ISREG(st.st_mode):
-            return None, "not_a_file"
-        if st.st_size > NOTE_MAX_BYTES:
-            return None, "too_large"
+            raise UnsafeFile(path, "not_a_file")
+        if whole and st.st_size > limit:
+            raise UnsafeFile(path, "too_large")
+        cap = limit + 1 if whole else limit
         chunks, size = [], 0
-        while size <= NOTE_MAX_BYTES and (chunk := os.read(fd, NOTE_MAX_BYTES + 1 - size)):
+        while size < cap and (chunk := os.read(fd, cap - size)):
             chunks.append(chunk)
             size += len(chunk)
-        if size > NOTE_MAX_BYTES:
-            return None, "too_large"
-        return b"".join(chunks), ""
-    except OSError:
-        return None, "unreadable"
+        if whole and size > limit:
+            raise UnsafeFile(path, "too_large")
+        return b"".join(chunks)
     finally:
         os.close(fd)
+
+
+def _read_regular(path: Path) -> tuple[bytes | None, str]:
+    """(bytes, "") of the note file at `path` (`read_regular`, whole, at most
+    `NOTE_MAX_BYTES`), else (None, why): "symlink", "not_a_file", "too_large" or
+    "unreadable" (any other OSError)."""
+    try:
+        return read_regular(path, NOTE_MAX_BYTES, whole=True), ""
+    except UnsafeFile as exc:
+        return None, exc.reason
+    except OSError:
+        return None, "unreadable"
 
 
 def parse_note(path: Path) -> Note | None:
@@ -1405,10 +1432,12 @@ class LibrarySnapshot:
         return best
 
     def manifest(self) -> dict:
-        """The library identity a run records (JSON-ready)."""
+        """The library identity a run records (JSON-ready): `block_notes` and `block_sha`
+        name the prompt block's notes and its rendered text."""
+        block, ids = self._block()
         return {"library_sha": self.sha, "profile_class": self.profile_class,
                 "served_notes": [n.id for n in self.served],
-                "block_notes": list(self._block()[1])}
+                "block_notes": list(ids), "block_sha": hashlib.sha256(block.encode("utf-8")).hexdigest()}
 
 
 def _printable_id(name: str) -> str:

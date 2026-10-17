@@ -882,6 +882,31 @@ if [[ "$SIM" == "mujoco" && "$(uname -s)" == "Darwin" && -x "$(dirname "$PY")/mj
     MCP_PY="$(dirname "$PY")/mjpython"
     log "macOS + mujoco: MCP server runs under mjpython so the viewer can open"
 fi
+# ASPIRE learned notes, one library per launch (spec §4.3): copy the note files the
+# robot server would read (A1 reader rules) into $STATE_DIR/aspire-library and point
+# CASCADE_ASPIRE_LIBRARY at that copy before the server environment below is built, so
+# every robot server of this launch and LEARNED.md read the same bytes whatever the
+# library does meanwhile. Never stops the launch (preflight R26): a failed freeze warns
+# and points every reader at a new empty directory (notes off).
+freeze_note_library() {
+    local frozen="$STATE_DIR/aspire-library" out=""
+    if [[ $DRY == 1 ]]; then
+        printf '        $ %s\n' "python -m cascade.skills.learned_block --freeze $frozen"
+        return 0
+    fi
+    if out="$(cd "$REPO/models" && CASCADE_ARM="$ARM" CASCADE_CAMERAS="$CAMERAS" \
+            PYTHONPATH="$REPO/src${PYTHONPATH:+:$PYTHONPATH}" \
+            "$PY" -m cascade.skills.learned_block --freeze "$frozen" 2>&1)"; then
+        log "learned notes: $out"
+    else
+        frozen="$(mktemp -d "$STATE_DIR/aspire-library-off.XXXXXX")" || frozen="$STATE_DIR/aspire-library-off"
+        warn "learned notes: ${out:-the note library freeze did not report}; notes off for this launch: every robot server reads the empty library $frozen"
+    fi
+    export CASCADE_ASPIRE_LIBRARY="$frozen"
+}
+if [[ "${CASCADE_INSTALL_PROFILE:-}" == spark ]]; then
+    freeze_note_library
+fi
 MCP_JSON="$("$PY" - "$MCP_PY" "$REPO" "$CAMERAS" "$ARM" "$CLASSES" "$SIM" "$STATE_DIR" "$LAUNCH_OWNER" "$ISAAC_GUI" "$OCCUPANCY" <<'PYEOF'
 import json, os, sys
 from cascade.apps.mcp_env import forwarded_env
@@ -1277,12 +1302,13 @@ print(len(tools), int(need <= set(tools)))
     PROOF_TRACE="$(printf '%s' "$PROOF_JSON" | "$PY" -c 'import json,sys; print(json.load(sys.stdin).get("trace", ""))')"
     BRAIN_DESC="$(printf '%s' "$PROOF_JSON" | "$PY" -c 'import json,sys; print(json.load(sys.stdin)["model"])')"
     # The proof bound the robot server visitors talk to: its run.json must record
-    # the library LEARNED.md renders, else the file goes (a visible warning).
+    # the library and block LEARNED.md renders, else the file goes (a visible warning).
+    # An assertion: the frozen library already gives every server the same bytes.
     if [[ -n "${LEARNED_WORKSPACE:-}" ]]; then
         if [[ -n "${PROOF_TRACE:-}" ]]; then
             learned_notes "$LEARNED_WORKSPACE" --check-run "$(dirname "$PROOF_TRACE")"
         elif [[ -f "$LEARNED_WORKSPACE/LEARNED.md" ]]; then
-            warn "learned notes: $LEARNED_WORKSPACE/LEARNED.md is not checked against a robot server (no robot proof)"
+            log "learned notes: no robot proof to check $LEARNED_WORKSPACE/LEARNED.md against; every robot server of this launch reads the frozen library ${CASCADE_ASPIRE_LIBRARY:-(none)}"
         fi
     fi
 

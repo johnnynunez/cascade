@@ -260,8 +260,14 @@ def _write_invalid(workspace, kind, valid):
         "crlf_header": header + "\r\n" + block,
         "header_only": header + "\n",
         "blank_block": header + "\n \n\n",
+        # A4 fix round 1: a byte-order mark is refused, never stripped (ruling 5), and the
+        # header carries the block's sha256 (ruling 4)
+        "bom": "\ufeff" + valid,
+        "no_block_sha": re.sub(r" block_sha=[0-9a-f]{64}", "", valid, count=1),
+        "short_block_sha": re.sub(r"block_sha=[0-9a-f]{64}", "block_sha=abc", valid, count=1),
     }
     if kind in texts:
+        assert texts[kind] != valid                                          # premise: each kind changes the file
         path.write_text(texts[kind], encoding="utf-8")
     elif kind == "oversize":
         data = valid.encode()
@@ -282,7 +288,7 @@ def _write_invalid(workspace, kind, valid):
 
 INVALID = ["no_header", "blank_first_line", "version_2", "short_sha", "upper_sha", "no_notes", "unsafe_note_id",
            "trailing_text", "crlf_header", "header_only", "blank_block", "oversize", "invalid_utf8", "symlink",
-           "directory", "fifo"]
+           "directory", "fifo", "bom", "no_block_sha", "short_block_sha"]
 
 
 @pytest.mark.parametrize("kind", INVALID)

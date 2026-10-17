@@ -479,7 +479,7 @@ def test_block_knowledge_and_manifest_are_empty_when_nothing_is_served(tmp_path)
     s = load_snapshot(tmp_path, "sim")
     assert (s.served, s.block(), s.knowledge()) == ((), "", "")
     assert s.manifest() == {"library_sha": library_sha(tmp_path), "profile_class": "sim",
-                            "served_notes": [], "block_notes": []}
+                            "served_notes": [], "block_notes": [], "block_sha": hashlib.sha256(b"").hexdigest()}
 
 
 def test_block_and_knowledge_never_render_evidence(tmp_path):
@@ -551,7 +551,8 @@ def test_manifest_names_the_library_and_the_served_notes(tmp_path):
     _note(tmp_path, "c-note")
     s = load_snapshot(tmp_path, "sim")
     assert s.manifest() == {"library_sha": library_sha(tmp_path), "profile_class": "sim",
-                            "served_notes": ["a-note", "b-note", "c-note"], "block_notes": ["a-note", "b-note"]}
+                            "served_notes": ["a-note", "b-note", "c-note"], "block_notes": ["a-note", "b-note"],
+                            "block_sha": hashlib.sha256(s.block().encode("utf-8")).hexdigest()}
     assert json.loads(json.dumps(s.manifest())) == s.manifest()
 
 

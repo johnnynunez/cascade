@@ -56,7 +56,9 @@ def workspace(tmp_path):
 
 
 def _header(snap) -> str:
-    return f"{LEARNED_HEADER_PREFIX}library_sha={snap.sha} notes={','.join(snap.manifest()['block_notes'])} -->"
+    manifest = snap.manifest()
+    return (f"{LEARNED_HEADER_PREFIX}library_sha={snap.sha} block_sha={manifest['block_sha']} "
+            f"notes={','.join(manifest['block_notes'])} -->")
 
 
 # ── the generator ─────────────────────────────────────────────────────────
@@ -66,7 +68,7 @@ def test_writes_header_block_atomically_0600(workspace, snap_with_two):
     assert sync_learned_notes(workspace, snap_with_two) is True
     path = workspace / "LEARNED.md"
     text = path.read_text(encoding="utf-8")
-    assert text.startswith(f"<!-- cascade-learned-notes v1 library_sha={snap_with_two.sha} notes=")
+    assert text.startswith(f"<!-- cascade-learned-notes v1 library_sha={snap_with_two.sha} block_sha=")
     assert text == _header(snap_with_two) + "\n" + snap_with_two.block() + "\n"   # A1's block, verbatim
     assert _header(snap_with_two).endswith(" notes=a-note,b-note -->")
     assert stat.S_IMODE(path.stat().st_mode) == 0o600

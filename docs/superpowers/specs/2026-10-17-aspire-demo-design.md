@@ -109,10 +109,13 @@ A v1 body has no `## Advice`: its advice is the first paragraph of `## Strategy`
 lint (the note is skipped, never cut into acceptance).
 
 Provenance tag (one string, rendered after each note everywhere Qwen or a visitor sees it):
-`learned in <learned_in> · <verifier part> · lib <first 8 hex of library_sha>`, where `<verifier part>` is
+`learned in <learned_in> | <verifier part> | lib <first 8 hex of library_sha>`, where `<verifier part>` is
 `verifier <passes>/<len(seeds)>` for `verified`, else `not verifier-tested`; `authored` notes render
-`authored · <verifier part> · lib <sha8>`. Example: `learned in sim · verifier 4/5 · lib 3fa9c2d1`. In the block, a
+`authored | <verifier part> | lib <sha8>`. Example: `learned in sim | verifier 4/5 | lib 3fa9c2d1`. In the block, a
 note whose advice would be cut to nothing (not one whole word fits) is dropped, never rendered empty.
+Served text is ASCII on the wire (A3 review fix round, ruling 2): the tag's separators are ASCII (a note's own text
+can carry no `|`), and every route renders a note's typographic quotes, apostrophes and dashes as `"`, `'` and `-`
+(`notes._ascii`), so a JSON reply never escapes a rendered character to six.
 
 Advice lint (a note that fails it is never served, whatever its status) is a deny-by-default STRUCTURAL gate, not a
 blocklist: advice and titles are short plain English, and anything that cannot be shown to be plain English is refused
@@ -152,7 +155,8 @@ tool its failure signature names), never `reset_scene`, `reset_stop`, `emergency
 identifier or tool parameter is followed by `:` (arguments: any `snake_case` name and `object`, `destination`,
 `target`, `x`, `y`, `z`, `arm`, `force`, `speed`, `frame`, `pose`, `position`, `grasp`, `offset` always; every other
 single-word tool parameter, frozen in the lint so a new tool spec never changes it, only in a field with two or more
-`name:` pairs, so titles like `Side: grasp across` pass; `=` is a refused character); a tool name written as plain
+`name:` pairs, so a field like `Side: grasp across` passes as a field -- as a title its rendered line has two, see
+below; `=` is a refused character); a tool name written as plain
 words is English (`move home`, `place at`), except the four forbidden tools in any spelling; and no reset (`reset` in
 any form, `respawn`,
 `begin again`, `start from scratch`, and `restart` / `reload` / `redo` / `re-initialise` / `restore` with `scene`,
@@ -178,7 +182,14 @@ modifies a safety head noun (`system`, `feature`, `rule`, `check`, `gate`, `inte
 around an object whose head is a guard noun, the particle within 4 words: `turn the clearance gate off`) or
 success-claim advice (`treat ... as a success`, `tell the user
 it is done`, honesty phrasings included). The same lint covers every field rendered to the agent or a visitor
-(preflight R4): the title and the advice. The reviews' hostile texts (78 + the first re-review's 50 rule-claimed ones +
+(preflight R4): the title and the advice, and -- once both are clean -- the text they render together, `<title>:
+<advice>` exactly as every route renders it, in ASCII (cap 80 + 2 + 300; A3 review fix round, ruling 1): two clean
+fields can join into refused advice (`Do not` + `stop when ...`, `Tell the user` + `it is done ...`), a title ending
+in a role word renders as a role marker (`User: ...`) and a hard stem can join across the colon (`Re: set ...`); the
+skip reason is then the rule of that rendered text (field `line`). Because the rendering colon follows the title, a
+title ending in a tool parameter (`Mug handle facing the arm` -> `arm:`) is refused as arguments (accepted
+over-block), and so is a title that opens with its own tool-parameter label (`Side: grasp across: ...`: the
+rendering colon makes the second `name:` pair; 5 of the 192 oracle texts, reported to the controller). The reviews' hostile texts (78 + the first re-review's 50 rule-claimed ones +
 the second re-review's 73 rule-claimed and 18 newly ruled ones) are a test that must stay all refused, next to a set of plain kitchen advice that must stay all accepted (and fix round 4's everyday phrasings whose words run into a stem); plain-English
 paraphrases of harm (no rule word) stay a limit of a structural gate, carried by promotion and the verifier.
 
@@ -274,25 +285,34 @@ managed block directly after `AGENTS.md`, which is what Q2 asked for.
 
 **Selection and budget.** Top 2 of the served notes (§4.4), ranked: `verifier.verdict == verified` first, then
 `useful - misleading`, then `n_tasks`, then name. Block <= 1400 characters (~350 tokens) and the whole `LEARNED.md`
-<= 2000 UTF-8 bytes (the tag's "·" and non-ASCII titles cost more than one byte); a note's advice is cut to fit.
+<= 2000 UTF-8 bytes (every rendered character is ASCII, so one byte); a note's advice is cut to fit.
 `robot_knowledge` adds `learned_notes` (the served notes, same rendering, at most 10 lines (`KNOWLEDGE_SHOWN`) in <= 6000
-chars, then "(N more notes not shown)") and `library_sha` when at least one note is served, and `skipped_notes` (A3,
-controller ruling: a hand-written note the lint refused is never silent) when the snapshot skipped any `*.md` entry: a
-head line "Refused by the note check, so never advice (file name and the rule that refused it):", then "- <name>
-(<reason>)" for at most 10 entries (`SKIPPED_SHOWN`), then "(N more not shown)". Named are v2 notes (front matter
-`schema: 2`, `kind: authored` or a `verifier` record) and entries that never parsed (their version is unknown);
-harvested v1 and legacy notes (parsed, none of those keys) are only counted, last: "(N older notes not served)", so a
-sim profile reading `<repo>/skills_library` gets one line, not its harvested files (A3 follow-up ruling). A name is
-shown only when it is a safe note name whose text passes the title lint, else "(name not shown)": a library file is
-named after its title, so a refused title must not come back as a file name. A `sim` snapshot shows `skipped_notes`
+characters as the JSON reply carries them -- a `"` or a newline counts two, A3 review fix round ruling 2 -- then "(N
+more notes not shown)", "(1 more note not shown)" for one) and `library_sha` when at least one note is served, and
+`skipped_notes` (A3, controller ruling: a hand-written note the lint refused is never silent) when the snapshot skipped
+any `*.md` entry. It names no note (A3 review fix round, ruling 3: the agent relays what it reads, and through A4 a
+visitor asks this tool): v2 notes (front matter `schema: 2`, `kind: authored` or a `verifier` record) and entries that
+never parsed (their version is unknown) are counted per rule, the most frequent first, ties by rule name: "3 notes not
+served: stop x2, success_claim x1"; harvested v1 and legacy notes (parsed, none of those keys) are one count, last:
+"(N older notes not served)", so a sim profile reading `<repo>/skills_library` gets one line (A3 follow-up ruling).
+Rule names are code constants, never note text; one note reads singular. Names stay operator-facing (run.json
+`skipped.first`, the server log); a visitor surface (§4.8) that shows a skipped note's name uses `notes._shown_name`
+(a safe note name whose text passes the title lint, else "(name not shown)"): a library file is named after its
+title, so a refused title must not come back as a file name. A `sim` snapshot shows `skipped_notes`
 (with `library_sha`) even when nothing is served; any other class adds nothing until a verifier-passed note is served
 (§6.3). Nothing served and nothing skipped -- or, on `real`, nothing served -- leaves the payload byte-identical to
 main. The tool's description gains "It also lists learned notes with where they were learned and whether a verifier
 passed them." only on a sim-class profile (`sim_profile.profile_class` of the config the catalogue is listed for): a
 real profile's tool catalogue keeps main's description byte for byte until B7 serves verified notes there (A3
-follow-up ruling). Worst case of the keys this adds (10 + 10 lines at the lint's field caps, the longest tag, rule name
-and shown name, a library of a million files): ~5.7 k characters of reply text with plain words, ~9.5 k when every
-rendered character is a `"` that JSON escapes. `robot_knowledge` joins `attendee-tools.json` (7 tools) with the description
+follow-up ruling). Worst case of the whole reply on the mock stack (A3 review fix round, probe 4 re-run through
+`McpSkillServer.call_tool`, Qwen3.8-27B tokenizer; 12 served notes at the lint's field caps with the longest tag, 14
+skipped v2 notes, 40 older ones): plain words 4,843 characters / 1,255 tokens; every rendered character a `"` 6,192
+characters / 2,993 tokens (7 lines fit the escaped cap); typographic marks only, now rendered as ASCII, 6,110 / 2,951;
+`"-` pairs 6,116 / 3,811 (9 lines); **the true worst case is fields of unescaped ASCII punctuation pairs (`!-`), about
+one token per character: 4,843 characters / 4,225 tokens** (10 lines). By construction `learned_notes` stays <= 6000
+JSON characters and <= 10 lines (<= ~4.1 k tokens at one token per character of a 382-character line), and
+`skipped_notes` is at most one count per rule (~30 rules, < 0.7 k characters). Before this round the same library
+reached 24,849 characters / 19,786 tokens (typographic marks: six characters each in JSON). `robot_knowledge` joins `attendee-tools.json` (7 tools) with the description
 "What earlier runs
 taught this robot: learned notes with where they were learned and whether a verifier passed them. Read-only, never
 moves the robot." Every pinned copy of the 6-tool list moves to 7 in the same change: `deploy/brev/visitor_chat.py:21`
@@ -418,6 +438,9 @@ candidates, refuted}, last_event: {t, kind: retry|note, line, outcome} | null}`.
 - Extension: `panel.mjs` renders `data.learning` from the `/state` poll it already makes every second, as text nodes
   only: "Learned notes · lib 3fa9c2d1", the served titles with tags, the last event line. Absent key -> the section
   stays hidden. No new port, no new request.
+- Binding for A9 and A10 (A3 review fix round, ruling 3): neither surface shows a skipped note's raw id (`run.json`
+  `skipped.first`, `LibrarySnapshot.skipped`); a name shown there goes through `notes._shown_name`. Titles and tags
+  are shown as the notes routes render them: the title through `notes._ascii`, the tag from `note_tag` (ASCII).
 
 ### 4.9 Docs fix (PR-A0, Q9)
 
@@ -587,8 +610,8 @@ Qwen3.8-27B on the vLLM recipe, GraspGen-X, all co-located):
    down, leaves the guarded ports closed and the stores unchanged; a guard port opened mid-run (a test-only port added
    with `--guard-port`) aborts within one episode.
 4. Promotion: a note with 2 tasks and no verdict is not served; with `verified` it is; with `refuted` never.
-5. Export: the `rebot_rs` runtime's `robot_knowledge` shows only verified notes with the tag `learned in sim ·
-   verifier k/5 · lib <sha8>`; an unverified note in the export dir is not served.
+5. Export: the `rebot_rs` runtime's `robot_knowledge` shows only verified notes with the tag `learned in sim |
+   verifier k/5 | lib <sha8>`; an unverified note in the export dir is not served.
 6. Timing: per order, `agent_s` + tool buckets sum to the turn wall time within 5 %.
 7. Reported, not a merge gate (it decides C): held-out seeds 201..208, P1-P3 (24 orders), block with the verified
    notes vs empty block. "Verified notes raise Qwen's success" = after - before >= 2/24 with 0 notes graded

@@ -194,9 +194,9 @@ def test_lint_accepts_plain_advice():
     assert lint_advice("If the first pick_and_place is refused near another object, one retry from home with a different grasp placed it.") == []
 def test_tags():
     v = {"verdict": "verified", "passes": 4, "seeds": [101, 102, 103, 104, 105]}
-    assert note_tag(N(learned_in="sim", verifier=v), "3fa9c2d1" + "0" * 56) == "learned in sim · verifier 4/5 · lib 3fa9c2d1"
-    assert note_tag(N(learned_in="unknown", verifier=None), SHA) == f"learned in unknown · not verifier-tested · lib {SHA[:8]}"
-    assert note_tag(N(kind="authored", verifier=None), SHA).startswith("authored · not verifier-tested")
+    assert note_tag(N(learned_in="sim", verifier=v), "3fa9c2d1" + "0" * 56) == "learned in sim | verifier 4/5 | lib 3fa9c2d1"
+    assert note_tag(N(learned_in="unknown", verifier=None), SHA) == f"learned in unknown | not verifier-tested | lib {SHA[:8]}"
+    assert note_tag(N(kind="authored", verifier=None), SHA).startswith("authored | not verifier-tested")
 def test_real_class_serves_only_verified_and_lint_clean(tmp_path):
     # promoted-unverified, verified, verified-but-lint-failing (all n_tasks 2) -> real serves exactly the clean
     # verified one; sim serves the two lint-clean ones
@@ -639,6 +639,9 @@ def test_r2_open_gripper_says_how_to_set_objects_down():
 
 **Interfaces:**
 - Consumes: `LibrarySnapshot.matching`, `note_tag` (A1); `SimRetryLedger.last_event` (A6); `learning_surface_enabled` (A1).
+- Binding (A3 review fix round, ruling 3; spec §4.8): no visitor surface shows a skipped note's raw id (`run.json`
+  `skipped.first`, `LibrarySnapshot.skipped`): any name shown goes through `notes._shown_name`. A note's title is
+  shown as the notes routes render it (`notes._ascii`), its tag from `note_tag` (ASCII, " | " separators).
 - Produces: `RETRY_LINE` (spec §4.8 text 1); `learning_line(*, retried_placed: bool, result: dict, matched: Note | None,
   sha: str) -> str | None`; `with_learning_line(result: dict, line: str | None) -> dict` (sets `learning_line` and
   appends "End your reply with this exact line: <line>"); `class LearningState(paths: list[Path], snapshot:
@@ -685,6 +688,9 @@ def test_real_profile_payload_unchanged_with_surface_on(...):   # rebot_rs + unv
 
 **Interfaces:**
 - Consumes: the `learning.json` schema (A9).
+- Binding (A3 review fix round, ruling 3; spec §4.8): no visitor surface shows a skipped note's raw id (`run.json`
+  `skipped.first`, `LibrarySnapshot.skipped`): any name shown goes through `notes._shown_name`. A note's title is
+  shown as the notes routes render it (`notes._ascii`), its tag from `note_tag` (ASCII, " | " separators).
 - Produces: `learningLines(learning) -> string[]` (pure: `["Learned notes · lib <sha8>", "<title> — <tag>", ...,
   "<last_event.line>"]`, `[]` for anything not schema 1); `spark_cameras.read_learning(path: Path | None) -> dict | None`
   (<= 64 KB, schema 1, else None).
@@ -694,9 +700,9 @@ def test_real_profile_payload_unchanged_with_surface_on(...):   # rebot_rs + unv
 ```js
 test('learning lines from a schema-1 state', () => {
   assert.deepEqual(learningLines({schema: 1, library_sha: '3fa9c2d1' + '0'.repeat(56),
-    served: [{id: 'a', title: 'Retry from home', tag: 'learned in sim · not verifier-tested · lib 3fa9c2d1'}],
+    served: [{id: 'a', title: 'Retry from home', tag: 'learned in sim | not verifier-tested | lib 3fa9c2d1'}],
     last_event: {kind: 'retry', line: 'Learning loop: ...', outcome: 'placed'}}),
-    ['Learned notes · lib 3fa9c2d1', 'Retry from home — learned in sim · not verifier-tested · lib 3fa9c2d1', 'Learning loop: ...']);
+    ['Learned notes · lib 3fa9c2d1', 'Retry from home — learned in sim | not verifier-tested | lib 3fa9c2d1', 'Learning loop: ...']);
 });
 test('anything else renders nothing', () => { for (const v of [undefined, null, {}, {schema: 2}]) assert.deepEqual(learningLines(v), []); });
 ```
@@ -908,7 +914,7 @@ def test_controls_are_never_written_to_a_library(tmp_path): ...    # --control p
 
 - [ ] **Step 1: Failing tests:** `test_exports_only_verified_lint_clean_notes`, `test_removes_previously_exported_notes_no_longer_verified`,
   `test_never_touches_other_files_in_the_target`, `test_rebot_rs_serves_only_verified_with_the_sim_tag` (real-profile
-  runtime: `robot_knowledge` contains `learned in sim · verifier 4/5 · lib`), `test_unverified_note_dropped_into_the_export_is_not_served`.
+  runtime: `robot_knowledge` contains `learned in sim | verifier 4/5 | lib`), `test_unverified_note_dropped_into_the_export_is_not_served`.
 - [ ] **Step 2-4:** FAIL -> implement (atomic per file, `exported` front-matter key) -> PASS.
 - [ ] **Mutation:** export `status == "promoted"` instead of `verdict == "verified"` -> KILLED.
 - [ ] **Commit:** `feat(aspire): verified-only export to the real reBot library`

@@ -162,8 +162,9 @@ pause or halt: never discourage an operator stop), unbounded-retry (`keep callin
 `until it succeeds`, `start over`, `forever`, `over and over`, `no limit`, `never give up` ...), override (`ignore`,
 `disregard`, `bypass`, `circumvent`, `override` anywhere), weakening (`disable`, `turn off`, `shut down`, `skip`,
 `lower`, `relax`, `reduce`, `raise` ... whose DIRECT OBJECT holds `gate`, `check`, `refusal`, `warning`, `veto`,
-`clearance`, `margin`, `limit`, `safety`, `collision`, `stop`, `halt`, `harness` ... (`stop` as the word `stop` /
-`stops` only: `the stopper`, `the stopwatch` are plain, A1 fix round 5): the guard noun among the first 4
+`clearance`, `margin`, `limit`, `safety`, `collision`, `stop`, `halt`, `harness` ... (`stop` as the exact words
+`stop`, `stops`, `stopping`, `stopped`, `stoppage` only: a note never discourages a stop in any form, while `the
+stopper`, `the stopwatch` are plain; A1 fix round 5, A2 fix round 1): the guard noun among the first 4
 words after the verb, before a preposition and the end of the clause at `and`, `to`, `for`, `then`, `so`, `but` or
 punctuation, with `and`/`,` + determiner listing another object; so `lower the clearance` is refused and `lower it to
 avoid collision` is not; `cut`, `drop`, `remove`, `zero`, `waive`, `tighten`, `forget`, `dismiss`, `set aside` ...

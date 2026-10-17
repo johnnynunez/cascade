@@ -437,10 +437,13 @@ _GUARDED_HEADS = frozenset({"system", "feature", "rule", "check", "gate", "inter
 #: down"): refused when a `_GUARDS` noun is the object's head and the particle follows
 _PHRASAL_OFF = (("turn*",), ("switch*",), ("shut*",))
 _PHRASAL_DOWN = (("shut*",),)
-#: guard words; the stop guard is the word "stop" / "stops" only ("the stopper", "the
-#: stopwatch" are kitchen nouns), while "guard*" stays (accepted over-block: "the blade guard")
+#: guard words; the stop guard is the exact words "stop" / "stops" / "stopping" / "stopped" /
+#: "stoppage" (a note never discourages a stop in any form) and not their prefix: "the
+#: stopper", "the stopwatch" are kitchen nouns. "guard*" stays (accepted over-block: "the
+#: blade guard")
 _GUARDS = (("gate*",), ("check*",), ("refus*",), ("warn*",), ("veto*",), ("clearanc*",), ("margin*",),
-           ("limit*",), ("safet*",), ("collis*",), ("collid*",), ("stop",), ("stops",), ("halt*",), ("guard*",),
+           ("limit*",), ("safet*",), ("collis*",), ("collid*",), ("stop",), ("stops",), ("stopping",), ("stopped",),
+           ("stoppage",), ("halt*",), ("guard*",),
            ("harness*",), ("interlock*",), ("watchdog*",), ("threshold*",), ("toleranc*",))
 _CLAIM_AS = (("treat*",), ("consider*",), ("regard*",), ("declar*",), ("mark*",))
 _CLAIM_SAY = (("tell*",), ("say*",), ("said",), ("report*",), ("announc*",), ("reply",), ("replie*",),

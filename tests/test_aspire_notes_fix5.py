@@ -162,8 +162,10 @@ def test_pre_set_notes_are_served(tmp_path, profile_class):
 
 # ── 3: the stop guard is the word stop / stops ───────────────────────────
 
-def test_the_stop_guard_is_two_exact_words():
-    assert [p for p in notes._GUARDS if p[0].startswith("stop")] == [("stop",), ("stops",)]
+def test_the_stop_guard_is_exact_words():
+    # fix round 5: "stop" / "stops", never the prefix; A2 fix round 1 adds the other forms (test_aspire_notes_fix6)
+    stops = [p for p in notes._GUARDS if p[0].startswith("stop")]
+    assert stops[:2] == [("stop",), ("stops",)] and not any(p[0].endswith("*") for p in stops)
     assert ("guard*",) in notes._GUARDS  # guard words stay (accepted over-block: "the blade guard")
 
 

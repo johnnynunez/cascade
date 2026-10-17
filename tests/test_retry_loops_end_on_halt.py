@@ -21,6 +21,7 @@ place primitives are replaced by fakes that move the arm and miss.
 
 from __future__ import annotations
 
+import re
 from types import SimpleNamespace
 
 import numpy as np
@@ -355,3 +356,141 @@ def test_an_estop_in_the_fr3_retry_rehome_stays_an_estop(rig, monkeypatch, kind)
     assert "SafetyViolation: e-stop latched" in out["error"], out
     assert "MotionHalted" not in out["error"], out
     assert r.runtime.arm.harness.estopped
+
+
+# ── a halt in the home move after a failed skill is named in its error ──────
+
+#: pick_and_place's error after one missed attempt (its duration scrubbed)
+PICK_MISSED = "grasp failed after 1 attempts (<t>s): grasp missed: closed on air"
+#: handover's error after one missed attempt
+HANDOVER_MISSED = "could not grasp 'red cube' for handover: grasp missed: closed on air"
+
+
+def _scrub_time(error):
+    return re.sub(r"\(\d+(\.\d+)?s\)", "(<t>s)", error)
+
+
+def _one_marked_miss(r, monkeypatch):
+    """One grasp attempt that moves the arm through the runtime (so execute()
+    counts it as this skill's motion) and misses."""
+    runtime = r.runtime
+    runtime.cfg._data.setdefault("grasp", {})["max_pick_attempts"] = 1
+    _missing_grasp(r, monkeypatch)
+    miss = runtime.skill_grasp_object
+
+    def marked_miss(*a, **k):
+        runtime._mark_motion_started()
+        return miss(*a, **k)
+    monkeypatch.setattr(runtime, "skill_grasp_object", marked_miss)
+
+
+@pytest.mark.parametrize("profile", ["rebot_rs", "mock"])
+def test_a_halt_in_a_failed_pick_and_place_park_is_named_in_its_error(rig, monkeypatch, profile):
+    """After its last missed attempt pick_and_place parks the arm (rigs
+    without the view-home return). A halt that stops that park is named in
+    the error, after the grasp failure it keeps."""
+    r = rig(profile)
+    _one_marked_miss(r, monkeypatch)
+    _stop_in_rehome(r, monkeypatch)                 # the 1st home move: the final park
+
+    out = r.runtime.execute("pick_and_place", {"object": "red cube"})
+
+    assert r.at_stop is not None and r.sends == r.at_stop, "an arm command went out after the halt"
+    assert out["ok"] is False and out["stage"] == "grasp", out
+    assert _scrub_time(out["error"]) == f"{PICK_MISSED}; final park {HALT}", out["error"]
+    assert not r.runtime.arm.harness.estopped
+
+
+def test_a_failed_pick_and_place_park_without_a_halt_keeps_its_error(rig, monkeypatch):
+    r = rig("rebot_rs")
+    _one_marked_miss(r, monkeypatch)
+
+    out = r.runtime.execute("pick_and_place", {"object": "red cube"})
+
+    assert _scrub_time(out["error"]) == PICK_MISSED, out["error"]
+
+
+def _stop_in_view_home_return(r, monkeypatch, where, kind="halt"):
+    """Stop (halt / e-stop) in execute()'s post-skill view-home return (fr3):
+    on `entry` (before its skip checks) or at its 2nd `route` command."""
+    runtime = r.runtime
+    back = runtime._return_to_view_home
+
+    def spy_return(*a, **k):
+        r.home_start = r.sends
+        if where == "entry":
+            _stop_now(r, kind)
+        return back(*a, **k)
+
+    def on_send():
+        if where == "route" and r.at_stop is None and r.home_start is not None \
+                and r.sends - r.home_start >= 2:
+            _stop_now(r, kind)
+    monkeypatch.setattr(runtime, "_return_to_view_home", spy_return)
+    r.on_send = on_send
+
+
+#: the return's own text, as execute() says it for a skill that succeeded
+VIEW_HOME_HALTED = {"route": f"return to saved home {HALT}",
+                    "entry": "return to saved home skipped: motion halted: operator: stop"}
+
+
+@pytest.mark.parametrize("where", sorted(VIEW_HOME_HALTED))
+@pytest.mark.parametrize("skill, args, missed", [
+    ("pick_and_place", {"object": "red cube"}, PICK_MISSED),
+    ("handover", {"label": "red cube"}, HANDOVER_MISSED),
+], ids=["pick_and_place", "handover"])
+def test_a_halt_in_fr3_view_home_return_after_a_failed_skill_is_named_in_its_error(
+        rig, monkeypatch, skill, args, missed, where):
+    """fr3 returns to its camera-view home after every motion skill. When the
+    skill failed and the operator's halt stops (or skips) that return, the
+    error names the halt after the skill's own failure, not only
+    `return_home.status`."""
+    r = rig("fr3")
+    _one_marked_miss(r, monkeypatch)
+    _stop_in_view_home_return(r, monkeypatch, where)
+
+    out = r.runtime.execute(skill, args)
+
+    assert r.at_stop is not None and r.sends == r.at_stop, "an arm command went out after the halt"
+    assert out["ok"] is False, out
+    assert out["return_home"]["status"] == ("halted" if where == "route" else "skipped"), out["return_home"]
+    assert _scrub_time(out["error"]) == f"{missed}; {VIEW_HOME_HALTED[where]}", out["error"]
+    assert not r.runtime.arm.harness.estopped
+
+
+@pytest.mark.parametrize("stop", ["none", "e-stop"])
+def test_fr3_view_home_return_after_a_failed_skill_without_a_halt_keeps_its_error(rig, monkeypatch, stop):
+    """A return that completed, or one an e-stop skipped (an e-stop is not
+    the operator's halt), leaves the failed skill's error as it is."""
+    r = rig("fr3")
+    _one_marked_miss(r, monkeypatch)
+    if stop == "e-stop":
+        _stop_in_view_home_return(r, monkeypatch, "entry", kind="estop_harness")
+
+    out = r.runtime.execute("pick_and_place", {"object": "red cube"})
+
+    assert out["return_home"]["status"] == ("returned" if stop == "none" else "skipped"), out["return_home"]
+    assert _scrub_time(out["error"]) == PICK_MISSED, out["error"]
+
+
+def test_a_halt_inside_an_fr3_skill_is_not_named_again_by_its_return(rig, monkeypatch):
+    """Only a halt that came during the view-home return is added to the
+    error. One that a grasp swallowed skips the return too; the grasp held,
+    so execute() already reports the halt (`MotionHalted: ...`), once."""
+    r = rig("fr3")
+    runtime = r.runtime
+
+    def grasp(label, **kwargs):
+        runtime._mark_motion_started()
+        _move_off(runtime, 0.15)
+        _stop_now(r, "halt")
+        runtime.held_object, runtime._held_det_label = label, "cube"
+        return {"held": label, "grip_verified": True}
+    monkeypatch.setattr(runtime, "skill_grasp_object", grasp)
+
+    out = runtime.execute("grasp_object", {"label": "red cube"})
+
+    assert r.sends == r.at_stop, "an arm command went out after the halt"
+    assert out["return_home"]["reason"] == "motion halted: operator: stop", out["return_home"]
+    assert out["error"] == f"MotionHalted: {HALT}", out["error"]

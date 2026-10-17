@@ -256,21 +256,24 @@ map gate (TCP/joints, held object, wrist camera, jaws; at preflight, at a static
 end or at a streamed step) files one report, and the skill call's row in `runs/*/trace.jsonl`
 carries that call's reports under `context.clearance`: `phase` (approve = streamed step /
 vet_step / vet_pose / route_end), `gate` (`tcp`, `link N`, `attached`, `wrist camera`, `jaws`),
-`reason` (the refusal text), `q`, `q_prev`, `tcp`, the offending `sample` (in the frame its gate
-read the map in: the arm base for `tcp`/`link N`, `base_pose @` that for `attached` and the tool
-parts; `base_pose` is in the report when the arm has one) and `sample_tcp` (TCP frame),
-`clearance_m`, `margin_m`, the `exemption` in force, the `map` (refreshes, age, voxel size,
-occupied count) and up to 64 occupied voxel centres within 5 cm of the sample (`voxels`,
-`[x, y, z, d]`, nearest first, 1 mm), with where they were looked up (`snapshot`: the query
-centre, `radius_m`, `max_voxels`). A required map that refuses by raising (stale, a failed
+`reason` (the refusal text), `q`, `q_prev`, `tcp`, the offending `sample` (in the map's frame,
+for every gate: `base_pose @` FK for an arm with a `base_pose`, which the report then carries) and
+`sample_tcp` (TCP frame), `clearance_m`, `margin_m`, the `exemption` in force (in the arm's base
+frame), the `map` (refreshes, cache clears, age, voxel size, occupied count) and up to 64 occupied
+voxel centres within 5 cm of the snapshot centre (`voxels`, `[x, y, z, d]`, nearest first, 1 mm),
+with where they were looked up (`snapshot`: the query centre, `radius_m`, `max_voxels`). `d` is
+measured from that centre: the sample, or, after a streamed halt took the report over, the FIRST
+sample (not the new `sample`). A required map that refuses by raising (stale, a failed
 refresh, a body-mask fault) files a report too: no sample or voxels, the `map` record (its
 `age_s` shows a stale map) and `raised`. At most 32 per call (the newest), one per gate, spot
-(1 cm) and map refresh (`occupancy.refusal_snapshot`); a repeat moves its report last and a
-streamed halt takes over the matching earlier report. They are built only after a gate refused,
+(1 cm), map state (refreshes and cache clears) and kind (returned or raised)
+(`occupancy.refusal_snapshot`); a repeat moves its report last and a streamed halt takes over the
+matching earlier report. They are built only after a gate refused,
 never on an admitted step, from the map cache current when the report is built
-(`OccupancyMap.nearby_occupied`, `clearance_record`): when a refresh landed between the gate's
-read and the report, `gate_refreshes` differs from `map.refreshes` and `snapshot_newer_map` is
-true (the voxels are then approximate). A failing snapshot keeps the refusal and adds
+(`OccupancyMap.nearby_occupied`, `clearance_record`): when a refresh landed, or payload tracking
+dropped the cache, between the gate's read and the report, `gate_refreshes` / `gate_cache_clears`
+differ from `map.refreshes` / `map.cache_clears` and `snapshot_newer_map` is true (the voxels are
+then approximate). A failing snapshot keeps the refusal and adds
 `snapshot_error`. Use them to tell a real neighbour from robot leftovers or stale voxels before
 touching any margin (`tests/test_clearance_snapshots.py`); `scripts/replay_clearance.py` re-vets
 them offline per lever (spec §6.3).

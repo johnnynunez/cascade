@@ -283,6 +283,11 @@ class OccupancyMap:
         self.last_error: str | None = None
         #: committed refreshes since construction (report(): is it ticking?)
         self.refreshes = 0
+        #: cache drops since construction (`_drop_cache`: a fenced or
+        #: retained-payload capture refresh, a scene reset, a background
+        #: replay): the cache changed without a refresh, so a clearance
+        #: report compares both counts (`clearance_record`)
+        self.cache_clears = 0
         # The refresh error last reported to the log. A refresh swallows its
         # own failures into `last_error`; without a log line a bridge that
         # keeps timing out is invisible while every motion is refused.
@@ -367,8 +372,7 @@ class OccupancyMap:
                 raise OccupancyError("scene reset cannot be downgraded to retained-anchor refresh")
             self._reset_pending = True
             self._body_error = "waiting for fresh retained-payload geometry"
-            self._grid = self._occupied = None
-            self._last_refresh = None
+            self._drop_cache()
             self.last_capture_refresh = None
             binding = self._capture_refresh_binding
             if binding is not None and binding.get("failure"):
@@ -413,8 +417,7 @@ class OccupancyMap:
         with self._io_lock, self._refresh_lock:
             self._reset_pending = True
             self._body_error = "retained-payload capture refresh failed: " + str(reason)
-            self._grid = self._occupied = None
-            self._last_refresh = None
+            self._drop_cache()
             self._integrated_captures.clear()
 
     def begin_scene_reset(self):
@@ -426,8 +429,7 @@ class OccupancyMap:
             self._scene_reset_invalidated = True
             self._reset_pending = True
             self._body_error = "waiting for post-reset captured geometry"
-            self._grid = self._occupied = None
-            self._last_refresh = None
+            self._drop_cache()
             self._depth_history.clear()
             self._prop_history_floor.clear()
             self._payload_samples.clear()
@@ -1044,6 +1046,13 @@ class OccupancyMap:
             grid, origin, voxel = None, None, 0.
         return prepared, (occupied, grid, origin, voxel)
 
+    def _drop_cache(self) -> None:
+        """Forget the cached grid until the next commit (caller holds
+        `_refresh_lock`) and count it: the only place the cache is dropped."""
+        self._grid = self._occupied = None
+        self._last_refresh = None
+        self.cache_clears += 1
+
     def _commit_grid(self, frame, fetched, capture_t) -> None:
         """Install a fetched grid (caller holds `_refresh_lock`)."""
         occupied, grid, origin, voxel = fetched
@@ -1120,8 +1129,7 @@ class OccupancyMap:
         floors = self._prop_history_floor.copy()
         for path in set(paths) | set(self._contact_paths or ()):
             floors[path] = stamp
-        self._grid = self._occupied = None
-        self._last_refresh = None
+        self._drop_cache()
         self._integrated_captures.clear()
         if self._capture_refresh_binding is None or paths != self._contact_paths:
             self._payload_samples.clear()
@@ -1567,7 +1575,8 @@ class OccupancyMap:
     def clearance_record(self) -> dict:
         """The map's state for a clearance refusal report (`map` in
         `SafetyHarness.drain_clearance_reports`): `refreshes` (committed
-        refreshes), `age_s` (of the cache, 1 ms; None before the first
+        refreshes), `cache_clears` (cache drops without a refresh,
+        `_drop_cache`), `age_s` (of the cache, 1 ms; None before the first
         commit), `voxel_m` (None before the first grid) and `occupied` (the
         cached voxel count; None without a cache). Read under `_refresh_lock`
         so that, with the harness holding the lock, it names the same commit
@@ -1575,10 +1584,11 @@ class OccupancyMap:
         stale or failed map (the report of such a refusal is exactly where
         its age is evidence)."""
         with self._refresh_lock:
-            last, voxel, occupied, refreshes = (self._last_refresh, self._grid_voxel, self._occupied,
-                                                self.refreshes)
+            last, voxel, occupied, refreshes, clears = (self._last_refresh, self._grid_voxel, self._occupied,
+                                                        self.refreshes, self.cache_clears)
         return {
             "refreshes": int(refreshes),
+            "cache_clears": int(clears),
             "age_s": None if last is None else round(max(time.monotonic() - float(last), 0.0), 3),
             "voxel_m": float(voxel) if voxel else None,
             "occupied": None if occupied is None else len(occupied),

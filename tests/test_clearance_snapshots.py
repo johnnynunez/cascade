@@ -28,7 +28,7 @@ from cascade.safety.harness import SafetyHarness, SafetyLimits
 from cascade.types import SafetyViolation, SkillError
 
 REPORT_KEYS = {"phase", "gate", "reason", "q", "q_prev", "tcp", "sample", "sample_tcp", "clearance_m",
-               "margin_m", "exemption", "map", "voxels", "gate_refreshes", "snapshot"}
+               "margin_m", "exemption", "map", "voxels", "gate_refreshes", "gate_cache_clears", "snapshot"}
 #: CartesianKin hovers its TCP at (0.3, 0, 0.3); this box's top is 2 cm under it
 UNDER = centred_box([.3, 0., .26], [.04, .04, .04])
 
@@ -161,8 +161,9 @@ def test_report_fields_and_bounds():
     assert r["sample"] == pytest.approx(q.tolist()) and r["sample_tcp"] == pytest.approx([0., 0., 0.])
     assert r["clearance_m"] == pytest.approx(.02, abs=1e-3) and r["margin_m"] == .03
     assert r["exemption"] is None
-    assert r["map"] == {"refreshes": 1, "age_s": r["map"]["age_s"], "voxel_m": .01,
+    assert r["map"] == {"refreshes": 1, "cache_clears": 0, "age_s": r["map"]["age_s"], "voxel_m": .01,
                         "occupied": len(occ._occupied)}
+    assert r["gate_refreshes"] == 1 and r["gate_cache_clears"] == 0
     assert 0 <= r["map"]["age_s"] < 5
     assert 0 < len(r["voxels"]) <= 64 and len(r["voxels"]) == 64          # the box holds > 64 near voxels
     assert all(row[3] <= .05 for row in r["voxels"]) and r["voxels"] == sorted(r["voxels"], key=lambda v: v[3])
@@ -710,6 +711,135 @@ def test_a_halt_that_takes_over_a_report_rechecks_the_newer_map_flag(monkeypatch
     assert r["gate_refreshes"] == r["map"]["refreshes"] == 2 and "snapshot_newer_map" not in r
 
 
+@pytest.mark.parametrize("clear", ["fence_capture_refresh", "begin_scene_reset"])
+@pytest.mark.parametrize("phase", ["vet_pose", "approve"])
+def test_a_cache_clear_between_the_gate_read_and_its_report_is_flagged(monkeypatch, clear, phase):
+    """Payload tracking drops the map cache without a refresh (a fenced or
+    retained-payload capture refresh, a scene reset, a background replay):
+    the refresh count stays, yet the snapshot is not of the map the gate
+    read. The report says so structurally (`cache_clears`)."""
+    occ = live_map(UNDER)
+    _, _, h = case(occupancy=occ)
+    q_prev, q = np.array([.3, 0., .31]), np.array([.3, 0., .3])
+    original = occ.clearance
+    if clear == "begin_scene_reset":
+        occ._payload_pose_fn = lambda *_: None          # a payload-tracking map (begin_scene_reset's guard)
+
+    def read_then_clear(points):
+        out = original(points)
+        if clear == "fence_capture_refresh":
+            occ.fence_capture_refresh("test: the capture refresh failed")
+        else:
+            assert occ.begin_scene_reset()
+        return out
+
+    monkeypatch.setattr(occ, "clearance", read_then_clear)
+    reason, _ = _refuse(h, phase, q_prev, q)
+    assert reason and reason.startswith("point 0 clearance")             # decided on the gate's own read
+    (r,) = h.drain_clearance_reports()
+    assert r["gate_refreshes"] == r["map"]["refreshes"] == 1              # no refresh counted
+    assert r.get("snapshot_newer_map") is True and r["voxels"] == []
+    assert r["map"]["cache_clears"] == r["gate_cache_clears"] + 1 == 1
+
+
+def test_every_cache_drop_counts_a_clear():
+    """The cache is dropped in one place (`_drop_cache`), which counts it:
+    no other code path sets the grid or the occupied cloud to None."""
+    import inspect
+    import re as _re
+
+    from cascade.perception import occupancy
+
+    src = inspect.getsource(occupancy.OccupancyMap)
+    drops = [m.start() for m in _re.finditer(r"self\._(grid|occupied)\s*=\s*(self\._(grid|occupied)\s*=\s*)?None", src)]
+    body = inspect.getsource(occupancy.OccupancyMap._drop_cache)
+    assert len(drops) == 1 and _re.search(r"self\._grid = self\._occupied = None", body), drops
+    occ = live_map(UNDER)
+    before = occ.cache_clears
+    occ.fence_capture_refresh("test")
+    assert occ.cache_clears == before + 1 and occ.clearance_record()["cache_clears"] == before + 1
+    assert occ._grid is None and occ._occupied is None and occ._last_refresh is None
+
+
+def test_a_returned_unavailable_and_a_later_raise_at_one_commit_keep_two_reports():
+    """Both are sample-less refusals of the same gate at the same commit; the
+    raise is a different event (`raised`) and keeps its own report."""
+
+    class Flaky:
+        required, status, refreshes, unknown_blocks = True, None, 3, True
+        raising = False
+
+        def clearance(self, points):
+            if self.raising:
+                raise SafetyViolation("required occupancy unavailable: the bridge stopped answering (test)")
+            return None
+
+        def nearby_occupied(self, point, radius_m, limit):
+            return np.zeros((0, 4))
+
+        def clearance_record(self):
+            return {"refreshes": 3, "age_s": 0.0, "voxel_m": .01, "occupied": 0}
+
+    occ = Flaky()
+    _, _, h = case(occupancy=occ)
+    q = np.array([.3, 0., .3])
+    assert h.vet_pose(q) == "clearance unavailable (fresh observed distance grid required)"
+    occ.raising = True
+    with pytest.raises(SafetyViolation):
+        h.vet_pose(q)
+    first, second = h.drain_clearance_reports()
+    assert "raised" not in first and first["reason"].startswith("clearance unavailable")
+    assert second["raised"] == "SafetyViolation" and second["reason"].startswith("required occupancy unavailable")
+    assert first["gate"] == second["gate"] == "arm" and first["map"]["refreshes"] == second["map"]["refreshes"]
+
+
+def test_the_same_refusal_after_a_cache_drop_keeps_its_own_report():
+    """A cache drop without a refresh is another map state: the refusal
+    filed after it gets its own report (its map record shows the drop), not
+    the earlier report moved last with the earlier record."""
+
+    class Dropped:
+        required, status, refreshes, unknown_blocks, cache_clears = True, None, 3, True, 0
+
+        def clearance(self, points):
+            return None
+
+        def nearby_occupied(self, point, radius_m, limit):
+            return np.zeros((0, 4))
+
+        def clearance_record(self):
+            return {"refreshes": 3, "cache_clears": self.cache_clears, "age_s": 0.0, "voxel_m": .01, "occupied": 0}
+
+    occ = Dropped()
+    _, _, h = case(occupancy=occ)
+    q = np.array([.3, 0., .3])
+    assert h.vet_pose(q).startswith("clearance unavailable")
+    occ.cache_clears = 1
+    assert h.vet_pose(q).startswith("clearance unavailable")
+    first, second = h.drain_clearance_reports()
+    assert (first["gate_cache_clears"], second["gate_cache_clears"]) == (0, 1)
+    assert second["map"]["cache_clears"] == 1 and "snapshot_newer_map" not in second
+
+
+def test_after_a_halt_takeover_the_voxel_distances_stay_measured_from_the_snapshot_centre(monkeypatch):
+    """A streamed halt rewrites `sample`; the snapshot (voxels and their `d`
+    column) stays the first sample's: `d` is measured from
+    `snapshot.centre`, never from the new sample (docs say so)."""
+    occ = live_map(centred_box([.31, .03, .26], [.44, .16, .04]))
+    _, _, h = case(occupancy=occ)
+    q = np.array([.3, 0., .3])
+    halt_q = q + [.004, .003, 0.]                             # the same 1 cm cell
+    assert h.vet_pose(q)
+    reason, exc = _refuse(h, "approve", halt_q + [0., 0., .001], halt_q)
+    assert exc is not None
+    (r,) = h.drain_clearance_reports()
+    centre, sample = np.asarray(r["snapshot"]["centre"]), np.asarray(r["sample"])
+    assert np.allclose(centre, q) and np.allclose(sample, halt_q)
+    vox = np.asarray(r["voxels"], dtype=float)
+    np.testing.assert_allclose(vox[:, 3], np.round(np.linalg.norm(vox[:, :3] - centre, axis=1), 3), atol=1.5e-3)
+    assert np.max(np.abs(vox[:, 3] - np.linalg.norm(vox[:, :3] - sample, axis=1))) > 2e-3
+
+
 def test_a_streamed_halt_takes_over_the_matching_report_and_moves_last(monkeypatch):
     """One report per gate, 1 cm spot and map commit. A repeat moves it last
     (the refusal that ended the call is the last one), and a streamed halt
@@ -778,7 +908,8 @@ def test_reports_carry_the_base_pose_and_every_gate_reads_the_map_frame():
 
 
 def test_clearance_record_is_the_map_state_a_report_carries(monkeypatch):
-    assert OccupancyMap().clearance_record() == {"refreshes": 0, "age_s": None, "voxel_m": None, "occupied": None}
+    assert OccupancyMap().clearance_record() == {"refreshes": 0, "cache_clears": 0, "age_s": None, "voxel_m": None,
+                                                 "occupied": None}
     occ = live_map(UNDER)
     rec = occ.clearance_record()
     assert rec["refreshes"] == 1 and rec["voxel_m"] == .01 and rec["occupied"] == len(occ._occupied) > 0

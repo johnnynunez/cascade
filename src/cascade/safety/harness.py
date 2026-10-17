@@ -154,23 +154,25 @@ class GateCtx(NamedTuple):
     `SafetyHarness.drain_clearance_reports`): `phase` is approve (a
     streamed step) | vet_step (a preflight step) | vet_pose | route_end;
     `q_prev` is None for the static vets; `T_tcp` is the base-frame TCP
-    pose at `q`. `refreshes` is the map's refresh count read just BEFORE
-    the gates query it (no lock: the 50 Hz path stays as it was), a lower
-    bound of the commit they read: a report whose snapshot is of a later
-    commit says so (`snapshot_newer_map`), never the reverse."""
+    pose at `q`. `refreshes` and `cache_clears` are the map's refresh and
+    cache-drop counts read just BEFORE the gates query it (no lock: the 50 Hz
+    path stays as it was), a lower bound of the map state they read: a
+    report whose snapshot is of a later state says so
+    (`snapshot_newer_map`), never the reverse."""
 
     phase: str
     q: np.ndarray
     q_prev: np.ndarray | None
     T_tcp: np.ndarray
     refreshes: int | None = None
+    cache_clears: int | None = None
 
 
 #: What a refusal report says happened (`_clearance_report`); a streamed
 #: halt (phase approve) at the same gate, spot and map commit as a report
 #: already on file rewrites these, the snapshot (`map`, `voxels`) stays.
 _REFUSAL_FIELDS = ("phase", "reason", "q", "q_prev", "tcp", "sample", "sample_tcp", "clearance_m",
-                   "exemption", "gate_refreshes", "raised")
+                   "exemption", "gate_refreshes", "gate_cache_clears", "raised")
 
 
 def _point_gate(i: int) -> str:
@@ -181,11 +183,14 @@ def _point_gate(i: int) -> str:
 
 def _flag_newer_map(report: dict) -> None:
     """`snapshot_newer_map: true` when the report's snapshot (`map`,
-    `voxels`) is of a later map commit than the one its gate read, i.e. a
-    refresh committed between the gate's read and the report."""
+    `voxels`) is of a later map state than the one its gate read: a refresh
+    committed, or the cache was dropped (payload tracking's capture fences,
+    a scene reset, a background replay: `cache_clears`), between the gate's
+    read and the report."""
     report.pop("snapshot_newer_map", None)
     record = report.get("map")
-    if isinstance(record, dict) and record.get("refreshes") != report.get("gate_refreshes"):
+    if isinstance(record, dict) and (record.get("refreshes") != report.get("gate_refreshes")
+                                     or record.get("cache_clears") != report.get("gate_cache_clears")):
         report["snapshot_newer_map"] = True
 
 
@@ -503,22 +508,27 @@ class SafetyHarness:
           `clearance_m` (None if non-finite), `margin_m`;
         - `base_pose` (4x4, 1e-6), only when this arm has one;
         - `exemption` ({"cylinder": [cx, cy, r, z_min(, z_max)]} or None);
-        - `map` (`OccupancyMap.clearance_record()`: refreshes, age_s,
-          voxel_m, occupied) and `voxels` (occupied voxel centres near the
-          sample, [x, y, z, d], nearest first, 1 mm): one commit, the one
-          current when the report was built;
+        - `map` (`OccupancyMap.clearance_record()`: refreshes, cache_clears,
+          age_s, voxel_m, occupied) and `voxels` (occupied voxel centres near
+          the snapshot centre, [x, y, z, d] with `d` measured from that
+          centre, nearest first, 1 mm): one commit, the one current when the
+          report was built. The centre is the sample, except after a halt
+          took the report over: then `d` stays measured from the FIRST
+          sample (`snapshot.centre`), not from the new `sample`;
         - `snapshot`: where and how far those voxels were looked up,
           {"centre" (the sample they were measured from; None without
           one), "radius_m", "max_voxels"} (the map's `refusal_snapshot`), so
           an offline replay knows which voxels the snapshot rules out;
-        - `gate_refreshes`: the map's refresh count read just before the
-          gate's query; `snapshot_newer_map: true` when the snapshot is of a
-          later commit (a refresh landed between the gate's read and the
-          report: the voxels are approximate);
+        - `gate_refreshes` / `gate_cache_clears`: the map's refresh and
+          cache-drop counts read just before the gate's query;
+          `snapshot_newer_map: true` when the snapshot is of a later map state
+          (a refresh landed, or payload tracking dropped the cache, between
+          the gate's read and the report: the voxels are approximate);
         - `raised` (the exception class), only when the map query raised;
         - `snapshot_error`, only when the snapshot failed.
 
-        One report per gate, sample spot (1 cm) and map commit: a repeat
+        One report per gate, sample spot (1 cm), map state (refreshes and
+        cache drops) and kind (returned, or raised by the map query): a repeat
         moves it last, and a streamed halt (approve) rewrites what happened
         (phase, reason, q, q_prev, tcp, sample...) while its snapshot
         (`map`, `voxels`, `snapshot` with the FIRST sample as its centre)
@@ -535,12 +545,13 @@ class SafetyHarness:
     def _gate_ctx(self, phase: str, q, q_prev, T) -> GateCtx:
         """The report context of the map gates about to run, with the map's
         refresh count read BEFORE their first query (no lock; a lower bound
-        of the commit they read). Never raises."""
+        of the commit they read) and cache-drop count. Never raises."""
         try:
             refreshes = getattr(self.occupancy, "refreshes", None)
+            clears = getattr(self.occupancy, "cache_clears", None)
         except Exception:  # noqa: BLE001 -- bookkeeping never changes a gate outcome
-            refreshes = None
-        return GateCtx(phase, q, q_prev, T, refreshes)
+            refreshes = clears = None
+        return GateCtx(phase, q, q_prev, T, refreshes, clears)
 
     def _file_clearance_report(self, ctx: GateCtx, gate: str, reason: str | None, hit, exempt,
                                T_frame, *, raised: BaseException | None = None) -> None:
@@ -577,6 +588,7 @@ class SafetyHarness:
             "exemption": None if exempt is None else {"cylinder": [
                 float(exempt[0][0]), float(exempt[0][1]), *(float(v) for v in exempt[1:])]},
             "gate_refreshes": None if ctx.refreshes is None else int(ctx.refreshes),
+            "gate_cache_clears": None if ctx.cache_clears is None else int(ctx.cache_clears),
         }
         if sample is not None:
             T = np.asarray(T_frame, dtype=float)
@@ -594,11 +606,14 @@ class SafetyHarness:
             if reports.maxlen != bounds.max_reports:
                 reports = self._clearance_reports = deque(reports, maxlen=bounds.max_reports)
             refreshes = getattr(occ, "refreshes", None)
+            clears = getattr(occ, "cache_clears", None)
             # Dedupe per drain, keyed BEFORE any snapshot work: a refusal
-            # already on file for this gate, spot (1 cm) and map commit gets
-            # no new snapshot. It moves last (the refusal that ended a call
-            # is the newest), and a streamed halt rewrites what happened.
-            key = (gate, None if sample is None else tuple(np.round(sample, 2).tolist()), refreshes)
+            # already on file for this gate, spot (1 cm), map state (commit
+            # and cache drops) and kind (returned, or the map query's raise)
+            # gets no new snapshot. It moves last (the refusal that ended a
+            # call is the newest), and a streamed halt rewrites what happened.
+            key = (gate, None if sample is None else tuple(np.round(sample, 2).tolist()), refreshes, clears,
+                   None if raised is None else type(raised).__name__)
             for i, (k, kept) in enumerate(reports):
                 if k == key:
                     del reports[i]

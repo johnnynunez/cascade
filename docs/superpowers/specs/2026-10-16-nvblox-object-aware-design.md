@@ -209,17 +209,20 @@ Rule:
 2. Each report records:
    - when and where: `phase` (approve / vet_step / vet_pose / route_end), `gate` (tcp, link i,
      wrist camera, jaws, attached), `q`, the TCP pose, and `base_pose` when the arm has one;
-   - the shortfall: the offending sample (in the frame its gate queried the map in: the arm base
-     frame for the TCP and joint origins, `base_pose @` that for a held object and the tool parts)
-     and the same sample in the TCP frame, clearance, margin;
-   - the context: the exemption in force, and the map (refresh count, age, voxel size, occupied
-     total);
-   - the evidence: up to 64 occupied voxel centres within 5 cm of the sample, with distances,
-     rounded to 1 mm, and where they were looked up (`snapshot`: the query centre, `radius_m`,
-     `max_voxels`; a halt that takes the report over keeps the first centre), so the offline
-     replay (§6.3) knows which voxels the snapshot rules out.
-3. Bounds: dedupe per call by (gate, sample rounded to 1 cm, map refresh); at most 32 reports per
-   call; work happens only on the refusal path. A repeat moves the kept report last, and a
+   - the shortfall: the offending sample in the map's frame, the frame every gate queries the map
+     in (`base_pose @` FK for an arm with a `base_pose`, #348; the escape's q_prev and interior
+     samples and the route-end check lift the same way), and the same sample in the TCP frame,
+     clearance, margin;
+   - the context: the exemption in force (in the arm's base frame), and the map (refresh count,
+     cache clears, age, voxel size, occupied total);
+   - the evidence: up to 64 occupied voxel centres within 5 cm of the snapshot centre, with
+     distances from that centre, rounded to 1 mm, and where they were looked up (`snapshot`: the
+     query centre, `radius_m`, `max_voxels`; a halt that takes the report over keeps the first
+     centre, so `d` stays measured from the FIRST sample, not the new one), so the offline replay
+     (§6.3) knows which voxels the snapshot rules out.
+3. Bounds: dedupe per call by (gate, sample rounded to 1 cm, map state = refreshes and cache
+   clears, returned vs raised); at most 32 reports per call; work happens only on the refusal
+   path. A repeat moves the kept report last, and a
    streamed halt (approve) rewrites what happened (phase, reason, q, q_prev, TCP pose, sample)
    while the snapshot stays (same cell, same commit).
 4. The runtime drains the deque into `trace_context["clearance"]`, the way contact reports drain
@@ -232,9 +235,10 @@ Code:
   builds a report, so the voxels and the map record are one commit: the commit current when the
   report is built. The gate itself reads the map without holding the lock until the report (the
   50 Hz path keeps its locking), so a refresh can commit between the gate's read and the report.
-  The report therefore carries `gate_refreshes` (the refresh count read just before the gate's
-  query, a lower bound) and `snapshot_newer_map: true` when the snapshot is of a later commit;
-  A6 treats such reports as approximate.
+  The report therefore carries `gate_refreshes` and `gate_cache_clears` (the refresh and cache-drop
+  counts read just before the gate's query, lower bounds; payload tracking drops the cache without
+  a refresh) and `snapshot_newer_map: true` when the snapshot is of a later map state; A6 treats
+  such reports as approximate.
 - `runtime.py:891-896`, `1275-1277`.
 - Config: `occupancy.refusal_snapshot: {radius_m: 0.05, max_voxels: 64, max_reports: 32}`.
 

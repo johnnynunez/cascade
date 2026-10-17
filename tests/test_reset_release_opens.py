@@ -195,13 +195,23 @@ def test_an_unknown_arm_type_counts_as_a_real_gripper(rig, kind):
     _assert_still_held(r, out)
 
 
-def test_real_reset_with_empty_jaws_still_resets(rig):
+@pytest.mark.parametrize("jaws", ["open", "closed"])
+def test_real_reset_with_empty_jaws_still_resets(rig, jaws):
+    """Empty-handed, a real arm resets: open jaws get no jaw command; closed
+    empty jaws (the MockArm starts at 0.0, closed on the reBot) get exactly
+    one opening to the profile's open position (merged with #354's reset
+    opening of closed empty jaws)."""
     r = rig("rebot_rs")
+    open_pos = r.cfg.arm.gripper.open_pos
+    if jaws == "open":
+        r.runtime.arm.set_gripper(open_pos)
+        r.jaws.clear()
 
     out = r.runtime.execute("reset_scene", {})
 
     assert out["ok"], out
-    assert r.jaws == [] and out["observation_refreshed"]
+    assert r.jaws == ([] if jaws == "open" else [pytest.approx(open_pos)]), r.jaws
+    assert out["observation_refreshed"]
 
 
 def _two_arms(rig, real: str):

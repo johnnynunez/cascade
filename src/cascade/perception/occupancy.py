@@ -47,6 +47,8 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from collections.abc import Mapping
+from typing import NamedTuple
 
 import numpy as np
 
@@ -57,6 +59,55 @@ logger = logging.getLogger(__name__)
 #: masks only; a mesh-masked arm's old frames would replay unmasked.
 _PAYLOAD_VS_MESH = ("payload tracking cannot be combined with a mesh body mask (`body_mask: mesh`): "
                     "the payload replay re-sends history with render masks only")
+
+
+class RefusalSnapshot(NamedTuple):
+    """Bounds of the map snapshot the safety harness files with every
+    clearance refusal (`occupancy.refusal_snapshot`, spec §3.3): occupied
+    voxel centres within `radius_m` of the offending sample, at most
+    `max_voxels` of them per report, at most `max_reports` reports (the
+    newest) per skill call."""
+
+    radius_m: float = 0.05
+    max_voxels: int = 64
+    max_reports: int = 32
+
+
+#: Upper bounds of a configured snapshot: refusal-path work stays bounded.
+_REFUSAL_SNAPSHOT_MAX = RefusalSnapshot(radius_m=0.5, max_voxels=1024, max_reports=256)
+
+
+def _refusal_snapshot(value) -> RefusalSnapshot:
+    """`occupancy.refusal_snapshot` (a mapping, a RefusalSnapshot or None =
+    the defaults) checked: a positive finite radius up to 0.5 m, integer
+    counts from 1 up to the limits above, no unknown keys."""
+    if value is None:
+        return RefusalSnapshot()
+    if isinstance(value, RefusalSnapshot):
+        given = value._asdict()
+    else:
+        if hasattr(value, "as_dict"):          # a config.Cfg block
+            value = value.as_dict()
+        if not isinstance(value, Mapping):
+            raise OccupancyError(f"occupancy.refusal_snapshot must be a mapping, got {value!r}")
+        unknown = sorted(set(value) - set(RefusalSnapshot._fields))
+        if unknown:
+            raise OccupancyError(f"occupancy.refusal_snapshot: unknown keys {unknown} "
+                                 f"(expected {list(RefusalSnapshot._fields)})")
+        given = {**RefusalSnapshot()._asdict(), **value}
+    radius = given["radius_m"]
+    ok = (not isinstance(radius, bool) and isinstance(radius, (int, float, np.integer, np.floating))
+          and np.isfinite(radius) and 0.0 < radius <= _REFUSAL_SNAPSHOT_MAX.radius_m)
+    if not ok:
+        raise OccupancyError("occupancy.refusal_snapshot.radius_m must be within "
+                             f"(0, {_REFUSAL_SNAPSHOT_MAX.radius_m}] m, got {radius!r}")
+    counts = {}
+    for key in ("max_voxels", "max_reports"):
+        n, top = given[key], getattr(_REFUSAL_SNAPSHOT_MAX, key)
+        if isinstance(n, bool) or not isinstance(n, (int, np.integer)) or not 1 <= n <= top:
+            raise OccupancyError(f"occupancy.refusal_snapshot.{key} must be an integer within 1..{top}, got {n!r}")
+        counts[key] = int(n)
+    return RefusalSnapshot(float(radius), counts["max_voxels"], counts["max_reports"])
 
 
 class OccupancyError(RuntimeError):
@@ -189,10 +240,14 @@ class OccupancyMap:
         required: bool = False,
         unobserved: str | None = None,
         ready_timeout_s: float = 3.0,
+        refusal_snapshot=None,
     ):
         if type(required) is not bool:
             raise OccupancyError("occupancy.required must be a boolean")
         self.required = required
+        #: bounds of the map snapshot the harness files with each clearance
+        #: refusal (`SafetyHarness.drain_clearance_reports`, `nearby_occupied`)
+        self.refusal_snapshot = _refusal_snapshot(refusal_snapshot)
         try:
             ready = float(ready_timeout_s)
         except (TypeError, ValueError):
@@ -228,6 +283,11 @@ class OccupancyMap:
         self.last_error: str | None = None
         #: committed refreshes since construction (report(): is it ticking?)
         self.refreshes = 0
+        #: cache drops since construction (`_drop_cache`: a fenced or
+        #: retained-payload capture refresh, a scene reset, a background
+        #: replay): the cache changed without a refresh, so a clearance
+        #: report compares both counts (`clearance_record`)
+        self.cache_clears = 0
         # The refresh error last reported to the log. A refresh swallows its
         # own failures into `last_error`; without a log line a bridge that
         # keeps timing out is invisible while every motion is refused.
@@ -312,8 +372,7 @@ class OccupancyMap:
                 raise OccupancyError("scene reset cannot be downgraded to retained-anchor refresh")
             self._reset_pending = True
             self._body_error = "waiting for fresh retained-payload geometry"
-            self._grid = self._occupied = None
-            self._last_refresh = None
+            self._drop_cache()
             self.last_capture_refresh = None
             binding = self._capture_refresh_binding
             if binding is not None and binding.get("failure"):
@@ -358,8 +417,7 @@ class OccupancyMap:
         with self._io_lock, self._refresh_lock:
             self._reset_pending = True
             self._body_error = "retained-payload capture refresh failed: " + str(reason)
-            self._grid = self._occupied = None
-            self._last_refresh = None
+            self._drop_cache()
             self._integrated_captures.clear()
 
     def begin_scene_reset(self):
@@ -371,8 +429,7 @@ class OccupancyMap:
             self._scene_reset_invalidated = True
             self._reset_pending = True
             self._body_error = "waiting for post-reset captured geometry"
-            self._grid = self._occupied = None
-            self._last_refresh = None
+            self._drop_cache()
             self._depth_history.clear()
             self._prop_history_floor.clear()
             self._payload_samples.clear()
@@ -658,6 +715,8 @@ class OccupancyMap:
             enabled = cfg is not None and bool(cfg.get("enabled", True))
         if cfg is None or not enabled:
             return None
+        # checked before the client exists: a bad block leaks no socket
+        refusal_snapshot = _refusal_snapshot(cfg.get("refusal_snapshot"))
         try:
             client = OccupancyClient(
                 host=str(cfg.get("host", "127.0.0.1")),
@@ -684,6 +743,7 @@ class OccupancyMap:
             required=required,
             unobserved=cfg.get("unobserved", None),
             ready_timeout_s=cfg.get("ready_timeout_s", 3.0),
+            refusal_snapshot=refusal_snapshot,
         )
         m.allowed_contact_paths = set(cfg.get("allowed_contact_paths", []))
         m.probe(timeout_ms=int(cfg.get("probe_timeout_ms", 300)))
@@ -986,6 +1046,13 @@ class OccupancyMap:
             grid, origin, voxel = None, None, 0.
         return prepared, (occupied, grid, origin, voxel)
 
+    def _drop_cache(self) -> None:
+        """Forget the cached grid until the next commit (caller holds
+        `_refresh_lock`) and count it: the only place the cache is dropped."""
+        self._grid = self._occupied = None
+        self._last_refresh = None
+        self.cache_clears += 1
+
     def _commit_grid(self, frame, fetched, capture_t) -> None:
         """Install a fetched grid (caller holds `_refresh_lock`)."""
         occupied, grid, origin, voxel = fetched
@@ -1062,8 +1129,7 @@ class OccupancyMap:
         floors = self._prop_history_floor.copy()
         for path in set(paths) | set(self._contact_paths or ()):
             floors[path] = stamp
-        self._grid = self._occupied = None
-        self._last_refresh = None
+        self._drop_cache()
         self._integrated_captures.clear()
         if self._capture_refresh_binding is None or paths != self._contact_paths:
             self._payload_samples.clear()
@@ -1383,14 +1449,15 @@ class OccupancyMap:
         OBSTACLE is rather than where the sample is.
 
         Occupied voxels at or below `below_z` (the table plane) and inside
-        `cylinder` = (center_xy, radius, z_min) (the grasp target) are not
-        obstacles here. Every other one is, so a neighbour just outside the
-        target's cylinder still blocks a camera sample that hangs inside it,
-        while the target's own wall does not block a sample just outside.
+        `cylinder` = (center_xy, radius, z_min[, z_max]) (the grasp target;
+        no z_max = unbounded above) are not obstacles here. Every other one
+        is, so a neighbour just outside the target's cylinder still blocks a
+        camera sample that hangs inside it, while the target's own wall does
+        not block a sample just outside.
         `cylinder_frame` (4x4, cylinder frame -> map frame; None = the map
         frame) is where the cylinder is given: an arm with a `base_pose`
         states it in its own base frame, so voxels are taken into that frame
-        for the cylinder test.
+        for the cylinder test (z_min and z_max are heights in that frame).
 
         The distance grid cannot say which obstacle is nearest, so samples
         whose grid clearance is below `within` are re-measured against the
@@ -1417,18 +1484,124 @@ class OccupancyMap:
             if below_z is not None:
                 cand = cand[cand[:, 2] > float(below_z)]
             if cylinder is not None and len(cand):
-                center, radius, z_min = cylinder
+                center, radius, z_min = cylinder[:3]
                 local = cand
                 if cylinder_frame is not None:
                     inv = np.linalg.inv(np.asarray(cylinder_frame, dtype=float))
                     local = cand @ inv[:3, :3].T + inv[:3, 3]
                 inside = ((np.linalg.norm(local[:, :2] - np.asarray(center, dtype=float)[:2], axis=1)
                            <= float(radius)) & (local[:, 2] >= float(z_min) - 1e-6))
+                if len(cylinder) > 3:
+                    inside &= local[:, 2] <= float(cylinder[3]) + 1e-6   # z_max: the ceiling
                 cand = cand[~inside]
         exact = _nearest_distance(sub, cand, reach)
         exact = np.where(np.isfinite(exact), np.maximum(exact - voxel / 2.0, 0.0), float(within))
         dist[near] = exact
         return dist
+
+    def column_top(self, center_xy, radius_m: float, z_min: float) -> tuple[float, float] | None:
+        """(top face z, voxel_m) of what the map holds in one vertical column:
+        the highest occupied voxel centre within `radius_m` horizontally of
+        `center_xy` and at or above `z_min`, plus half a voxel.
+
+        The grasp runtime raises its pregrasp hover to the target's top AS
+        MAPPED (spec §3.2): on the reBot the map's top of a target sat
+        0.2-0.9 cm above the top perception measured. It reads the safety
+        cache under `_refresh_lock` (never `view_snapshot()`, display only).
+        Never raises: None when the map has no fresh, healthy answer (stale,
+        a failed refresh, a latched body-mask fault) or the column is empty;
+        the caller then keeps the hover from the observed top.
+
+        The health checks and the array references are taken under the
+        lock; the column scan runs outside it. `_commit_grid` installs new
+        arrays and never mutates the old ones, so the scan reads one
+        consistent query and a refresh never waits for it."""
+        with self._refresh_lock:
+            if self._body_error is not None or self.last_error is not None or self.is_stale():
+                return None
+            cloud, voxel = self._occupied, self._grid_voxel
+        if cloud is None or not len(cloud):
+            return None
+        voxel = float(voxel or 0.0)
+        pts = np.asarray(cloud, dtype=float)
+        center = np.asarray(center_xy, dtype=float)[:2]
+        inside = ((np.linalg.norm(pts[:, :2] - center, axis=1) <= float(radius_m))
+                  & (pts[:, 2] >= float(z_min)))
+        if not inside.any():
+            return None
+        return float(pts[inside, 2].max()) + voxel / 2.0, voxel
+
+    def nearby_occupied(self, point, radius_m: float, limit: int) -> np.ndarray:
+        """Occupied voxel centres within `radius_m` of `point`, nearest
+        first: rows `[x, y, z, d]` (d = distance from `point` to the centre),
+        at most `limit` of them. Empty (0, 4) without a cache.
+
+        The evidence the safety harness files with a clearance refusal (spec
+        §3.3, `SafetyHarness.drain_clearance_reports`). It reads the safety
+        cache under `_refresh_lock` (never `view_snapshot()`) and selects
+        outside the lock (`_commit_grid` replaces the arrays, never mutates
+        them). The harness calls it, and `clearance_record()`, while holding
+        that (reentrant) lock itself, so the voxels and the report's map
+        record are one commit: the commit current when the REPORT is built.
+        The gate read the map earlier without holding it, so a refresh that
+        committed in between makes this newer than what the gate read (the
+        report then says `snapshot_newer_map`). Never talks to the bridge;
+        called only on the refusal path.
+
+        Cost: one pass over a single column in the cache's own dtype
+        (float32) keeps the voxels whose x lies within the radius, widened by
+        a few float32 steps so it never drops one the exact cuts keep; only
+        those are copied to float64 for the box and radius cuts. The result
+        equals the float64 cuts on the whole cloud."""
+        with self._refresh_lock:
+            cloud = self._occupied
+        if cloud is None or not len(cloud) or int(limit) <= 0:
+            return np.zeros((0, 4))
+        p = np.asarray(point, dtype=float).reshape(3)
+        r = float(radius_m)
+        cloud = np.asarray(cloud)
+        if cloud.dtype.kind != "f":
+            cloud = cloud.astype(float)
+        x = cloud[:, 0]
+        pad = 1e-6 * (1.0 + abs(p[0]) + abs(r))
+        lo, hi = x.dtype.type(p[0] - r - pad), x.dtype.type(p[0] + r + pad)
+        pts = np.asarray(cloud[(x >= lo) & (x <= hi)], dtype=float)
+        pts = pts[np.all(np.abs(pts - p) <= r, axis=1)]          # the exact box cut
+        d = np.linalg.norm(pts - p, axis=1)
+        pts, d = pts[d <= r], d[d <= r]
+        order = np.argsort(d, kind="stable")[: int(limit)]
+        return np.column_stack([pts[order], d[order]])
+
+    def clearance_record(self) -> dict:
+        """The map's state for a clearance refusal report (`map` in
+        `SafetyHarness.drain_clearance_reports`): `refreshes` (committed
+        refreshes), `cache_clears` (cache drops without a refresh,
+        `_drop_cache`), `age_s` (of the cache, 1 ms; None before the first
+        commit), `voxel_m` (None before the first grid), `occupied` (the
+        cached voxel count; None without a cache) and `grid_origin` /
+        `grid_shape` (the distance grid's first node centre, float32 as read,
+        and node counts; None without a grid). Read under `_refresh_lock`
+        so that, with the harness holding the lock, it names the same commit
+        as `nearby_occupied`. Attribute reads only: no bridge, no raise for a
+        stale or failed map (the report of such a refusal is exactly where
+        its age is evidence)."""
+        with self._refresh_lock:
+            last, voxel, occupied, refreshes, clears = (self._last_refresh, self._grid_voxel, self._occupied,
+                                                        self.refreshes, self.cache_clears)
+            grid, origin = self._grid, self._grid_origin
+        has_grid = grid is not None and origin is not None
+        return {
+            "refreshes": int(refreshes),
+            "cache_clears": int(clears),
+            "age_s": None if last is None else round(max(time.monotonic() - float(last), 0.0), 3),
+            "voxel_m": float(voxel) if voxel else None,
+            "occupied": None if occupied is None else len(occupied),
+            # the region the distance grid covers, exactly as `_sample_grid`
+            # reads it (first node centre, node counts): the offline replay
+            # mirrors its clamp within half a voxel of a face
+            "grid_origin": [float(v) for v in np.asarray(origin).reshape(3)] if has_grid else None,
+            "grid_shape": [int(n) for n in np.shape(grid)] if has_grid else None,
+        }
 
     def _check_required_age(self) -> None:
         """Interpolation must finish inside the same observation lifetime."""

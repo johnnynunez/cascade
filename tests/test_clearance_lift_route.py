@@ -361,7 +361,10 @@ def test_signed_rebot_model_with_synthetic_wrist_camera_obstacle(turn, succeeds)
     goal = start.copy()
     goal[0] = turn
     pose = kin.fk(start)
-    obstacle = pose[:3, 3] + [-.14, .065, -.024]
+    # below the camera box's rear edge, 1 cm inside its side face: derived
+    # from the shipped box, so a measured box moves the obstacle with it
+    wc = cfg.relative_motion.wrist_camera
+    obstacle = pose[:3, 3] + [-wc.behind_tip_m, wc.half_width_m - .01, -.024]
     occupancy = SimpleNamespace(
         clearance=lambda points: np.linalg.norm(points - obstacle, axis=1),
         required=True, unknown_blocks=True,

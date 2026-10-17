@@ -41,6 +41,11 @@ ON_OBJECT_M = .005
 # A tracked object whose centre lies this close to the grasped target's is the
 # target itself (never named as the obstacle).
 SAME_OBJECT_M = .03
+# Both fingers at or past this fraction of their calibrated stroke count as
+# open: the release episode's "both actual jaws fully open" rule
+# (`release_episode._both_open`). A gate built from such feedback models the
+# open jaws to within 1 mm per finger.
+JAWS_OPEN_FRACTION = .98
 
 
 @dataclass(frozen=True)
@@ -583,6 +588,45 @@ class ObservedFingerGate:
         if conflict:
             raise precommand_refusal("closing fingers occluded by non-target depth", conflict)
         self._remember(state, q, strokes)
+
+    def require_reopening(self, state, *, check=None):
+        """Veto opening empty jaws at the measured pose, before the jaw command.
+
+        The fingers may sweep their whole stroke on the way out (the closing
+        envelope: calibrated closed to the checked opening, padded). No
+        observed surface may lie inside it, the target's included (nothing is
+        being grasped: no closure exemption), and no part of it may lie
+        behind observed non-target depth. Same snapshot contract as the
+        closing preflight.
+        """
+        q, strokes = self._observe(state)
+        if np.any(strokes < self.closing_lower) or np.any(strokes > self.closing_upper):
+            raise SafetyViolation("finger feedback left the geometrically checked closing interval")
+        conflict = self.scene.conflict(self.kin.fk(q), self.closing_envelopes)
+        if conflict:
+            raise precommand_refusal("reopening fingers intersects observed surface", conflict)
+        conflict = self.occluded_pose(q, closing=True, check=check)
+        if conflict:
+            raise precommand_refusal("reopening fingers occluded by non-target depth", conflict)
+        self._remember(state, q, strokes)
+
+    def reopened(self, state) -> bool:
+        """The measured fingers are back inside this gate's checked opening
+        interval: False while either is still outside it. Inside, the full
+        `feedback` check runs (snapshot contract, the measured fingers against
+        the observed surfaces) and raises on a conflict."""
+        strokes = self.geometry.strokes(state.gripper_joints)
+        if np.any(strokes < self.lower) or np.any(strokes > self.upper):
+            return False
+        self.feedback(state)
+        return True
+
+    def fingers_open(self, state) -> bool:
+        """Both measured fingers at JAWS_OPEN_FRACTION of their calibrated
+        stroke or more (feedback validated, nothing else checked)."""
+        strokes = self.geometry.strokes(state.gripper_joints)
+        travel = self.geometry.upper - self.geometry.lower
+        return bool(np.all(strokes - self.geometry.lower >= JAWS_OPEN_FRACTION * travel))
 
     def profile(self, start, target, duration_s, rate_hz, *, check=None):
         """Same discrete samples/complete edges as executor, including lookahead."""

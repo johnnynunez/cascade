@@ -92,10 +92,91 @@ def test_release_bookkeeping_is_unchanged():
     assert rt.held_object is None and rt._held_det_label is None
 
 
-def test_only_the_rebot_profile_waits():
+def test_the_rebot_profile_waits_6_s_and_the_mock_profile_does_not_wait():
     from cascade.config import load_demo_config
 
     rebot = load_demo_config(arm="rebot_rs", camera="mock", llm="mock")
     assert rebot.grasp.get("open_wait_timeout_s") == 6.0
     mock = load_demo_config(arm="mock", camera="mock", llm="mock")
     assert mock.grasp.get("open_wait_timeout_s") is None
+
+
+class _Attachment:
+    """A retained carry attachment (`carry_attachment.RetainedAttachment`'s
+    surface): it rejects once the jaw feedback shows the object left the open
+    jaws, as the Isaac bridge's bilateral-contact channel does."""
+
+    def __init__(self):
+        self.failure, self.status, self.paths, self.last = None, "attached", ("/World/red_cube",), None
+        self.observed = 0
+
+    def guard(self):
+        from cascade.skills.carry_attachment import AttachmentInvalid
+
+        if self.failure is not None:
+            raise AttachmentInvalid(self.failure)
+
+    def reject(self, reason, *, status="unknown"):
+        from cascade.skills.carry_attachment import AttachmentInvalid
+
+        if self.failure is None:
+            self.failure, self.status = str(reason), status
+        raise AttachmentInvalid(self.failure)
+
+    def observe(self, state):
+        self.observed += 1
+        self.guard()
+        if state.gripper_pos > 0.5:
+            self.reject("observed bilateral attachment was lost or changed", status="lost")
+
+
+def test_open_gripper_while_carrying_on_isaac_retires_the_attachment_after_the_command(monkeypatch, tmp_path):
+    """Review N1 (PR-A jaws round 2): on Isaac `open_gripper` waits for the
+    jaws (`open_wait_timeout_s` 12 s) through feedback reads that consult an
+    active carry attachment; once the object leaves the open jaws the
+    attachment rejects, and the call reported "No release ... was authorized"
+    AFTER the release happened. The open command is the agent's intentional
+    release: it ends the carry scope (as place_at's release does), so the
+    wait reads the jaws without it. A refused command keeps the attachment."""
+    from cascade.apps import demo
+    from cascade.apps.demo import shutdown_runtime
+    from cascade.config import load_demo_config
+    from cascade.control.mock_arm import MockArm
+
+    jaws = []
+
+    class _JawArm(MockArm):
+        def set_gripper(self, pos, effort=1.0):
+            jaws.append(float(pos))
+            super().set_gripper(pos, effort)
+
+    monkeypatch.setattr(demo, "make_arm", lambda acfg, kinematics=None: _JawArm(acfg, kinematics))
+    cfg = load_demo_config(camera="mock", arm="isaac_kitchen", llm="mock")
+    runtime, arm = demo.build_runtime(cfg, tmp_path / "run", lazy_arm=True)
+    try:
+        assert runtime.cfg.grasp.get("open_wait_timeout_s") == 12.0
+        runtime.arm.set_gripper(cfg.arm.gripper.closed_pos)
+        runtime.held_object, runtime._held_det_label = "red cube", "cube"
+        attachment = runtime._carry_attachment = _Attachment()
+        jaws.clear()
+
+        out = runtime.execute("open_gripper", {})
+
+        assert out.get("stage") != "carry_attachment" and out["gripper"] == "open", out
+        assert jaws == [pytest.approx(runtime._grip_open)]
+        assert runtime._carry_attachment is None and runtime.held_object is None
+        assert attachment.failure is None, attachment.failure   # never consulted after the release
+
+        # a refused command (an e-stop) released nothing: the attachment stays
+        runtime.arm.set_gripper(cfg.arm.gripper.closed_pos)
+        runtime.held_object = "red cube"
+        runtime._carry_attachment = attachment
+        runtime.arm.harness.estop("operator e-stop")
+        jaws.clear()
+        with pytest.raises(Exception, match="e-stop latched"):
+            runtime.skill_open_gripper()
+        assert jaws == [] and runtime._carry_attachment is attachment
+        runtime.arm.harness.reset_estop()
+    finally:
+        runtime._carry_attachment = None
+        shutdown_runtime(runtime, arm)

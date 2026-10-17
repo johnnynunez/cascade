@@ -167,8 +167,13 @@ def move(runtime, q, **kwargs):
     retained.guard()
     if any(kwargs.get(key) is not None for key in ("before_stream", "feedback_guard")):
         retained.reject("attachment transport cannot replace another safety callback")
-    if (kwargs.get("_halt_generation") is not None
-            and kwargs["_halt_generation"] != retained.generation):
+    caller = kwargs.get("_halt_generation")
+    if caller is not None and caller != retained.generation:
+        if type(caller) is int and caller < retained.harness._halt_generation:
+            # The caller's baseline (its skill's start) predates a halt the
+            # attachment was armed after: report the halt, still terminal.
+            retained.reject("halted: " + (retained.harness.halted
+                                          or "halt received during route planning or execution"))
         retained.reject("attachment transport cancellation token differs")
     kwargs.update(_halt_generation=retained.generation, before_stream=retained.guard,
                   feedback_guard=retained.observe)

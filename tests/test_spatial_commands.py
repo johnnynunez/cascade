@@ -185,6 +185,17 @@ def test_occupancy_clearance_is_enforced_before_motion(rig):
 
 
 @needs_pin
+def test_a_nudge_that_ends_inside_the_map_margin_is_refused(rig):
+    runtime, arm = rig
+    runtime.arm.harness.occupancy = _PointObstacle(_tcp(runtime)[:3, 3] + [0., 0., -.020])
+    n0 = len(arm.commands)
+    r = runtime.execute("move_relative", {"direction": "up", "distance_m": .005})   # ends at 2.5 cm
+    assert r["ok"] is False and r["refused_by"] == "safety_harness"
+    assert "route ends inside the margin" in r["error"] and len(arm.commands) == n0
+    assert runtime.execute("move_relative", {"direction": "up", "distance_m": .02})["ok"] is True
+
+
+@needs_pin
 def test_every_executed_step_passes_through_the_harness(rig):
     runtime, arm = rig
     h = runtime.arm.harness

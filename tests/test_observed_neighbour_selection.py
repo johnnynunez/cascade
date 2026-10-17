@@ -1277,3 +1277,24 @@ def test_a_halt_during_the_pre_close_retreat_ends_the_skill_as_a_halt(monkeypatc
     assert len(moves) == 4
     assert [c for c in env.calls if c[0] == "gripper"] == [("gripper", 1., .8)]
     assert len(joint_targets(env)) == 51             # home, pregrasp, descent; the withdrawal never streamed
+
+
+def test_a_ranking_query_names_no_object_while_a_refusal_still_does(monkeypatch):
+    """Merge seam of the ranking (#341) and the refusal naming (#342): a
+    refused point names the tracked object it belongs to ("finger would enter
+    the lemon"). A ranking query tests the finger volume GROWN by the ranking
+    distance, so its hit is a surface the finger only comes near: naming it as
+    entered or hit would be false, and the ranking text stays main's."""
+    from cascade.grasping.observed_scene import TrackedObject
+    env = build(monkeypatch)
+    lemon = TrackedObject("lemon", (TARGET + [NEIGHBOUR_DX, 0., 0.])[None], NEIGHBOUR_R)
+    scene = ObservedScene(env.frame, env.fix.detection.mask, env.frame.T_base_cam, source=SOURCE,
+                          robot_id="/robot", epoch="test", tracked=(lemon,))
+    gate = ObservedFingerGate(scene, GEOMETRY, Kin(), env.rt.arm.get_state(), uncertainty_m=OPEN_TRACKING_ENVELOPE_M)
+    qa = np.r_[TARGET, 0.]
+    assert gate.pose(qa) is None                      # A's planned fingers clear the lemon
+    near = gate.neighbour_proximity(Kin().fk(qa), OBSERVED_RANK_LATERAL_M)
+    assert near is not None and near["surface"] == "other observed surface"
+    assert "near" not in near, near
+    refused = scene.conflict(Kin().fk(qa + SAG), GEOMETRY.envelopes(GEOMETRY.upper, GEOMETRY.upper))
+    assert refused["near"].startswith("finger would enter the lemon at "), refused

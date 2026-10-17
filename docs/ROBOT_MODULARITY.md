@@ -31,7 +31,9 @@ locomotion, manipulation and touch evolve independently behind the same runtime,
 memory. Isaac Sim, MuJoCo and hardware drivers are backend adapters behind shared contracts;
 MicroDuck's policy and actuator model do not define locomotion for every robot.
 
-[Architecture image (SVG)](assets/architecture.svg) · [PNG](assets/architecture.png)
+[![CASCADE modular architecture: robot runtimes, fleet coordination and backend adapters](assets/architecture.svg)](assets/architecture.svg)
+
+[Download PNG](assets/architecture.png). Dashed boxes mark work still in progress.
 
 ```mermaid
 flowchart TD

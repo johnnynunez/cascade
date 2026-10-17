@@ -50,3 +50,15 @@ gripper:
   # docs/evidence/b36-pick-reliability-20261010/README.md
   hold_squeeze_frac:
     physx: 0.05
+
+overrides:
+  grasp:
+    # The wait for EMPTY jaws to open (open_gripper, the opening of closed
+    # jaws before a grasp, an air grasp's reopen) is wall clock. Newton runs
+    # arm and jaw motion ~4x slower than real time: its jaws took 1.1-1.5 s
+    # wall to open from closed at load ~5, half the 3 s real-time default
+    # (JAWS_OPEN_TIMEOUT_S), so a more loaded host could time the reopen out
+    # while the jaws were still opening. 4 x 3 s. A bound only: each wait ends
+    # at the first read that confirms the jaws open (or, for open_gripper,
+    # stalled).
+    open_wait_timeout_s: 12.0

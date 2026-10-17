@@ -89,21 +89,13 @@ for _spark_camera in ("cam0", "side", "proof"):
         "jpeg_sha256": _obs_hash.sha256(_obs_base64.b64decode(_spark_frame["rgb_jpeg_b64"])).hexdigest()}
 '''
         code = code.replace(boundary, boundary + extra)
-        # Convex geometry already uses the shipped bounded lossless codec.
-        # The smaller cube receipt needs the same compressed outer envelope.
+        # Every witness carries scene geometry, so the base code already ends with the
+        # codec's bounded compressed line. A plain base receipt gets that same envelope.
         if 'import zlib as _obs_zlib' not in code:
             boundary = 'if len((_obs_payload + '
             if code.count(boundary) != 1:
                 raise RuntimeError("Passive observer transport boundary changed")
-            code = code.split(boundary)[0] + '''import zlib as _obs_zlib
-if len(_obs_payload.encode("utf-8")) > 65536:
-    raise RuntimeError("Observer decoded snapshot exceeds 65536 bytes")
-_spark_encoded = _obs_base64.b64encode(_obs_zlib.compress(_obs_payload.encode("utf-8"), 6)).decode("ascii")
-_spark_line = "KITCHEN_OBSERVER_ZLIB " + _spark_encoded
-if len(_spark_line.encode("utf-8")) >= 7400:
-    raise RuntimeError("Observer compressed snapshot exceeds safe bridge stdout size")
-print(_spark_line)
-'''
+            code = code.split(boundary)[0] + shared.codec.compressed_envelope_code()
         return code
 
     def capture_frames(self, phase):

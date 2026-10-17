@@ -29,7 +29,7 @@ runtimes. The arm and mobile entrypoints stay available on their own.
 
 The manipulation stack adapts three published systems:
 
-- **ASPIRE** (NVIDIA GEAR): the API surface (`get_observation`, `localize_object`, `preview_grasp`, motion + gripper primitives), the per-call trace (`trace.jsonl` + before/after keyframes) and the post-run diagnosis → skill-note loop (`agent/aspire.py`, `scripts/learn_from_runs.py`).
+- **ASPIRE** (NVIDIA GEAR): the API surface (upstream v1.0: `get_observation`, `localize_object`, `generate_grasps`, `select_grasp`, `move_to_pose` + gripper primitives; `preview_grasp` is cascade's own), the per-call trace (`trace.jsonl` + before/after keyframes) and the post-run diagnosis → skill-note loop (`agent/aspire.py`, `scripts/learn_from_runs.py`).
 - **Agentic-VLA**: sub-goal decomposition, a VLM critic consulted on failure (`agent/advisor.py`), embedding-indexed experience memory (tier 2) and **checkable milestones** (`agent/milestones.py`: symbolic against the world model first, VLM only when it abstains). The same rate-limited critic runs *before* each LLM-tier motion dispatch (`PlausibilityChecker`, Human-CLAW's pre-execution verifier); its `plausibility` verdict is **advisory only**, the harness alone refuses motion.
 - **Claude plays robotics** (Anthropic): one LLM turn costs 2–15 s, so routine commands must not wait on the model; structured state beats extra image context; a cursor the model can query (`probe_point`) beats overlays it must read.
 
@@ -281,7 +281,7 @@ localize ─▶ (same fix) ─▶ refuse before motion: observed-finger gate | n
 ```
 
 - **Required learned grasps.** The Spark presenter profile requires real GraspGen-X candidates and checks diffusion inference at startup; a missing server, protocol stub or failed inference raises instead of substituting OBB. The five-second fallback cooldown applies to optional profiles only. `isaac_kitchen_hug` requires real HUG the same way (only HUG receives the RGB-D frame).
-- **Bounded feasibility search.** With GGX and the observed-finger gate, infeasible planning may request at most three batches within eight seconds from the same saved scene and frozen prior, with no motion between them (`grasp.graspgenx.feasibility_max_batches: 3`, `feasibility_timeout_s: 8.0` in `configs/arms/isaac_kitchen_gpu.yaml`); transport, malformed data, cancellation and clock errors are terminal. The runtime orders by quality, applies memory, then calls `select_grasp(preserve_order=True)`.
+- **Bounded feasibility search.** With GGX and the observed-finger gate, infeasible planning may request at most three batches within eight seconds from the same saved scene and frozen prior, with no motion between them; the clock (like the 3 s route budget) starts after a grasp opens its closed empty jaws, so jaw travel is never charged to planning (`grasp.graspgenx.feasibility_max_batches: 3`, `feasibility_timeout_s: 8.0` in `configs/arms/isaac_kitchen_gpu.yaml`); transport, malformed data, cancellation and clock errors are terminal. The runtime orders by quality, applies memory, then calls `select_grasp(preserve_order=True)`.
 - **Held objects.** A cached offset or unbound legacy position can aim a carried object but cannot prove slip or authorize opening; held-object observations need identified, temporally coherent evidence, the driver's joint convention and the TCP at capture time.
 - **Single-hinge jaws** (SO-101) close toward the fixed tip: the profile declares `jaw_fixed_tip_m` and `jaw_close_dir` and the selector displaces the IK target.
 - **Reach envelope (B45, opt-in).** On the reBot, top-down grasps reach only r ≤ 0.45 m (0.38 m at a 10 cm grasp height), measured through the real selector and harness by `scripts/reachability_study.py` ([REACH_ENVELOPE.md](REACH_ENVELOPE.md)); leaning away from the base reaches 0.69 m (45°), horizontal 0.75 m. `grasp.angled_approach_tilts_deg` (empty by default) appends tilted candidates behind every top-down one; the `*_reach` profiles (`rebot_rs_reach`, `isaac_reach`, `mock_reach`) set [30, 45, 90] and the measured box (x 0.10..0.55, y ±0.50); every other gate is the parent's. `tests/test_reach_envelope.py` pins profiles, JSON, URDF hash and every other profile golden.
@@ -329,8 +329,9 @@ parameters, resolved arm and pre-call held-object context match, the postconditi
 is measured and confirmed, and no reset/task-end intervenes.
 `scripts/learn_from_runs.py` harvests notes into `skills_library/*.md`, one per
 `(skill, signature)` counting `occurrences` and `source_tasks`; `retrieve()` loads
-keyword-matched notes into tier 3 **only once promoted** (≥ 2 distinct tasks,
-ASPIRE's rule; `memory.skill_min_tasks: 1` relaxes it). Details:
+keyword-matched notes into tier 3 **only once promoted** (≥ 2 distinct tasks:
+cascade's own rule; upstream ASPIRE v0.1 counts occurrences in any task, v1.0
+promotes on a blind verifier's verdict; `memory.skill_min_tasks: 1` relaxes it). Details:
 [retry evidence admission](DREAM_RSI_ADAPTATION.md).
 
 **Learned notes on the kitchen route.** A runtime reads its note library once

@@ -1,0 +1,17 @@
+{
+  "schema": "cascade.wrist_camera_calipers/1",
+  "status": "pending: owner calipers (spec 2026-10-16 nvblox object-aware §8, Q5)",
+  "units": "mm",
+  "tolerance_mm": 1,
+  "reference_frame": "Fingertip plane (gripper_end origin) and the finger axis, jaws closed. x is back along the jaws, y across the jaws (camera side up), z up. front_behind_tip / rear_behind_tip: distance of the camera + padding + bracket envelope's front / rear face behind the fingertip plane (rear includes the padding); minus_y / plus_y: its extents across the jaws, measured separately; bottom_above_axis / top_above_axis: its bottom / top above the finger axis.",
+  "rule": "Every face moves outward to the next 5 mm (rear, top and the wider side up; front and bottom down). A null keeps today's slab for that face (safety.tool_volume.camera_faces_from_calipers). The first measured face ships together with safety.tool_volume.housing and .fingers in configs/arms/rebot_rs.yaml (tests/test_tool_volume_parts.py).",
+  "faces_mm": {
+    "front_behind_tip": null,
+    "rear_behind_tip": null,
+    "minus_y": null,
+    "plus_y": null,
+    "bottom_above_axis": null,
+    "top_above_axis": null
+  },
+  "photos": []
+}

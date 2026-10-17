@@ -16,7 +16,7 @@ Admission and promotion mirror the ASPIRE library (``skills/library.py``):
   id), ``source_tasks`` distinct task texts (case/whitespace-insensitive),
   ``origins`` how the evidence arrived (authored / distilled / reused).
 * A record is PROMOTED once it recurred in >= ``min_tasks`` distinct tasks
-  (default ``PROMOTION_MIN_TASKS`` = 2, upstream ASPIRE's rule); before that it
+  (default ``PROMOTION_MIN_TASKS`` = 2, cascade's own rule); before that it
   is a stored CANDIDATE that is never offered. ``min_tasks=1`` is the explicit
   relaxation and must be configured; nothing lowers it silently.
 * ``record_failure()`` counts an execution of an admitted program that did not
@@ -128,7 +128,7 @@ class ProgramRecord:
 
 
 class ProgramLibrary:
-    """Persisted programs with ASPIRE-style cross-task promotion."""
+    """Persisted programs with cascade's cross-task promotion (as ``skills/library.py``)."""
 
     def __init__(self, path: str | Path | None = None, min_tasks: int | None = None):
         if min_tasks is None:

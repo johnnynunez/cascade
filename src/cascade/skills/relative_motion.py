@@ -655,15 +655,28 @@ class CameraBox:
 
 
 def camera_box(T_tcp, approach_tcp, up_tcp, *, protrusion_m: float, behind_m: float,
-               half_width_m: float) -> CameraBox:
+               half_width_m: float, front_m: float = 0.0, bottom_m: float = 0.0) -> CameraBox:
     """The camera's box for TCP pose `T_tcp`. `approach_tcp` / `up_tcp` are the
-    gripper's approach and the camera's up axis IN THE TCP FRAME."""
-    dims = {"protrusion_m": protrusion_m, "behind_m": behind_m, "half_width_m": half_width_m}
+    gripper's approach and the camera's up axis IN THE TCP FRAME.
+
+    The box spans the approach from -`behind_m` to -`front_m` (behind the
+    fingertip plane) and camera-up from `bottom_m` to `protrusion_m` (above
+    the finger axis). `front_m` = `bottom_m` = 0 is today's slab, reaching the
+    fingertip plane and the finger axis. A calipered camera cuts them; the
+    tool volume then needs its finger / housing parts, which the slab covered
+    until then (safety/tool_volume.py, spec 2026-10-16 nvblox §3.4)."""
+    dims = {"protrusion_m": protrusion_m, "behind_m": behind_m, "half_width_m": half_width_m,
+            "front_m": front_m, "bottom_m": bottom_m}
     for name, v in dims.items():
         if (isinstance(v, bool) or not isinstance(v, (int, float, np.integer, np.floating))
                 or not math.isfinite(float(v)) or not 0.0 <= float(v) <= _MAX_CAMERA_DIM_M):
             raise SkillError(f"relative_motion.wrist_camera.{name} must be within "
                              f"0..{_MAX_CAMERA_DIM_M:g} m, got {v!r}")
+    # a cut face stays strictly inside its opposite face (0 = no cut, today's slab)
+    for cut, far in (("front_m", "behind_m"), ("bottom_m", "protrusion_m")):
+        if float(dims[cut]) > 0.0 and not float(dims[cut]) < float(dims[far]):
+            raise SkillError(f"relative_motion.wrist_camera.{cut} must be below {far} "
+                             f"({float(dims[far]):g} m), got {dims[cut]!r}")
     T = np.asarray(T_tcp, dtype=float)
     R, p = T[:3, :3], T[:3, 3]
     a = R @ (np.asarray(approach_tcp, dtype=float) / np.linalg.norm(approach_tcp))
@@ -674,8 +687,10 @@ def camera_box(T_tcp, approach_tcp, up_tcp, *, protrusion_m: float, behind_m: fl
     u = u / np.linalg.norm(u)
     j = np.cross(u, a)
     axes = np.column_stack([a, j, u])
-    center = p - a * (float(behind_m) / 2.0) + u * (float(protrusion_m) / 2.0)
-    half = np.array([float(behind_m) / 2.0, float(half_width_m), float(protrusion_m) / 2.0])
+    behind, front = float(behind_m), float(front_m)
+    top, bottom = float(protrusion_m), float(bottom_m)
+    center = p - a * ((behind + front) / 2.0) + u * ((top + bottom) / 2.0)
+    half = np.array([(behind - front) / 2.0, float(half_width_m), (top - bottom) / 2.0])
     return CameraBox(center=center, axes=axes, half=half)
 
 

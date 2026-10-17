@@ -645,6 +645,17 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
     # and validated HERE too, so a bad limit fails the build before any
     # hardware exists, like a bad embedder does.
     visual_recall = _visual_recall_settings(cfg.get("memory", _empty_cfg()), memory_embedder)
+    # The bound on waiting for empty jaws to open (open_gripper, the opening
+    # of closed jaws before a grasp, an air grasp's reopen): a bad value
+    # fails the build here, before any arm exists, never first after a
+    # grasp's close (PR-A jaws round 2, M6).
+    from ..skills.runtime import open_wait_timeout_s
+    from ..types import SkillError
+
+    try:
+        open_wait_timeout_s(cfg.get("grasp") or _empty_cfg())
+    except SkillError as exc:
+        raise ValueError(str(exc)) from None
 
     from ..perception.occupancy import OccupancyMap
 

@@ -59,6 +59,20 @@ occupancy:
   clear_on_start: false
   # region_min/region_max: AABB to query for occupied points; defaults to
   # safety.workspace min/max if omitted.
+  # Every clearance refusal or mid-motion halt (TCP/joints, held object, wrist
+  # camera, jaws) files a report into the call's trace row
+  # (`context.clearance`, docs/NVBLOX.md): the offending sample, gate, joints
+  # and map state, plus the occupied voxel centres within radius_m of the
+  # sample (at most max_voxels, nearest first, 1 mm). At most max_reports per
+  # call (the newest), one per gate, spot and map refresh. Built only after a
+  # gate refused; a failing snapshot never changes the refusal. Diagnostics
+  # only: no margin depends on these values. A required map that refuses by
+  # raising (stale, failed refresh, body mask) files one too, with the map's
+  # state and no voxels.
+  refusal_snapshot:
+    radius_m: 0.05         # (0, 0.5] m
+    max_voxels: 64         # 1..1024
+    max_reports: 32        # 1..256
 
 grasp:
   # Grasp planner: "obb" (analytic, always available) or "graspgenx"
@@ -156,6 +170,14 @@ grasp:
   # the object's observed top, falling back to pregrasp_offset_m when the
   # raised pose is unreachable. null = off (fixed offset only).
   pregrasp_clear_top_m: null
+  # With pregrasp_clear_top_m set: count that clearance from the target's top
+  # in the occupancy MAP when it is higher than the observed top (the top face
+  # of the highest occupied voxel in the target's own column, + half a voxel),
+  # raised by at most 2 cm. The hover only ever rises; no map, a stale or
+  # failed map, or an empty column keep the observed top. false = observed top.
+  # The half voxel counts at most 5 mm. A raised hover that is unreachable or
+  # refused falls back to the observed-top hover before pregrasp_offset_m.
+  pregrasp_map_top: false
   depth_fraction: 0.15      # grasp this far down from the object's TOP. Low
                             # value = grasp near the top face, which keeps the
                             # gripper fingers (they extend ~5cm below the TCP)
@@ -183,6 +205,12 @@ grasp:
   # open_gripper: wait up to this long for the jaws to open (or stall) before
   # the skill returns, so its postcondition reads the jaws after they moved.
   # null = return as soon as the target is sent (sims that open instantly).
+  # The same key bounds the wait for EMPTY jaws to open after an air grasp
+  # (before the exit withdrawal) and for closed jaws opened at a grasp's start
+  # (before its planning and route budgets start); null there = 3 s (JAWS_OPEN_TIMEOUT_S, real time). The Isaac
+  # profiles set 12 s for Newton's slow motion (configs/arms/isaac.yaml).
+  # Unset or a finite positive number of seconds; anything else fails the
+  # build (and the skill, before anything moves).
   open_wait_timeout_s: null
   # The pregrasp is vetted and approached before the descent cylinder opens,
   # so with an occupancy map the target's own top could refuse its own
@@ -365,8 +393,8 @@ memory:
   size_gate: true
   # ASPIRE skill library (skills_library/*.md, written offline by
   # scripts/learn_from_runs.py): a distilled note is retrieved into the agent
-  # context only after it recurred in this many DISTINCT tasks (upstream
-  # ASPIRE's promotion rule). Notes seen in one task stay stored candidates.
+  # context only after it recurred in this many DISTINCT tasks (cascade's own
+  # rule, not upstream ASPIRE's). Notes seen in one task stay stored candidates.
   # 1 = retrieve after a single confirmed retry -- an explicit relaxation, not
   # a default. Must be >= 1.
   skill_min_tasks: 2

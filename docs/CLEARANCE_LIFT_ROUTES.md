@@ -1,7 +1,9 @@
 # Bounded lift-first joint routes
 
-`SafetyHarness` already permits non-worsening escape from an existing
-clearance-margin violation. A route generator can still miss that escape:
+`SafetyHarness` lets an arm that already sits inside a clearance margin move
+only away from the obstacle: the TCP and joint origins by a strictly
+retreating step, the tool volume by a step that brings no sample closer (see
+"Escape and route end" below). A route generator can still miss that escape:
 a direct joint interpolation and one-joint-first/last corners do not explore
 all coupled joint movements.
 
@@ -31,6 +33,31 @@ per-streamed-step checks, including newly appearing obstacles.
 - No workspace, clearance, velocity, joint, contact, occupancy-freshness or
   stop limits change. No new obstacle exemption or unconditional home command
   is introduced. Robot profiles, camera masks and calibration are unchanged.
+
+## Escape and route end (TCP and joint origins)
+
+1. **Escape, per step** (`approve`, `vet_step`): a TCP or joint-origin point
+   below `min_clearance_m` (0.03 m) at the next pose passes only if it was
+   already below it at the previous pose and its map clearance grows by more
+   than `CLEARANCE_ESCAPE_TOL_M` (1e-9 m), or the step is an exact hold
+   (joints within 1e-9 rad) that lowers no such point's clearance. Such a
+   step is also sampled between its ends (FK, at most half a voxel apart, at
+   most 16 samples): no escaping point may read less there than at the
+   previous pose, so one long step cannot jump a voxel. The ends and the
+   interior come from one map read. A lateral slide, a point entering the
+   margin, or an unobserved (NaN) clearance at either pose refuses. The
+   refusal keeps its text and adds "(inside the margin: only a strictly
+   retreating step is allowed)".
+2. **Route end**: `vet_route` (so `plan_route`, `move_planned`, and the up-leg
+   of the rest move, `plan_route` to the initial pose) and the spatial
+   `plan_route` refuse a route whose last pose fails the static check,
+   `route ends inside the margin: ...`. The rest move's fold (`vet_fold`)
+   gets the per-step escape only.
+3. **Not changed**: the margin; static vets (`vet_pose`, grasp candidates) and
+   attached-payload samples never escape; the tool volume keeps its own
+   non-worsening rule; no planner searches for an escape beyond the lifts.
+
+Tests: `tests/test_clearance_escape.py`.
 
 ## Evidence and limitations
 

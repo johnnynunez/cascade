@@ -8,7 +8,7 @@ AUTHORED by the agent for one instruction or DISTILLED from a verified LLM-tier
 run, and both paths answer to ONE admission rule -- authorship is never
 evidence; a program is stored only from an execution whose every registered
 effect the independent checker CONFIRMED, and offered for reuse only after it
-recurred, verified, in >= 2 distinct tasks (ASPIRE's promotion rule).
+recurred, verified, in >= 2 distinct tasks (cascade's own rule, as for skill notes).
 
 What these tests pin, most important first:
 

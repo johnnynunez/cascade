@@ -413,6 +413,27 @@ def test_an_obstacle_above_the_hover_inside_the_column_refuses_the_retrace(rebot
     assert stop_retrace.kept(rt) is kept                           # nothing moved: still kept
 
 
+def test_an_obstacle_beside_the_path_refuses_the_retrace_before_any_command(rebot, monkeypatch):
+    """A 1 cm voxel outside the column, above the wrist camera's path (the
+    camera rides ~17 cm above the TCP): no TCP / joint origin comes near it
+    at the hover (the end check passes), but the camera box enters the
+    margin halfway up. The per-edge vet refuses before the first command;
+    without it the stream would start and stop mid-way."""
+    rt = rebot
+    stopped_at_the_object(rt, monkeypatch)
+    from cascade.skills import stop_retrace
+
+    kept = stop_retrace.kept(rt)
+    voxel = [0.225, -0.035, 0.235]
+    assert np.linalg.norm(np.asarray(voxel[:2]) - kept.column[0]) > kept.column[1] + 0.01   # outside the column
+    rt.arm.harness.occupancy = box_map("solid", centred_box(voxel, [0.01, 0.01, 0.01]))
+    assert rt.arm.harness.route_end_violation(kept.q_pre) is None                              # premise
+    n0 = commands(rt)
+    res = rt.execute("move_home", {})
+    assert res["ok"] is False and "stop retrace refused: wrist camera" in res["error"], res
+    assert commands(rt) == n0 and stop_retrace.kept(rt) is kept
+
+
 def test_a_retrace_that_would_leave_the_column_is_refused_before_any_command(rebot, monkeypatch):
     """A goal whose segment drifts sideways out of the kept radius (the
     hover moved 2 radii in x): refused by the column guard, nothing sent."""

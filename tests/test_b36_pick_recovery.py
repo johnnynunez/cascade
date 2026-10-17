@@ -438,7 +438,8 @@ def test_an_object_lost_in_the_lift_after_the_hold_is_still_an_air_grasp(rt_arm,
     sent = _spy_gripper(rt, arm, monkeypatch)
     _lose_the_object_in_the_lift(rt, arm, monkeypatch, sent)
     res = rt.skill_grasp_object("red cube")
-    assert sent[-1][0] == pytest.approx(_pos(rt, 0.55)), sent  # the hold was the last command
+    assert sent[-2][0] == pytest.approx(_pos(rt, 0.55)), sent  # the hold was the last close command ...
+    assert sent[-1] == (rt._grip_open, 0.8), sent               # ... then the empty jaws' reopen (PR-A jaws)
     assert res["ok"] is False and "air grasp" in res["error"], res
     assert rt.held_object is None
 

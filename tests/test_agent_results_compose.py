@@ -76,6 +76,15 @@ class _GateDouble:
                 "closing fingers intersects observed non-target surface",
                 {"finger": "joint_left", "surface": "other observed surface", "injected": True})
 
+    def require_reopening(self, state, *, check=None):
+        return None
+
+    def reopened(self, state):
+        return True  # the mock jaws open at once (PR-A jaws round)
+
+    def fingers_open(self, state):
+        return True
+
 
 def _gate_on(monkeypatch, arm, refuse=0):
     """CASCADE_OBSERVED_FINGER_GATE=1 on the mock stack: the gate double, and a

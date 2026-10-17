@@ -12,11 +12,13 @@ call's trace row (`context.clearance`).
 Offline: CartesianKin / case() (tests/test_home_routes.py), the reBot model,
 and a real OccupancyMap over the synthetic GridBridge.
 """
+import re
 import threading
+import time
 
 import numpy as np
 import pytest
-from conftest import needs_pin
+from conftest import needs_pin, needs_pin_so101
 from occupancy_grid_bridge import GridBridge, centred_box, depth_frame, make_map
 from test_harness_tool_volume import T_CAM, side_grasp_geometry
 from test_home_routes import case
@@ -26,7 +28,7 @@ from cascade.safety.harness import SafetyHarness, SafetyLimits
 from cascade.types import SafetyViolation, SkillError
 
 REPORT_KEYS = {"phase", "gate", "reason", "q", "q_prev", "tcp", "sample", "sample_tcp", "clearance_m",
-               "margin_m", "exemption", "map", "voxels"}
+               "margin_m", "exemption", "map", "voxels", "gate_refreshes"}
 #: CartesianKin hovers its TCP at (0.3, 0, 0.3); this box's top is 2 cm under it
 UNDER = centred_box([.3, 0., .26], [.04, .04, .04])
 
@@ -223,13 +225,14 @@ def test_reports_dedupe_and_keep_the_newest_32(monkeypatch):
     reports = h.drain_clearance_reports()
     np.testing.assert_allclose([r["sample"] for r in reports], [g.tolist() for g in goals[8:]])
     # the refusal that ends a call is always kept: a repeat of an evicted
-    # sample is filed again, a repeat of a kept one is already there
+    # sample is filed again, a repeat of a kept one moves its report last
     for g in goals:
         assert h.vet_pose(g)
     assert h.vet_pose(goals[0]) and h.vet_pose(goals[-1])
     reports = h.drain_clearance_reports()
-    assert len(reports) == 32 and reports[-1]["sample"] == pytest.approx(goals[0].tolist())
-    assert any(r["sample"] == pytest.approx(goals[-1].tolist()) for r in reports)
+    assert len(reports) == 32 and reports[-1]["sample"] == pytest.approx(goals[-1].tolist())
+    assert reports[-2]["sample"] == pytest.approx(goals[0].tolist())
+    assert sum(r["sample"] == pytest.approx(goals[-1].tolist()) for r in reports) == 1
 
 
 def test_the_map_config_bounds_the_reports():
@@ -335,13 +338,16 @@ def test_refusals_without_a_measured_clearance():
     (r,) = h.drain_clearance_reports()
     assert r["gate"] == "tcp" and r["clearance_m"] is None and r["sample"] == q.tolist()
     # no answer at all from a map that must give one: no sample to name
-    unavailable = SimpleNamespace(clearance=lambda p: None, required=True, unknown_blocks=True)
+    record = {"refreshes": 4, "age_s": .1, "voxel_m": .01, "occupied": 7}
+    unavailable = SimpleNamespace(clearance=lambda p: None, required=True, unknown_blocks=True,
+                                  refreshes=4, clearance_record=lambda: dict(record))
     _, _, h = case(occupancy=unavailable)
     reason = h.vet_pose(q)
     assert reason.startswith("clearance unavailable")
     (r,) = h.drain_clearance_reports()
     assert r["gate"] == "arm" and r["sample"] is None and r["clearance_m"] is None
     assert r["voxels"] == [] and "snapshot_error" not in r and r["reason"] == reason
+    assert r["map"] == record and "raised" not in r
 
 
 def test_a_mid_step_refusal_reports_its_interior_sample():
@@ -483,6 +489,292 @@ def test_refusal_snapshot_defaults_and_bad_values(monkeypatch):
         OccupancyMap.from_config(Cfg(block))
 
 
+# ── a required map that raises, a newer map, dedupe order, frames ──────────
+
+
+def _age_free(text):
+    """A refusal text with a stale map's age (it grows between two reads) normalised."""
+    return re.sub(r"\(\d+\.\d+ s old", "(N s old", text)
+
+
+def _break_map(occ, fault):
+    """Make a required map refuse by RAISING out of clearance() (spec §7 A2
+    counts these refusals too)."""
+    if fault == "stale":
+        occ._last_refresh = time.monotonic() - occ.max_age_s - 7200.0
+    elif fault == "body mask":
+        occ._body_error = "robot body pose not yet validated by a masked depth refresh"
+    else:                                                    # a failed refresh
+        occ.bridge.fail = "bridge timed out"
+        occ.refresh(depth_frame(), T_CAM)
+        assert occ.last_error
+
+
+def _raises_of(monkeypatch, occ, name):
+    """Every SafetyViolation (the object) map method `name` raises."""
+    raised, original = [], getattr(occ, name)
+
+    def recording(*args, **kwargs):
+        try:
+            return original(*args, **kwargs)
+        except SafetyViolation as exc:
+            raised.append(exc)
+            raise
+
+    monkeypatch.setattr(occ, name, recording)
+    return raised
+
+
+def _refuse(h, phase, q_prev, q):
+    """(refusal text, the SafetyViolation raised or None) of one gate run."""
+    h.heartbeat()
+    try:
+        if phase == "vet_step":
+            return h.vet_step(q_prev, q, .02), None
+        if phase == "vet_pose":
+            return h.vet_pose(q), None
+        h.approve(q_prev, q, .02)
+    except SafetyViolation as exc:
+        return str(exc), exc
+    return None, None
+
+
+FAR = centred_box([.0, .4, .3], [.02, .02, .02])        # nowhere near any pose below
+
+
+@pytest.mark.parametrize("fault", ["stale", "body mask", "failed refresh"])
+@pytest.mark.parametrize("phase", ["vet_pose", "vet_step", "approve"])
+def test_a_required_map_that_raises_files_one_report(monkeypatch, fault, phase):
+    """A stale map, a body-mask fault or a failed refresh refuses by raising:
+    the same exception object leaves the gate (vet_step returns its text),
+    and exactly one sample-less report carries the map record."""
+    occ = live_map(FAR)
+    _, _, h = case(occupancy=occ)
+    q_prev, q = np.array([.3, 0., .31]), np.array([.3, 0., .3])
+    _break_map(occ, fault)
+    with pytest.raises(SafetyViolation) as direct:
+        occ.clearance(q[None, :])
+    raised = _raises_of(monkeypatch, occ, "clearance")
+    reason, exc = _refuse(h, phase, q_prev, q)
+    assert len(raised) == 1 and reason == str(raised[0])
+    assert (exc is None) == (phase == "vet_step") and (exc is None or exc is raised[0])   # never rebuilt
+    assert _age_free(reason) == _age_free(str(direct.value))                             # the map's own text
+    (r,) = h.drain_clearance_reports()
+    assert set(r) == REPORT_KEYS | {"raised"}
+    assert r["raised"] == "SafetyViolation" and r["gate"] == "arm" and r["phase"] == phase
+    assert r["reason"] == reason and r["voxels"] == [] and r["sample"] is None and r["clearance_m"] is None
+    assert r["map"]["refreshes"] == occ.refreshes == r["gate_refreshes"] == 1
+    if fault == "stale":
+        assert r["map"]["age_s"] > 7200                                  # the evidence of a stale halt
+    assert h.drain_clearance_reports() == []
+
+
+@pytest.mark.parametrize("phase", ["vet_pose", "vet_step", "approve"])
+@pytest.mark.parametrize("gate", ["attached", pytest.param("tool volume", marks=needs_pin)])
+def test_every_gate_files_a_report_when_its_map_query_raises(request, monkeypatch, gate, phase):
+    """The held-object and tool-volume gates query the map themselves
+    (payload_clearance, clearance_excluding): a raise there files a report
+    under that gate's set name and leaves as the same object."""
+    if gate == "attached":
+        occ = live_map(FAR)
+        occ._payload_samples["scene"] = np.array([[0., 0., -.1]])
+        _, _, h = case(occupancy=occ)
+        q_prev, q = np.array([.3, 0., .31]), np.array([.3, 0., .3])
+        method = "payload_clearance"
+    else:
+        rebot = request.getfixturevalue("rebot")
+        h, occ = _rebot_harness(rebot, FAR)
+        q_prev = q = rebot.home
+        method = "clearance_excluding"
+    fired = []
+
+    def refusing(*_a, **_k):
+        fired.append(SafetyViolation(f"occupancy unsafe: {method} refused (test)"))
+        raise fired[-1]
+
+    monkeypatch.setattr(occ, method, refusing)
+    reason, exc = _refuse(h, phase, q_prev, q)
+    assert len(fired) == 1 and reason == str(fired[0])
+    assert (exc is None) == (phase == "vet_step") and (exc is None or exc is fired[0])
+    (r,) = h.drain_clearance_reports()
+    assert r["gate"] == gate and r["raised"] == "SafetyViolation" and r["reason"] == reason
+    assert r["phase"] == phase and r["sample"] is None and r["voxels"] == [] and r["map"]["refreshes"] == 1
+
+
+def test_a_raising_map_files_one_report_and_the_halt_has_the_last_word():
+    occ = live_map(FAR)
+    _, _, h = case(occupancy=occ)
+    q_prev, q = np.array([.3, 0., .31]), np.array([.3, 0., .3])
+    _break_map(occ, "stale")
+    for _ in range(5):
+        assert _refuse(h, "vet_pose", q_prev, q)[1] is not None
+        assert _refuse(h, "vet_step", q_prev, q)[0]
+    reason, exc = _refuse(h, "approve", q_prev, q)
+    assert exc is not None
+    (r,) = h.drain_clearance_reports()                       # one per gate and map commit
+    assert r["phase"] == "approve" and r["reason"] == reason and r["raised"] == "SafetyViolation"
+
+
+def test_a_gate_without_a_report_context_files_nothing():
+    """spatial_moves' camera-box check calls the arm gate with no ctx: its
+    refusals (returned or raised) stay report-free, as before."""
+    occ = live_map(FAR)
+    _, _, h = case(occupancy=occ)
+    _break_map(occ, "stale")
+    with pytest.raises(SafetyViolation):
+        h._occupancy_violation(np.array([[.3, 0., .3]]), None)
+    assert h.drain_clearance_reports() == []
+
+
+@pytest.mark.parametrize("phase", ["vet_pose", "approve"])
+def test_a_refresh_between_the_gate_read_and_its_report_is_flagged(monkeypatch, phase):
+    """The gate holds no map lock from its read to the report (the 50 Hz
+    path stays as it was): a refresh committed in between makes the
+    snapshot newer than what the gate read, and the report says so."""
+    occ = live_map(UNDER)
+    _, _, h = case(occupancy=occ)
+    q_prev, q = np.array([.3, 0., .31]), np.array([.3, 0., .3])
+    reason, _ = _refuse(h, phase, q_prev, q)
+    (r,) = h.drain_clearance_reports()
+    assert r["gate_refreshes"] == r["map"]["refreshes"] == 1 and "snapshot_newer_map" not in r
+    original = occ.clearance
+
+    def read_then_commit(points):
+        out = original(points)
+        if occ.refreshes == 1:
+            occ.refresh(depth_frame(), T_CAM)               # lands after the gate's read
+        return out
+
+    monkeypatch.setattr(occ, "clearance", read_then_commit)
+    assert _refuse(h, phase, q_prev, q)[0] == reason          # decided on the gate's own read
+    (r,) = h.drain_clearance_reports()
+    assert r["gate_refreshes"] == 1 and r["map"]["refreshes"] == 2 and r["snapshot_newer_map"] is True
+
+
+def test_a_streamed_halt_takes_over_the_matching_report_and_moves_last(monkeypatch):
+    """One report per gate, 1 cm spot and map commit. A repeat moves it last
+    (the refusal that ended the call is the last one), and a streamed halt
+    (approve) rewrites what happened while the snapshot stays: same cell,
+    same commit, so no new voxels."""
+    occ = live_map(centred_box([.31, .03, .26], [.44, .16, .04]))             # flat top at z 0.28
+    _, _, h = case(occupancy=occ)
+    calls = spy(monkeypatch, occ)
+    q, other = np.array([.3, 0., .3]), np.array([.2, 0., .3])
+    halt_q = q + [.002, 0., 0.]                              # another pose in the same 1 cm cell
+    preflight = h.vet_pose(q)
+    assert preflight and h.vet_pose(other)
+    reason, exc = _refuse(h, "approve", halt_q + [0., 0., .001], halt_q)
+    assert exc is not None and reason != preflight
+    assert h.vet_pose(other)                                 # a repeat: moves last, nothing rewritten
+    assert h.vet_step(q + [0., 0., .001], q, .02)            # not a halt: moves last, keeps the halt
+    reports = h.drain_clearance_reports()
+    assert [r["phase"] for r in reports] == ["vet_pose", "approve"]
+    assert reports[0]["sample"] == pytest.approx(other.tolist())
+    kept = reports[-1]
+    assert kept["reason"] == reason and kept["q"] == halt_q.tolist()
+    assert kept["q_prev"] == (halt_q + [0., 0., .001]).tolist()
+    assert kept["sample"] == pytest.approx(halt_q.tolist()) and kept["tcp"][0][3] == pytest.approx(halt_q[0])
+    assert len(calls) == 2 and kept["voxels"]                # one snapshot per cell: its voxels stayed
+
+
+def test_reports_carry_the_base_pose_and_each_gate_reads_its_own_frame():
+    """`sample` is in the frame the gate queried the map in: the arm base
+    frame for the TCP and joint origins, `base_pose @` that for a held object
+    and the tool parts; `sample_tcp` is the TCP frame for every gate."""
+    from cascade.types import pose_to_transform
+
+    base = pose_to_transform([0., .22, 0., 0., 0., .3])
+    q = np.array([.3, 0., .3])
+    _, _, h0 = case()
+    T = h0.kin.fk(q)
+    # the TCP gate: base frame
+    h = SafetyHarness(h0.limits, h0.kin, occupancy=live_map(UNDER), base_pose=base)
+    assert h.vet_pose(q).startswith("point 0 clearance")
+    (r,) = h.drain_clearance_reports()
+    assert r["base_pose"] == np.round(base, 6).tolist() and r["base_pose"] != np.eye(4).tolist()
+    np.testing.assert_allclose(r["sample"], q)
+    np.testing.assert_allclose(r["sample_tcp"], (np.linalg.inv(T) @ [*r["sample"], 1.])[:3], atol=1e-12)
+    # a held sample 10 cm under the TCP: queried in the table frame
+    held = (base @ T @ [0., 0., -.1, 1.])[:3]
+    occ = live_map(centred_box(held - [0., 0., .03], [.04, .04, .02]))     # its top 2 cm under it
+    occ._payload_samples["scene"] = np.array([[0., 0., -.1]])
+    h = SafetyHarness(h0.limits, h0.kin, occupancy=occ, base_pose=base)
+    assert h.vet_pose(q).startswith("attached object point")
+    (r,) = h.drain_clearance_reports()
+    assert r["gate"] == "attached" and r["base_pose"] == np.round(base, 6).tolist()
+    np.testing.assert_allclose(r["sample"], held, atol=1e-9)
+    np.testing.assert_allclose(r["sample_tcp"], [0., 0., -.1], atol=1e-9)
+    np.testing.assert_allclose(r["sample_tcp"], (np.linalg.inv(base @ np.asarray(r["tcp"])) @ [*held, 1.])[:3],
+                               atol=1e-9)
+
+
+def test_clearance_record_is_the_map_state_a_report_carries(monkeypatch):
+    assert OccupancyMap().clearance_record() == {"refreshes": 0, "age_s": None, "voxel_m": None, "occupied": None}
+    occ = live_map(UNDER)
+    rec = occ.clearance_record()
+    assert rec["refreshes"] == 1 and rec["voxel_m"] == .01 and rec["occupied"] == len(occ._occupied) > 0
+    assert 0 <= rec["age_s"] < 5 and round(rec["age_s"], 3) == rec["age_s"]
+    # the harness takes the record from the map, never from its private fields
+    sentinel = {"refreshes": 1, "age_s": 1.5, "voxel_m": .02, "occupied": 3}
+    monkeypatch.setattr(occ, "clearance_record", lambda: dict(sentinel))
+    _, _, h = case(occupancy=occ)
+    assert h.vet_pose(np.array([.3, 0., .3]))
+    (r,) = h.drain_clearance_reports()
+    assert r["map"] == sentinel and r["voxels"] and "snapshot_error" not in r
+
+    class NoRecord:                         # a stand-in without the method still gets its voxels
+        required, status, refreshes = False, None, 3
+
+        def clearance(self, points):
+            return np.full(len(points), .01)
+
+        def nearby_occupied(self, point, radius_m, limit):
+            return np.array([[.3, 0., .29, .01]])
+
+    _, _, h = case(occupancy=NoRecord())
+    assert h.vet_pose(np.array([.3, 0., .3]))
+    (r,) = h.drain_clearance_reports()
+    assert r["map"] is None and "clearance_record" in r["snapshot_error"]
+    assert r["voxels"] == [[.3, 0., .29, .01]] and "snapshot_newer_map" not in r
+
+
+def _nearby_reference(cloud, point, radius_m, limit):
+    """nearby_occupied as first shipped: the float64 box and radius cuts on the whole cloud."""
+    p = np.asarray(point, dtype=float).reshape(3)
+    r = float(radius_m)
+    pts = np.asarray(cloud, dtype=float)
+    pts = pts[np.all(np.abs(pts - p) <= r, axis=1)]
+    d = np.linalg.norm(pts - p, axis=1)
+    pts, d = pts[d <= r], d[d <= r]
+    order = np.argsort(d, kind="stable")[: int(limit)]
+    return np.column_stack([pts[order], d[order]])
+
+
+@pytest.mark.parametrize("n", [10_000, 50_000, 200_000])
+def test_nearby_occupied_equals_the_float64_cut(n):
+    """The float32 pre-cut is only a speed-up: random clouds in the reBot
+    workspace plus voxels one float32 step either side of the radius."""
+    rng = np.random.default_rng(n)
+    lo, hi = np.array([.1, -.3, -.01]), np.array([.5, .3, .55])
+    cloud = (lo + (hi - lo) * rng.random((n, 3))).astype(np.float32)
+    p = cloud[0].astype(float)                                # exactly representable: edges are exact
+    edge = []
+    for x in (p[0] - .05, p[0] + .05, p[0] - .02, p[0] + .02):
+        x32 = np.float32(x)
+        edge += [[v, p[1], p[2]] for v in (np.nextafter(x32, np.float32(-1)), x32, np.nextafter(x32, np.float32(1)))]
+    cloud = np.vstack([cloud, np.asarray(edge, dtype=np.float32)])
+    occ = OccupancyMap()
+    occ._occupied = cloud
+    queries = [p] + [lo + (hi - lo) * rng.random(3) for _ in range(12)] + [cloud[k].astype(float)
+                                                                          for k in rng.integers(0, n, 6)]
+    for point in queries:
+        for radius, limit in ((.05, 64), (.02, 8), (.2, 10 ** 6)):
+            got = occ.nearby_occupied(point, radius, limit)
+            want = _nearby_reference(cloud, point, radius, limit)
+            assert got.shape == want.shape and np.array_equal(got, want)
+    assert len(occ.nearby_occupied(p, .05, 10 ** 6)) > 1
+
+
 # ── the runtime drains each call's reports into its trace row ──────────────
 
 
@@ -509,5 +801,52 @@ def test_runtime_drains_reports_into_the_trace(demo_cfg, tmp_path):
         r = runtime.execute("move_relative", {"direction": "up", "distance_m": .02})
         assert r["ok"] is True, r
         assert "clearance" not in runtime.trace.rows()[-1]["context"]
+    finally:
+        shutdown_runtime(runtime, arm)
+
+
+@needs_pin_so101
+def test_two_arms_each_row_carries_only_its_own_calls_reports(tmp_path):
+    """A refusal on the right arm: its row carries only that call's reports
+    (the right arm's base pose, its own map), none of the reports either arm
+    filed between calls, and the next clear call of either arm carries none."""
+    from cascade.apps.demo import build_runtime, shutdown_runtime
+    from cascade.config import load_demo_config
+
+    cfg = load_demo_config(arms=["so101_left", "so101_right"], camera="mock", llm="mock")
+    runtime, arm = build_runtime(cfg, tmp_path / "run", view=False, serve=False)
+    try:
+        arms = {name: runtime.arm_rig.get(name) for name in ("so101_left", "so101_right")}
+        home = {name: np.asarray(a.get_state().q, dtype=float) for name, a in arms.items()}
+        tcp = {name: a.harness.kin.fk(home[name])[:3, 3] for name, a in arms.items()}
+        # each arm reads its own map; the right one has a box 4.5 cm under its TCP
+        maps = {"so101_left": live_map(FAR),
+                "so101_right": live_map(centred_box(tcp["so101_right"] + [0., 0., -.055], [.04, .04, .02]))}
+        for name, a in arms.items():
+            a.harness.occupancy = maps[name]
+
+        def file_between_calls():
+            """One refusal per arm outside any call, on a 2 cm-voxel map."""
+            for name, a in arms.items():
+                a.harness.occupancy = live_map(centred_box(tcp[name] + [0., 0., -.03], [.04, .04, .02]), voxel=.02)
+                assert a.harness.vet_pose(home[name])
+                a.harness.occupancy = maps[name]
+
+        file_between_calls()
+        r = runtime.execute("move_relative", {"direction": "down", "distance_m": .03, "arm": "so101_right"})
+        assert r["ok"] is False and "occupancy map" in r["error"]
+        assert all(np.allclose(a.get_state().q, home[name]) for name, a in arms.items())
+        reports = runtime.trace.rows()[-1]["context"]["clearance"]
+        right_base = np.round(arms["so101_right"].harness.base_pose, 6).tolist()
+        assert right_base != np.round(arms["so101_left"].harness.base_pose, 6).tolist()
+        assert reports and all(rep["base_pose"] == right_base for rep in reports)
+        assert all(rep["map"]["voxel_m"] == .01 and rep["voxels"] for rep in reports)   # this call's map only
+        assert {rep["gate"] for rep in reports} <= {"tcp"} | {f"link {i}" for i in range(2, 8)}
+        for name in arms:
+            file_between_calls()
+            r = runtime.execute("move_home", {"arm": name})
+            assert r["ok"] is True, r
+            row = runtime.trace.rows()[-1]
+            assert row["skill"] == "move_home" and "clearance" not in row["context"]
     finally:
         shutdown_runtime(runtime, arm)

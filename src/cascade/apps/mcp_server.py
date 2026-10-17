@@ -1493,8 +1493,8 @@ class McpSkillServer:
         """The ASPIRE note keys of `robot_knowledge` (spec §4.3), all from the
         runtime's build-time snapshot: `learned_notes` (the served notes with their
         tags, at most 10 listed) and `library_sha` when a note is served, plus
-        `skipped_notes` (the v2 note files the lint refused, by name and rule, at most
-        10 listed; older harvested notes only counted) when there are any. A sim
+        `skipped_notes` (the note files the lint refused, counted per rule and never
+        named; older harvested notes one count) when there are any. A sim
         profile also lists skipped files when nothing is served; any other profile
         adds nothing until a verified note is served. Nothing to show -> {}: the
         payload stays main's, byte for byte."""

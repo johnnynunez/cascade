@@ -248,7 +248,7 @@ def test_learned_file_fits_2000_bytes_with_non_ascii_titles(workspace, tmp_path)
     sync_learned_notes(workspace, snap)
     data = (workspace / "LEARNED.md").read_bytes()
     assert len(data) <= LEARNED_MAX_BYTES == 2000
-    assert data.decode("utf-8").count("·") == 4                                     # two tags, two dots each
+    assert data.isascii() and data.decode().count(" | ") == 4                       # two ASCII tags, two bars each
 
 
 def test_an_oversize_file_is_never_written_and_never_cut(workspace, snap_with_two, monkeypatch):

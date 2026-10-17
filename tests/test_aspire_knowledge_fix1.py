@@ -8,6 +8,10 @@
    or legacy note is counted only ("(N older notes not served)"), so a sim profile that
    reads `<repo>/skills_library` gets one line, not a list of harvested files.
 6. At most 10 entries are listed (served and skipped each); the rest are counted.
+
+A3 review fix round (task-A3-fix1.md ruling 3): `skipped_notes` names no note at all, only
+counts per rule ("3 notes not served: stop x2, success_claim x1"); older notes keep their own
+count line, and one note reads singular. The rulings above hold for what is still listed.
 """
 from __future__ import annotations
 
@@ -18,7 +22,6 @@ import pytest
 from conftest import needs_pin
 from test_aspire_knowledge import (
     MAIN_KEYS,
-    SKIPPED_HEAD,
     VERIFIED,
     _built,
     _knowledge,
@@ -166,12 +169,11 @@ def _mixed_library(lib: Path) -> Path:
     return lib
 
 
-def test_only_v2_notes_are_named_and_older_ones_are_counted(tmp_path):
+def test_v2_notes_are_counted_by_rule_and_older_ones_apart(tmp_path):
     snap = load_snapshot(_mixed_library(tmp_path / "lib"), "sim")
     assert len(snap.skipped) == 9 and snap.served == ()                       # premise: every file refused
     assert snap.skipped_listing().splitlines() == [
-        SKIPPED_HEAD, "- (name not shown) (file_name)", "- checked-note (reset)",
-        "- hand-note (reset)", "- harvest-note (reset)", "- written-note (reset)", "(4 older notes not served)"]
+        "5 notes not served: reset x4, file_name x1", "(4 older notes not served)"]
 
 
 def test_a_harvested_v1_library_on_sim_gets_one_line_not_a_list(tmp_path, monkeypatch, gate):
@@ -196,7 +198,7 @@ def test_the_older_count_follows_the_listed_ones(tmp_path):
     _refused(lib, "hand-note")
     _harvested(lib, "Recover from SafetyViolation")
     _legacy(lib, "legacy-note")
-    assert load_snapshot(lib, "sim").skipped_listing() == f"{SKIPPED_HEAD}\n- hand-note (reset)\n(2 older notes not served)"
+    assert load_snapshot(lib, "sim").skipped_listing() == "1 note not served: reset x1\n(2 older notes not served)"
 
 
 def test_a_lint_clean_v1_note_is_neither_listed_nor_counted(tmp_path):
@@ -207,7 +209,7 @@ def test_a_lint_clean_v1_note_is_neither_listed_nor_counted(tmp_path):
     _harvested(lib, "Recover from SafetyViolation")
     snap = load_snapshot(lib, "sim")
     assert snap.served == () and len(snap.skipped) == 1                       # premise: not served, not skipped
-    assert snap.skipped_listing() == "(1 older notes not served)"
+    assert snap.skipped_listing() == "(1 older note not served)"
 
 
 @needs_pin
@@ -216,7 +218,7 @@ def test_a_real_profile_counts_older_notes_after_a_verified_one(tmp_path, monkey
     _note(lib, "checked-note", title="Lemon beside the cube", verifier=VERIFIED)
     _harvested(lib, "Recover from SafetyViolation")
     with _real_runtime(tmp_path, lib, monkeypatch) as rt:
-        assert _knowledge(rt)["skipped_notes"] == "(1 older notes not served)"
+        assert _knowledge(rt)["skipped_notes"] == "(1 older note not served)"
 
 
 @needs_pin
@@ -230,8 +232,8 @@ def test_a_real_profile_with_only_older_notes_answers_like_main(tmp_path, monkey
 # ── 6: at most 10 entries listed, served and skipped each ───────────────────
 
 
-def test_the_listing_caps_are_ten():
-    assert (notes.KNOWLEDGE_SHOWN, notes.SKIPPED_SHOWN) == (10, 10)
+def test_the_listing_cap_is_ten():
+    assert notes.KNOWLEDGE_SHOWN == 10
 
 
 def _served_notes(lib: Path, n: int) -> None:
@@ -257,14 +259,13 @@ def test_knowledge_lists_all_ten_without_a_footer(tmp_path):
     assert text.count("\n- ") == 10 and "more notes not shown" not in text
 
 
-def test_the_skipped_listing_names_ten_v2_notes_and_counts_the_rest(tmp_path):
+def test_the_skipped_listing_counts_v2_notes_and_older_ones(tmp_path):
     lib = tmp_path / "lib"
     for i in range(15):
         _refused(lib, f"hand-note-{chr(97 + i)}")
     _harvested(lib, "Recover from SafetyViolation")
     lines = load_snapshot(lib, "sim").skipped_listing().splitlines()
-    assert lines == [SKIPPED_HEAD, *(f"- hand-note-{chr(97 + i)} (reset)" for i in range(10)),
-                     "(5 more not shown)", "(1 older notes not served)"]
+    assert lines == ["15 notes not served: reset x15", "(1 older note not served)"]
 
 
 def test_the_robot_knowledge_reply_lists_at_most_ten_of_each(tmp_path):
@@ -277,8 +278,7 @@ def test_the_robot_knowledge_reply_lists_at_most_ten_of_each(tmp_path):
     with _sim_runtime(tmp_path, lib) as rt:
         out = _knowledge(rt)
     assert out["learned_notes"].count("\n- ") == 10 and out["learned_notes"].endswith("(2 more notes not shown)")
-    assert out["skipped_notes"].count("\n- ") == 10
-    assert out["skipped_notes"].endswith("(2 more not shown)\n(30 older notes not served)")
+    assert out["skipped_notes"] == "12 notes not served: reset x12\n(30 older notes not served)"
 
 
 def test_ten_of_the_longest_served_lines_fit_the_character_cap(tmp_path):
@@ -293,7 +293,7 @@ def test_ten_of_the_longest_served_lines_fit_the_character_cap(tmp_path):
         path.write_text(path.read_text().replace('learned_in: "sim"', 'learned_in: "unknown"'))
     snap = load_snapshot(lib, "sim")
     assert len(snap.served) == 11                                             # premise: all lint-clean, served
-    assert notes.note_tag(snap.served[0], snap.sha).startswith("learned in unknown · verifier 5/5")
+    assert notes.note_tag(snap.served[0], snap.sha).startswith("learned in unknown | verifier 5/5")
     text = snap.knowledge()
-    assert text.count("\n- ") == notes.KNOWLEDGE_SHOWN and text.endswith("(1 more notes not shown)")
-    assert len(text) <= notes.KNOWLEDGE_MAX_CHARS
+    assert text.count("\n- ") == notes.KNOWLEDGE_SHOWN and text.endswith("(1 more note not shown)")
+    assert len(json.dumps(text)) - 2 <= notes.KNOWLEDGE_MAX_CHARS

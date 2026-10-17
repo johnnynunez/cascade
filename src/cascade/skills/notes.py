@@ -17,11 +17,13 @@ snapshot's `skipped` with its reason and logged, never dropped silently.
 Notes are advice TEXT. This module renders them and nothing else: no value in a
 note reaches a config, a tool argument or a gate. A note is served only when its
 lint is clean (`lint_note`), a deny-by-default STRUCTURAL gate on every rendered
-field (title and advice): short plain English in plain case, printable ASCII, at
-most one number (digits or words) and no measurement, no code, markup, role or
-provenance look-alike, naming only read-only tools and the note's own skill as
-identifiers and without arguments, and no reset, stop, loop, bypass, weakening or
-success-claim advice.
+field (title and advice) and on the text they render together (`<title>: <advice>`):
+short plain English in plain case, printable ASCII, at most one number (digits or
+words) and no measurement, no code, markup, role or provenance look-alike, naming
+only read-only tools and the note's own skill as identifiers and without arguments,
+and no reset, stop, loop, bypass, weakening or success-claim advice. Every route
+renders that text in ASCII (`_ascii`: typographic quotes and dashes as " ' -), the
+text the lint reads.
 
 `load_snapshot` reads the library ONCE (it never creates or writes it) and keeps
 that view for the session: the prompt block, `robot_knowledge` and the run stamp
@@ -37,11 +39,13 @@ from __future__ import annotations
 import errno
 import functools
 import hashlib
+import json
 import logging
 import os
 import re
 import stat
 import unicodedata
+from collections import Counter
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -52,16 +56,18 @@ log = logging.getLogger(__name__)
 
 ADVICE_MAX_CHARS = 300
 TITLE_MAX_CHARS = 80
+#: the rendered text of a note, `<title>: <advice>` (`_note_text`), which the lint reads too
+LINE_MAX_CHARS = TITLE_MAX_CHARS + 2 + ADVICE_MAX_CHARS
 BLOCK_MAX_CHARS = 1400
 LEARNED_MAX_BYTES = 2000
+#: `learned_notes` in characters as the JSON reply carries them (`_json_len`: a `"` or a
+#: newline is two), so quote-heavy notes list fewer lines instead of a longer reply
 KNOWLEDGE_MAX_CHARS = 6000
-#: served notes `robot_knowledge` lists (the rest are counted); with the lint's field
-#: caps ten lines always fit in `KNOWLEDGE_MAX_CHARS`, which stays as a backstop
+#: served notes `robot_knowledge` lists (the rest are counted); plain lines at the lint's
+#: field caps list ten within `KNOWLEDGE_MAX_CHARS`
 KNOWLEDGE_SHOWN = 10
-#: skipped note files `robot_knowledge` names (the rest are counted; older harvested
-#: notes are only counted: `LibrarySnapshot.skipped_listing`)
-SKIPPED_SHOWN = 10
-#: skipped entries a run's run.json records by id and reason (all are counted)
+#: skipped entries a run's run.json records by id and reason (all are counted); the agent
+#: reads no name, only counts per rule (`LibrarySnapshot.skipped_listing`)
 SKIPPED_RECORDED = 20
 #: a note file larger than this is skipped (`too_large`) on its fstat size, before any read
 NOTE_MAX_BYTES = 64 * 1024
@@ -100,7 +106,6 @@ _ADVICE_ONLY = ("Advice only: tool results and safety refusals always win. "
                 "Use a note only when it matches the order.")
 _BLOCK_FOOT = ("If a note shaped what you did, the tool result tells you the one line to add "
                "(do not add your own).")
-_SKIPPED_HEAD = "Refused by the note check, so never advice (file name and the rule that refused it):"
 _NAME_NOT_SHOWN = "(name not shown)"
 
 #: a note's file name: its id is safe in a JSON manifest, a LEARNED.md header line
@@ -374,6 +379,10 @@ def library_sha(root: Path | None) -> str:
 
 #: the non-ASCII characters a field may carry: typographic quotes and dashes
 _TYPOGRAPHY = frozenset("\u2018\u2019\u201c\u201d\u2013\u2014")
+#: how every route renders `_TYPOGRAPHY`: the served text is ASCII on the wire (a JSON reply
+#: escapes each non-ASCII character to six), and the lint reads that rendered text too
+_ASCII_TYPOGRAPHY = str.maketrans({"\u2018": "'", "\u2019": "'", "\u201c": '"', "\u201d": '"',
+                                   "\u2013": "-", "\u2014": "-"})
 #: the ASCII punctuation a field may carry besides letters and digits; every other
 #: symbol ([ ] { } ( ) = < > | ` # * @ $ ^ ~ and the backslash) is code or markup,
 #: so "<|", "|>" and "```" never pass either
@@ -1150,9 +1159,25 @@ def _lint_field(field: str, text: str, max_chars: int, skill: str) -> list[tuple
     return [(rule, f"{field}: {reason}") for rule, reason in _structure_problems(text, skill)]
 
 
+def _ascii(text: str) -> str:
+    """`text` with its typographic quotes, apostrophes and dashes as `"`, `'` and `-`."""
+    return text.translate(_ASCII_TYPOGRAPHY)
+
+
+def _note_text(title: str, advice: str) -> str:
+    """A note as every route renders it, before its tag: `<title>: <advice>` in ASCII."""
+    return f"{_ascii(title)}: {_ascii(advice)}"
+
+
 def _note_problems(note: Note) -> list[tuple[str, str]]:
-    return (_lint_field("title", note.title, TITLE_MAX_CHARS, note.skill)
-            + _lint_field("advice", note.advice, ADVICE_MAX_CHARS, note.skill))
+    """The fields' problems as written; when both are clean, those of the text they render
+    together (`_note_text`, field "line"): two clean fields can join into refused advice
+    ("Do not" + "stop when ..."), and an ASCII dash reads unlike a typographic one."""
+    fields = (_lint_field("title", note.title, TITLE_MAX_CHARS, note.skill)
+              + _lint_field("advice", note.advice, ADVICE_MAX_CHARS, note.skill))
+    if fields:
+        return fields
+    return _lint_field("line", _note_text(note.title, note.advice), LINE_MAX_CHARS, note.skill)
 
 
 def lint_advice(text: str, *, skill: str = "") -> list[str]:
@@ -1162,7 +1187,8 @@ def lint_advice(text: str, *, skill: str = "") -> list[str]:
 
 
 def lint_note(note: Note) -> list[str]:
-    """`lint_advice` over every field a note renders: its title and its advice."""
+    """`lint_advice` over every field a note renders, its title and its advice, and over
+    the text they render together (`_note_text`)."""
     return [reason for _, reason in _note_problems(note)]
 
 
@@ -1200,13 +1226,14 @@ def _refuted(verifier) -> bool:
 
 
 def note_tag(note: Note, sha: str) -> str:
-    """`learned in <where> · <verifier part> · lib <sha8>` (`authored · ...` for
+    """`learned in <where> | <verifier part> | lib <sha8>` (`authored | ...` for
     hand-written notes); the verifier part is `verifier <passes>/<seeds>` only for
-    a verifier pass (`_verified`), else `not verifier-tested`."""
+    a verifier pass (`_verified`), else `not verifier-tested`. ASCII, like every
+    rendered note (`_ascii`); a note's own text can carry no `|` (`_PUNCTUATION`)."""
     verdict = _verified(note.verifier)
     tested = f"verifier {verdict[0]}/{verdict[1]}" if verdict else "not verifier-tested"
     origin = "authored" if note.kind == "authored" else f"learned in {note.learned_in}"
-    return f"{origin} · {tested} · lib {str(sha)[:8]}"
+    return f"{origin} | {tested} | lib {str(sha)[:8]}"
 
 
 # ── snapshot ──────────────────────────────────────────────────────────────
@@ -1232,7 +1259,22 @@ def _rank(note: Note) -> tuple:
 
 
 def _line(title: str, advice: str, tag: str) -> str:
-    return f"- {title}: {advice} [{tag}]"
+    return f"- {_note_text(title, advice)} [{tag}]"
+
+
+def _json_len(text: str) -> int:
+    """The characters `text` takes inside a JSON string (`json.dumps`: a `"`, a backslash
+    or a newline is two)."""
+    return len(json.dumps(text)) - 2
+
+
+def _counted(n: int, noun: str) -> str:
+    """An agent-facing count, singular for one: "1 note", "2 notes"."""
+    return f"{n} {noun}" if n == 1 else f"{n} {noun}s"
+
+
+def _more_not_shown(n: int) -> str:
+    return f"({_counted(n, 'more note')} not shown)"
 
 
 def _render_block(items: list[tuple[str, str, str]]) -> str:
@@ -1295,39 +1337,40 @@ class LibrarySnapshot:
 
     def knowledge(self) -> str:
         """Every served note up to `KNOWLEDGE_SHOWN`, one line each with its tag, in
-        at most `KNOWLEDGE_MAX_CHARS` characters, then "(N more notes not shown)"; ""
-        when nothing is served."""
+        at most `KNOWLEDGE_MAX_CHARS` characters as the JSON reply carries them
+        (`_json_len`), then "(N more notes not shown)"; "" when nothing is served."""
         if not self.served:
             return ""
-        reserve = len(f"\n({len(self.served)} more notes not shown)")
-        text, shown = _ADVICE_ONLY, 0
+        reserve = _json_len("\n" + _more_not_shown(len(self.served)))
+        text, size, shown = _ADVICE_ONLY, _json_len(_ADVICE_ONLY), 0
         for i, note in enumerate(self.served):
             line = "\n" + _line(note.title, note.advice, note_tag(note, self.sha))
+            cost = _json_len(line)
             more = reserve if i < len(self.served) - 1 else 0
-            if shown == KNOWLEDGE_SHOWN or len(text) + len(line) + more > KNOWLEDGE_MAX_CHARS:
+            if shown == KNOWLEDGE_SHOWN or size + cost + more > KNOWLEDGE_MAX_CHARS:
                 break
-            text, shown = text + line, shown + 1
+            text, size, shown = text + line, size + cost, shown + 1
         if shown < len(self.served):
-            text += f"\n({len(self.served) - shown} more notes not shown)"
+            text += "\n" + _more_not_shown(len(self.served) - shown)
         return text
 
     def skipped_listing(self) -> str:
-        """`skipped` for `robot_knowledge`. Named: every entry that is no older note
-        (`_older`), as "- <name> (<reason>)" under a head line, at most
-        `SKIPPED_SHOWN`, then "(N more not shown)"; a name is shown only when
-        `_shown_name` passes it. Older harvested notes are only counted, last: "(N
-        older notes not served)". "" when nothing was skipped."""
+        """`skipped` for `robot_knowledge`, by count only: no note's name reaches the
+        agent (a library file is named after its title). Every entry that is no older
+        note (`_older`) counts under its rule, the most frequent first (ties by rule
+        name): "3 notes not served: stop x2, success_claim x1"; older harvested notes
+        are one count, last: "(N older notes not served)". "" when nothing was skipped.
+        Rule names are code constants, never note text."""
         parsed = {note.id: note for note in self.notes}
-        named = [entry for entry in self.skipped if not _older(parsed.get(entry["id"]))]
-        older = len(self.skipped) - len(named)
+        newer = [entry for entry in self.skipped if not _older(parsed.get(entry["id"]))]
+        older = len(self.skipped) - len(newer)
         lines = []
-        if named:
-            lines.append(_SKIPPED_HEAD)
-            lines += [f"- {_shown_name(entry['id'])} ({entry['reason']})" for entry in named[:SKIPPED_SHOWN]]
-            if len(named) > SKIPPED_SHOWN:
-                lines.append(f"({len(named) - SKIPPED_SHOWN} more not shown)")
+        if newer:
+            counts = sorted(Counter(entry["reason"] for entry in newer).items(), key=lambda kv: (-kv[1], kv[0]))
+            rules = ", ".join(f"{rule} x{n}" for rule, n in counts)
+            lines.append(f"{_counted(len(newer), 'note')} not served: {rules}")
         if older:
-            lines.append(f"({older} older notes not served)")
+            lines.append(f"({_counted(older, 'older note')} not served)")
         return "\n".join(lines)
 
     def matching(self, goal: str) -> Note | None:
@@ -1356,13 +1399,14 @@ def _printable_id(name: str) -> str:
 def _older(note: Note | None) -> bool:
     """A harvested v1 or legacy note: parsed, and nothing in its front matter is v2
     provenance (`schema: 2`, `kind: authored`, a `verifier` record). Such notes are
-    only counted in `skipped_listing`; an entry that never parsed (its version is
-    unknown) is named like a v2 note."""
+    one count of their own in `skipped_listing`; an entry that never parsed (its
+    version is unknown) counts under its rule like a v2 note."""
     return note is not None and note.schema != 2 and note.kind != "authored" and note.verifier is None
 
 
 def _shown_name(note_id: str) -> str:
-    """A skipped entry's name as the agent may read it: `note_id` only when it is a
+    """A skipped entry's name as a visitor surface may show it (spec §4.3: the A9 chat
+    line, the A10 panel; `robot_knowledge` shows none): `note_id` only when it is a
     safe note name AND its text passes the title lint, else `_NAME_NOT_SHOWN`. A
     library file is named after its title (`SkillLibrary` slugs), so the name of a
     note whose title the lint refused would otherwise bring that text back."""
@@ -1469,10 +1513,11 @@ ALL_UNREADABLE = "all notes unreadable"
 
 
 def _all_unreadable(snapshot: LibrarySnapshot) -> bool:
-    """Every `*.md` entry of the library was unreadable (an r-- directory, notes of
-    another account): no note was read at all, so the library is no empty one."""
-    return bool(snapshot.skipped) and not snapshot.notes and all(
-        entry["reason"] == "unreadable" for entry in snapshot.skipped)
+    """The library lists note files and every one was unreadable (an r-- directory, notes
+    of another account): no note was read at all, so the library is no empty one. Only
+    entries with a note file name decide: a README.md is never read (`file_name`)."""
+    named = [entry for entry in snapshot.skipped if is_note_id(entry["id"])]
+    return bool(named) and not snapshot.notes and all(entry["reason"] == "unreadable" for entry in named)
 
 
 def config_snapshot(cfg, profile_class: str) -> LibrarySnapshot:

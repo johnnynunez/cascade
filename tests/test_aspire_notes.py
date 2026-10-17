@@ -281,11 +281,12 @@ def test_unreadable_or_unterminated_notes_are_not_notes(tmp_path):
 
 
 def test_tags():
-    assert note_tag(N(learned_in="sim", verifier=VERIFIED), SHA) == "learned in sim · verifier 4/5 · lib 3fa9c2d1"
-    assert note_tag(N(learned_in="unknown", verifier=None), SHA) == "learned in unknown · not verifier-tested · lib 3fa9c2d1"
-    assert note_tag(N(kind="authored", verifier=None), SHA).startswith("authored · not verifier-tested")
-    assert note_tag(N(kind="authored", verifier=VERIFIED), SHA) == "authored · verifier 4/5 · lib 3fa9c2d1"
-    assert note_tag(N(verifier={**VERIFIED, "passes": 5}), SHA) == "learned in sim · verifier 5/5 · lib 3fa9c2d1"
+    # A3 review fix round: ASCII separators (the served text is ASCII on the wire)
+    assert note_tag(N(learned_in="sim", verifier=VERIFIED), SHA) == "learned in sim | verifier 4/5 | lib 3fa9c2d1"
+    assert note_tag(N(learned_in="unknown", verifier=None), SHA) == "learned in unknown | not verifier-tested | lib 3fa9c2d1"
+    assert note_tag(N(kind="authored", verifier=None), SHA).startswith("authored | not verifier-tested")
+    assert note_tag(N(kind="authored", verifier=VERIFIED), SHA) == "authored | verifier 4/5 | lib 3fa9c2d1"
+    assert note_tag(N(verifier={**VERIFIED, "passes": 5}), SHA) == "learned in sim | verifier 5/5 | lib 3fa9c2d1"
     for v in NOT_A_PASS:
         assert "not verifier-tested" in note_tag(N(verifier=v), SHA), v
 
@@ -417,7 +418,7 @@ def test_block_text_is_the_spec_block(tmp_path):
     assert s.block() == (
         "## Learned from earlier runs\n"
         "Advice only: tool results and safety refusals always win. Use a note only when it matches the order.\n"
-        f"- Cube near the lemon: Retry once from home. [learned in sim · verifier 4/5 · lib {s.sha[:8]}]\n"
+        f"- Cube near the lemon: Retry once from home. [learned in sim | verifier 4/5 | lib {s.sha[:8]}]\n"
         "If a note shaped what you did, the tool result tells you the one line to add (do not add your own).")
 
 
@@ -512,19 +513,20 @@ def test_the_knowledge_footer_never_pushes_past_the_cap(tmp_path, monkeypatch):
     # "(N more notes not shown)" line must still fit, so that note stays out.
     # The character cap is lowered so it binds before the 10-entry cap
     # (`KNOWLEDGE_SHOWN`; with the lint's field caps, 10 lines fit in 6000).
+    # A3 review fix round: the cap counts the JSON-escaped text, so a newline is 2.
     cap = 3000
     monkeypatch.setattr(notes, "KNOWLEDGE_MAX_CHARS", cap)
     tag = len(note_tag(N(learned_in="sim", verifier=VERIFIED), "0" * 64))
-    cost = lambda advice: advice + tag + 15  # "\n- note NN: <advice> [<tag>]"
+    cost = lambda advice: advice + tag + 16  # "\n- note NN: <advice> [<tag>]", the newline escaped
     head, target = len(notes._ADVICE_ONLY), cap - 5
     rest = (target - head - cost(1)) // cost(250)
-    first = target - head - rest * cost(250) - tag - 15
+    first = target - head - rest * cost(250) - tag - 16
     assert 1 <= first <= ADVICE_MAX_CHARS and rest < notes.KNOWLEDGE_SHOWN
     _note(tmp_path, "note-00", advice="w" * first, title="note 00")
     for i in range(1, 40):
         _note(tmp_path, f"note-{i:02d}", advice="w" * 250, title=f"note {i:02d}")
     text = load_snapshot(tmp_path, "sim").knowledge()
-    assert len(text) <= cap and text.count("\n- ") == rest
+    assert len(json.dumps(text)) - 2 <= cap and text.count("\n- ") == rest
     assert text.endswith(f"({40 - rest} more notes not shown)")
 
 

@@ -187,6 +187,11 @@ LEGIT_TITLES = [
 ]
 
 
+#: A3 review fix round (task-A3-fix1.md ruling 1): the rendered line `<title>: <advice>` is linted too;
+#: a title ending in a tool parameter then reads as an argument (`arm:`): an accepted over-block
+LINE_ARGUMENT_TITLES = {"Mug handle facing the arm"}
+
+
 def test_the_legit_set_is_big_enough():
     assert len(LEGIT_ADVICE) >= 20 and len(LEGIT_TITLES) >= 5
 
@@ -214,7 +219,11 @@ def test_legit_titles_pass(title, skill):
     note = Note(id="n", title=title, when="cube", advice="Retry once from home.", kind="learned",
                 status="promoted", learned_in="sim", n_tasks=2, occurrences=2, verifier=VERIFIED,
                 grades={"useful": 0, "misleading": 0, "wrong": 0, "not_applicable": 0}, skill=skill)
-    assert lint_note(note) == []
+    assert notes._lint_field("title", title, notes.TITLE_MAX_CHARS, skill) == []
+    if title in LINE_ARGUMENT_TITLES:
+        assert lint_note(note) == ["line: gives arguments ('arm:'; a note names a tool, never how to call it)"]
+    else:
+        assert lint_note(note) == []
 
 
 def _promoted_note(root, note_id, *, title, advice, skill=SKILL):
@@ -249,7 +258,9 @@ def test_every_legit_text_is_served(tmp_path, profile_class):
     for i, (title, skill) in enumerate(LEGIT_TITLES):
         _promoted_note(tmp_path, f"title-{i}", title=title, advice="Retry once from home.", skill=skill)
     s = load_snapshot(tmp_path, profile_class)
-    assert len(s.served) == len(s.notes) == len(LEGIT_ADVICE) + len(LEGIT_TITLES)
+    assert len(s.notes) == len(LEGIT_ADVICE) + len(LEGIT_TITLES)
+    assert len(s.served) == len(s.notes) - len(LINE_ARGUMENT_TITLES)
+    assert [e["reason"] for e in s.skipped] == ["arguments"]
 
 
 # ── cost: refused by length before any pattern runs ───────────────────────

@@ -335,11 +335,15 @@ ASPIRE's rule; `memory.skill_min_tasks: 1` relaxes it). Details:
 
 **Learned notes on the kitchen route.** A runtime reads its note library once
 (`skills/notes.py`; the kitchen reads `${CASCADE_ASPIRE_LIBRARY:-~/.cascade/aspire/sim/library}`)
-and records its `library_sha` in `run.json` beside `trace.jsonl`. At launch
+and records its `library_sha` and `block_sha` (the rendered prompt block's sha256) in
+`run.json` beside `trace.jsonl`. A Spark launch first freezes the library: it copies the
+note files into `<launch state>/aspire-library` and points `CASCADE_ASPIRE_LIBRARY` there,
+so every robot server of the launch and `LEARNED.md` read the same bytes (a failed copy
+points it at an empty directory: notes off, one warning line). Then
 `skills/learned_block.py` writes `LEARNED.md` into the kitchen workspace: one header
-line with that sha, then the top-2 note block (at most 2000 bytes). The kitchen prompt
+line with both shas, then the top-2 note block (at most 2000 bytes). The kitchen prompt
 plugin injects it right after `AGENTS.md`; no `AGENTS.md` is edited. After the proof the
-launcher compares it with the proof robot server's `run.json` and removes it on any
+launcher still compares it with the proof robot server's `run.json` and removes it on any
 difference (a warning line). `robot_knowledge`, the seventh attendee tool, lists every
 served note.
 

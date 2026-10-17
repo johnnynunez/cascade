@@ -809,6 +809,10 @@ def test_note_whose_advice_fails_lint_is_not_written(tmp_path): ...
 - Produces: `orders(rows: list[dict]) -> list[dict]` (segments by goal: `goal`, `confirmed: bool`, `calls`);
   `grade_run(run_dir: Path, snapshot: LibrarySnapshot) -> dict[str, list[str]]` (note id -> grades);
   `apply_grades(library: SkillLibrary, grades: dict) -> list[str]` (demoted ids); `DEMOTE_MISLEADING = 3`.
+- **Cross-task note (A4 fix round 1, frozen library):** on the Spark kitchen launch `run.json`'s `library_root` is
+  the launch's frozen copy (`$STATE_DIR/aspire-library`), not the canonical library. Address a note by `library_sha` +
+  note id in the canonical library (`~/.cascade/aspire/sim/library`, the nightly job's own config) and never write
+  into a run's `library_root` (or any `notes.library_root`): the copy is replaced whole at the next launch.
 
 - [ ] **Step 1: Failing tests:** `test_not_applicable_when_when_words_miss_the_goal`, `test_useful_on_confirmed_order`,
   `test_misleading_on_failed_order`, `test_demotion_after_three_misleading_outweighing_useful`,
@@ -889,6 +893,10 @@ def test_controls_are_never_written_to_a_library(tmp_path): ...    # --control p
   Path("/proc/net/tcp6"))) -> set[int]` (state `0A` only); `guard(now: datetime, *, ports: set[int], units: str,
   locks: list[Path], mem_available_gb: float, gpu_pids: list[int], extra_ports=()) -> tuple[bool, list[str]]`;
   `main(argv) -> int` (`--dry-run`, `--guard-port N` repeatable, `--max-candidates`).
+- **Cross-task note (A4 fix round 1, frozen library):** on the Spark kitchen launch `run.json`'s `library_root` is
+  the launch's frozen copy (`$STATE_DIR/aspire-library`), not the canonical library. Address a note by `library_sha` +
+  note id in the canonical library (`~/.cascade/aspire/sim/library`, the nightly job's own config) and never write
+  into a run's `library_root` (or any `notes.library_root`): the copy is replaced whole at the next launch.
 
 - [ ] **Step 1: Failing tests:** captured real outputs as fixtures (`/proc/net/tcp` lines of a host with :18741 and
   :8611 listening; `systemctl --user list-units --no-legend` lines with a `cascade-openshell-*` unit), then

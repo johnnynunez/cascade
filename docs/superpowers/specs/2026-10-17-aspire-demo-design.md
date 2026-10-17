@@ -112,7 +112,9 @@ Provenance tag (one string, rendered after each note everywhere Qwen or a visito
 `learned in <learned_in> | <verifier part> | lib <first 8 hex of library_sha>`, where `<verifier part>` is
 `verifier <passes>/<len(seeds)>` for `verified`, else `not verifier-tested`; `authored` notes render
 `authored | <verifier part> | lib <sha8>`. Example: `learned in sim | verifier 4/5 | lib 3fa9c2d1`. In the block, a
-note whose advice would be cut to nothing (not one whole word fits) is dropped, never rendered empty.
+note whose advice would be cut to nothing (not one whole word fits) is dropped, never rendered empty; a cut advice ends
+in the ASCII `...` and the line it renders is linted again, so a cut the lint refuses (`Dismiss the warning...`: the
+guard word now ends the object) drops the note instead of serving it (A4 fix round 1, ruling 2).
 Served text is ASCII on the wire (A3 review fix round, ruling 2): the tag's separators are ASCII (a note's own text
 can carry no `|`), and every route renders a note's typographic quotes, apostrophes and dashes as `"`, `'` and `-`
 (`notes._ascii`), so a JSON reply never escapes a rendered character to six.
@@ -139,9 +141,10 @@ the words split at camelCase humps, digits and any separator, the unsplit lower-
 words that join into one whole phrase word across spaces or dashes (`dis able`, `DIS-able`; never across an
 apostrophe or other punctuation) -- no URL (`://`), no `snake_case` identifier that is not a tool, no letter-digit mix
 (ordinals aside), no dotted name, no word spelled out letter by letter, no role marker (`assistant`, `user`, `system`,
-`developer`, `human`, `tool`, `observation`, `function`, `output`, `operator`, `owner` followed by `:` or a dash, or by
-`said`/`says` and `:`; and `function result:` / `tool result:` at the field's start or after a sentence break, while
-`Use the tool rack: ...` and `Ask the user why: ...` are plain English) or chat-template marker (`im start`, `system
+`developer`, `human`, `tool`, `observation`, `function`, `output`, `operator`, `owner` followed by `:` or a dash (a
+hyphen only when spaced), or by `said`/`says` and `:` or a dash; and `function result` / `tool result` followed by `:`
+or a dash at the field's start or after a sentence break, while `Use the tool rack: ...` and `Ask the user why: ...`
+are plain English) or chat-template marker (`im start`, `system
 prompt`, `developer mode`, `new instruction`), nothing imitating the provenance tag (`verifier`, `verified`, `promoted`, `provenance`, `authored`,
 `passing seeds`, `learned in|on`, `tested in|on|by`, `Newton`, `PhysX`, `lib <hex>`, any hex-like token of 6+ chars,
 `out of <n>`, `<n> of <n>`), at most ONE number counting digits and number words (`zero` .. `twenty`, tens,
@@ -155,8 +158,8 @@ tool its failure signature names), never `reset_scene`, `reset_stop`, `emergency
 identifier or tool parameter is followed by `:` (arguments: any `snake_case` name and `object`, `destination`,
 `target`, `x`, `y`, `z`, `arm`, `force`, `speed`, `frame`, `pose`, `position`, `grasp`, `offset` always; every other
 single-word tool parameter, frozen in the lint so a new tool spec never changes it, only in a field with two or more
-`name:` pairs, so a field like `Side: grasp across` passes as a field -- as a title its rendered line has two, see
-below; `=` is a refused character); a tool name written as plain
+`name:` pairs, so a field like `Side: grasp across` passes, as a field and as the line it renders, see below; `=` is
+a refused character); a tool name written as plain
 words is English (`move home`, `place at`), except the four forbidden tools in any spelling; and no reset (`reset` in
 any form, `respawn`,
 `begin again`, `start from scratch`, and `restart` / `reload` / `redo` / `re-initialise` / `restore` with `scene`,
@@ -182,14 +185,15 @@ modifies a safety head noun (`system`, `feature`, `rule`, `check`, `gate`, `inte
 around an object whose head is a guard noun, the particle within 4 words: `turn the clearance gate off`) or
 success-claim advice (`treat ... as a success`, `tell the user
 it is done`, honesty phrasings included). The same lint covers every field rendered to the agent or a visitor
-(preflight R4): the title and the advice, and -- once both are clean -- the text they render together, `<title>:
-<advice>` exactly as every route renders it, in ASCII (cap 80 + 2 + 300; A3 review fix round, ruling 1): two clean
+(preflight R4): the title and the advice, and -- once both are clean -- the text they render together, `<title> -
+<advice>` exactly as every route renders it, in ASCII (cap 80 + 3 + 300; A3 review fix round, ruling 1): two clean
 fields can join into refused advice (`Do not` + `stop when ...`, `Tell the user` + `it is done ...`), a title ending
-in a role word renders as a role marker (`User: ...`) and a hard stem can join across the colon (`Re: set ...`); the
-skip reason is then the rule of that rendered text (field `line`). Because the rendering colon follows the title, a
-title ending in a tool parameter (`Mug handle facing the arm` -> `arm:`) is refused as arguments (accepted
-over-block), and so is a title that opens with its own tool-parameter label (`Side: grasp across: ...`: the
-rendering colon makes the second `name:` pair; 5 of the 192 oracle texts, reported to the controller). The reviews' hostile texts (78 + the first re-review's 50 rule-claimed ones +
+in a role word or a two-word role marker renders as a role marker (`User - ...`, `Tool result - ...`: a spaced dash
+marks a role as a colon does) and a hard stem can join across the separator (`Re - set ...`); the skip reason is then
+the rule of that rendered text (field `line`). The separator is an ASCII ` - `, never `: ` (A4 fix round 1, separator
+ruling), so it never adds a `name:` pair: a title ending in a tool parameter (`Mug handle facing the arm`) or opening
+with its own tool-parameter label (`Side: grasp across`) is served (with `: ` they were refused as arguments, 6 of the
+192 oracle texts). The reviews' hostile texts (78 + the first re-review's 50 rule-claimed ones +
 the second re-review's 73 rule-claimed and 18 newly ruled ones) are a test that must stay all refused, next to a set of plain kitchen advice that must stay all accepted (and fix round 4's everyday phrasings whose words run into a stem); plain-English
 paraphrases of harm (no rule word) stay a limit of a structural gate, carried by promotion and the verifier.
 
@@ -222,11 +226,12 @@ paraphrases of harm (no rule word) stay a limit of a structural gate, carried by
   `${CASCADE_ASPIRE_LIBRARY:-~/.cascade/aspire/sim/library}`; every other profile keeps today's default
   (`<repo>/skills_library`). B7 sets `rebot_rs` to `${CASCADE_ASPIRE_LIBRARY:-~/.cascade/aspire/real/library}`.
 - Every run built by `apps.demo.build_runtime` writes `run.json` beside `trace.jsonl` at build:
-  `{schema: 1, library_sha, served_notes: [ids], block_notes: [ids], profile_class, library_root, library_error,
-  skipped, arm_types, sim_retry, purpose, started}` (the physics engine is
+  `{schema: 1, library_sha, served_notes: [ids], block_notes: [ids], block_sha, profile_class, library_root,
+  library_error, skipped, arm_types, sim_retry, purpose, started}` (the physics engine is
   not known at build: the lazy Isaac arm learns it from the bridge on first use; the verifier records it from its own
   launch). `block_notes` = the top 2 as the block renders them (preflight R23: B3 grades them and cannot recover them
-  later). `library_root` = the real path of the library the snapshot read (`~` and `${...}` expanded, then symlinks and
+  later); `block_sha` = sha256 of the rendered prompt block (UTF-8; the empty string's when no block renders), which
+  the LEARNED.md header carries too (A4 fix round 1, ruling 4). `library_root` = the real path of the library the snapshot read (`~` and `${...}` expanded, then symlinks and
   `..` resolved: `Path.resolve()`), null when it was not read; `library_error` = null, or `"<Exception>: <message>"`
   when it was not read, or `"all notes unreadable"` (root recorded) when the directory lists `*.md` files but every one
   was unreadable (an r-- directory, 0600 notes of another account), so an unreadable library never looks like an empty
@@ -251,28 +256,47 @@ paraphrases of harm (no rule word) stay a limit of a structural gate, carried by
 
 **Kitchen route: a separate generated file, injected by the plugin (D3).**
 
-1. At launch only, `launch.sh` (spark branch, right after the visitor sync) runs
-   `python -m cascade.skills.learned_block --workspace <profile workspace>` with the launch's `CASCADE_ARM`. It loads
-   the same config the robot server loads, takes the snapshot (§4.2) and writes `<workspace>/LEARNED.md` atomically
-   (temp file + replace, mode 0600). Nothing served -> it deletes a `LEARNED.md` it generated earlier, so the prompt is
-   byte-identical to main. After the launch proof bound the robot server visitors talk to, `--check-run <its run dir>`
-   compares the header's `library_sha` and note ids with that server's `run.json` (`library_sha`, `block_notes`): any
-   difference, or a `run.json` it cannot read, removes the file with a warning, so the prompt never shows notes of
-   another library than `robot_knowledge` and the trace stamp (A2 review item; the server reads its library again at
-   build).
-2. `LEARNED.md` = header line `<!-- cascade-learned-notes v1 library_sha=<64 hex> notes=<id>,<id> -->`, then the block:
+1. One library per launch (A4 fix round 1, ruling 3). In the spark branch, before the robot server's environment
+   (`MCP_JSON`) is built, `launch.sh` runs `python -m cascade.skills.learned_block --freeze $STATE_DIR/aspire-library`
+   with the launch's `CASCADE_ARM` / `CASCADE_CAMERAS`. It resolves the library the robot server would read (the same
+   config), copies the files A1's reader accepts (a safe note name, a regular file, no symlink, <= 64 KiB; every other
+   entry is left out and counted in the log line) byte for byte and read-only into a temp directory beside that path,
+   checks the copy hashes to the library's `library_sha` and renames it into place (an earlier launch's copy is
+   replaced whole); `launch.sh` exports `CASCADE_ASPIRE_LIBRARY` to the copy. Every robot server of the launch (the
+   runtime check, the proof's, the visitors') and `LEARNED.md` therefore read the same bytes, whatever the canonical
+   library does meanwhile (a nightly write counts from the next launch). A freeze that fails (a library the snapshot
+   would not read, a profile that does not read `CASCADE_ASPIRE_LIBRARY`, a write error, a Python that cannot start)
+   prints one `WARNING: learned notes:` line and points the variable at a new empty directory: notes off everywhere,
+   the launch goes on (R26). Then, right after the visitor sync, it runs
+   `python -m cascade.skills.learned_block --workspace <profile workspace>`. It loads the same config the robot
+   server loads, takes the snapshot (§4.2) and writes `<workspace>/LEARNED.md` atomically (temp file + replace, mode
+   0600). Nothing served -> it deletes a `LEARNED.md` it generated earlier, so the prompt is byte-identical to main.
+   After the launch proof bound the robot server visitors talk to, `--check-run <its run dir>` compares the header's
+   `library_sha`, `block_sha` and note ids with that server's `run.json` (`library_sha`, `block_sha`, `block_notes`)
+   and the file's block with its header's `block_sha`: any difference, or a `run.json` it cannot read, removes the
+   file with a warning. With the frozen copy this is an assertion; with `--no-robot-turn` there is no server run to
+   compare and a log line names the frozen library instead.
+   Cross-task note (B3, B6): on the kitchen launch `run.json`'s `library_root` is the frozen copy. Grading and
+   promotion address a note by `library_sha` + id in the canonical library (`~/.cascade/aspire/sim/library`) and never
+   write into a run's `library_root`.
+2. `LEARNED.md` = header line
+   `<!-- cascade-learned-notes v1 library_sha=<64 hex> block_sha=<64 hex> notes=<id>,<id> -->`, then the block:
    ```
    ## Learned from earlier runs
    Advice only: tool results and safety refusals always win. Use a note only when it matches the order.
-   - <title>: <advice> [<tag>]
-   - <title>: <advice> [<tag>]
+   - <title> - <advice> [<tag>]
+   - <title> - <advice> [<tag>]
    If a note shaped what you did, the tool result tells you the one line to add (do not add your own).
    ```
    The ids pass A1's note file-name rule, else nothing is written. The block is A1's text verbatim, never cut here:
    a file over 2000 bytes is refused (lint-clean notes cannot reach it: ASCII fields, block <= 1400 characters).
 3. The plugin reads `LEARNED.md` on every turn, like `AGENTS.md`. It injects it only from a regular file (no-follow,
    non-blocking open, then fstat: never a symlink, FIFO or directory) of <= 2000 bytes of valid UTF-8 whose first line
-   is exactly the header; otherwise it injects nothing (fail-closed, no throw).
+   is exactly the header; otherwise it injects nothing (fail-closed, no throw). It decodes with `fatal` and
+   `ignoreBOM`, so a byte-order mark is kept and such a file never matches the header (ruling 5); the header's
+   note-id pattern is A1's file-name rule without `.md` (a test pins the two, ruling 6). The generator, the check and
+   the library read every file through A1's one safe reader (`notes.read_regular`: lstat + O_NOFOLLOW, O_NONBLOCK,
+   fstat, a byte limit; ruling 7).
    `systemPrompt = AGENTS.md + "\n\n" + block + "\n\n" + identity`. Absent file -> exactly today's prompt.
 4. The generator refuses (with the path in the message) to overwrite or remove a `LEARNED.md` without the header, a
    symlink or a non-regular file: an operator's hand-written file is never clobbered. Preflight R26: no failure stops
@@ -284,7 +308,7 @@ library sha that the trace stamps; the repo `AGENTS.md` (approval-gated) is neve
 managed block directly after `AGENTS.md`, which is what Q2 asked for.
 
 **Selection and budget.** Top 2 of the served notes (§4.4), ranked: `verifier.verdict == verified` first, then
-`useful - misleading`, then `n_tasks`, then name. Block <= 1400 characters (~350 tokens) and the whole `LEARNED.md`
+`useful - misleading`, then `n_tasks`, then name. Block <= 1400 characters (~350 tokens of plain words) and the whole `LEARNED.md`
 <= 2000 UTF-8 bytes (every rendered character is ASCII, so one byte); a note's advice is cut to fit.
 `robot_knowledge` adds `learned_notes` (the served notes, same rendering, at most 10 lines (`KNOWLEDGE_SHOWN`) in <= 6000
 characters as the JSON reply carries them -- a `"` or a newline counts two, A3 review fix round ruling 2 -- then "(N
@@ -304,21 +328,23 @@ title, so a refused title must not come back as a file name. A `sim` snapshot sh
 main. The tool's description gains "It also lists learned notes with where they were learned and whether a verifier
 passed them." only on a sim-class profile (`sim_profile.profile_class` of the config the catalogue is listed for): a
 real profile's tool catalogue keeps main's description byte for byte until B7 serves verified notes there (A3
-follow-up ruling). Worst case of the whole reply on the mock stack (A3 review fix round, probe 4 re-run through
-`McpSkillServer.call_tool`, Qwen3.8-27B tokenizer; 12 served notes at the lint's field caps with the longest tag, 14
-skipped v2 notes, 40 older ones): plain words 4,843 characters / 1,255 tokens; every rendered character a `"` 6,192
-characters / 2,993 tokens (7 lines fit the escaped cap); typographic marks only, now rendered as ASCII, 6,110 / 2,951;
-`"-` pairs 6,116 / 3,811 (9 lines); **the true worst case is fields of unescaped ASCII punctuation pairs (`!-`), about
-one token per character: 4,843 characters / 4,225 tokens** (10 lines). By construction `learned_notes` stays <= 6000
-JSON characters and <= 10 lines (<= ~4.1 k tokens at one token per character of a 382-character line), and
+follow-up ruling). Worst case of the whole reply on the mock stack (probe 4 through `McpSkillServer.call_tool`,
+Qwen3.8-27B tokenizer, re-run by A4 fix round 1 with the ` - ` separator; 12 served notes at the lint's field caps
+with the longest tag, 14 skipped v2 notes, 40 older ones): plain words 4,853 characters / 1,255 tokens; every rendered
+character a `"` 6,199 characters / 3,000 tokens (7 lines fit the escaped cap); typographic marks only, rendered as
+ASCII, 6,120 / 2,956; `"-` pairs 6,125 / 3,811 (9 lines); **the true worst case is fields of unescaped ASCII
+punctuation pairs (`!-`), about one token per character: 4,853 characters / 4,225 tokens** (10 lines; A3 fix round,
+`: ` separator: 4,843 / 4,225). By construction `learned_notes` stays <= 6000 JSON characters and <= 10 lines (<= ~4.1
+k tokens at one token per character of a 383-character line), and
 `skipped_notes` is at most one count per rule (~30 rules, < 0.7 k characters). Before this round the same library
 reached 24,849 characters / 19,786 tokens (typographic marks: six characters each in JSON). `robot_knowledge` joins `attendee-tools.json` (7 tools) with the description
 "What earlier runs
 taught this robot: learned notes with where they were learned and whether a verifier passed them. Read-only, never
 moves the robot." Every pinned copy of the 6-tool list moves to 7 in the same change: `deploy/brev/visitor_chat.py:21`
 `TOOLS` (the attendee chat refuses a profile whose `tools.allow` differs), `scripts/demo_proof.py:415` read tools,
-`tests/test_openclaw_natural.py:11,13`, `tests/test_attendee_english.py:63`. Added prompt cost on the kitchen route: <=
-350 (block) + ~100 (tool schema) + ~100 (rules, §4.6) tokens per call.
+`tests/test_openclaw_natural.py:11,13`, `tests/test_attendee_english.py:63`. Added prompt cost on the kitchen route per
+call: the block (two notes at the field caps render 1,103 characters: measured 272 tokens of plain words, 866 tokens
+of punctuation pairs, the worst case; A4 fix round 1) + ~100 (tool schema) + ~100 (rules, §4.6) tokens.
 
 **OpenShell route.** `robot_knowledge` (already offered) carries the full list. No prompt block (Q3).
 
@@ -564,7 +590,8 @@ elsewhere. When it runs: Q2.
 | library dir missing, unreadable note, bad front matter | that note skipped; snapshot of the rest; sha still computed over the bytes present |
 | note fails lint | stored, never served, listed as `lint` in the nightly report |
 | `LEARNED.md` without header, oversize, or a symlink | plugin injects nothing; generator refuses to overwrite and the launch warns naming the file, then runs without notes (R26) |
-| `LEARNED.md` library differs from the proof's robot server `run.json` | file removed, launch warning; the prompt runs without notes |
+| `LEARNED.md` library or block differs from the proof's robot server `run.json` (or its block from its own `block_sha`) | file removed, launch warning; the prompt runs without notes |
+| The per-launch library freeze fails (library unreadable, profile not reading `CASCADE_ASPIRE_LIBRARY`, write error) | one launch warning; every robot server of the launch and `LEARNED.md` read a new empty directory (notes off); the launch goes on (R26) |
 | `learning.json` missing or malformed | `/state` has no `learning` key; panel section hidden |
 | arm type unknown or config error in `profile_class` | `real` (no retry, verified-only notes) |
 | refusal while holding, halted, e-stopped, in contact, stuck | no retry slot |
@@ -619,8 +646,11 @@ Qwen3.8-27B on the vLLM recipe, GraspGen-X, all co-located):
 
 ## 9. Cost
 
-- Tokens: <= 650 per kitchen call (§4.3); OpenShell route +0 unless the agent calls `robot_knowledge` (<= ~1.5k
-  tokens per call).
+- Tokens: every kitchen call carries the block + ~200 (§4.3; measured 272 block tokens of plain words, 866 of
+  punctuation pairs at the field caps). `robot_knowledge` is an attendee tool, so kitchen visitors can call it as well
+  as the OpenShell agent (OpenShell route +0 otherwise): each call adds its reply, measured worst case 4,853 characters
+  / 4,225 Qwen3.8 tokens (A4 fix round 1 re-run of probe 4, §4.3: 10 lines of unescaped punctuation pairs at the field
+  caps; plain words 1,255 tokens), bounded by construction to <= 6000 JSON characters of notes + one count per rule.
 - Spark time: A1 acceptance ~3.5 h (two arms of 27 orders at ~3 min + stack setup). B verifier ~15 min per candidate
   (5 orders), up to ~10 candidates per night window; B acceptance ~2 h (controls) + ~3 h (held-out A/B).
 - GPU memory: none added (same co-located Isaac + Qwen + GraspGen-X + SAM2.1-L; only one stack at a time, by guard).

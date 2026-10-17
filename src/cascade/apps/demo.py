@@ -264,6 +264,17 @@ def _arm_safety(acfg, occupancy, fallback_cfg, *, payload_tracked: bool = False)
     already connected. `_build_arm` keeps its own checks (defence in depth).
     """
     view = acfg.get("resolved") or fallback_cfg
+    arm_name = str(acfg.get("name", acfg.get("type", "arm")))
+    # Every arm's grasp section is live under execute(arm=) (spec Q4 a): its
+    # jaw-open bound must be valid before any arm exists (R8), never first
+    # after a grasp's close on the second arm.
+    from ..skills.runtime import open_wait_timeout_s
+    from ..types import SkillError
+
+    try:
+        open_wait_timeout_s(view.get("grasp") or _empty_cfg())
+    except SkillError as exc:
+        raise ValueError(f"arm {arm_name!r}: {exc}") from None
     kin = Kinematics(
         model_path=acfg.model,
         ee_frame=acfg.get("ee_frame", "gripper_end"),
@@ -271,7 +282,6 @@ def _arm_safety(acfg, occupancy, fallback_cfg, *, payload_tracked: bool = False)
         joint_signs=acfg.get("joint_signs"),
         ik_task_weights=acfg.get("ik_task_weights"),
     )
-    arm_name = str(acfg.get("name", acfg.get("type", "arm")))
     harness = SafetyHarness(
         SafetyLimits.from_config(view.safety), kinematics=kin, occupancy=occupancy,
         base_pose=_base_transform(acfg),
@@ -509,6 +519,30 @@ def _base_transform(acfg):
     return pose_to_transform(pose)
 
 
+def _refuse_eye_in_hand_beside_a_base_pose(cfg, arm_names, arm_cfgs) -> None:
+    """Spec D5: a rig with an arm mounted at a (non-identity) `base_pose`
+    refuses an eye-in-hand camera, before any arm is made.
+
+    `Extrinsics.cam_to_base()` composes the PRIMARY arm's FK for such a
+    camera: a base-frame pose, not the table frame every other camera, the
+    map and the beliefs share. No shipped profile combines the two (the
+    MuJoCo loader already refuses wrist cameras on a rig). Rigs without a
+    base_pose (or with the identity) are not inspected here at all."""
+    mounted = []
+    for name, acfg in zip(arm_names, arm_cfgs, strict=True):
+        T = _base_transform(acfg)
+        if T is not None and not np.array_equal(T, np.eye(4)):
+            mounted.append(name)
+    if not mounted:
+        return
+    for i, ccfg in enumerate(_camera_cfgs(cfg)):
+        if (ccfg.get("extrinsics") or _empty_cfg()).get("mode") == "eye_in_hand":
+            raise ValueError(
+                f"camera {str(ccfg.get('name', f'cam{i}'))!r}: an eye_in_hand camera cannot run beside an arm "
+                f"mounted with a base_pose ({', '.join(mounted)}): its pose composes the primary arm's "
+                "FK, a base frame, not the table frame the rig shares")
+
+
 def _shared_map_region(cfg, arm_cfgs):
     """Default region of the ONE occupancy map every arm shares: the union of
     the arms' workspaces, in the map's frame (the TABLE frame).
@@ -685,6 +719,7 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
     arm_names = [str(acfg.get("name", f"arm{i}")) for i, acfg in enumerate(arm_cfgs)]
     if len(set(arm_names)) != len(arm_names):
         raise ValueError(f"duplicate arm names in rig: {arm_names}")    # ArmRig's rule
+    _refuse_eye_in_hand_beside_a_base_pose(cfg, arm_names, arm_cfgs)
     arm_safety, payload_tracked = [], _payload_tracked(occupancy)
     for acfg in arm_cfgs:
         arm_safety.append(_arm_safety(acfg, occupancy, cfg, payload_tracked=payload_tracked))
@@ -885,6 +920,14 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
     # rig has to learn about it; a skill called with `arm="<name>"` is
     # rebound for that one call by SkillRuntime.execute().
     runtime.arm_rig = arm_rig
+    # Each other arm's own Kinematics (the one its harness uses) and resolved
+    # profile, bound by execute(arm=<name>) for that call (spec Q4 a, D3). The
+    # primary keeps the runtime's own `kin` / `cfg`.
+    from ..skills.arm_frame import arm_binding
+
+    runtime.register_arm_bindings({
+        name: arm_binding(cfg, acfg, k)
+        for name, acfg, k in zip(arm_names[1:], arm_cfgs[1:], kins[1:], strict=True)})
     # Both fusion paths consult the same link self-mask (None = off): the
     # runtime's get_observation / _reobserve here, the watcher below.
     runtime._link_self_mask = link_self_mask

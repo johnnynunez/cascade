@@ -31,6 +31,7 @@ from ..grasping import evidence as grasp_evidence
 from ..grasping.obb_grasp import AngledGrasp
 from ..grasping.selector import ALL_TOO_WIDE_MARKER
 from . import carry_attachment
+from . import arm_frame
 from ..memory import BeliefStore, EpisodicMemory, FrameObservation
 from ..memory.beliefs import camera_source
 from ..perception.colors import detection_color, parse_color_query
@@ -527,6 +528,20 @@ def _world_target_refusal(name: str, arm_name) -> dict:
                         "rotate_gripper, wave, open_gripper, close_gripper) run on it."),
     }
 
+
+#: Skills execute() runs even when the running arm's frame cannot be
+#: resolved: a halt is never deniable (it binds no frame then).
+_FRAME_FREE_ALWAYS = frozenset({"halt_motion"})
+
+
+def _arm_frame_refusal(name: str, arm_name, why) -> dict:
+    """A call refused because the running arm's frame cannot be resolved
+    (spec D4): no binding, or a base_pose that is not rigid. Nothing was
+    perceived, commanded or moved, so there is no move_home step."""
+    who = "this arm" if arm_name in (None, "default") else f"arm {arm_name!r}"
+    return {"ok": False, "outcome": OUTCOME_FAILED,
+            "error": f"{name} refused on {who}: {why}; no motion was sent"}
+
 #: Labels that name hollow things -- what Pigey's occlusion search lifts
 #: first ("start with the largest/hollowest container (bowl, basket, box),
 #: since those hide the most; then taller objects"). Size breaks ties.
@@ -953,6 +968,137 @@ class SkillRuntime:
     #: LinkSelfMask | None (B39): set by the app wiring when
     #: `workspace_filter.link_self_mask` is on; see perception/link_mask.py.
     _link_self_mask: "LinkSelfMask | None" = None
+    #: The PRIMARY arm's Kinematics and Cfg (the `kin` / `cfg` setters write
+    #: these), and the other arms' bindings by rig name (build_runtime's
+    #: `register_arm_bindings`). Class defaults for `__new__` runtimes.
+    _kin = None
+    _cfg = None
+    _arm_bindings = None
+
+    # ── the running arm's frame (spec 2026-10-17 base_pose runtime frame) ──
+    #
+    # `execute(arm=X)` binds X's ArmFrame (Kinematics, resolved profile,
+    # gripper constants, base_pose) for that one call, thread-locally beside
+    # the arm selection (`_arm_override.frame`). The properties below read it;
+    # unbound reads (other threads, between calls) and the primary's own calls
+    # see the primary. Setters always write the primary.
+
+    def _bound_frame(self):
+        override = getattr(self, "_arm_override", None)
+        return None if override is None else getattr(override, "frame", None)
+
+    @property
+    def kin(self):
+        frame = self._bound_frame()
+        return self._kin if frame is None else frame.binding.kin
+
+    @kin.setter
+    def kin(self, value) -> None:
+        self._kin = value
+
+    @property
+    def cfg(self):
+        frame = self._bound_frame()
+        return self._cfg if frame is None else frame.binding.cfg
+
+    @cfg.setter
+    def cfg(self, value) -> None:
+        self._cfg = value
+
+    @property
+    def T_world_base(self):
+        """The running arm's base_pose as a 4x4 (table <- base), or None (no
+        base_pose or the identity: no transform anywhere). Unbound: the
+        primary's."""
+        frame = self._bound_frame()
+        if frame is not None:
+            return frame.T_world_base
+        return arm_frame.world_from_base(getattr(self, "_arm", None))
+
+    def _bound_grip(self):
+        frame = self._bound_frame()
+        return None if frame is None else frame.binding.grip
+
+    @property
+    def _grip_open(self) -> float:
+        grip = self._bound_grip()
+        return self._primary_grip_open if grip is None else grip[0]
+
+    @_grip_open.setter
+    def _grip_open(self, value) -> None:
+        self._primary_grip_open = value
+
+    @property
+    def _grip_closed(self) -> float:
+        grip = self._bound_grip()
+        return self._primary_grip_closed if grip is None else grip[1]
+
+    @_grip_closed.setter
+    def _grip_closed(self, value) -> None:
+        self._primary_grip_closed = value
+
+    @property
+    def _max_width(self) -> float:
+        grip = self._bound_grip()
+        return self._primary_max_width if grip is None else grip[2]
+
+    @_max_width.setter
+    def _max_width(self, value) -> None:
+        self._primary_max_width = value
+
+    def register_arm_bindings(self, bindings) -> None:
+        """The Kinematics and resolved profile of each non-primary arm, by
+        rig name (spec D3). A selected arm without one is refused (D4)."""
+        merged = dict(getattr(self, "_arm_bindings", None) or {})
+        merged.update(bindings)
+        self._arm_bindings = merged
+
+    def _resolve_arm_frame(self, effective_arm, resolved_arm) -> arm_frame.ArmFrame:
+        """The frame execute() binds for one call on `effective_arm`. The
+        primary uses the runtime's own `kin` / `cfg` objects; any other arm
+        needs a registered binding. Raises ArmFrameError (refuse the call)
+        when the binding is missing or the base_pose is not rigid. Reads
+        instance dicts only: never materializes a LazyArm."""
+        if effective_arm is getattr(self, "_arm", None):
+            binding = arm_frame.ArmBinding(self._kin, self._cfg, None)
+        else:
+            binding = (getattr(self, "_arm_bindings", None) or {}).get(resolved_arm)
+            if binding is None:
+                raise arm_frame.ArmFrameError("it has no kinematics/profile bound to this runtime")
+        return arm_frame.ArmFrame(resolved_arm, arm_frame.world_from_base(effective_arm), binding)
+
+    def _to_arm(self, p):
+        """Table-frame point(s) in the running arm's base frame."""
+        return arm_frame.to_arm(self.T_world_base, p)
+
+    def _to_world(self, p):
+        """Running-arm-frame point(s) in the table frame."""
+        return arm_frame.to_world(self.T_world_base, p)
+
+    def _dir_to_world(self, v):
+        return arm_frame.dir_to_world(self.T_world_base, v)
+
+    def _cam_to_arm(self, T_table_cam):
+        return arm_frame.cam_to_arm(self.T_world_base, T_table_cam)
+
+    def _frame_in_arm(self, frame, extrinsics=None):
+        """`frame` with its camera pose in the running arm's frame
+        (`extrinsics` None = this runtime's)."""
+        T = self.T_world_base
+        if T is None:
+            return frame
+        return arm_frame.frame_to_arm(T, frame, self.extrinsics if extrinsics is None else extrinsics)
+
+    def _fix_to_arm(self, fix):
+        return arm_frame.fix_to_arm(self.T_world_base, fix)
+
+    def _fix_to_world(self, fix):
+        return arm_frame.fix_to_world(self.T_world_base, fix)
+
+    def _table_z_world(self) -> float:
+        """The running arm's `safety.table_z` (its base frame) as a table-frame
+        height. Without a base_pose: `table_z` itself."""
+        return arm_frame.table_z_in_world(self.T_world_base, float(self.cfg.safety.get("table_z", 0.0)))
 
     @property
     def arm(self):
@@ -1092,7 +1238,9 @@ class SkillRuntime:
             gripper_frac=self._gripper_width_frac,
             reobserve=lambda: self._reobserve(frames=1),
             visual_diff=self._visual_diff,
-            table_z=float(self.cfg.safety.get("table_z", 0.0)),
+            # Read per check, inside execute()'s bind (R4): the RUNNING arm's
+            # table height, in the frame the verified poses are in.
+            table_z_fn=self._table_z_world,
             air_grasp_frac=float(self.cfg.grasp.get("air_grasp_frac", 0.04)),
             placement_check=self._verify_configured_placement,
             actuation=self._actuation_counts,
@@ -1558,371 +1706,392 @@ class SkillRuntime:
             next((key for key, arm in self.arm_rig.arms.items() if arm is effective_arm), None)
             if self.arm_rig is not None else "default"
         )
+        # The running arm's frame (spec D4): its Kinematics, resolved profile
+        # and base_pose, resolved before any perception, keyframe, snapshot or
+        # command. A selected arm with no binding, or a base_pose that is not a
+        # rigid transform, refuses the call here (a halt is never refused).
+        try:
+            frame = self._resolve_arm_frame(effective_arm, resolved_arm)
+        except arm_frame.ArmFrameError as e:
+            if name not in _FRAME_FREE_ALWAYS:
+                return _arm_frame_refusal(name, resolved_arm, e)
+            frame = None
         # The RUNNING arm (the `arm=` selection included) decides, before any
         # perception, status line, keyframe or command: a base_pose arm would
         # aim a table-frame target in its own base frame (_WORLD_TARGET_SKILLS).
         if name in _WORLD_TARGET_SKILLS and _mounted_off_table_origin(effective_arm):
             return _world_target_refusal(name, resolved_arm)
-        trace_context = {"arm": resolved_arm, "held_object": self.held_object}
-        # Motor-feedback contact monitor: this call's trace row carries only
-        # its own motions' tracking reports (safety.contact_monitor).
-        contact_harnesses = self._contact_harnesses()
-        for harness in contact_harnesses:
-            harness.drain_contact_reports()
-        # Map snapshots of clearance refusals (spec 3.3), the same way: a
-        # report filed outside this call (between calls) is stale.
-        clearance_harnesses = self._clearance_harnesses()
-        for harness in clearance_harnesses:
-            harness.drain_clearance_reports()
-            _drain_clearance_lost(harness)
-        from ..robot_context import arm_profiles
-
-        profiles = arm_profiles(self.cfg)
-        profile = profiles[0]
-        if selected is not None:
-            profile = next(p for p in profiles if p.get("name") == arm_name)
-        if name in profile.get("unsupported_skills", []):
-            return {"ok": False, "error": f"skill {name!r} is unsupported on {profile.get('name', 'this arm')}"}
-        # The skill starts here: an operator halt raised from now on (while it
-        # localizes or plans, between two of its moves) ends it. Every motion
-        # the skill body issues carries this halt generation (the harness's
-        # skill_halt_baseline), so the halt refuses its next motion before the
-        # first command instead of being cleared by it (A3 review).
-        skill_halt = self._skill_halt_baselines(effective_arm) if name in _MOTION_SKILLS else ()
-        if name in _MOTION_SKILLS:
-            raw = getattr(selected if selected is not None else self.arm, "raw", None)
-            # Class lookup leaves a deferred LazyArm untouched. Real Franka
-            # transports refuse the skill before opening the hand or moving
-            # home when native feedback reports a hardware fault.
-            if callable(getattr(type(raw), "ensure_motion_ready", None)):
-                try:
-                    raw.ensure_motion_ready()
-                except RuntimeError as exc:
-                    error = f"SkillError: {exc}"
-                    self._show_status(error)
-                    # STOP, native faults and stale feedback require operator
-                    # intervention, not a different model-generated plan.
-                    return {"ok": False, "error": error, "motion_blocked": True}
-        home_snapshot = None
-        return_enabled = name in _MOTION_SKILLS and bool(profile.get("return_home_after_motion", False))
-        if return_enabled:
-            try:
-                import inspect
-
-                inspect.signature(fn).bind(**args)
-                home_snapshot = np.asarray(profile.get("home_q"), dtype=float).reshape(-1).copy()
-                if len(home_snapshot) != int(profile["n_joints"]) or not np.isfinite(home_snapshot).all():
-                    raise ValueError("home_q must contain one finite value per arm joint")
-            except (TypeError, ValueError) as exc:
-                return {"ok": False, "error": f"cannot start {name}: {exc}"}
-        self._show_status(f"{name}({_short(args)})")
-        # BEFORE keyframe. `last_frame` is only set by observe(), so the first
-        # skill of a run used to record `keyframe_before: null` -- exactly the
-        # image an outcome judge (eval/progress_judge.py) needs. Take a fresh
-        # frame when none exists yet; never let a camera hiccup block a skill.
-        if self.last_frame is None:
-            try:
-                self.observe(require_fresh=return_enabled)
-            except Exception:  # noqa: BLE001
-                pass
-        # Vesta keeps "the first frame ... to preserve the initial state". A
-        # memory with no frame yet is a task's first step: pin the scene as
-        # it was BEFORE anything moved, so memory_frames()[0] is the state
-        # the task is measured against, not the aftermath of step one.
-        if (
-            name in _MOTION_SKILLS
-            and name != "reset_scene"
-            and self.last_frame is not None
-            and not self.memory.memory_frames(1)
-        ):
-            self.memory.add("observation", "initial state before the first action",
-                            rgb=self.last_frame.rgb)
-        before = self.trace.save_keyframe(
-            self.last_frame.rgb if self.last_frame is not None else None, f"{name}_before"
-        )
-        # Wrist views (ROADMAP #15): the judge's GRM prompt has two wrist
-        # slots per BEFORE/AFTER set. On a rig with a wrist stream (`role:
-        # wrist` / eye-in-hand profile) save its frame next to the front one
-        # for motion skills; without one the judge repeats the front image.
-        before_wrists = self._save_wrist_keyframes(f"{name}_before", fresh=False) if name in _MOTION_SKILLS else None
-        # Pigey: snapshot the target's pose BEFORE the motion so the
-        # postcondition can measure a displacement rather than guess one.
-        # NOTE the arg name varies across the skill API and getting this wrong
-        # silently degrades every check to "unverified": pick_and_place takes
-        # `object`, grasp/push take `label`, and place_at takes no object at
-        # all (the held one is the subject). Verified against TOOL_SPECS --
-        # keep this in sync when adding a motion skill.
-        # place_on_object is the exception: its `label` is the DESTINATION,
-        # so snapshotting it would make the checker compare the target with
-        # itself ("box sits on box"). The subject there is the held object.
-        pre_state = {}
-        if self.effects is not None and name in _MOTION_SKILLS:
-            # CaP-X: keep the pre-motion pixels so the postcondition can ask a
-            # channel the actuator does not own. Copied because CameraStream
-            # reuses its buffer -- holding the reference would silently give
-            # us the AFTER frame twice and confirm everything.
-            f = self.last_frame
-            self._pre_motion_frame = f.rgb.copy() if f is not None else None
-            if name == "place_on_object":
-                target_label = self.held_object
-            else:
-                target_label = (
-                    args.get("label")
-                    or args.get("object")
-                    or args.get("query")
-                    or self.held_object
-                    or None
-                )
-            pre_state = self.effects.snapshot(target_label, name)
-        region_context = None
-        region_context_error = None
-        if name == "place_at":
-            from .mujoco_region import explicit_context
-            try:
-                region_context = explicit_context(effective_arm, self.held_object, args)
-            except Exception as exc:
-                # Goal bookkeeping failure never grants a different motion or
-                # clears a physical obligation. The original point path remains.
-                region_context_error = f"{type(exc).__name__}: {exc}"
-        t0 = time.monotonic()
-        # Derived envelope features: the outermost dispatched call owns a
-        # fresh scratchpad; whatever the skill measures lands on THIS row of
-        # the envelope and the trace (see `_note_measurement`). Released
-        # unconditionally below, after every exception path has produced its
-        # result, so one call's measurements can never bleed into the next.
-        owns_measurements = self._call_measurements is None
-        if owns_measurements:
-            self._call_measurements = {}
-        # Same ownership for the memory embedder's crop scratchpad; absent an
-        # embedder this stays None and `_note_localized` is a pure pass-through.
-        owns_crops = (getattr(self, "_call_crops", None) is None
-                      and getattr(self.memory, "embedder", None) is not None)
-        if owns_crops:
-            self._call_crops = {}
-        # Same ownership for two-phase localization timings (B1): the
-        # outermost call collects every localization it ran.
-        owns_perception_timings = getattr(self, "_call_perception_timings", None) is None
-        if owns_perception_timings:
-            self._call_perception_timings = []
-        home_return = None
-        call_moved = False  # this call commanded the arm or gripper (motion scope owner only)
-        # Arm motions counted before a grasp entry: its move_home hint needs
-        # one counted in this call (None = no counting harness).
-        arm_motions_before = self._arm_motions_counted() if name in _GRASP_ENTRY_SKILLS else None
-        result = None
-        halted_in_skill = None
+        # Bind the selected arm AND its frame (R3): from here until the
+        # postcondition fold, so the pre-state snapshot, the skill, its view-home
+        # return and the verifier all read the RUNNING arm (its jaws, its
+        # Kinematics and profile). Both are restored together in the `finally`,
+        # even if anything raises, so a failed call on the second arm can never
+        # leave a later skill pointed at it.
+        if self._arm_override is None:
+            self._arm_override = threading.local()
+        override = self._arm_override
+        prev_arm = getattr(override, "arm", None)
+        prev_frame = getattr(override, "frame", None)
+        override.arm = selected
+        override.frame = frame
         try:
-            import contextlib
+            trace_context = {"arm": resolved_arm, "held_object": self.held_object}
+            # Motor-feedback contact monitor: this call's trace row carries only
+            # its own motions' tracking reports (safety.contact_monitor).
+            contact_harnesses = self._contact_harnesses()
+            for harness in contact_harnesses:
+                harness.drain_contact_reports()
+            # Map snapshots of clearance refusals (spec 3.3), the same way: a
+            # report filed outside this call (between calls) is stale.
+            clearance_harnesses = self._clearance_harnesses()
+            for harness in clearance_harnesses:
+                harness.drain_clearance_reports()
+                _drain_clearance_lost(harness)
+            from ..robot_context import arm_profiles
 
-            hold = (
-                self.watcher.paused()
-                if (self.watcher is not None and name in _MOTION_SKILLS)
-                else contextlib.nullcontext()
-            )
-            from ..perception.detector import foreground as perception_foreground
-
-            perceiving = (perception_foreground(getattr(self, "detector", None))
-                          if name in _FOREGROUND_PERCEPTION_SKILLS else contextlib.nullcontext())
-            owns_epoch = name in _MOTION_SKILLS and self._motion_t0 is None
-            if owns_epoch:
-                self._motion_t0 = time.monotonic()
-            # Bind the selected arm for exactly this call. Restored in the
-            # `finally` even if the skill raises, so a failed motion on the
-            # second arm can never leave every later skill pointed at it.
-            prev_arm = getattr(self._arm_override, "arm", None)
-            self._arm_override.arm = selected
-            if self._motion_scope is None:
-                self._motion_scope = threading.local()
-            scope = self._motion_scope
-            previous_context = getattr(scope, "context", None)
-            owns_motion_scope = name in _MOTION_SKILLS and previous_context is None
-            if owns_motion_scope:
-                scope.context = {
-                    "enabled": return_enabled, "home": home_snapshot,
-                    "profile": profile, "root_skill": name,
-                    "violations_before": (len(getattr(self.arm.harness, "violations", ()))
-                                          if return_enabled else 0),
-                    "motion_started": False,
-                    # the halt generations when the skill started: only a halt
-                    # since then skips a home return (_home_return_skip_reason)
-                    "halt_baselines": skill_halt,
-                }
-            try:
-                with motion_evidence.record_skill(name, resolved_arm, trace_context,
-                                                  enabled=name in _MOTION_SKILLS), hold, perceiving:
-                    failure = None
+            profiles = arm_profiles(self.cfg)
+            profile = profiles[0]
+            if selected is not None:
+                profile = next(p for p in profiles if p.get("name") == arm_name)
+            if name in profile.get("unsupported_skills", []):
+                return {"ok": False, "error": f"skill {name!r} is unsupported on {profile.get('name', 'this arm')}"}
+            # The skill starts here: an operator halt raised from now on (while it
+            # localizes or plans, between two of its moves) ends it. Every motion
+            # the skill body issues carries this halt generation (the harness's
+            # skill_halt_baseline), so the halt refuses its next motion before the
+            # first command instead of being cleared by it (A3 review).
+            skill_halt = self._skill_halt_baselines(effective_arm) if name in _MOTION_SKILLS else ()
+            if name in _MOTION_SKILLS:
+                raw = getattr(selected if selected is not None else self.arm, "raw", None)
+                # Class lookup leaves a deferred LazyArm untouched. Real Franka
+                # transports refuse the skill before opening the hand or moving
+                # home when native feedback reports a hardware fault.
+                if callable(getattr(type(raw), "ensure_motion_ready", None)):
                     try:
-                        from ..planning.backend_evidence import ordinary_call
-                        selection = (ordinary_call(self, name, trace_context) if name in _MOTION_SKILLS
-                                     else contextlib.nullcontext())
-                        with selection, self._skill_halt_scope(skill_halt):
-                            if name in _MOTION_SKILLS:
-                                carry_attachment.check(self)
-                            result = fn(**args)
-                            halted_in_skill = self._skill_halt_reason(skill_halt)
-                    except BaseException as exc:
-                        failure = exc
-                        raise
-                    finally:
-                        call_moved = owns_motion_scope and bool(scope.context["motion_started"])
-                        if (owns_motion_scope and return_enabled and scope.context["motion_started"]
-                                and name not in {"move_home", "move_to_rest", "reset_scene"}
-                                and not (isinstance(result, dict) and result.get("home_skipped"))):
-                            try:
-                                # Outside the skill's halt scope now: the move
-                                # carries the skill's start generation, so a
-                                # halt raised since then ends it too (pre-PR M1).
-                                return_harness = getattr(self.arm, "harness", None)
-                                home_return = self._return_to_view_home(
-                                    home_snapshot, profile, failure,
-                                    halt_generation=next((g for h, g in skill_halt if h is return_harness), None))
-                            except Exception as exc:
-                                home_return = {"ok": False, "status": "failed",
-                                               "error": f"{type(exc).__name__}: {exc}"}
-                        # Sync the held-object ignore BEFORE fusion resumes,
-                        # including when a failed grasp provisionally holds.
-                        if self.watcher is not None:
-                            self.watcher.ignore_label(
-                                self._held_det_label if self.held_object else None
-                            )
-            finally:
-                if owns_motion_scope:
-                    scope.context = previous_context
-                self._arm_override.arm = prev_arm
-                if owns_epoch:
-                    self._motion_t0 = None
-                    self._last_reobserve_t = None
-            if "ok" not in result:
-                result["ok"] = True
-            if halted_in_skill is not None and result.get("ok"):
-                # The operator halted this skill after it started, and the
-                # skill swallowed the halt (a best-effort home, a sort keeping
-                # what it moved): never report that as a success (A3 review).
-                # Every other field stays; an object still in the jaws is named.
-                result["ok"] = False
-                result["error"] = f"MotionHalted: {halted_in_skill}"
-                if self.held_object:
-                    result.setdefault("holding", self.held_object)
-        except (SkillError, SafetyViolation) as e:
-            if isinstance(e, SkillStuck):
-                # The skill ran out of what it can do on its own and names
-                # what the human should change. Normalised below (ok=false).
-                result = {"ok": False, "outcome": OUTCOME_STUCK, "ask": e.ask,
-                          "error": f"SkillStuck: {e}"}
-            else:
-                result = (carry_attachment.failure_result(self, e)
-                          if isinstance(e, carry_attachment.AttachmentInvalid)
-                          else {"ok": False, "error": f"{type(e).__name__}: {e}"})
-                if isinstance(e, ContactDetected):
-                    result.update(_contact_result(effective_arm))
-                if isinstance(getattr(e, "observed_selection", None), dict):
-                    # Observed-finger grasp: ranked last / dropped / attempted
-                    # candidates of the failed choice (grasp_object).
-                    result["observed_selection"] = e.observed_selection
-        except TypeError as e:
-            result = {"ok": False, "error": f"bad arguments for {name}: {e}"}
-        except Exception as e:  # camera dropouts, CAN loss, ... : the agent
-            # loop must survive and report, not crash mid-task.
-            import traceback
-
-            result = {
-                "ok": False,
-                "error": f"unexpected {type(e).__name__}: {e}",
-                "hint": "hardware/runtime fault; consider task_done(success=false)",
-            }
-            traceback.print_exc()
-        if home_return is not None:
-            result["return_home"] = home_return
-            if not home_return["ok"] and result.get("ok", False):
-                result["action_ok"] = True
-                result["ok"] = False
-                reason = str(home_return.get("error") or home_return.get("reason"))
-                status = home_return["status"]
-                # A halt's own text already starts with "halted: ": say it once.
-                result["error"] = ("return to saved home " + reason if reason.startswith(f"{status}: ")
-                                   else f"return to saved home {status}: {reason}")
-        if name in _MOTION_SKILLS:
-            # Readiness can fail DURING a motion as well as before it. A
-            # trajectory abort latches STOP; handing that failure back to
-            # the planner would invite retries while the arm cannot move.
-            # Use the selected arm after its temporary binding is restored.
-            raw = getattr(selected if selected is not None else self.arm, "raw", None)
-            blocked = "arm stop latched" if getattr(raw, "_stopped", False) is True else None
-            if callable(getattr(type(raw), "ensure_motion_ready", None)):
+                        raw.ensure_motion_ready()
+                    except RuntimeError as exc:
+                        error = f"SkillError: {exc}"
+                        self._show_status(error)
+                        # STOP, native faults and stale feedback require operator
+                        # intervention, not a different model-generated plan.
+                        return {"ok": False, "error": error, "motion_blocked": True}
+            home_snapshot = None
+            return_enabled = name in _MOTION_SKILLS and bool(profile.get("return_home_after_motion", False))
+            if return_enabled:
                 try:
-                    raw.ensure_motion_ready()
-                except RuntimeError as exc:
-                    blocked = str(exc)
-            if blocked:
-                result["motion_blocked"] = True
-                result["motion_block_reason"] = blocked
-                # Keep the original controller failure, which explains WHY
-                # it stopped, instead of replacing it with the STOP symptom.
-                if result.get("ok"):
+                    import inspect
+
+                    inspect.signature(fn).bind(**args)
+                    home_snapshot = np.asarray(profile.get("home_q"), dtype=float).reshape(-1).copy()
+                    if len(home_snapshot) != int(profile["n_joints"]) or not np.isfinite(home_snapshot).all():
+                        raise ValueError("home_q must contain one finite value per arm joint")
+                except (TypeError, ValueError) as exc:
+                    return {"ok": False, "error": f"cannot start {name}: {exc}"}
+            self._show_status(f"{name}({_short(args)})")
+            # BEFORE keyframe. `last_frame` is only set by observe(), so the first
+            # skill of a run used to record `keyframe_before: null` -- exactly the
+            # image an outcome judge (eval/progress_judge.py) needs. Take a fresh
+            # frame when none exists yet; never let a camera hiccup block a skill.
+            if self.last_frame is None:
+                try:
+                    self.observe(require_fresh=return_enabled)
+                except Exception:  # noqa: BLE001
+                    pass
+            # Vesta keeps "the first frame ... to preserve the initial state". A
+            # memory with no frame yet is a task's first step: pin the scene as
+            # it was BEFORE anything moved, so memory_frames()[0] is the state
+            # the task is measured against, not the aftermath of step one.
+            if (
+                name in _MOTION_SKILLS
+                and name != "reset_scene"
+                and self.last_frame is not None
+                and not self.memory.memory_frames(1)
+            ):
+                self.memory.add("observation", "initial state before the first action",
+                                rgb=self.last_frame.rgb)
+            before = self.trace.save_keyframe(
+                self.last_frame.rgb if self.last_frame is not None else None, f"{name}_before"
+            )
+            # Wrist views (ROADMAP #15): the judge's GRM prompt has two wrist
+            # slots per BEFORE/AFTER set. On a rig with a wrist stream (`role:
+            # wrist` / eye-in-hand profile) save its frame next to the front one
+            # for motion skills; without one the judge repeats the front image.
+            before_wrists = self._save_wrist_keyframes(f"{name}_before", fresh=False) if name in _MOTION_SKILLS else None
+            # Pigey: snapshot the target's pose BEFORE the motion so the
+            # postcondition can measure a displacement rather than guess one.
+            # NOTE the arg name varies across the skill API and getting this wrong
+            # silently degrades every check to "unverified": pick_and_place takes
+            # `object`, grasp/push take `label`, and place_at takes no object at
+            # all (the held one is the subject). Verified against TOOL_SPECS --
+            # keep this in sync when adding a motion skill.
+            # place_on_object is the exception: its `label` is the DESTINATION,
+            # so snapshotting it would make the checker compare the target with
+            # itself ("box sits on box"). The subject there is the held object.
+            pre_state = {}
+            if self.effects is not None and name in _MOTION_SKILLS:
+                # CaP-X: keep the pre-motion pixels so the postcondition can ask a
+                # channel the actuator does not own. Copied because CameraStream
+                # reuses its buffer -- holding the reference would silently give
+                # us the AFTER frame twice and confirm everything.
+                f = self.last_frame
+                self._pre_motion_frame = f.rgb.copy() if f is not None else None
+                if name == "place_on_object":
+                    target_label = self.held_object
+                else:
+                    target_label = (
+                        args.get("label")
+                        or args.get("object")
+                        or args.get("query")
+                        or self.held_object
+                        or None
+                    )
+                pre_state = self.effects.snapshot(target_label, name)
+            region_context = None
+            region_context_error = None
+            if name == "place_at":
+                from .mujoco_region import explicit_context
+                try:
+                    region_context = explicit_context(effective_arm, self.held_object, args)
+                except Exception as exc:
+                    # Goal bookkeeping failure never grants a different motion or
+                    # clears a physical obligation. The original point path remains.
+                    region_context_error = f"{type(exc).__name__}: {exc}"
+            t0 = time.monotonic()
+            # Derived envelope features: the outermost dispatched call owns a
+            # fresh scratchpad; whatever the skill measures lands on THIS row of
+            # the envelope and the trace (see `_note_measurement`). Released
+            # unconditionally below, after every exception path has produced its
+            # result, so one call's measurements can never bleed into the next.
+            owns_measurements = self._call_measurements is None
+            if owns_measurements:
+                self._call_measurements = {}
+            # Same ownership for the memory embedder's crop scratchpad; absent an
+            # embedder this stays None and `_note_localized` is a pure pass-through.
+            owns_crops = (getattr(self, "_call_crops", None) is None
+                          and getattr(self.memory, "embedder", None) is not None)
+            if owns_crops:
+                self._call_crops = {}
+            # Same ownership for two-phase localization timings (B1): the
+            # outermost call collects every localization it ran.
+            owns_perception_timings = getattr(self, "_call_perception_timings", None) is None
+            if owns_perception_timings:
+                self._call_perception_timings = []
+            home_return = None
+            call_moved = False  # this call commanded the arm or gripper (motion scope owner only)
+            # Arm motions counted before a grasp entry: its move_home hint needs
+            # one counted in this call (None = no counting harness).
+            arm_motions_before = self._arm_motions_counted() if name in _GRASP_ENTRY_SKILLS else None
+            result = None
+            halted_in_skill = None
+            try:
+                import contextlib
+
+                hold = (
+                    self.watcher.paused()
+                    if (self.watcher is not None and name in _MOTION_SKILLS)
+                    else contextlib.nullcontext()
+                )
+                from ..perception.detector import foreground as perception_foreground
+
+                perceiving = (perception_foreground(getattr(self, "detector", None))
+                              if name in _FOREGROUND_PERCEPTION_SKILLS else contextlib.nullcontext())
+                owns_epoch = name in _MOTION_SKILLS and self._motion_t0 is None
+                if owns_epoch:
+                    self._motion_t0 = time.monotonic()
+                if self._motion_scope is None:
+                    self._motion_scope = threading.local()
+                scope = self._motion_scope
+                previous_context = getattr(scope, "context", None)
+                owns_motion_scope = name in _MOTION_SKILLS and previous_context is None
+                if owns_motion_scope:
+                    scope.context = {
+                        "enabled": return_enabled, "home": home_snapshot,
+                        "profile": profile, "root_skill": name,
+                        "violations_before": (len(getattr(self.arm.harness, "violations", ()))
+                                              if return_enabled else 0),
+                        "motion_started": False,
+                        # the halt generations when the skill started: only a halt
+                        # since then skips a home return (_home_return_skip_reason)
+                        "halt_baselines": skill_halt,
+                    }
+                try:
+                    with motion_evidence.record_skill(name, resolved_arm, trace_context,
+                                                      enabled=name in _MOTION_SKILLS), hold, perceiving:
+                        failure = None
+                        try:
+                            from ..planning.backend_evidence import ordinary_call
+                            selection = (ordinary_call(self, name, trace_context) if name in _MOTION_SKILLS
+                                         else contextlib.nullcontext())
+                            with selection, self._skill_halt_scope(skill_halt):
+                                if name in _MOTION_SKILLS:
+                                    carry_attachment.check(self)
+                                result = fn(**args)
+                                halted_in_skill = self._skill_halt_reason(skill_halt)
+                        except BaseException as exc:
+                            failure = exc
+                            raise
+                        finally:
+                            call_moved = owns_motion_scope and bool(scope.context["motion_started"])
+                            if (owns_motion_scope and return_enabled and scope.context["motion_started"]
+                                    and name not in {"move_home", "move_to_rest", "reset_scene"}
+                                    and not (isinstance(result, dict) and result.get("home_skipped"))):
+                                try:
+                                    # Outside the skill's halt scope now: the move
+                                    # carries the skill's start generation, so a
+                                    # halt raised since then ends it too (pre-PR M1).
+                                    return_harness = getattr(self.arm, "harness", None)
+                                    home_return = self._return_to_view_home(
+                                        home_snapshot, profile, failure,
+                                        halt_generation=next((g for h, g in skill_halt if h is return_harness), None))
+                                except Exception as exc:
+                                    home_return = {"ok": False, "status": "failed",
+                                                   "error": f"{type(exc).__name__}: {exc}"}
+                            # Sync the held-object ignore BEFORE fusion resumes,
+                            # including when a failed grasp provisionally holds.
+                            if self.watcher is not None:
+                                self.watcher.ignore_label(
+                                    self._held_det_label if self.held_object else None
+                                )
+                finally:
+                    if owns_motion_scope:
+                        scope.context = previous_context
+                    if owns_epoch:
+                        self._motion_t0 = None
+                        self._last_reobserve_t = None
+                if "ok" not in result:
+                    result["ok"] = True
+                if halted_in_skill is not None and result.get("ok"):
+                    # The operator halted this skill after it started, and the
+                    # skill swallowed the halt (a best-effort home, a sort keeping
+                    # what it moved): never report that as a success (A3 review).
+                    # Every other field stays; an object still in the jaws is named.
+                    result["ok"] = False
+                    result["error"] = f"MotionHalted: {halted_in_skill}"
+                    if self.held_object:
+                        result.setdefault("holding", self.held_object)
+            except (SkillError, SafetyViolation) as e:
+                if isinstance(e, SkillStuck):
+                    # The skill ran out of what it can do on its own and names
+                    # what the human should change. Normalised below (ok=false).
+                    result = {"ok": False, "outcome": OUTCOME_STUCK, "ask": e.ask,
+                              "error": f"SkillStuck: {e}"}
+                else:
+                    result = (carry_attachment.failure_result(self, e)
+                              if isinstance(e, carry_attachment.AttachmentInvalid)
+                              else {"ok": False, "error": f"{type(e).__name__}: {e}"})
+                    if isinstance(e, ContactDetected):
+                        result.update(_contact_result(effective_arm))
+                    if isinstance(getattr(e, "observed_selection", None), dict):
+                        # Observed-finger grasp: ranked last / dropped / attempted
+                        # candidates of the failed choice (grasp_object).
+                        result["observed_selection"] = e.observed_selection
+            except TypeError as e:
+                result = {"ok": False, "error": f"bad arguments for {name}: {e}"}
+            except Exception as e:  # camera dropouts, CAN loss, ... : the agent
+                # loop must survive and report, not crash mid-task.
+                import traceback
+
+                result = {
+                    "ok": False,
+                    "error": f"unexpected {type(e).__name__}: {e}",
+                    "hint": "hardware/runtime fault; consider task_done(success=false)",
+                }
+                traceback.print_exc()
+            if home_return is not None:
+                result["return_home"] = home_return
+                if not home_return["ok"] and result.get("ok", False):
                     result["action_ok"] = True
                     result["ok"] = False
-                    result["error"] = blocked
-        if (name in _GRASP_ENTRY_SKILLS and call_moved and not result.get("ok")
-                and not (home_return or {}).get("ok") and not result.get("motion_blocked")
-                and self._may_ask_move_home(arm_motions_before, effective_arm, skill_halt)):
-            # The failed grasp moved the arm and nothing brought it back: the
-            # next grasp would start (and be refused) where this one stopped.
-            # A call whose only command was a gripper open or a motion refused
-            # before its first command left the arm where it was (the
-            # verifier's "no grasp was attempted"): no hint.
-            _with_move_home_first(result)
-        dur = (time.monotonic() - t0) * 1000
-        # Every result carries one of three outcomes. Stamped BEFORE the
-        # postcondition fold so `annotate_result` can see a stuck step and
-        # refuse to confirm an effect for it; a stuck result is forced to
-        # ok=false (never a success) and always carries a non-empty ask.
-        result = _normalize_outcome(result, name)
-        # Release the measurement scratchpad for this call. Only skills that
-        # declare derived features (DERIVED_FEATURES) get an instrumentation
-        # channel on their envelope row: for them an unmeasured feature is a
-        # MISSING count; everything else records exactly as before.
-        measured = None
-        if owns_measurements:
-            measured, self._call_measurements = self._call_measurements, None
-        call_crops = None
-        if owns_crops:
-            call_crops, self._call_crops = self._call_crops, None
-        perception_timings = None
-        if owns_perception_timings:
-            perception_timings, self._call_perception_timings = self._call_perception_timings, None
-        from ..memory.envelope import DERIVED_FEATURES
-        if name not in DERIVED_FEATURES:
+                    reason = str(home_return.get("error") or home_return.get("reason"))
+                    status = home_return["status"]
+                    # A halt's own text already starts with "halted: ": say it once.
+                    result["error"] = ("return to saved home " + reason if reason.startswith(f"{status}: ")
+                                       else f"return to saved home {status}: {reason}")
+            if name in _MOTION_SKILLS:
+                # Readiness can fail DURING a motion as well as before it. A
+                # trajectory abort latches STOP; handing that failure back to
+                # the planner would invite retries while the arm cannot move.
+                # Read the selected arm's backend explicitly.
+                raw = getattr(selected if selected is not None else self.arm, "raw", None)
+                blocked = "arm stop latched" if getattr(raw, "_stopped", False) is True else None
+                if callable(getattr(type(raw), "ensure_motion_ready", None)):
+                    try:
+                        raw.ensure_motion_ready()
+                    except RuntimeError as exc:
+                        blocked = str(exc)
+                if blocked:
+                    result["motion_blocked"] = True
+                    result["motion_block_reason"] = blocked
+                    # Keep the original controller failure, which explains WHY
+                    # it stopped, instead of replacing it with the STOP symptom.
+                    if result.get("ok"):
+                        result["action_ok"] = True
+                        result["ok"] = False
+                        result["error"] = blocked
+            if (name in _GRASP_ENTRY_SKILLS and call_moved and not result.get("ok")
+                    and not (home_return or {}).get("ok") and not result.get("motion_blocked")
+                    and self._may_ask_move_home(arm_motions_before, effective_arm, skill_halt)):
+                # The failed grasp moved the arm and nothing brought it back: the
+                # next grasp would start (and be refused) where this one stopped.
+                # A call whose only command was a gripper open or a motion refused
+                # before its first command left the arm where it was (the
+                # verifier's "no grasp was attempted"): no hint.
+                _with_move_home_first(result)
+            dur = (time.monotonic() - t0) * 1000
+            # Every result carries one of three outcomes. Stamped BEFORE the
+            # postcondition fold so `annotate_result` can see a stuck step and
+            # refuse to confirm an effect for it; a stuck result is forced to
+            # ok=false (never a success) and always carries a non-empty ask.
+            result = _normalize_outcome(result, name)
+            # Release the measurement scratchpad for this call. Only skills that
+            # declare derived features (DERIVED_FEATURES) get an instrumentation
+            # channel on their envelope row: for them an unmeasured feature is a
+            # MISSING count; everything else records exactly as before.
             measured = None
-        if measured is not None:
-            trace_context["measured"] = dict(measured)
-        # Pigey closed loop: was the claimed effect real? A refuted
-        # postcondition DOWNGRADES a self-reported success (annotate_result).
-        if (self.effects is not None or name == "turn_screw") and result.get("ok") is not None:
-            from ..agent.effects import UNVERIFIED, Postcondition, PostconditionChecker, annotate_result
+            if owns_measurements:
+                measured, self._call_measurements = self._call_measurements, None
+            call_crops = None
+            if owns_crops:
+                call_crops, self._call_crops = self._call_crops, None
+            perception_timings = None
+            if owns_perception_timings:
+                perception_timings, self._call_perception_timings = self._call_perception_timings, None
+            from ..memory.envelope import DERIVED_FEATURES
+            if name not in DERIVED_FEATURES:
+                measured = None
+            if measured is not None:
+                trace_context["measured"] = dict(measured)
+            # Pigey closed loop: was the claimed effect real? A refuted
+            # postcondition DOWNGRADES a self-reported success (annotate_result).
+            if (self.effects is not None or name == "turn_screw") and result.get("ok") is not None:
+                from ..agent.effects import UNVERIFIED, Postcondition, PostconditionChecker, annotate_result
 
-            try:
-                if result.get("motion_blocked"):
-                    pc = Postcondition(skill=name, kind="motion", status=UNVERIFIED,
-                                       evidence="motion interrupted; completion was not verified")
-                elif self.effects is None:
-                    # Bare runtimes also lack the admitted fastener observer;
-                    # omitting optional verification must not credit fastening.
-                    pc = PostconditionChecker().verify(name, args, result, before=pre_state)
-                else:
-                    pc = self.effects.verify(name, args, result, before=pre_state)
-                if name == "turn_screw" and pc is None:
-                    pc = PostconditionChecker().verify(name, args, result, before=pre_state)
-            except Exception as e:  # noqa: BLE001
-                # A verifier fault must remain explicitly UNVERIFIED in the
-                # result and trace; never leave self-reported ok unchecked.
-                pc = Postcondition(
-                    skill=name, kind="verifier", status=UNVERIFIED,
-                    evidence=f"postcondition check crashed: {type(e).__name__}: {e}",
-                )
-                print(f"[cascade] postcondition verifier for {name} raised: {e!r}", file=sys.stderr)
-            result = annotate_result(result, pc)
-            if _effect_observation is not None:
-                _effect_observation["postcondition"] = pc
+                try:
+                    if result.get("motion_blocked"):
+                        pc = Postcondition(skill=name, kind="motion", status=UNVERIFIED,
+                                           evidence="motion interrupted; completion was not verified")
+                    elif self.effects is None:
+                        # Bare runtimes also lack the admitted fastener observer;
+                        # omitting optional verification must not credit fastening.
+                        pc = PostconditionChecker().verify(name, args, result, before=pre_state)
+                    else:
+                        pc = self.effects.verify(name, args, result, before=pre_state)
+                    if name == "turn_screw" and pc is None:
+                        pc = PostconditionChecker().verify(name, args, result, before=pre_state)
+                except Exception as e:  # noqa: BLE001
+                    # A verifier fault must remain explicitly UNVERIFIED in the
+                    # result and trace; never leave self-reported ok unchecked.
+                    pc = Postcondition(
+                        skill=name, kind="verifier", status=UNVERIFIED,
+                        evidence=f"postcondition check crashed: {type(e).__name__}: {e}",
+                    )
+                    print(f"[cascade] postcondition verifier for {name} raised: {e!r}", file=sys.stderr)
+                result = annotate_result(result, pc)
+                if _effect_observation is not None:
+                    _effect_observation["postcondition"] = pc
+        finally:
+            override.arm = prev_arm
+            override.frame = prev_frame
         if region_context_error is not None:
             result["region_obligation"] = {"retired": False, "reason": region_context_error}
         if name == "place_at" and region_context is not None:

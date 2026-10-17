@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 
+from base_pose_oracle import bind_like_primary
 from cascade.agent.aspire import diagnose, distil
 from cascade.agent.effects import PostconditionChecker, annotate_result
 from cascade.agent.trace import TraceLogger
@@ -94,6 +95,7 @@ def test_dispatch_trace_preserves_resolved_arm_and_pre_call_subject(runtime, sel
     right = SimpleNamespace(name="right", harness=SimpleNamespace(violations=[]))
     runtime._arm = left
     runtime.arm_rig = ArmRig([left, right], ["left", "right"])
+    bind_like_primary(runtime, "right")  # execute(arm=) refuses an arm with no binding
     poses = {"cube": [0.2, 0.1, 0.03]}
     runtime.effects = PostconditionChecker(object_pose=lambda label: poses[label], gripper_frac=lambda: 0.5)
     selected_arms = []

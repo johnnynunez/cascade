@@ -266,6 +266,16 @@ def _discard(path: Path) -> None:
         path.unlink(missing_ok=True)
 
 
+def _old_copies(dest: Path) -> list[Path]:
+    """The copies `_swap_in` moved aside beside `dest` (`.<name>.old.*`)."""
+    prefix = f".{dest.name}.old."
+    try:
+        with os.scandir(dest.parent) as entries:
+            return [Path(entry.path) for entry in entries if entry.name.startswith(prefix)]
+    except FileNotFoundError:
+        return []
+
+
 def _swap_in(temporary: Path, dest: Path) -> None:
     """Rename `temporary` onto `dest`; an earlier `dest` is moved aside first and removed
     after (put back when the rename fails)."""
@@ -294,10 +304,13 @@ def freeze_library(dest) -> str:
     (no path or a relative one, no directory, a symlink to a missing target, every note file
     unreadable), a configuration that does not read `LIBRARY_VARIABLE` (the copy would bind
     no robot server) and any read or write error. A library that does not exist yet freezes
-    as an empty one (never created)."""
+    as an empty one (never created). Copies an earlier freeze moved aside and could not
+    remove go first, whatever this freeze does: they never pile up across launches."""
     dest = Path(dest)
     if not dest.is_absolute():
         raise ValueError(f"the frozen library must be an absolute path, not {str(dest)!r}")
+    for old in _old_copies(dest):
+        _discard(old)
     root = notes.library_root(_server_config())
     if _library_with(str(dest)) != dest:
         raise ValueError(f"the robot server's profile does not read its note library from {LIBRARY_VARIABLE}, "

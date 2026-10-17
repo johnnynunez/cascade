@@ -887,19 +887,27 @@ fi
 # CASCADE_ASPIRE_LIBRARY at that copy before the server environment below is built, so
 # every robot server of this launch and LEARNED.md read the same bytes whatever the
 # library does meanwhile. Never stops the launch (preflight R26): a failed freeze warns
-# and points every reader at a new empty directory (notes off).
+# and points every reader at the empty $STATE_DIR/aspire-library-off (notes off).
 freeze_note_library() {
-    local frozen="$STATE_DIR/aspire-library" out=""
+    local frozen="$STATE_DIR/aspire-library" off="$STATE_DIR/aspire-library-off" out=""
     if [[ $DRY == 1 ]]; then
         printf '        $ %s\n' "python -m cascade.skills.learned_block --freeze $frozen"
         return 0
     fi
+    # One notes-off directory, reused: the one an earlier failed freeze left (and any
+    # aspire-library-off.* fallback) goes first, so a launch leaves at most one behind.
+    rm -rf -- "$off" "$off".* 2>/dev/null || true
     if out="$(cd "$REPO/models" && CASCADE_ARM="$ARM" CASCADE_CAMERAS="$CAMERAS" \
             PYTHONPATH="$REPO/src${PYTHONPATH:+:$PYTHONPATH}" \
             "$PY" -m cascade.skills.learned_block --freeze "$frozen" 2>&1)"; then
         log "learned notes: $out"
     else
-        frozen="$(mktemp -d "$STATE_DIR/aspire-library-off.XXXXXX")" || frozen="$STATE_DIR/aspire-library-off"
+        # always a new empty directory: one that could not be emptied is never exported
+        if mkdir -m 700 -- "$off" 2>/dev/null; then
+            frozen="$off"
+        else
+            frozen="$(mktemp -d "$off.XXXXXX")" || frozen="$off"
+        fi
         warn "learned notes: ${out:-the note library freeze did not report}; notes off for this launch: every robot server reads the empty library $frozen"
     fi
     export CASCADE_ASPIRE_LIBRARY="$frozen"

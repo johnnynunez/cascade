@@ -270,8 +270,12 @@ paraphrases of harm (no rule word) stay a limit of a structural gate, carried by
    runtime check, the proof's, the visitors') and `LEARNED.md` therefore read the same bytes, whatever the canonical
    library does meanwhile (a nightly write counts from the next launch). A freeze that fails (a library the snapshot
    would not read, a profile that does not read `CASCADE_ASPIRE_LIBRARY`, a write error, a Python that cannot start)
-   prints one `WARNING: learned notes:` line and points the variable at a new empty directory: notes off everywhere,
-   the launch goes on (R26). Then, right after the visitor sync, it runs
+   prints one `WARNING: learned notes:` line and points the variable at the empty `$STATE_DIR/aspire-library-off`:
+   notes off everywhere, the launch goes on (R26). That one notes-off directory is removed at every launch before the
+   freeze and made anew only when the freeze fails (one that cannot be emptied is never exported: a new empty
+   `aspire-library-off.XXXXXX` then), and each freeze first removes the copies an earlier one moved aside and could not
+   remove (`.aspire-library.old.*`), so failed launches leave no directories piling up (polish round). Then, right
+   after the visitor sync, it runs
    `python -m cascade.skills.learned_block --workspace <profile workspace>`. It loads the same config the robot
    server loads, takes the snapshot (§4.2) and writes `<workspace>/LEARNED.md` atomically (temp file + replace, mode
    0600). Nothing served -> it deletes a `LEARNED.md` it generated earlier, so the prompt is byte-identical to main.
@@ -599,7 +603,7 @@ elsewhere. When it runs: Q2.
 | note fails lint | stored, never served, listed as `lint` in the nightly report |
 | `LEARNED.md` without header, oversize, or a symlink | plugin injects nothing; generator refuses to overwrite and the launch warns naming the file, then runs without notes (R26) |
 | `LEARNED.md` library or block differs from the proof's robot server `run.json` (or its block from its own `block_sha`) | file removed, launch warning; the prompt runs without notes; a block that does not hash to its header's `block_sha` is never injected by the plugin, before or after the check |
-| The per-launch library freeze fails (library unreadable, profile not reading `CASCADE_ASPIRE_LIBRARY`, write error) | one launch warning; every robot server of the launch and `LEARNED.md` read a new empty directory (notes off); the launch goes on (R26) |
+| The per-launch library freeze fails (library unreadable, profile not reading `CASCADE_ASPIRE_LIBRARY`, write error) | one launch warning; every robot server of the launch and `LEARNED.md` read the empty `$STATE_DIR/aspire-library-off` (notes off; one directory, reused); the launch goes on (R26) |
 | `learning.json` missing or malformed | `/state` has no `learning` key; panel section hidden |
 | arm type unknown or config error in `profile_class` | `real` (no retry, verified-only notes) |
 | refusal while holding, halted, e-stopped, in contact, stuck | no retry slot |

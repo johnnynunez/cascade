@@ -484,6 +484,53 @@ def test_a_grasp_waits_for_slow_closed_jaws_to_open_before_selection(monkeypatch
     assert np.all(r.gates[1].lower >= .99 * UPPER - 2 * OPEN_TRACKING_ENVELOPE_M), r.gates[1].lower
 
 
+#: Newton's measured opening (e2e-newton oc/halt joint_samples): +0.0405
+#: gripper_pos per ~0.07 s wall. The rig's fake clock advances 0.02 s per
+#: read and 0.05 s per poll sleep, so one step per read opens the jaws from
+#: 0.15 in ~1.5 s, as on Newton.
+NEWTON_OPENING = [min(1., .15 + .0405 * (i + 1)) for i in range(22)]
+
+
+@pytest.mark.parametrize("jaws", ["open", "closed"])
+def test_the_opening_before_selection_leaves_the_route_budget_whole(monkeypatch, jaws):
+    """Round 2, I1 (review probe P1): closed empty jaws open on Newton in
+    ~1.5 s, and a kitchen selection with drops needs ~1.6 s of its 3 s route
+    budget (`PLAN_BUDGET_S`). The opening is no selection work: the grasp
+    is held, as with open jaws (RED: "route preflight exceeded its time
+    budget; no route authorized", the Newton symptom this round cures)."""
+    r = rig(monkeypatch, stall_at=.35)
+    clock = runtime_mod.time.monotonic
+    opened_at, selecting_at = [], []
+    if jaws == "closed":
+        r.bridge.gripper_pos = .15
+        newton = r.bridge.gripper
+
+        def gripper(pos, effort):
+            if pos == 1. and r.bridge.gripper_pos < .5:   # the closed jaws open like Newton's
+                r.calls.append(("gripper", pos, effort))
+                opened_at.append(clock())
+                r.bridge.opening = list(NEWTON_OPENING)
+                return
+            return newton(pos, effort)
+        r.bridge.gripper = gripper
+    real = ObservedFingerGate.closing_pose
+
+    def selection_work(self, q):   # the selection's first candidate check costs 1.6 s
+        if not selecting_at:
+            selecting_at.append(clock())
+            runtime_mod.time.sleep(1.6)
+        return real(self, q)
+    monkeypatch.setattr(ObservedFingerGate, "closing_pose", selection_work)
+    res = grasp(r)
+    assert res["held"] == "orange", res
+    if jaws == "closed":
+        # premise: the opening alone takes ~1.5 s, with the selection over the budget
+        from cascade.safety.trajectory import PLAN_BUDGET_S
+        assert selecting_at[0] - opened_at[0] >= 1.4, selecting_at[0] - opened_at[0]
+        assert selecting_at[0] - opened_at[0] + 1.6 > PLAN_BUDGET_S
+        assert np.all(r.gates[1].lower >= UPPER - 2 * OPEN_TRACKING_ENVELOPE_M)   # selection saw them open
+
+
 def test_unknown_jaws_are_left_as_they_are_at_the_grasp_start(monkeypatch):
     r = rig(monkeypatch, stall_at=.35)
     read = r.bridge.state

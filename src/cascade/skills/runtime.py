@@ -4002,6 +4002,21 @@ class SkillRuntime:
             return {"preflight": preflight, "before_stream": before_stream,
                     "feedback_guard": scene_gate.feedback, "_halt_generation": scene_halt_generation,
                     "_trajectory_preflight": trajectory_preflight}
+        state = planning_state()
+        if search is not None:
+            search.check()
+        if (scene_enabled and _next_candidate is None
+                and SkillRuntime._open_closed_jaws_before_selection(
+                    self, frame, fix, scene_halt_generation, state)):
+            # PR-A jaws round, ruling 2: the observed-finger gate models the
+            # MEASURED jaws; closed empty jaws were opened, so selection reads
+            # them again (open jaws: no extra read, no extra command).
+            state = planning_state()
+            if search is not None:
+                search.check()
+        # The route budget starts after that opening (jaws round 2, I1): on
+        # Newton the jaws take ~1.5 s to open from closed, and selection
+        # needs its whole budget after them.
         from ..safety.trajectory import PLAN_BUDGET_S, geometry_guard, vet_segment
         approach_deadline = time.monotonic() + PLAN_BUDGET_S
         # B73 opt-in: forearm/wrist/gripper clearance of the analytic planner's
@@ -4142,18 +4157,6 @@ class SkillRuntime:
                             return f"grasp carry lift unsafe: {reason}"
             return None
 
-        state = planning_state()
-        if search is not None:
-            search.check()
-        if (scene_enabled and _next_candidate is None
-                and SkillRuntime._open_closed_jaws_before_selection(
-                    self, frame, fix, scene_halt_generation, state)):
-            # PR-A jaws round, ruling 2: the observed-finger gate models the
-            # MEASURED jaws; closed empty jaws were opened, so selection reads
-            # them again (open jaws: no extra read, no extra command).
-            state = planning_state()
-            if search is not None:
-                search.check()
         # Seed grasp IK from HOME (elbow-up), not the live pose: seeding from
         # an arbitrary current configuration can converge to an elbow-down IK
         # branch whose approach path dips a link under the table.

@@ -182,7 +182,11 @@ end the object: `remove the safety check of the arm` is refused, A1 fix round 5)
 modifies a safety head noun (`system`, `feature`, `rule`, `check`, `gate`, `interlock`, `limit`, `margin`, `stop`,
 `sensor`, `monitor`, or a plural: `drop the safety system`; `the guard ring` stays plain: A1 fix round 4); and
 `turn`/`switch`/`shut ... off`, `shut ... down` split
-around an object whose head is a guard noun, the particle within 4 words: `turn the clearance gate off`) or
+around an object whose head is a guard noun, the particle within 4 words: `turn the clearance gate off`; a dash
+right after the verb or a determiner does not end the object, nor does one right after the object's head part the
+particle: `Disable the - gate ...`, `Lower the - safety margin ...`, `Turn the clearance gate - off ...` are refused as
+the undashed texts are, also when the renderer's ` - ` forms them from a clean title and advice, while `Lower the
+cup - check the handle first` stays plain; polish round) or
 success-claim advice (`treat ... as a success`, `tell the user
 it is done`, honesty phrasings included). The same lint covers every field rendered to the agent or a visitor
 (preflight R4): the title and the advice, and -- once both are clean -- the text they render together, `<title> -
@@ -334,8 +338,9 @@ with the longest tag, 14 skipped v2 notes, 40 older ones): plain words 4,853 cha
 character a `"` 6,199 characters / 3,000 tokens (7 lines fit the escaped cap); typographic marks only, rendered as
 ASCII, 6,120 / 2,956; `"-` pairs 6,125 / 3,811 (9 lines); **the true worst case is fields of unescaped ASCII
 punctuation pairs (`!-`), about one token per character: 4,853 characters / 4,225 tokens** (10 lines; A3 fix round,
-`: ` separator: 4,843 / 4,225). By construction `learned_notes` stays <= 6000 JSON characters and <= 10 lines (<= ~4.1
-k tokens at one token per character of a 383-character line), and
+`: ` separator: 4,843 / 4,225). By construction `learned_notes` stays <= 6000 JSON characters and <= 10 lines of at
+most 436 characters (`- `, the 383-character note text, ` [`, the longest served tag of 48 characters, `]`; polish
+round): ~4.4 k tokens at one token per character, the measured worst case above being 4,225, and
 `skipped_notes` is at most one count per rule (~30 rules, < 0.7 k characters). Before this round the same library
 reached 24,849 characters / 19,786 tokens (typographic marks: six characters each in JSON). `robot_knowledge` joins `attendee-tools.json` (7 tools) with the description
 "What earlier runs

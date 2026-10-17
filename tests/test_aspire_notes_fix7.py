@@ -171,9 +171,11 @@ def test_the_ascii_map_covers_exactly_the_typography_the_lint_accepts():
 
 
 def test_the_lint_reads_the_rendered_text():
-    # an em dash ends a clause, so "Skip\u2014the safety check" has no object; rendered as
-    # "Skip-the safety check" the guard is the verb's object, and that text is what is served
-    advice = "Skip\u2014the safety check near the lemon."
+    # an em dash after a noun ends the verb's object, so "Lower the cup\u2014clearance ..." has no
+    # guard in it; rendered as "Lower the cup-clearance ..." the guard is in the verb's object,
+    # and that text is what is served (polish round: a dash right after the verb itself, as in
+    # "Skip\u2014the safety check", no longer ends the object, so that field is refused as written)
+    advice = "Lower the cup\u2014clearance near the lemon."
     assert notes.lint_advice(advice, skill=SKILL) == []                                         # premise
     assert notes.lint_advice(notes._ascii(advice), skill=SKILL)
     assert _rules(N("Cube near the lemon", advice)) == {"weaken"}

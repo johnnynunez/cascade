@@ -754,21 +754,33 @@ def _break(gap: str) -> str:
     return "," if "," in gap else ""
 
 
+_DASH_GAP = frozenset(" -\u2013\u2014")
+
+
+def _dash(gap: str) -> bool:
+    """The clause break between two words is a dash and nothing else (" - ", " -- ", an en or
+    em dash with or without spaces): the renderer's own separator, which a verb's object scan
+    reads through right after a determiner or the verb (`_direct_object`)."""
+    return _break(gap) == "." and _DASH_GAP.issuperset(gap)
+
+
 class _View:
     """One reading of a field as lower-case `words`. `cands[i]` are the readings that
     start at word i: the word itself, then the 2-3 words from i joined when only
     spaces or dashes separate them, word i is no contraction tail and the join reads
     as one phrase word (`_whole_word`), each with the number of words it covers.
-    `breaks[i]` is what separates word i from the word before it (`_break`),
-    `live` the positions where some phrase of some family can start (`_heads`) and
-    `by_key` those positions by the first letter of their readings."""
+    `breaks[i]` is what separates word i from the word before it (`_break`), `dashes[i]`
+    whether that break is only a dash (`_dash`), `live` the positions where some phrase
+    of some family can start (`_heads`) and `by_key` those positions by the first letter
+    of their readings."""
 
-    __slots__ = ("breaks", "by_key", "cands", "live", "words")
+    __slots__ = ("breaks", "by_key", "cands", "dashes", "live", "words")
 
     def __init__(self, text: str, spans: list[tuple[str, int, int]]):
         self.words = [word for word, _, _ in spans]
         gaps = [""] + [text[spans[k - 1][2]:spans[k][1]] for k in range(1, len(spans))]
         self.breaks = [_break(gap) for gap in gaps]
+        self.dashes = [_dash(gap) for gap in gaps]
         self.cands = []
         for i, (word, start, _) in enumerate(spans):
             here = [(word, 1)]
@@ -889,12 +901,15 @@ def _direct_object(view: _View, start: int, nouns: _Phrases, head: bool = False,
     of the clause (punctuation, `_CLAUSE_ENDS`); with `head`, only as the HEAD noun of
     its phrase (`_ends_object`), and with `modifier` also as a modifier of a safety head
     noun (`_guarded_head`; then the size runs to that head). "and" or a comma before a
-    determiner lists another object ("the light and the gate")."""
+    determiner lists another object ("the light and the gate"). A dash right after the
+    verb or a determiner does not end the object: no clause ends there, and the renderer
+    joins a title and its advice with " - " ("Disable the" + "gate ..." -> "Disable the -
+    gate ...")."""
     words, breaks, n = view.words, view.breaks, len(view.words)
     j, seen, more = start, 0, _MORE_OBJECTS
     while j < n and seen < _OBJECT_REACH:
         word = words[j]
-        if breaks[j] == ".":
+        if breaks[j] == "." and not (view.dashes[j] and (j == start or words[j - 1] in _DETERMINERS)):
             return None
         if breaks[j] == ",":
             if not (more and word in _DETERMINERS):
@@ -934,7 +949,8 @@ def _verb_object(view: _View, verbs, nouns, head: bool = False, modifier: bool =
 def _split_phrasal(view: _View) -> tuple[str, str] | None:
     """The first ('<verb> ... <particle>', noun) where a split phrasal verb's object has a
     `_GUARDS` head and its particle follows among the next `_PARTICLE_REACH` words, before
-    any punctuation: "turn the clearance gate off", "shut the safety interlock down"."""
+    any punctuation but a dash right after that head: "turn the clearance gate off", "shut
+    the safety interlock down", "turn the clearance gate - off"."""
     nouns = _compiled(_GUARDS)
     for verbs, particle in ((_PHRASAL_OFF, "off"), (_PHRASAL_DOWN, "down")):
         family = _compiled(verbs)
@@ -945,7 +961,7 @@ def _split_phrasal(view: _View) -> tuple[str, str] | None:
                 continue
             end = hit[0] + hit[1]
             for k in range(end, min(end + _PARTICLE_REACH, len(view.words))):
-                if view.breaks[k]:
+                if view.breaks[k] and not (k == end and view.dashes[k]):
                     break
                 if view.words[k] == particle:
                     return f"{' '.join(view.words[i:i + size])} ... {particle}", " ".join(view.words[hit[0]:end])

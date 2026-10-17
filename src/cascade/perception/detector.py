@@ -10,6 +10,7 @@ by `apps.demo._make_detector`.
 from __future__ import annotations
 
 import abc
+import contextlib
 
 import numpy as np
 
@@ -30,6 +31,17 @@ class Detector(abc.ABC):
         """Restrict the vocabulary; `None`/`[]` restores open-world detection."""
 
 
+def foreground(detector):
+    """The detector's foreground-perception scope: a detector whose CLASS
+    defines `foreground` (the brain detector, and `world.LockedDetector`
+    forwarding it) holds off its background work inside it; any other
+    detector gets a no-op scope. Only the class counts: a Mock answers every
+    attribute."""
+    if callable(getattr(type(detector), "foreground", None)):
+        return detector.foreground()
+    return contextlib.nullcontext()
+
+
 def detect_vocabulary(detector, frame: Frame, classes: list[str] | None) -> list[Detection]:
     """One pass over the configured default vocabulary (`detect_classes`;
     None = open world), for the runtime's own looks: describe_scene,
@@ -44,6 +56,19 @@ def detect_vocabulary(detector, frame: Frame, classes: list[str] | None) -> list
     if callable(getattr(type(detector), "detect_vocabulary", None)):
         return detector.detect_vocabulary(frame, classes=classes)
     return detector.detect(frame, classes=classes)
+
+
+def can_reanchor(detector) -> bool:
+    """Two-phase localization is available: the detector's CLASS defines
+    `reanchor` and `reanchor_reference` (the brain detector, and
+    `world.LockedDetector` forwarding them) and, when the class also defines
+    `can_reanchor()`, that says yes (the brain detector: a segmenter is
+    configured). Only the class counts: a Mock answers every attribute."""
+    cls = type(detector)
+    if not (callable(getattr(cls, "reanchor", None)) and callable(getattr(cls, "reanchor_reference", None))):
+        return False
+    check = getattr(cls, "can_reanchor", None)
+    return bool(detector.can_reanchor()) if callable(check) else True
 
 
 def _rule_red(bgr: np.ndarray) -> np.ndarray:

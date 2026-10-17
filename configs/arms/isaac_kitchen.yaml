@@ -4,6 +4,18 @@ overrides:
     # Kitchen captures update about 3 Hz. Idle chat sessions must not each
     # transfer and decode the same three RGB-D captures 15 times per second.
     max_camera_poll_hz: 4.0
+  detector:
+    # Spark sim (Isaac + the brain on one GB10): an inventory measured 25.1 s
+    # (1045 prompt / 365 completion tokens), past the default 20 s, so every
+    # refresh timed out and restarted. The static scene needs no 30 s idle
+    # refresh; a changed scene still refreshes at once.
+    inventory_timeout_s: 45
+    idle_refresh_s: 120
+    # Must stay >= idle_refresh_s + 5: an unchanged scene's entry may age out
+    # only once the watcher's idle refresh is pending (then it is tracked
+    # until that answer lands); with 30 every describe_scene/localization
+    # between 30 and 120 s asked the brain synchronously.
+    max_cache_age_s: 125
   # Named fruit targets use measured color and depth when detector labels vary.
   object_descriptions:
     lemon: yellow object

@@ -653,7 +653,29 @@ def move_relative(rt, direction=None, distance_m=None, amount=None, frame=None, 
     # keys of the pre-frames move_relative result, kept for existing readers
     out["distance_m"] = round(move.distance, 4)
     out["tcp_xyz"] = [round(float(v), 3) for v in out["tcp_after"]]
+    out["next_action"] = _frame_report(move.frame, words, out["as_seen_on_screen"])
     return out
+
+
+#: How each frame's directions read to the person (relative_motion frames).
+_FRAME_WORDS = {
+    "base": "the robot's own directions (frame 'base')",
+    "viewer": "directions as seen on the camera (frame 'viewer')",
+    "tool": "the gripper's own axis (frame 'tool')",
+}
+
+
+def _frame_report(frame: str, words: str, on_screen: str) -> str:
+    """What to tell the person after a relative move: the frame its words
+    used and how the move looks on the screen. Measured on the kitchen run:
+    the robot's 'left' showed as 'right on the screen' and the answer named
+    neither."""
+    text = (f"Tell the user this move used {_FRAME_WORDS.get(frame, f'frame {frame!r}')}: {words}. "
+            f"How it looks on the screen: {on_screen}.")
+    if frame == "base" and not on_screen.startswith("screen mapping unavailable"):
+        text += (" If they meant directions as seen on the screen, offer the same move with "
+                 "frame='viewer'.")
+    return text
 
 
 def undo_move(rt, steps=1) -> dict:

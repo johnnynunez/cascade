@@ -187,24 +187,32 @@ def test_receipt_callback_failure_is_a_channel_failure_not_silent_sampler_death(
 
 
 @pytest.mark.parametrize("supersede", [False, True])
+@pytest.mark.usefixtures("healthy_episode_gc")
 def test_real_socket_timeout_quarantines_even_superseded_reader(tmp_path, frame_endpoint, monkeypatch, supersede):  # noqa: F811
     from cascade.apps.mobile_runtime import build_mobile_runtime
     c, server, profile, _, _, _ = frame_endpoint
-    profile.update(timeout_s=.03, verifier=verifier_limits())
+    # The held state read below ends on the reader's own socket timeout
+    # (timeout_s), well before the checker's read watchdog (read_timeout_s)
+    # could reject it first. Setup and stop deliveries share timeout_s, so it
+    # is not a 30 ms race against this in-process bridge either.
+    limits = verifier_limits()
+    limits["read_timeout_s"] = limits["settle_timeout_s"]
+    profile.update(timeout_s=.2, verifier=limits)
     profile.pop("cameras")
     ticks = SyntheticTicks(c)
     rt, _ = build_mobile_runtime(camera_cfg(profile), tmp_path)
     observer = rt.stop_observers["microduck_isaac"]
-    entered = threading.Event()
+    entered, release = threading.Event(), threading.Event()
     calls, dispatch = [], server.dispatch
     def delay(req):
         if req["op"] == "state":
             calls.append(time.monotonic())
             entered.set()
-            time.sleep(.060)  # actual socket recv timeout, not an injected exception
+            release.wait(10)  # actual socket recv timeout, not an injected exception
         return dispatch(req)
     try:
-        assert rt.reset_stop()["ok"]
+        reset = rt.reset_stop()
+        assert reset["ok"], reset
         monkeypatch.setattr(server, "dispatch", delay)
         first = rt.stop()
         frozen = copy.deepcopy(first)
@@ -231,16 +239,21 @@ def test_real_socket_timeout_quarantines_even_superseded_reader(tmp_path, frame_
             "endpoint": list(server.address), "ack": first, "original": original,
             "proof": proof, "calls": calls}, indent=2))
     finally:
+        release.set()
         rt.close()
         ticks.close()
         server.close()
 
 
 @pytest.mark.parametrize("bad", ["missing", "malformed", "robot_id", "source", "epoch", "generation", "stale", "frozen", "frozen_aged"])
+@pytest.mark.usefixtures("healthy_episode_gc")
 def test_real_invalid_stop_channel_is_unverified_and_stays_quarantined(tmp_path, frame_endpoint, monkeypatch, bad):  # noqa: F811
     from cascade.apps.mobile_runtime import build_mobile_runtime
     c, server, profile, _, _, _ = frame_endpoint
-    profile.update(timeout_s=.03, verifier=verifier_limits())
+    # Every read must DELIVER its corrupted payload: nothing here is held, so a
+    # 30 ms budget only raced setup, stop delivery and reads against this
+    # in-process bridge (a timeout replaced the payload's own rejection reason).
+    profile.update(timeout_s=.2, verifier=verifier_limits())
     profile.pop("cameras")
     ticks = None if bad in ("frozen", "frozen_aged") else SyntheticTicks(c)
     rt, _ = build_mobile_runtime(camera_cfg(profile), tmp_path)
@@ -265,7 +278,8 @@ def test_real_invalid_stop_channel_is_unverified_and_stays_quarantined(tmp_path,
                 value["state"]["producer_age_s"] += .3
         return value
     try:
-        assert rt.reset_stop()["ok"]
+        reset = rt.reset_stop()
+        assert reset["ok"], reset
         monkeypatch.setattr(server, "dispatch", corrupt)
         ack = rt.stop()
         proof = await_stop(rt, ack["receipt_id"])

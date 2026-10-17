@@ -8,6 +8,8 @@ honest 'nothing reachable' instead of a mid-motion abort.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 import numpy as np
 
 from ..types import Grasp, SkillError, make_transform
@@ -48,7 +50,7 @@ def _flip_twin(g: Grasp) -> Grasp:
 
 
 def select_grasp(
-    grasps: list[Grasp],
+    grasps: Iterable[Grasp],
     kin,
     q_current: np.ndarray,
     max_width_m: float = 0.09,
@@ -72,6 +74,8 @@ def select_grasp(
     already ranked them (for example with an outcome-memory prior) must set
     ``preserve_order=True``. Every candidate still passes the same width,
     IK and validation checks; its stored model quality is never rewritten.
+    With ``preserve_order=True`` `grasps` may be a lazy iterable: it is
+    consumed in order and only up to the candidate returned.
 
     A symmetric parallel jaw has TWO wrist poses for every grasp (jaws
     swapped, 180 degrees apart about the approach). The planners emit both

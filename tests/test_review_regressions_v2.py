@@ -128,8 +128,11 @@ def test_execute_survives_ok_false_without_error_key(tmp_path):
         runtime.skill_bare_fail = lambda: {"ok": False}  # no 'error' key
         result = runtime.execute("bare_fail", {})
         # must not raise KeyError, and must not invent an `error`; the only
-        # addition execute() makes is the outcome stamp (ok | failed | stuck)
-        assert result == {"ok": False, "outcome": "failed"}
+        # additions execute() makes are the outcome stamp (ok | failed | stuck)
+        # and the failure instruction every failed result carries
+        assert result == {"ok": False, "outcome": "failed", "next_action": (
+            "This attempt FAILED: the call reported ok=false. Tell the user it failed; "
+            "never report a failed or refuted result as success.")}
         # the real reproducer: sort with nothing graspable
         result = runtime.execute("sort_by_color", {})
         assert "error" in result or result.get("ok"), result

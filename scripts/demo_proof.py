@@ -12,8 +12,10 @@ import math
 import os
 from pathlib import Path
 import runpy
+import string
 import subprocess
 import sys
+import unicodedata
 from urllib.parse import urlsplit
 from urllib.error import HTTPError, URLError
 from urllib.request import ProxyHandler, Request, build_opener
@@ -257,6 +259,31 @@ def validate_reset_trace(path, started: float, sim: str, target: str) -> list[st
     return props
 
 
+def _first_line(text: str) -> str:
+    return next((line for line in text.splitlines() if line.strip()), "")
+
+
+def _edge(ch: str) -> bool:
+    """Whitespace or punctuation, Unicode-aware: NBSP, the ideographic space,
+    curly and angle quotes, an ellipsis, a CJK full stop, and the ASCII
+    marks (`string.punctuation` also holds the symbols * ` ^ ~ | + < = >)."""
+    return ch.isspace() or ch in string.punctuation or unicodedata.category(ch).startswith("P")
+
+
+def brain_said_ok(text: str) -> bool:
+    """The readiness answer: the first non-empty line, stripped of surrounding
+    whitespace and punctuation (Unicode: NBSP, curly quotes, ...) and
+    case-folded, is "ok". Qwen3.8-27B answers "OK\\n.\\n." at random; "not
+    ok", "OKAY", "O.K.", an error or nothing stays NOT READY."""
+    line = _first_line(text)
+    start, end = 0, len(line)
+    while start < end and _edge(line[start]):
+        start += 1
+    while end > start and _edge(line[end - 1]):
+        end -= 1
+    return line[start:end].casefold() == "ok"
+
+
 def validate_envelope(data: dict, required_tool: str | tuple[str, ...] | None = None) -> dict:
     if data.get("status") != "ok":
         raise ProofError("OpenClaw turn did not complete successfully")
@@ -470,8 +497,8 @@ def run_proof(repo, state_dir, sim: str, robot_turn: bool = True, *, spark_case_
         return report
     brain = agent_turn(session, model, "Reply with exactly OK and nothing else. Do not call tools.", evidence / "01-brain.json", 120)
     text = " ".join(p.get("text", "") for p in brain.get("payloads", [])).strip()
-    if text != "OK":
-        raise ProofError(f"brain did not answer exactly OK; see {evidence}")
+    if not brain_said_ok(text):
+        raise ProofError(f"brain did not answer OK (first line {_first_line(text)[:80]!r}); see {evidence}")
     if robot_turn and sim != "none":
         target = "pink cube" if sim == "isaac" else "red cube"
         agent_turn(session, model,

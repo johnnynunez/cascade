@@ -7610,6 +7610,12 @@ class SkillRuntime:
         timeout = open_wait_timeout_s(self.cfg.grasp)
         self._set_gripper(self._grip_open, effort=0.8)
         self._gripper_opens_completed += 1
+        # The open command is the agent's intentional release: it ends the
+        # carry scope, as place_at's release does. The wait below reads the
+        # jaws, and an attachment still active would reject them once the
+        # object left (review N1: a real release reported as a failure). A
+        # refused command raised above and keeps the attachment.
+        self._carry_attachment = None
         if self.held_object:
             self.memory.add("action", f"released {self.held_object!r}")
             self.held_object = None

@@ -227,11 +227,13 @@ B1. Two-phase localization (`runtime.py` `_localize.analyze`, `2258-2274`; same 
    - global: `_scene_diff(_thumbnail(frame0), _thumbnail(frame1))` is measured and LOGGED only (`scene_diff_global`;
      P11): a visitor walking behind the table changes it, the object's box does not. The cache keeps its own
      `scene_change` (6.0) rule;
-   - exposure gain: per-channel (B, G, R) median of frame1/frame0 outside the box grown by 10 % (unclipped pixels);
-     a gain outside 0.7-1.4 (0.0005 slack) is a scene change (lights, not exposure);
+   - exposure gain: per-channel (B, G, R) median of frame1/frame0 outside the box grown by 10 %, over pixels that are
+     neither saturated (>= 250 on either frame) nor dark (< 16 on frame0); a channel with fewer than 256 such pixels keeps
+     gain 1; a gain outside 0.7-1.4 (0.0005 slack) is a scene change (lights, not exposure);
    - local: mean absolute difference of the most-changed colour channel inside `fix0`'s box grown by 10 %, frame1 vs
-     frame0 scaled by that gain and clipped at 255, <= `reanchor_local_diff` (new detector key, default 8.0); a frame0
-     pixel >= 250 is a lower bound of its true value (only a shortfall of frame1 under the prediction counts).
+     frame0 scaled by that gain and clipped at 255, divided by the gain (so the threshold is in frame0 units),
+     <= `reanchor_local_diff` (new detector key, default 8.0); a frame0 pixel >= 250 is a lower bound of its true value
+     (only a shortfall of frame1 under the prediction counts).
 5. Re-anchor: `det1 = detector.reanchor(frame1, fix0.detection)` = SAM box prompt with fix0's box on frame1 (the existing
    track step, `brain_detector.py:590-612`, no brain call). Required: a non-empty mask (opaque, CUDA-safe checks),
    mask bbox IoU with the prompt box >= 0.5.

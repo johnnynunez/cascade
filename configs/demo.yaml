@@ -583,8 +583,9 @@ detector:
   # by 10 %) is divided out; a gain outside 0.7-1.4 is a change of the light,
   # not exposure: a scene change. Then this mean difference of the
   # most-changed colour channel inside that box (colour: an object as bright
-  # as the table moves unseen in grey; a pixel the camera clipped at 255 on
-  # the named image counts only when the fresh one falls below it). The
+  # as the table moves unseen in grey; a pixel at 250 or more on the named
+  # image is only a lower bound, so just the fresh pixel's shortfall under
+  # that gain's prediction counts). The
   # whole-view scene_change above is logged there, never refused on (a
   # visitor behind the table changes it); the cache still uses it.
   reanchor_local_diff: 8.0

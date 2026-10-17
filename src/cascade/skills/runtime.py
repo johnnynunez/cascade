@@ -5019,6 +5019,7 @@ class SkillRuntime:
                                     halt_generation=halt_generation, check=check)
         if why is not None:
             raise SkillError(f"the jaws are closed and did not open before this grasp: {why}")
+        grasp_evidence.phase("planning")   # selection goes on with the opened jaws
         return True
 
     def _open_frac_of(self, pos: float) -> float:

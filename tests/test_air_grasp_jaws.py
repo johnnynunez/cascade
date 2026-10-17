@@ -43,6 +43,7 @@ from test_agent_results_compose import (  # noqa: F401 -- mock_runtime is a fixt
     _seen,
     mock_runtime,
 )
+from test_grasp_evidence import receipt, synthetic_git_metadata  # noqa: F401 -- a fixture
 from test_grasp_evidence import runtime as evidence_runtime
 
 AIR = "air grasp: gripper closed fully, object not held"
@@ -523,6 +524,26 @@ def test_a_stop_while_the_opening_is_vetted_stays_a_stop(monkeypatch, stop):
         grasp(r)
     assert not isinstance(info.value, SkillError)
     assert commands(r.calls) == []
+
+
+def test_the_evidence_receipt_records_the_jaw_phases(monkeypatch, tmp_path, synthetic_git_metadata):  # noqa: F811
+    """Grasp evidence: the opening before selection is its own phase and
+    selection is still recorded under "planning"; the air grasp's reopen is
+    recorded with its outcome before the exit withdrawal."""
+    monkeypatch.setenv("CASCADE_GRASP_EVIDENCE_DIR", str(tmp_path))
+    r = rig(monkeypatch)
+    r.bridge.gripper_pos = .15
+    res = grasp(r)
+    assert res["jaws_reopen"] == "reopened", res
+    events = receipt(tmp_path)["events"]
+    phases = [e["phase"] for e in events]
+    assert "jaws_open" in phases and "jaws_reopen" in phases
+    selection = next(e for e in events if e["kind"] == "selection_input")
+    assert selection["phase"] == "planning"
+    kinds = [e["kind"] for e in events]
+    reopen = kinds.index("jaws_reopen")
+    assert events[reopen]["data"]["outcome"] == "reopened"
+    assert reopen < kinds.index("exit_withdrawal")
 
 
 # ── mapping-only path (mock stack): reopen, withdraw, reset_scene ───────────

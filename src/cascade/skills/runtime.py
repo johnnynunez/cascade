@@ -1705,6 +1705,9 @@ class SkillRuntime:
         if owns_perception_timings:
             self._call_perception_timings = []
         home_return = None
+        # the operator's halt the skill had already met when its view-home
+        # return started (None: any halt there came during the return)
+        halt_before_return = None
         call_moved = False  # this call commanded the arm or gripper (motion scope owner only)
         # Arm motions counted before a grasp entry: its move_home hint needs
         # one counted in this call (None = no counting harness).
@@ -1768,6 +1771,7 @@ class SkillRuntime:
                         if (owns_motion_scope and return_enabled and scope.context["motion_started"]
                                 and name not in {"move_home", "move_to_rest", "reset_scene"}
                                 and not (isinstance(result, dict) and result.get("home_skipped"))):
+                            halt_before_return = self._skill_halt_reason(skill_halt)
                             try:
                                 # Outside the skill's halt scope now: the move
                                 # carries the skill's start generation, so a
@@ -1833,14 +1837,20 @@ class SkillRuntime:
             traceback.print_exc()
         if home_return is not None:
             result["return_home"] = home_return
+            reason = str(home_return.get("error") or home_return.get("reason"))
+            status = home_return["status"]
+            # A halt's own text already starts with "halted: ": say it once.
+            returned = ("return to saved home " + reason if reason.startswith(f"{status}: ")
+                        else f"return to saved home {status}: {reason}")
             if not home_return["ok"] and result.get("ok", False):
                 result["action_ok"] = True
                 result["ok"] = False
-                reason = str(home_return.get("error") or home_return.get("reason"))
-                status = home_return["status"]
-                # A halt's own text already starts with "halted: ": say it once.
-                result["error"] = ("return to saved home " + reason if reason.startswith(f"{status}: ")
-                                   else f"return to saved home {status}: {reason}")
+                result["error"] = returned
+            elif (not result.get("ok", False) and halt_before_return is None
+                  and _home_return_halted(home_return)):
+                # The skill failed, then the operator's halt stopped (or
+                # skipped) its return: the error names that halt too.
+                result["error"] = _with_also(result.get("error"), returned)
         if name in _MOTION_SKILLS:
             # Readiness can fail DURING a motion as well as before it. A
             # trajectory abort latches STOP; handing that failure back to
@@ -2497,11 +2507,11 @@ class SkillRuntime:
 
         The loop holds the skill halt baseline execute() takes for a motion
         skill (`_skill_halt_scope`; inside a skill the outer, older baseline
-        stays): an operator halt from here on refuses every later motion of
-        the loop before its first command, also for a caller outside
-        execute(). Without it, a halt the re-home's skip checks found, or one
-        raised after the re-home or during the re-scan, was cleared by the
-        next motion (merged-tree halt matrix: 75-225 arm commands after it)."""
+        stays), also for a caller outside execute(): after an operator halt
+        every later motion of the loop is refused before its first command,
+        and a halt the re-home's skip checks found, or one raised after the
+        re-home or during the re-scan, raises MotionHalted before the next
+        attempt."""
         with self._skill_halt_scope(self._skill_halt_baselines(self.arm)):
             return self._persistent_grasp_attempts(object, material, budget_s)
 
@@ -5023,7 +5033,8 @@ class SkillRuntime:
         refused before the command, or commanded but not confirmed; a jaw
         fault that is not a SafetyViolation is "refused: jaw command failed:
         <error>", or "refused: jaw state could not be read: <error>" when the
-        gate's read before the command failed and nothing was sent) or
+        gate's read or check of the jaws before the command failed and
+        nothing was sent) or
         "skipped: <why>".
         """
         if getattr(self, "_held_provisional", None) is not None:
@@ -5053,12 +5064,11 @@ class SkillRuntime:
                 return width is not None and width >= wanted - air
 
         grasp_evidence.phase("jaws_reopen")
-        measured = gate is None   # with the gate, the jaws are read before the command
+        measured = gate is None   # with the gate, the jaws are read and checked before the command
         try:
             if gate is not None:
-                state = self.arm.get_state()
+                gate.require_reopening(self.arm.get_state(), check=check)
                 measured = True
-                gate.require_reopening(state, check=check)
             why = self._open_empty_jaws(open_pos, opened, halt_generation=generation, check=check)
         except SafetyViolation as exc:
             if isinstance(exc, MotionHalted):
@@ -5074,7 +5084,7 @@ class SkillRuntime:
             stop = _air_grasp_stop(harness, generation)
             if stop:
                 raise _air_grasp_stop_error(harness, stop) from exc
-            if not measured:   # review N2: the read before the command failed; nothing was sent
+            if not measured:   # the read or the gate's check before the command failed; nothing was sent
                 return f"refused: jaw state could not be read: {exc}"
             return f"refused: jaw command failed: {exc}"
         return "reopened" if why is None else f"refused: {why}"
@@ -6294,9 +6304,12 @@ class SkillRuntime:
                 # Never leave the arm hanging mid-pose over the table after a
                 # failed attempt -- park it (best effort, nothing is held).
                 # Not under a latched e-stop: the operator stopped the arm.
+                park_halt = None
                 if not self._home_policy_enabled() and not self._estopped():
                     try:
                         self.skill_move_home()
+                    except MotionHalted as exc:
+                        park_halt = str(exc)   # the operator's halt stopped the park: named below
                     except (SkillError, SafetyViolation):
                         pass
                 out = {
@@ -6306,6 +6319,8 @@ class SkillRuntime:
                              f"({round(time.monotonic() - t0, 1)}s): {last_err}",
                     "suggestion": "check world_state / camera_snapshot; the object may be unreachable or mis-detected",
                 }
+                if park_halt is not None:
+                    out["error"] = _with_also(out["error"], _halted_text("final park", park_halt))
                 # The robot did everything it can on its own: the budget is
                 # spent, or the stop reason is one no retry cures (never
                 # seen, too wide). That is STUCK -- a request to the human,
@@ -8702,6 +8717,25 @@ def _with_move_home_first(result: dict, source: dict | None = None) -> dict:
     if closed:
         result["air_grasp_jaws_closed"] = True
     return result
+
+
+def _home_return_halted(home_return: dict) -> bool:
+    """The operator's halt stopped a view-home return (status "halted") or
+    its skip checks found one (status "skipped", "motion halted: ...")."""
+    status = home_return.get("status")
+    return status == "halted" or (status == "skipped"
+                                  and str(home_return.get("reason") or "").startswith("motion halted: "))
+
+
+def _halted_text(move: str, halt: str) -> str:
+    """`move` stopped by the operator's halt, whose MotionHalted text is
+    `halt` (a text that starts with "halted: " is said once)."""
+    return f"{move} {halt}" if halt.startswith("halted: ") else f"{move} halted: {halt}"
+
+
+def _with_also(error, also: str) -> str:
+    """A failed result's `error` followed by what also happened."""
+    return f"{error}; {also}" if error else also
 
 
 def _left_in_place(result: dict) -> bool:

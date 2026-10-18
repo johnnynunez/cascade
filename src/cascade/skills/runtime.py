@@ -7275,6 +7275,9 @@ class SkillRuntime:
         try:
             return self._point_at(label, fix, budget)
         except pointing.PlanningTimeout as exc:
+            # an e-stop latched while planning vetoes every vet, so the search
+            # runs long: it is reported as the e-stop, never as the clock
+            _raise_if_estopped(getattr(self.arm, "harness", None))
             raise SkillError(f"cannot point at {label!r}: {exc} (the pose and its route are planned before any "
                              f"command); nothing was moved") from None
 

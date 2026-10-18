@@ -91,7 +91,11 @@ def rig(monkeypatch, tmp_path):
     from cascade.apps import demo
     from cascade.apps.demo import shutdown_runtime
     from cascade.config import load_demo_config
+    from cascade.skills import pointing
 
+    # the suite runs on slower, loaded CI runners: the planning budget's own
+    # tests set it back to the shipped 3 s and drive it with a fake clock
+    monkeypatch.setattr(pointing, "PLAN_BUDGET_S", 30.0)
     built = []
 
     def build(profile, camera="mock_small", prop=None):
@@ -1748,6 +1752,7 @@ def test_planning_past_its_budget_refuses_before_any_command(rig, monkeypatch, p
     from cascade.skills import pointing
 
     r = rig(profile, camera="mock") if profile == "mock" else rig(profile, prop=(*at(0.22, 0.0), 0.035, 0.035))
+    monkeypatch.setattr(pointing, "PLAN_BUDGET_S", 3.0)
     ticks = iter(np.arange(0.0, 1e6, 0.4))
     monkeypatch.setattr(pointing, "_clock", lambda: float(next(ticks)))
 
@@ -2127,6 +2132,31 @@ def _assert_stopped(r, out, kind):
     assert out["ok"] is False and _commands(r) == [] and r.jaws == [], out
     assert "no rise-first waypoint" not in out["error"] and "leaning in" not in out["error"], out
     assert ("e-stop" in out["error"]) if kind == "estop" else ("halt" in out["error"].lower()), out
+
+
+@needs_pin_so101
+def test_an_estop_while_planning_past_the_budget_is_reported_as_the_estop(rig, monkeypatch):
+    """An e-stop latched while planning vetoes every vet, so the search runs
+    long; when the budget then runs out the e-stop is reported, not the clock
+    (a slow CI runner hit exactly this)."""
+    from cascade.skills import pointing
+
+    r = rig("so101_mock", prop=(*at(0.22, 0.0), 0.035, 0.035))
+    monkeypatch.setattr(pointing, "PLAN_BUDGET_S", 3.0)
+    ticks = iter(np.arange(0.0, 1e6, 0.4))
+    monkeypatch.setattr(pointing, "_clock", lambda: float(next(ticks)))
+    real = r.runtime.kin.ik_approach
+
+    def ik_approach(*a, **k):
+        if not r.runtime.arm.harness.estopped:
+            _stop(r.runtime, "estop")
+        return real(*a, **k)
+
+    monkeypatch.setattr(r.runtime.kin, "ik_approach", ik_approach)
+    out = r.runtime.execute("point_at", {"label": "red cube"})
+
+    assert r.runtime.arm.harness.estopped, "the lean-in search never ran"
+    _assert_stopped(r, out, "estop")
 
 
 @needs_pin_so101

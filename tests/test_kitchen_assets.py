@@ -1,13 +1,18 @@
 """Pinned release admission, hostile archives, and scene identity; no GPU needed."""
+from email.message import Message
 import hashlib
+import http.server
 import importlib.util
 import io
 import json
 from pathlib import Path
 import shutil
 import stat
+import threading
 import time
 from types import SimpleNamespace
+import urllib.error
+import urllib.request
 import zipfile
 
 import pytest
@@ -17,6 +22,17 @@ SPEC = importlib.util.spec_from_file_location("kitchen_assets", ROOT / "scripts/
 kitchen = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(kitchen)
 import scene_identity as identity
+
+TOKEN = "ghs_" + "FixtureToken0" * 3
+API = "https://api.github.com/repos/johnnynunez/cascade/releases"
+STORAGE = "https://release-assets.githubusercontent.com/github-production-release-asset/1/fixture?sig=signed"
+
+
+@pytest.fixture(autouse=True)
+def _no_ambient_token(monkeypatch):
+    # A developer's or runner's token must not switch these tests to the API route.
+    for name in ("GH_TOKEN", "GITHUB_TOKEN"):
+        monkeypatch.delenv(name, raising=False)
 
 
 @pytest.fixture
@@ -45,8 +61,9 @@ def source(tmp_path, monkeypatch):
 def test_shipped_sources_are_complete_and_verified():
     assert set(kitchen.kitchen_manifest(ROOT)) == set(identity.SOURCE_FILES)
     assert identity.source_problems(ROOT) == []
-    # CI explicitly installs the public pinned release before scene-dependent
-    # tests; this source test remains usable in an offline source-only clone.
+    # CI explicitly installs the pinned release (through the GitHub API with the
+    # job token) before scene-dependent tests; this source test remains usable
+    # in an offline source-only clone.
     identity.bundle_manifest(ROOT)
 
 
@@ -294,12 +311,223 @@ def test_downloaded_release_is_verified_and_second_run_reuses_it(source, tmp_pat
     def fetch(request, timeout):
         calls.append(request.full_url)
         assert timeout == 30
+        # Without a token the anonymous public URL is fetched with no credential.
+        assert request.get_header("Authorization") is None
         response = io.BytesIO(raw)
         response.geturl = lambda: "https://release-assets.githubusercontent.com/fixture.zip"
         response.headers = {"Content-Length": str(len(raw))}
         return response
     monkeypatch.setattr(kitchen.urllib.request, "urlopen", fetch)
+    monkeypatch.setattr(kitchen.urllib.request, "build_opener",
+                        lambda *a: pytest.fail("API route used without a token"))
     kitchen.prepare_kitchen(repo)
     kitchen.prepare_kitchen(repo)
     assert calls == [identity.BUNDLE_URL]
     assert identity.scene_identity(config) == expected
+
+
+# -- private repository: the GitHub API route --------------------------------
+
+
+def _response(body: bytes, url: str, headers: dict | None = None):
+    response = io.BytesIO(body)
+    response.geturl = lambda: url
+    response.headers = headers or {}
+    return response
+
+
+def _http_error(url: str, code: int, location: str | None = None):
+    headers = Message()
+    if location is not None:
+        headers["Location"] = location
+    return urllib.error.HTTPError(url, code, "fixture", headers, io.BytesIO(b"{}"))
+
+
+class FakeApi:
+    """Stands in for build_opener(...).open: GitHub's release API, recorded."""
+
+    def __init__(self, size, *, location=STORAGE, tags_status=200, assets=None):
+        self.size, self.location, self.tags_status = size, location, tags_status
+        self.assets = assets
+        self.requests = []
+
+    def __call__(self, *handlers):
+        # Only the redirect-refusing opener may carry the token.
+        assert handlers == (kitchen._KeepRedirect,)
+        return self
+
+    def open(self, request, timeout):
+        assert timeout == 30
+        self.requests.append(request)
+        url = request.full_url
+        if url == f"{API}/tags/kitchen-asier-v1":
+            if self.tags_status != 200:
+                raise _http_error(url, self.tags_status)
+            assets = self.assets if self.assets is not None else [
+                {"id": 7, "name": "other.zip", "size": 1},
+                {"id": 600186898, "name": "cocina-asier-v1.zip", "size": self.size}]
+            return _response(json.dumps({"tag_name": "kitchen-asier-v1", "assets": assets}).encode(), url)
+        if url == f"{API}/assets/600186898":
+            raise _http_error(url, 302, self.location)
+        pytest.fail(f"Unexpected API request {url}")
+
+
+class FakeStorage:
+    """Stands in for urllib.request.urlopen: the signed storage host, recorded."""
+
+    def __init__(self, body):
+        self.body, self.requests = body, []
+
+    def __call__(self, request, timeout):
+        assert timeout == 30
+        self.requests.append(request)
+        return _response(self.body, request.full_url, {"Content-Length": str(len(self.body))})
+
+
+def _without_bundle(source, tmp_path):
+    repo, config = source
+    expected = identity.scene_identity(config)
+    raw = (tmp_path / "release.zip").read_bytes()
+    shutil.rmtree(repo / identity.BUNDLE_ROOT)
+    return repo, config, expected, raw
+
+
+def _no_partial_install(repo):
+    assert not (repo / identity.BUNDLE_ROOT).exists()
+    assert not list((repo / identity.BUNDLE_ROOT).parent.glob(".cocina-asier-*"))
+
+
+@pytest.mark.parametrize("variable", ["GH_TOKEN", "GITHUB_TOKEN"])
+def test_token_installs_through_the_api_and_never_sends_it_to_storage(
+        source, tmp_path, monkeypatch, capsys, variable):
+    repo, config, expected, raw = _without_bundle(source, tmp_path)
+    monkeypatch.setenv(variable, TOKEN)
+    api, storage = FakeApi(len(raw)), FakeStorage(raw)
+    monkeypatch.setattr(kitchen.urllib.request, "build_opener", api)
+    monkeypatch.setattr(kitchen.urllib.request, "urlopen", storage)
+    assert kitchen.main(["--repo", str(repo)]) == 0
+    assert [r.full_url for r in api.requests] == [f"{API}/tags/kitchen-asier-v1", f"{API}/assets/600186898"]
+    assert [r.get_header("Authorization") for r in api.requests] == [f"Bearer {TOKEN}"] * 2
+    assert api.requests[1].get_header("Accept") == "application/octet-stream"
+    # The redirect is followed with a fresh request that carries no credential.
+    assert [r.full_url for r in storage.requests] == [STORAGE]
+    assert storage.requests[0].get_header("Authorization") is None
+    assert not any(TOKEN in value for _, value in storage.requests[0].header_items())
+    assert identity.scene_identity(config) == expected
+    # The installed receipt keeps the public URL; no file, log or error holds the token.
+    assert identity.bundle_manifest(repo)["archive"]["url"] == identity.BUNDLE_URL
+    assert not [p for p in repo.rglob("*") if p.is_file() and TOKEN.encode() in p.read_bytes()]
+    output = capsys.readouterr()
+    assert TOKEN not in output.out + output.err
+    assert "authenticated GitHub API" in output.out
+
+
+@pytest.mark.parametrize("fault", ["checksum", "size", "api_size", "missing_asset", "foreign_redirect"])
+def test_token_route_keeps_every_release_check(source, tmp_path, monkeypatch, fault):
+    repo, _, _, raw = _without_bundle(source, tmp_path)
+    monkeypatch.setenv("GH_TOKEN", TOKEN)
+    body = b"X" + raw[1:] if fault == "checksum" else raw + b"X" if fault == "size" else raw
+    api = FakeApi(len(raw) + 1 if fault == "api_size" else len(raw),
+                  location="https://example.invalid/asset" if fault == "foreign_redirect" else STORAGE,
+                  assets=[] if fault == "missing_asset" else None)
+    storage = FakeStorage(body)
+    monkeypatch.setattr(kitchen.urllib.request, "build_opener", api)
+    monkeypatch.setattr(kitchen.urllib.request, "urlopen", storage)
+    with pytest.raises(ValueError, match="checksum|pinned|no single asset|outside GitHub"):
+        kitchen.prepare_kitchen(repo)
+    # Metadata and origin faults stop before any storage request is made.
+    assert len(storage.requests) == (1 if fault in ("checksum", "size") else 0)
+    _no_partial_install(repo)
+
+
+def test_without_a_token_a_private_release_fails_clearly(source, tmp_path, monkeypatch, capsys):
+    repo, _, _, _ = _without_bundle(source, tmp_path)
+    def private(request, timeout):
+        raise _http_error(request.full_url, 404)
+    monkeypatch.setattr(kitchen.urllib.request, "urlopen", private)
+    assert kitchen.main(["--repo", str(repo)]) == 1
+    error = capsys.readouterr().err
+    assert f"HTTP 404 from {identity.BUNDLE_URL}" in error
+    assert "set GH_TOKEN (or GITHUB_TOKEN)" in error and "--archive cocina-asier-v1.zip" in error
+    _no_partial_install(repo)
+
+
+def test_a_refused_token_still_tries_the_public_url(source, tmp_path, monkeypatch, capsys):
+    repo, config, expected, raw = _without_bundle(source, tmp_path)
+    monkeypatch.setenv("GH_TOKEN", TOKEN)
+    api, public = FakeApi(len(raw), tags_status=401), FakeStorage(raw)
+    monkeypatch.setattr(kitchen.urllib.request, "build_opener", api)
+    monkeypatch.setattr(kitchen.urllib.request, "urlopen", public)
+    kitchen.prepare_kitchen(repo)
+    assert [r.full_url for r in public.requests] == [identity.BUNDLE_URL]
+    assert public.requests[0].get_header("Authorization") is None
+    assert identity.scene_identity(config) == expected
+    shutil.rmtree(repo / identity.BUNDLE_ROOT)
+    def private(request, timeout):
+        raise _http_error(request.full_url, 404)
+    monkeypatch.setattr(kitchen.urllib.request, "urlopen", private)
+    assert kitchen.main(["--repo", str(repo)]) == 1
+    error = capsys.readouterr().err
+    assert "GitHub API failed: HTTP 401" in error and "HTTP 404 from" in error
+    assert TOKEN not in error
+
+
+def test_token_is_redacted_from_errors_and_malformed_tokens_are_never_sent(source, tmp_path, monkeypatch, capsys):
+    repo, _, _, _ = _without_bundle(source, tmp_path)
+    monkeypatch.setenv("GH_TOKEN", TOKEN)
+    class Leaky:
+        def open(self, request, timeout):
+            raise urllib.error.URLError(f"proxy refused {request.get_header('Authorization')}")
+    monkeypatch.setattr(kitchen.urllib.request, "build_opener", lambda *a: Leaky())
+    assert kitchen.main(["--repo", str(repo)]) == 1
+    error = capsys.readouterr().err
+    assert TOKEN not in error and "[redacted]" in error
+    malformed = TOKEN + "\nX-Injected: 1"
+    monkeypatch.setenv("GH_TOKEN", malformed)
+    monkeypatch.setattr(kitchen.urllib.request, "build_opener", lambda *a: pytest.fail("Sent a malformed token"))
+    monkeypatch.setattr(kitchen.urllib.request, "urlopen", lambda *a, **k: pytest.fail("Unexpected network"))
+    assert kitchen.main(["--repo", str(repo)]) == 1
+    error = capsys.readouterr().err
+    assert "GH_TOKEN is not a well-formed GitHub token" in error and TOKEN not in error
+    _no_partial_install(repo)
+
+
+def test_real_urllib_never_carries_the_token_across_a_redirect(monkeypatch):
+    """Loopback proof of both guards with the real urllib openers (no GitHub access)."""
+    for name in ("http_proxy", "HTTP_PROXY", "all_proxy", "ALL_PROXY"):
+        monkeypatch.delenv(name, raising=False)
+    seen = []
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            seen.append((self.path, self.headers.get("Authorization")))
+            if self.path == "/asset":
+                self.send_response(302)
+                self.send_header("Location", f"http://127.0.0.1:{self.server.server_port}/storage")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+            else:
+                self.send_response(200)
+                self.send_header("Content-Length", "5")
+                self.end_headers()
+                self.wfile.write(b"bytes")
+        def log_message(self, *args):
+            pass
+    server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        asset = f"http://127.0.0.1:{server.server_port}/asset"
+        with pytest.raises(urllib.error.HTTPError) as refused:
+            kitchen._open_api(kitchen._api_request(asset, TOKEN, "application/octet-stream"))
+        assert refused.value.code == 302 and refused.value.headers["Location"].endswith("/storage")
+        refused.value.close()
+        assert seen == [("/asset", f"Bearer {TOKEN}")]
+        # Even a following opener drops the unredirected Authorization header.
+        with urllib.request.urlopen(kitchen._api_request(asset, TOKEN, "application/octet-stream"),
+                                    timeout=5) as response:
+            assert response.read() == b"bytes"
+        assert seen[1:] == [("/asset", f"Bearer {TOKEN}"), ("/storage", None)]
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)

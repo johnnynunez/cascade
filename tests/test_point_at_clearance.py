@@ -266,14 +266,15 @@ def test_jaws_that_reach_past_the_tcp_raise_the_hover_by_their_reach(rig, monkey
 
 @needs_pin
 def test_the_solved_pose_is_checked_not_the_target(rig, monkeypatch):
-    """IK answers that land 5 cm lower than asked (TCP 0.04 / 0.07 m over a
-    5 cm top) are rejected: the pose that would execute decides, before any
-    command."""
+    """IK answers that land lower than asked (TCP 0.04 m for the 0.09 m rung,
+    0.03 m for the 0.12 m rung, over a 5 cm top) are rejected: the pose that
+    would execute decides, before any command. The refusal names the highest
+    of them."""
     r = rig("mock")
 
     def low(T, q0, real):
         T = np.array(T, dtype=float)
-        T[2, 3] -= 0.05
+        T[2, 3] -= 0.05 if T[2, 3] < 0.1 else 0.09
         return real(T, q0)
 
     asked = _record_ik(monkeypatch, r.runtime, low)
@@ -283,7 +284,7 @@ def test_the_solved_pose_is_checked_not_the_target(rig, monkeypatch):
     _refused_untouched(r, out)
     assert sorted(set(asked)) == [0.09, 0.12], asked      # both rungs tried, every yaw
     assert ("cannot reach a pointing pose above 'red cube' that keeps the closed jaws 0.030 m above "
-            "its top (0.050 m): the best solved pose put them at 0.070 m; nothing was moved") in out["error"], out
+            "its top (0.050 m): the best solved pose put them at 0.040 m; nothing was moved") in out["error"], out
 
 
 @needs_pin

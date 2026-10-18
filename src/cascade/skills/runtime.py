@@ -183,7 +183,8 @@ def _pointing_tool_points(gcfg, axis_order: str) -> np.ndarray:
     approach), the jaws box the harness's tool volume samples. It bounds the
     closed jaws too: the SO-101 box reaches 15 mm past the TCP, the closed
     beak's MuJoCo collision geometry 6.6 mm; the reBot's ends at the TCP (its
-    fingertip plane). A malformed sweep raises SkillError before any motion."""
+    fingertip plane). No sweep: the TCP alone. A malformed sweep raises
+    SkillError before any motion."""
     from .relative_motion import _TOOL_COLUMNS
 
     graspgenx = gcfg.get("graspgenx") or {}

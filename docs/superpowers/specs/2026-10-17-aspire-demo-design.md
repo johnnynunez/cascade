@@ -404,6 +404,7 @@ re-anchor failure (`perception_refusal`) or `PlanningBudgetExceeded` / no feasib
 | same-goal call, slot `used` | refused before any motion: `ok: false`, error "The one simulation retry for <goal> is used", FAILED line; arm command count unchanged |
 | confirmed success of the goal, `reset_scene` ok, or a motion call with another goal | slot(s) cleared |
 | halt / e-stop at any point | no slot opens; an open slot is cleared |
+| halt / e-stop after a refusal, before its retry (pending, or cleared again by Resume / `reset_estop`) | the open slot is `stopped`: the next same-goal call (the repeat R1 allows on the earlier result) is refused before any motion: `ok: false`, error "No retry for <goal>: the operator stopped the arm after the refusal", FAILED line, then "The operator stopped the arm after the refusal: report it and wait for a new order."; no trigger, arm command count unchanged; later calls run as without the ledger (A8 fix, Critical 1) |
 
 **Agent text** (only when a slot opens). The FAILED line stays first and unchanged (#342). The move_home hint stays
 when `arm_left_in_place`. `pick_and_place`'s failure guidance is replaced, on this result only, by:
@@ -440,7 +441,9 @@ and R4 replace or compress existing sentences instead of only adding. Tests: `te
   under the 650 cap). Only the runtime writes the trigger (RETRY_ALLOWED, §4.5): the note lint refuses a note that
   carries R1's or R5's trigger words (rule `rule_trigger`: "simulation only", "one more attempt", "another
   attempt", "second attempt", "end your reply", "end your answer", "exact line", "exactly that line", "exactly
-  this line"), so a served note can never read as the permission or as the reply line (A8).
+  this line"), so a served note can never read as the permission or as the reply line (A8). The runtime's `_with_retry_text`, which every result of
+  `execute()` passes with or without a ledger, withholds R1's trigger words ("(retry wording withheld)") from every
+  result the ledger did not grant, an operator's free-text halt reason included (A8 fix, Important 3).
 - **R2, set objects down** (`open_gripper` description, OpenShell route; RESULTS §4.9, o4): append "To set a
   held object down, use place_at (it lowers the object before opening). open_gripper releases the object where it is,
   in the air if the arm is raised." Added per config by `tool_specs_for_config`, only on a sim-class profile that
@@ -601,8 +604,9 @@ elsewhere. When it runs: Q2.
 3. Real robot unaffected in A1: for `rebot_rs`, `so101`, `fr3`, `piper` and `ros2_generic` (with `make_arm` patched to
    a MockArm), `agent.sim_retry: true` forced -> no ledger; a refused grasp's payload, `robot_knowledge`, the prompt
    block and the result `next_action` are byte-identical to the flag-off payload; served notes are verified-only.
-4. A halt or e-stop ends any retry: no slot opens, an open slot clears, a halt during the retry's home raises
-   MotionHalted and the pick never starts.
+4. A halt or e-stop ends any retry: no slot opens, an open slot clears (a stop between the refusal and the repeat
+   refuses that repeat before any motion: A8 fix), a halt during the retry's home raises MotionHalted and the pick
+   never starts.
 5. The verifier and the nightly job never run beside the live demo (guard, §5.6) and never write the real robot's
    stores; only `aspire_export.py` writes `~/.cascade/aspire/real/`.
 

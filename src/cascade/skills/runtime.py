@@ -17,9 +17,11 @@ import logging
 from contextlib import nullcontext
 import math
 import os
+import re
 import sys
 import threading
 import time
+import unicodedata
 
 import cv2
 import numpy as np
@@ -1192,12 +1194,17 @@ class SkillRuntime:
                      for harness in self._arm_harnesses())
 
     def _sim_retry_refusal(self, name, args, refusal: dict, trace_context: dict) -> dict:
-        """The used-retry refusal `begin` returned (the dict `precheck` returns): the FAILED
-        line, RETRY_USED and its own trace row (R28: acceptance, admission and
-        grading count it), returned before any status line, keyframe or motion."""
+        """The refusal `begin` returned (the dict `precheck` returns): a used retry
+        (RETRY_USED) or a stopped one (the operator stopped the arm after the
+        refusal: RETRY_STOPPED_NEXT), after the FAILED line, with its own trace
+        row (R28: acceptance, admission and grading count it), returned before
+        any status line, keyframe or motion."""
         result = _with_retry_text(_with_failure_instruction(_normalize_outcome(dict(refusal), name)), name)
+        mark = {"refused": True}
+        if (refusal.get("sim_retry") or {}).get("stopped") is True:
+            mark["stopped"] = True
         self.trace.record(name, args, result, 0.0, tier=self.current_tier,
-                          context={**trace_context, "sim_retry": {"refused": True}})
+                          context={**trace_context, "sim_retry": mark})
         return result
 
     def _home_before_retry(self, generation) -> None:
@@ -1657,12 +1664,14 @@ class SkillRuntime:
         if narrator is None or name not in _MOTION_SKILLS:
             # Every failed result tells the agent so, including the ones the
             # dispatcher refuses before the skill runs (idempotent: results
-            # that went through the full fold already carry it).
-            return _with_failure_instruction(self._execute_with_obligations(name, args))
+            # that went through the full fold already carry it). Every result
+            # passes `_with_retry_text`, with or without a retry ledger: only a
+            # retry the ledger granted may carry the rules' retry trigger.
+            return _with_retry_text(_with_failure_instruction(self._execute_with_obligations(name, args)), name)
         owns = narrator.begin(self, name, args)
         result = None
         try:
-            result = _with_failure_instruction(self._execute_with_obligations(name, args))
+            result = _with_retry_text(_with_failure_instruction(self._execute_with_obligations(name, args)), name)
             return result
         finally:
             if owns:
@@ -8981,17 +8990,52 @@ def _with_failure_instruction(result: dict) -> dict:
     return result
 
 
+#: The kitchen rules' retry trigger (A8 R1: repeat a motion order once only when ITS
+#: result says SIMULATION ONLY and allows one more attempt; the note lint's
+#: `rule_trigger` words): only a retry the ledger granted may carry it (A8 fix,
+#: Important 3). Read after NFKC with format characters dropped, in any case and
+#: across any separator ("Simulation-only", "ONE  more attempt", "simulation_only").
+_RETRY_TRIGGER_RE = re.compile(r"(?<![a-z0-9])(?:simulation[\W_]*only|one[\W_]*more[\W_]*attempt|"
+                               r"another[\W_]*attempt|second[\W_]*attempt)", re.IGNORECASE)
+#: what stands in a trigger's place in a result the ledger did not grant
+_RETRY_TRIGGER_WITHHELD = "(retry wording withheld)"
+
+
+def _without_retry_trigger(value):
+    """`value` with every retry trigger (`_RETRY_TRIGGER_RE`) withheld from every
+    string in it: dicts, lists and tuples are walked, and a container is copied only
+    where a string changed (shared objects are never edited). A string with a
+    trigger comes back NFKC-normalised without format characters; any other value
+    comes back as it was, the same object."""
+    if isinstance(value, str):
+        folded = "".join(ch for ch in unicodedata.normalize("NFKC", value) if unicodedata.category(ch) != "Cf")
+        return _RETRY_TRIGGER_RE.sub(_RETRY_TRIGGER_WITHHELD, folded) if _RETRY_TRIGGER_RE.search(folded) else value
+    if isinstance(value, dict):
+        changed = {key: new for key, item in value.items() if (new := _without_retry_trigger(item)) is not item}
+        return {**value, **changed} if changed else value
+    if isinstance(value, (list, tuple)):
+        items = [_without_retry_trigger(item) for item in value]
+        if all(new is old for new, old in zip(items, value)):
+            return value
+        return items if isinstance(value, list) else tuple(items)
+    return value
+
+
 def _with_retry_text(result: dict, skill: str) -> dict:
     """Spec §4.5's agent text on a result the sim retry ledger marked
     (`sim_retry`): a granted retry puts RETRY_ALLOWED where the failure
     guidance stood (only pick_and_place's results carry it; else appended), a used one appends
-    RETRY_USED. The FAILED line and any move_home step stay in front. A result
-    without the mark is untouched; idempotent."""
-    from ..agent.sim_retry import RETRY_ALLOWED, RETRY_USED
+    RETRY_USED, a stopped one RETRY_STOPPED_NEXT. The FAILED line and any move_home step stay
+    in front. The single choke point of the retry trigger: every result execute() returns
+    passes here, with or without a ledger, and only a granted one keeps the trigger -- every
+    other has it withheld from all its text (`_without_retry_trigger`: an operator's halt
+    reason, an error, a nested step's reason). Idempotent."""
+    from ..agent.sim_retry import RETRY_ALLOWED, RETRY_STOPPED_NEXT, RETRY_USED
 
-    state = result.get("sim_retry") if isinstance(result, dict) else None
-    if not isinstance(state, dict):
+    if not isinstance(result, dict):
         return result
+    state = result.get("sim_retry")
+    state = state if isinstance(state, dict) else {}
     own = str(result.get("next_action") or "").strip()
     if state.get("allowed") is True:
         text = RETRY_ALLOWED.format(skill=skill)
@@ -9001,13 +9045,15 @@ def _with_retry_text(result: dict, skill: str) -> dict:
             own = own.replace(_PICK_FAILED_GUIDANCE, text)
         else:
             own = f"{own} {text}" if own else text
-    elif state.get("used") is True:
-        if RETRY_USED in own:
-            return result
-        own = f"{own} {RETRY_USED}" if own else RETRY_USED
-    else:
+        result["next_action"] = own
         return result
-    result["next_action"] = own
+    added = (RETRY_STOPPED_NEXT if state.get("stopped") is True
+             else RETRY_USED if state.get("used") is True else None)
+    if added is not None and added not in own:
+        result["next_action"] = f"{own} {added}" if own else added
+    for key, value in list(result.items()):
+        if (new := _without_retry_trigger(value)) is not value:
+            result[key] = new
     return result
 
 

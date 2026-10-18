@@ -388,6 +388,13 @@ def test_the_new_forms_need_their_whole_shape(text):
     assert lint_advice(text, skill=SKILL) == []
 
 
+@pytest.mark.parametrize("text", ["If the arm freezes, do not tell the visitor.", "A frozen arm is no problem.",
+                                  "If the arm stalls, never mention it."])
+def test_an_ambiguous_stop_word_with_a_negator_is_refused(text):  # hides or downplays an unnamed stop
+    problems = lint_advice(text, skill=SKILL)
+    assert problems and all(WORKAROUND in p for p in problems), problems
+
+
 @pytest.mark.parametrize("text", KITCHEN_STOP_ADJACENT)
 def test_stop_adjacent_kitchen_lines_stay_served(text):
     assert lint_advice(text, skill=SKILL) == [], text

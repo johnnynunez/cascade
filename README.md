@@ -87,14 +87,9 @@ resolved before five-object acceptance and the same-version restart. See [curren
 **Newton parity.** Installed Spark defaults to CUDA PhysX. Newton remains
 explicit, with separate engine/asset validation.
 
-**Default brain: Nemotron 3.5 Bolt.** NVIDIA Nemotron 3.5 Bolt 74B-A9B 24GB
-(`scripts/serve_nemotron_bolt_vllm.sh`, served id `nemotron-3.5-bolt`) is the
-agent and perception brain by default; Qwen3.8-27B + DFlash2 stays selectable
-with `--brain qwen` (`scripts/serve_qwen_vllm.sh`). Measurements and limits:
-[Bolt evidence](docs/evidence/brain-nemotron-bolt-2026-10-18/REPORT.md).
-
 **Cosmos 3 Edge.** Adoption follows when native tool calling through OpenClaw
-passes attendee evaluation.
+passes attendee evaluation. Until then, Nemotron 3.5 Bolt (Qwen with
+`--brain qwen`) remains the event path.
 
 Optional **ovrtx** RGBD now runs on x86 and ARM with separate rendering evidence;
 it is not included in the historical `477c88f` runtime baseline. Automatic

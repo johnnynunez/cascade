@@ -5,7 +5,8 @@
     trace window. Require the same goal, resolved arm and pre-call possession;
     explicit reset/task-end rows stop matching. Unknown context is rejected.
     An operator halt is never that failed call: it is not how a primitive
-    broke, so a retry after it teaches nothing.
+    broke, so a retry after it teaches nothing. Nor is a call the sim retry
+    ledger refused before any motion (nothing ran).
 
 ``distil(diagnosis, library)`` / ``harvest(runs_dir, library)``
     Recheck eligibility and persist the error, context, argument delta and
@@ -37,7 +38,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ..memory.envelope import HALT_SIGNATURE, failure_signature
+from ..memory.envelope import HALT_SIGNATURE, failure_signature, refused_before_motion
 from .effects import CONFIRMED, POSTCONDITIONS
 
 #: A repair is only credited when the same primitive later succeeded within
@@ -194,9 +195,12 @@ def diagnose(run_dir: str | Path) -> Diagnosis | None:
     # failure when no eligible retry was recorded. An operator halt is never
     # that failure (a retry after it repaired nothing), so a real failure
     # earlier in the run can still be learned; a run whose only failures
-    # are halts reports its first halt.
+    # are halts reports its first halt. Nor is a call the sim retry ledger
+    # refused before any motion (`refused_before_motion`: nothing ran; a
+    # stopped one is a halt's or an e-stop's echo).
     breakages = [(i, r) for i, r in failures
-                 if failure_signature(r.get("result") or {}) != HALT_SIGNATURE]
+                 if failure_signature(r.get("result") or {}) != HALT_SIGNATURE
+                 and not refused_before_motion(r.get("context"))]
     chosen = None
     for idx, rec in breakages:
         skill = rec.get("skill", "")

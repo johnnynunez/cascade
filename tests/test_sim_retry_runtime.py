@@ -890,6 +890,41 @@ def test_a_stop_between_the_grant_and_the_repeat_refuses_it_before_motion(sim, m
     assert "sim_retry" not in fresh and "SIMULATION ONLY" not in json.dumps(fresh, default=str)
 
 
+@pytest.mark.parametrize("skill", SKILLS)
+def test_the_ledgers_refusals_are_no_outcome_live_or_replayed(sim, tmp_path, skill):
+    """Main's halt filing (#366/#377) x the ledger: the real trace of refused -> halt
+    withdrawn -> two stopped refusals -> reset_scene. The live envelope records no
+    ledger refusal (execute() returns it first); the envelope replayed from the same
+    trace equals it for this skill (wins, losses, failures, halts), and ASPIRE's
+    diagnosis credits nothing to a ledger refusal."""
+    from cascade.agent.aspire import diagnose
+    from cascade.memory.envelope import OperatingEnvelope
+
+    runtime, arm, gate = sim(refuse=3)
+    rows0 = len(_rows(runtime))
+    first = runtime.execute(skill, ARGS[skill])
+    assert first["sim_retry"]["allowed"] is True
+    _stop(runtime.arm.harness, "halt withdrawn")
+    for _ in range(2):
+        _assert_refused_after_the_stop(runtime.execute(skill, ARGS[skill]), skill)
+    assert runtime.execute("reset_scene", {})["ok"] is True
+    rows = _rows(runtime, rows0)
+    marks = [(r["context"] or {}).get("sim_retry") for r in rows if r["skill"] == skill]
+    assert marks[1:] == [{"refused": True, "stopped": True}] * 2, marks
+    live = runtime.envelope._skills[skill].to_json()
+    run = tmp_path / "replay"
+    run.mkdir()
+    (run / "trace.jsonl").write_text("\n".join(json.dumps(r, default=str) for r in rows))
+    replayed = OperatingEnvelope(tmp_path / "replayed.json")
+    replayed.ingest_trace(run / "trace.jsonl")
+    again = replayed._skills[skill].to_json()
+    assert [(s["wins"], s["losses"], s["failures"], s["halts"]) for s in (live, again)] == [
+        (0, 1, live["failures"], 0)] * 2, (live, again)
+    (run / "summary.txt").write_text("task: pick the red cube\nsuccess: false")
+    diag = diagnose(run)
+    assert diag.n_failures == 3 and diag.error == first["error"] and not diag.teachable
+
+
 @pytest.mark.parametrize("stop", ["halt", "halt withdrawn", "e-stop", "e-stop reset", "none"])
 @pytest.mark.parametrize("skill", SKILLS)
 def test_the_review_seam_probe_sends_no_command_after_a_stop(monkeypatch, tmp_path, skill, stop):

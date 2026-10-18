@@ -112,7 +112,9 @@ evidence that a note causes success.
    visitor asks for that reset. A hold or a pending episode spends it: the next call runs
    as without the ledger, with no automatic home. Only a granted retry's result carries the
    "SIMULATION ONLY ... one more attempt" wording; every other result has it withheld, an
-   operator's halt reason included.
+   operator's halt reason included. A call the ledger refused ran nothing: like an operator
+   halt (`safety:halt`), it is no loss in the operating envelope (live or replayed from the
+   trace) and never the failure ASPIRE credits a retry to (`refused_before_motion`).
 5. **Off:** `CASCADE_SIM_RETRY=0`. Code: `agent/sim_retry.py` (ledger), `SkillRuntime._execute_skill`
    (wiring); tests: `tests/test_sim_retry_ledger.py tests/test_sim_retry_runtime.py`. `run.json`'s
    `sim_retry` is written once at build: if the ledger later switches itself off after an internal

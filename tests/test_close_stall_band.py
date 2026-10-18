@@ -53,12 +53,40 @@ def _profile(name):
     return load_demo_config(camera="mock", arm=name, llm="mock")
 
 
+#: The runtime's own "reached the stage target" tolerance (`_wait_gripper_closed`).
+_REACH = 0.01
+
+
+def _stage1_stopped_reading(trace, target):
+    """What a replay read past the end of the stage-1 recording returns, or
+    None when the recording cannot say (the replay then raises).
+
+    Stage 1 is recorded up to the live stage-2 command, and stage 2's rows at
+    t <= 0 are the readings up to that command; the replay's own reads can
+    land later. The jaws are known there only if they had stopped by the
+    command: at the stage target (the runtime's reach tolerance) or stalled
+    (under 0.001 drift over the last 0.5 s of stage 1). Holding a still-moving
+    jaw at its last reading would show a stall the recording never showed."""
+    stage1 = trace["stage1"]
+    at_command = [w for t, w in trace["stage2"] if t <= 0.0] or [stage1[-1][1]]
+    reading = at_command[-1]
+    if reading <= target + _REACH:
+        return reading
+    end = stage1[-1][0]
+    tail = [w for t, w in stage1 if t >= end - 0.5]
+    if stage1[0][0] <= end - 0.5 and max(tail) - min(tail) < 0.001:
+        return reading
+    return None
+
+
 def _replay(monkeypatch, trace, arm_cfg, grasp_cfg):
     """`_close_two_stage` against one recorded close: each read returns the
     newest bridge sample at the fake clock, measured from the stage command
-    the runtime just sent. Returns (outcome, seconds from the stage-2 command
-    to the end of the wait, width at the last read, width at the stage-2
-    command)."""
+    the runtime just sent. A read past the recording raises, except in
+    stage 1 where the recording shows the jaws stopped
+    (`_stage1_stopped_reading`). Returns (outcome, seconds from the stage-2
+    command to the end of the wait, width at the last read, width at the
+    stage-2 command)."""
     clock = [0.0]
     monkeypatch.setattr("cascade.skills.runtime.time.monotonic", lambda: clock[0])
     monkeypatch.setattr("cascade.skills.runtime.time.sleep", lambda dt: clock.__setitem__(0, clock[0] + dt))
@@ -75,8 +103,16 @@ def _replay(monkeypatch, trace, arm_cfg, grasp_cfg):
         stage = len(commands)
         t = clock[0] - commands[-1][0]
         series = trace["stage1"] if stage == 1 else trace["stage2"]
-        if stage == 2 and t > series[-1][0]:
-            raise AssertionError(f"trial {trace['trial']}: replay read past the recording ({t:.2f} s)")
+        if t > series[-1][0]:
+            if stage == 2:
+                raise AssertionError(f"trial {trace['trial']}: replay read past the recording ({t:.2f} s)")
+            # open 1.0, closed 0.0: the commanded position is the target open fraction
+            held = _stage1_stopped_reading(trace, commands[-1][1])
+            if held is None:
+                raise AssertionError(f"trial {trace['trial']}: replay read past the stage-1 recording "
+                                     f"({t:.2f} s) while the jaws were still moving")
+            reads.append((stage, held))
+            return held
         w = series[0][1]
         for ts, ws in series:
             if ts > t:
@@ -148,17 +184,76 @@ def test_the_slowest_free_closing_ramp_is_no_stall_at_the_isaac_band(monkeypatch
     assert at_stage2 == pytest.approx(0.5) and width == pytest.approx(0.15)
 
 
+@pytest.mark.parametrize("rate_hz", [2.5, 3.0, 3.5, 5.0, 14.0])
+def test_the_widest_band_the_cap_admits_never_reads_free_closing_as_stopped(monkeypatch, rate_hz):
+    """The cap sits below the free-closing step: at the widest band the build
+    accepts, every free-closing step (0.028 open fraction per bridge
+    iteration, the slowest measured) leaves the band, so the jaws run to the
+    target at any loop rate above 2 it/s. (Below 2 it/s no step lands in a
+    0.5 s window and every band reads a stop, on main too.) A band of 0.028
+    or more would hold one step and read free closing as stopped."""
+    from cascade.skills.runtime import CLOSE_STALL_BAND_MAX
+
+    widest = math.nextafter(CLOSE_STALL_BAND_MAX, 0.0)
+    arm = {"type": "isaac", "gripper": {"close_stall_band": widest}}
+    step, t_iter = 0.028, 1.0 / rate_hz
+
+    def series(start, goal, n=400):
+        return [[k * t_iter, max(goal, start - step * k)] for k in range(n)]
+
+    trace = {"trial": f"ramp@{rate_hz}", "stage1": series(1.0, 0.5),
+             "stage2": [[-0.01, 0.5]] + series(0.5, 0.15)}
+    outcome, _, width, at_stage2 = _replay(monkeypatch, trace, arm, _kitchen().grasp)
+    assert outcome == "settled"
+    assert at_stage2 == pytest.approx(0.5) and width == pytest.approx(0.15)
+
+
 def test_the_measured_creep_settles_at_the_isaac_band_and_not_at_the_default(monkeypatch):
     """The squaring creep: 0.004 per 0.5 s at 0.45 open (synthetic, the
     measured rate)."""
     def trace():
-        creep = [[k * 0.0714, 0.45 - 0.004 * k * 0.0714 / 0.5] for k in range(0, 200)]
+        creep = [[k * 0.0714, 0.45 - 0.004 * k * 0.0714 / 0.5] for k in range(1, 200)]
         return {"trial": "creep", "stage1": [[0.0, 0.5]], "stage2": [[-0.01, 0.5]] + creep}
 
     kitchen = _kitchen()
     outcome, settle_s, width, _ = _replay(monkeypatch, trace(), kitchen.arm, kitchen.grasp)
     assert outcome == "settled" and settle_s <= 1.4 and width == pytest.approx(0.445, abs=0.005)
     assert _replay(monkeypatch, trace(), _profile("mock").arm, kitchen.grasp)[0] == "refused"
+
+
+def test_the_fixture_rows_are_what_its_description_says():
+    """Each stage-2 series starts where its stage-1 series ends (its rows at
+    t <= 0 are readings up to the stage-2 command) and ends about 2 s after
+    the live rule settled or 9 s after the command, whichever came first."""
+    fixture = json.loads(_FIXTURE.read_text())
+    short = []
+    for trace in fixture["trials"]:
+        stage1, stage2 = trace["stage1"], trace["stage2"]
+        assert stage2[0][0] <= 0.0 and stage2[0][1] == stage1[-1][1], trace["trial"]
+        end, settled = stage2[-1][0], trace["live_stage2"]["cmd_to_done_s"]
+        assert end <= 9.0, trace["trial"]
+        if end < 8.9:
+            short.append(end)
+            assert 1.9 <= end - settled <= 2.2, trace["trial"]
+        else:
+            assert settled + 1.9 >= 8.9, trace["trial"]
+    assert (len(short), min(short), max(short)) == (14, 2.978, 6.231)
+    assert "14 of 20" in fixture["rows"] and "2.98-6.23 s" in fixture["rows"]
+
+
+@pytest.mark.parametrize("stage1", [
+    [[k * 0.07, 1.0 - 0.03 * k] for k in range(12)],  # still closing at 0.67 open
+    [[0.0, 0.7], [0.2, 0.7]],  # still, but for less than the 0.5 s a stall needs
+], ids=["moving", "too-short"])
+def test_the_replay_never_holds_a_moving_jaw_past_the_stage1_recording(monkeypatch, stage1):
+    """The replay itself: a stage-1 recording that ends short of the target
+    without showing the jaws stopped is not continued with its last reading,
+    which would read as a stall the recording never showed."""
+    rest = [[k * 0.07, max(0.15, stage1[-1][1] - 0.03 * k)] for k in range(1, 400)]
+    trace = {"trial": "short", "stage1": stage1, "stage2": [[-0.01, stage1[-1][1]]] + rest}
+    cfg = _kitchen()
+    with pytest.raises(AssertionError, match="past the stage-1 recording"):
+        _replay(monkeypatch, trace, cfg.arm, cfg.grasp)
 
 
 # ── which profiles carry the band ──────────────────────────────────────────
@@ -191,7 +286,9 @@ def test_real_and_mock_arms_keep_mains_band(name):
 
 # ── a bad value fails closed ───────────────────────────────────────────────
 
-_BAD = [0, 0.0, -0.01, 0.05, 0.5, 1, float("nan"), float("inf"), "wide", True]
+#: 0.02-0.049 passed main's 0.05 cap; a band that wide reads Newton's free
+#: closing (0.028 per bridge iteration) as stopped at 2-3.5 it/s.
+_BAD = [0, 0.0, -0.01, 0.02, 0.028, 0.049, 0.05, 0.5, 1, float("nan"), float("inf"), "wide", True]
 
 
 @pytest.mark.parametrize("bad", _BAD)
@@ -231,7 +328,7 @@ def test_a_config_without_an_arms_list_still_checks_its_arm(monkeypatch, tmp_pat
         demo.build_runtime(cfg, tmp_path / "run", lazy_arm=False)
 
 
-@pytest.mark.parametrize("good", [0.001, 0.002, 0.01, 0.049])
+@pytest.mark.parametrize("good", [0.001, 0.002, 0.01, 0.0199])
 def test_a_band_inside_the_limits_is_taken_as_set(good):
     from cascade.skills.runtime import close_stall_band
 

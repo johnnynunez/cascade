@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import * as core from '../core.mjs';
 import {parseCameraURL, cameraNames, MJPEGParser, freshness} from '../core.mjs';
 test('base URL and actual stream route keep explicit port and proxy prefix',()=>{
  assert.deepEqual(parseCameraURL(' http://matrix:8765/ '),{url:'http://matrix:8765',base:'http://matrix:8765',camera:'',permission:'http://matrix/*'});
@@ -33,4 +34,25 @@ test('freshness requires decoded image and advancing server camera counter',()=>
  assert.equal(freshness(recent),'live');
  assert.equal(freshness({...recent,lastAdvance:1,hasAdvanced:false}),'stale');
  for(const delta of [{lastFrame:1},{lastState:1},{lastAdvance:1},{error:true}])assert.equal(freshness({...recent,...delta}),'stale');
+});
+// The Spark camera viewer (scripts/spark_cameras.py) writes each part like this.
+const sparkPart=age=>new Uint8Array([...new TextEncoder().encode('--frame\r\nContent-Type: image/jpeg\r\nContent-Length: 6'
+ +(age===undefined?'':`\r\nX-Frame-Age: ${age}`)+'\r\n\r\n'),...jpeg,13,10]);
+test('MJPEG parser reads the X-Frame-Age of the last frame it returns',()=>{
+ const parser=new MJPEGParser();
+ assert.equal(parser.age,null);
+ assert.equal(parser.push(sparkPart('2.40')).length,1);assert.equal(parser.age,2.4);
+ assert.equal(parser.push(new Uint8Array([...sparkPart('0.00'),...sparkPart('3.51')])).length,2);assert.equal(parser.age,3.51);
+ assert.equal(parser.push(sparkPart()).length,1);assert.equal(parser.age,null,'a part without the header has no age');
+ const bytes=new MJPEGParser(),ages=[];
+ for(const b of [...sparkPart('1.50'),...sparkPart('0.25')])if(bytes.push(new Uint8Array([b])).length)ages.push(bytes.age);
+ assert.deepEqual(ages,[1.5,0.25]);
+ for(const bad of ['-1','abc','1e9','']){const p=new MJPEGParser();p.push(sparkPart(bad));assert.equal(p.age,null,bad);}
+});
+test('a frame older than 1 s is labelled with its age, a fresher one is not',()=>{
+ assert.equal(typeof core.frameAgeNote,'function');
+ for(const age of [null,undefined,NaN,0,0.99,1,'2.5'])assert.equal(core.frameAgeNote(age),'',String(age));
+ assert.equal(core.frameAgeNote(1.01),'Last frame · 1 s old');
+ assert.equal(core.frameAgeNote(2.4),'Last frame · 2 s old');
+ assert.equal(core.frameAgeNote(4.99),'Last frame · 4 s old');
 });

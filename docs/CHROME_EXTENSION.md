@@ -20,6 +20,13 @@ Click the image (or Tab to it and press **Enter** / **Space**) to enlarge; click
 **Escape** to return. In the side panel it opens a larger window (closing it returns the
 camera); in **Show in chat** it expands in the tab. The stream keeps running across sizes.
 
+The badge says **Live** while the camera advances. The Spark camera server
+(`scripts/spark_cameras.py`) keeps serving its last image for up to 5 s when the simulator skips
+frames and marks each image with its `X-Frame-Age`; once that age passes 1 s the badge reads
+**Last frame · N s old** instead, and **Live** returns with the next fresh image. Other servers
+send no age, so their badge is unchanged; the visitor proxy (`deploy/brev/visitor.py`) does not
+forward the header, so visitors see no change.
+
 ## Discovery
 
 1. The page may advertise its status endpoint with

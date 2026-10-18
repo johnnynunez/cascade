@@ -4,9 +4,10 @@ open across short bridge gaps.
 On Newton the bridge's `frame` op refuses a camera for ~0.3 s (p90 0.65-0.8 s)
 whenever its 0.5 s fallback capture lands off the render rhythm. The surface
 raised there, which closed the MJPEG stream; the extension then backed off 2,
-4, 8 s and showed "Not updating" for 20.7 % of the samples (newton-diag Q2).
+4, 8 s and showed "Not updating" for each short gap as a 4-7 s outage.
 Now a refused read serves the last good image for up to 5 s after it last
-advanced (the extension's own "Not updating" threshold), marked with its age;
+advanced (the extension's own "Not updating" threshold), marked with its age
+(seconds since this viewer first saw the image, not since capture);
 past that the surface reports the camera as before. Only this viewer holds:
 the bridge and every perception reader of it are unchanged, so a missing frame
 stays missing for perception's scene-change logic.
@@ -348,13 +349,43 @@ def test_state_and_snapshot_carry_the_age_during_a_hold(bridge):
 
 # ── perception never reads this surface ────────────────────────────────────
 
+#: The viewer surface, by name, port or route, and the visitor proxy that
+#: forwards its held frames (8092 / 8093). Routes are matched with the
+#: viewer's camera names: the rig's own live view serves /snapshot/<name>.jpg.
+_VIEWER_SURFACE = re.compile(r"spark_cameras|\b809[123]\b|/(stream|snapshot)/(worktop|kitchen|side)")
+
+
+@pytest.mark.parametrize("text", [
+    "import spark_cameras",
+    'urlopen("http://127.0.0.1:8091/state")',
+    'f"/stream/{x}" if x else "/stream/worktop"',
+    # the visitor proxy (deploy/brev/visitor.py) forwards held frames on 8092 / 8093
+    'urlopen("http://127.0.0.1:8092/api/status")',
+    'HTTPConnection("127.0.0.1", 8093)',
+    'urlopen(origin + "/snapshot/kitchen.jpg")',
+])
+def test_the_pin_catches_every_way_to_the_viewer_surface(text):
+    assert _VIEWER_SURFACE.search(text), text
+
+
+@pytest.mark.parametrize("text", [
+    # the rig's own live view (apps/stream_server.py) serves /snapshot/<name>.jpg itself
+    'if path.startswith("/snapshot/"):',
+    "/snapshot/nvblox_map.jpg",
+    "http://127.0.0.1:8090/state",
+    "port 18092, frame 80921",
+])
+def test_the_pin_leaves_the_rigs_own_live_view_alone(text):
+    assert not _VIEWER_SURFACE.search(text), text
+
 
 def test_no_perception_or_brain_reader_uses_the_viewer_surface():
     """The hold lives in the viewer only. The runtime (perception, brain,
     skills) reads frames from the bridge itself, so a refused frame still
-    reaches it as missing; nothing under src/ talks to this surface or its
-    port, and the only in-repo user is the launcher, as a process."""
-    pattern = re.compile(r"spark_cameras|\b8091\b|/stream/(worktop|kitchen|side)")
+    reaches it as missing; nothing under src/ talks to this surface, its
+    port or the visitor proxy that forwards it, and the only in-repo user is
+    the launcher, as a process."""
+    pattern = _VIEWER_SURFACE
     offenders = [str(p.relative_to(ROOT)) for p in sorted((ROOT / "src").rglob("*.py"))
                  if pattern.search(p.read_text(encoding="utf-8"))]
     assert offenders == []

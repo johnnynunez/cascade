@@ -613,7 +613,9 @@ def test_gates_are_identical_with_the_retry_on_and_off():
   `ledger.clear("reset_scene")`. In `skill_grasp_object`: every planned batch passes `_OtherThanRefused` (the state's
   `exclude`); a batch it empties falls through to the next feasibility batch, and only when no batch kept a grasp
   does the search raise `SkillError("no different grasp candidate: every planned grasp repeats the refused one")`,
-  never recorded as a planning failure in grasp memory (A7 fix 1). The `_observed_selection_on_failure` wrapper stores
+  never recorded as a planning failure in grasp memory (A7 fix 1); a search that ends on a batch the exclusion
+  emptied after a batch the vet refused re-raises that last vetted batch's `NoExecutableGrasp` (its reason and
+  grasps reach grasp memory; A7 re-review Minor 1). The `_observed_selection_on_failure` wrapper stores
   `selection.refused_grasps()` on the call's state.
 - [ ] **Step 4: Run** the file + `tests/test_agent_results_compose.py tests/test_agent_honest_results.py
   tests/test_observed_neighbour_selection.py tests/test_reset_scene.py tests/test_persistence_leftovers.py` with

@@ -504,16 +504,20 @@ class _OtherThanRefused:
     A batch the exclusion empties is an empty batch: the feasibility search
     goes on to its next batch (A7 review Minor 1). `only_repeats`: a batch was
     emptied and none kept a grasp, so the plan is "no different grasp
-    candidate", not a planning failure of the object. Nothing excluded: every
-    batch as planned, `only_repeats` never true."""
+    candidate", not a planning failure of the object. `last_emptied`: the
+    latest batch was one the exclusion emptied (a search that ends on it ends
+    with the last vetted batch's refusal; A7 re-review Minor 1). Nothing
+    excluded: every batch as planned, `only_repeats` and `last_emptied` never
+    true."""
 
     def __init__(self, excluded):
         self.excluded = tuple(excluded)
-        self.emptied = self.kept = False
+        self.emptied = self.kept = self.last_emptied = False
 
     def __call__(self, grasps):
         kept = _without_refused(grasps, self.excluded)
-        self.emptied = self.emptied or (bool(grasps) and not kept)
+        self.last_emptied = bool(grasps) and not kept
+        self.emptied = self.emptied or self.last_emptied
         self.kept = self.kept or bool(kept)
         return kept
 
@@ -4546,6 +4550,7 @@ class SkillRuntime:
         # hover is a ladder (map hover, today's hover): never executed lower
         # than today's. See select_grasp(pregrasp_min_z=...) and _pregrasp_min_z.
         pregrasp_min_z = _pregrasp_min_z(gcfg, harness, fix)
+        vetted = None  # (refusal, grasps) of the latest batch the selector vetted
         try:
             for batch in range(1 if search is None else search.max_batches):
                 if batch:
@@ -4592,7 +4597,16 @@ class SkillRuntime:
                         raise
                     search.check()
                     grasp_evidence.event("planning_batch_rejected", batch=batch + 1, reason=str(exc))
+                    if grasps:
+                        vetted = exc, grasps
                     if batch + 1 == search.max_batches:
+                        if others.last_emptied and vetted is not None:
+                            # THE sim retry's last batch held only repeats of
+                            # its refused attempt: the search ends with the
+                            # last vetted batch's refusal, reason and grasps
+                            # (grasp memory records the vet's own bucket).
+                            exc, grasps = vetted
+                            raise exc
                         raise
                 finally:
                     if selection is not None:

@@ -446,16 +446,23 @@ def _turned(grasp, deg):
     return out
 
 
-#: per GraspGen-X feasibility batch (3 on the kitchen GPU profile): "copies" = the refused
-#: grasp and a near copy, "new" = a different grasp, "copies+new" = a copy first, then a
-#: different one; "*" = the vet blocks that batch. Outcome: the batch the grasp comes from,
-#: "no different" (no batch kept a different grasp) or "vet" (the vet refused the only one).
+#: per GraspGen-X feasibility batch (3 on the kitchen GPU profile; a 2-entry plan runs a
+#: 2-batch search): "copies" = the refused grasp and a near copy, "new" = a different grasp,
+#: "copies+new" = a copy first, then a different one, "filtered" = the planner's own filters
+#: left nothing (NoEligibleGrasps); "*" = the vet blocks that batch (its reason names the batch). Outcome: the batch the grasp comes from, "no different" (no batch
+#: kept a different grasp) or ("vet", n): the search's NoExecutableGrasp carries batch n's vet
+#: reason (the last batch the selector vetted), also when a batch of copies ends the search
+#: (A7 re-review Minor 1).
 FEASIBILITY = {
     "a copy before a new grasp": (("new*", "copies+new", "new"), 2),
     "a later batch of copies falls through": (("new*", "copies", "new"), 3),
     "a first batch of copies falls through": (("copies", "new", "new"), 2),
     "only copies": (("copies", "copies", "copies"), "no different"),
-    "the vet's refusal stands": (("new*", "copies", "copies"), "vet"),
+    "the vet's refusal stands": (("new*", "copies", "copies"), ("vet", 1)),
+    "the vet's reason survives a last batch of copies": (("new*", "copies"), ("vet", 1)),
+    "a vetted batch between copies keeps its reason": (("copies", "new*", "copies"), ("vet", 2)),
+    "the last vetted batch's reason": (("new*", "new*", "copies"), ("vet", 2)),
+    "copies, then a batch the planner filtered": (("copies", "copies", "filtered"), "no different"),
 }
 
 
@@ -479,8 +486,20 @@ def test_every_feasibility_batch_of_the_retry_drops_the_refused_grasps(monkeypat
 
     from cascade.grasping.selector import NoExecutableGrasp
 
+    from types import SimpleNamespace
+
+    from cascade.config import Cfg
+    from cascade.grasping.graspgenx_backend import NoEligibleGrasps
+    from cascade.memory.grasp_memory import _reason_key
+
     plan, outcome = FEASIBILITY[case]
     rt, calls, fix, frame, h, batches, _, _, _, records, _ = planning_fixture(monkeypatch)
+    prior = rt.grasp_memory.prior  # the record keeps the grasp it was given too
+    rt.grasp_memory = SimpleNamespace(prior=prior, record=lambda *a, **kw: records.append(dict(kw, grasp=a[2])))
+    if len(plan) != 3:
+        cfg = rt.cfg.as_dict()
+        cfg["grasp"]["graspgenx"]["feasibility_max_batches"] = len(plan)
+        rt.cfg = Cfg(cfg)
     generate = rt._plan_grasps
     refused = generate(fix, label="orange")[0]  # the refused attempt's grasp
     del batches[:]
@@ -488,26 +507,33 @@ def test_every_feasibility_batch_of_the_retry_drops_the_refused_grasps(monkeypat
 
     def planned(*a, **k):
         grasps = generate(*a, **k)
+        kind = plan[len(batches) - 1].rstrip("*")
+        if kind == "filtered":
+            raise NoEligibleGrasps("unchanged filters removed all")
         copies = [grasps[0], _turned(grasps[0], 5)]
         new = [_turned(grasps[0], 90 if len(batches) == 1 else 60)]
-        return {"copies": copies, "new": new, "copies+new": copies + new}[plan[len(batches) - 1].rstrip("*")]
+        return {"copies": copies, "new": new, "copies+new": copies + new}[kind]
     rt._plan_grasps = planned
     blocked = {i + 1 for i, kind in enumerate(plan) if kind.endswith("*")}
-    h.vet_pose = lambda *a, **kw: "blocked original proposal" if len(batches) in blocked else None
+    h.vet_pose = lambda *a, **kw: f"blocked in batch {len(batches)}" if len(batches) in blocked else None
     added, real_add = [], runtime_mod._ObservedSelection.add_batch
     monkeypatch.setattr(runtime_mod._ObservedSelection, "add_batch",
                         lambda self, grasps: (added.append(list(grasps)), real_add(self, grasps))[1])
     attempted = _attempted(monkeypatch)
-    if outcome in ("no different", "vet"):
+    if not isinstance(outcome, int):
         expected = (runtime_mod.SkillError, "^no different grasp candidate") if outcome == "no different" \
-            else (NoExecutableGrasp, "^no executable grasp")
+            else (NoExecutableGrasp, f"^no executable grasp: orange: pregrasp unsafe: blocked in batch {outcome[1]}(;|$)")
         with pytest.raises(expected[0], match=expected[1]) as info:
             rt.skill_grasp_object("orange", _fix=fix, _frame=frame)
         assert (type(info.value) is runtime_mod.SkillError) is (outcome == "no different")
-        assert batches == [1, 2, 3] and all(c[0] == "read" for c in calls), "every batch, no actuation"
+        assert batches == list(range(1, len(plan) + 1)) and all(c[0] == "read" for c in calls), \
+            "every batch, no actuation"
         assert attempted == []
-        # the empty plan is the retry's, not this object's planning failure
-        assert len([r for r in records if not r["success"]]) == (1 if outcome == "vet" else 0)
+        # the empty plan is the retry's, not this object's planning failure; a vet refusal
+        # is recorded once, in the vet's own bucket (never "no_executable_grasp")
+        failed = [r for r in records if not r["success"]]
+        assert [_reason_key(r["reason"]) for r in failed] == ([] if outcome == "no different" else ["pregrasp_unsafe"])
+        assert all(r["reason"] == str(info.value) and r["grasp"] is added[outcome[1] - 1][0] for r in failed)
         return
     with contextlib.suppress(Exception):
         rt.skill_grasp_object("orange", _fix=fix, _frame=frame)
@@ -515,6 +541,36 @@ def test_every_feasibility_batch_of_the_retry_drops_the_refused_grasps(monkeypat
     assert not any(_same_grasp(refused, g) or _near_copy(refused, g) for batch in added for g in batch)
     assert attempted and _same_grasp(added[outcome - 1][0], attempted[0]), f"batch {outcome}'s grasp"
     assert [r for r in records if not r["success"]] == []
+
+
+@pytest.mark.parametrize("retry", [False, True], ids=["no retry", "the retry"])
+def test_a_planner_emptied_last_batch_ends_the_search_as_on_main(monkeypatch, retry):
+    """Only a batch the retry's exclusion empties hands the search back to the last vetted
+    batch's reason. A last batch the PLANNER filtered to nothing (NoEligibleGrasps) ends the
+    search with its own exhaustion, as on main, with or without the retry."""
+    from test_grasp_planning_search import planning_fixture
+
+    from cascade.grasping.graspgenx_backend import NoEligibleGrasps
+    from cascade.grasping.selector import NoExecutableGrasp
+
+    rt, calls, fix, frame, h, batches, _, _, _, records, _ = planning_fixture(monkeypatch)
+    generate = rt._plan_grasps
+    refused = generate(fix, label="orange")[0]
+    del batches[:]
+    if retry:
+        _bind_exclusions(rt, (refused,))
+
+    def planned(*a, **k):
+        grasps = generate(*a, **k)
+        if len(batches) == 3:
+            raise NoEligibleGrasps("unchanged filters removed all")
+        return [_turned(grasps[0], 90)]
+    rt._plan_grasps = planned
+    h.vet_pose = lambda *a, **kw: f"blocked in batch {len(batches)}"
+    with pytest.raises(NoExecutableGrasp) as info:
+        rt.skill_grasp_object("orange", _fix=fix, _frame=frame)
+    assert str(info.value) == "no executable grasp: " and batches == [1, 2, 3]
+    assert [r["reason"] for r in records if not r["success"]] == ["no executable grasp: "]
 
 
 def test_a_halt_after_a_batch_of_copies_stays_the_halt(monkeypatch):

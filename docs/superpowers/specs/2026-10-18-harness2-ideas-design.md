@@ -1,6 +1,6 @@
 # Harness² ideas for CASCADE's agent harness: design proposal
 
-Status: proposal, 2026-10-18. Nothing here is implemented. Source: Harness² ("Recursive Agent
+Status: proposal with decisions (§7), 2026-10-18. Nothing here is implemented. Source: Harness² ("Recursive Agent
 Harnessing for an Open World", arXiv:2610.14224; code `google-research/harness2` at `1cfe254`,
 Apache-2.0). "Harness" below means the **agent harness** (prompt, rules, notes, tool guidance), never
 the `SafetyHarness`, which no part of this proposal may edit.
@@ -93,8 +93,8 @@ private verify route (§5.3), use grading (§5.4) and the nightly guard (§5.6).
    kitchen route can be driven per world. Measure first; skip if the route is single-world only.
 6. **Mock-stack CI demo** of step 4 with a scripted proposer (small).
 
-Steps 1–3 can ride in A9–A11 or in PR-B. Step 4 is option C, which stays gated on PR-B showing that
-verified notes raise the brain's success rate (D1).
+Steps 1–3 are PR-B's first task (H2). Step 4 is option C, which stays gated on PR-B showing that
+verified notes raise the brain's success rate (D1, H4).
 
 ## 4. Safety invariants (unchanged, plus three)
 
@@ -136,9 +136,13 @@ choices would have prevented a defect:
    `advice_sha` in the verifier record, and a library scope that includes the brain model, now that
    #375 switches the default brain from Qwen to Nemotron Bolt.
 
-## 7. Open questions
+## 7. Decisions (2026-10-18, owner delegated)
 
-1. Should steps 1–3 join #376 (A9–A11) or wait for PR-B?
-2. Brain for the outer loop: D7 says Qwen; with #375 the served brain becomes Nemotron Bolt. Propose
-   with one and probe with the other, or keep both the same?
-3. Is the kitchen route drivable per Newton world (step 5), or is it single-world by construction?
+| # | Decision | Why |
+|---|---|---|
+| H1 | The #376 review fixes stay in #376 before it merges: allowlisted note skill, `## Advice` read only as the first section (never for schema 1), trace strings collapsed to one line before `distil`, and `advice_sha` in the verifier record | They are defects in code #376 adds, not new features |
+| H2 | Steps 1–3 (evidence fields, facts vs procedure, brain-scoped library, outer-loop evidence boundary, blind base-inclusive selection) are PR-B's first task, before the blind verifier | Their consumers are PR-B's verifier, promotion and export. A9–A11 are the chat line, the extension panel and the A1 acceptance run, which do not need them |
+| H3 | The outer loop (harvest, proposers, composer) uses the **served brain of the profile it improves**: Nemotron Bolt once #375 lands, Qwen on a `--brain qwen` profile. It runs locally only. This keeps D7's local-only rule and supersedes its "Qwen" wording | A note is tested on the model that reads it; one model stays resident at night under the §5.6 memory guard; Bolt is the larger model. A note verified under one brain is re-verified before it serves another (H2's scope key) |
+| H4 | Step 4 (option C) stays gated on D1: it starts only after PR-B shows that verified notes raise the brain's success rate | Unchanged from the #376 spec |
+| H5 | Step 5 (parallel Newton worlds) is dropped for now. The kitchen route drives one Isaac bridge per stack, so parallel probes would need one bridge, port set and brain session per world | Revisit only if PR-B's nightly run does not fit its 01:30–05:00 window |
+| H6 | Step 6 (mock-stack CI demo) ships with step 4 | It tests step 4 |

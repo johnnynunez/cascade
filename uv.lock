@@ -271,6 +271,7 @@ conversation = [
     { name = "aiohttp" },
 ]
 dev = [
+    { name = "jinja2" },
     { name = "pytest" },
 ]
 grasp-safety = [
@@ -329,6 +330,7 @@ vla = [
 requires-dist = [
     { name = "aiohttp", marker = "extra == 'conversation'", specifier = ">=3.10,<4" },
     { name = "anthropic", marker = "extra == 'llm'", specifier = ">=0.40" },
+    { name = "jinja2", marker = "extra == 'dev'", specifier = ">=3.1" },
     { name = "jsonschema", specifier = ">=4.23" },
     { name = "motorbridge", marker = "extra == 'arm'", specifier = ">=0.4.9" },
     { name = "msgpack", marker = "extra == 'grasping'", specifier = ">=1.0" },

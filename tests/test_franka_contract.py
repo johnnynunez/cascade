@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from base_pose_oracle import bind_like_primary
 from cascade.agent.prompts import SYSTEM_PROMPT, build_system_prompt
 from cascade.apps.mcp_server import McpSkillServer, handle_message
 from cascade.config import load_demo_config
@@ -155,6 +156,7 @@ def test_motion_readiness_is_checked_on_the_selected_arm():
     runtime.arm = SimpleNamespace(raw=object())
     selected = SimpleNamespace(raw=FaultedArm())
     runtime.arm_rig = SimpleNamespace(get=lambda name: selected, arms={"second": selected})
+    bind_like_primary(runtime, "second")  # execute(arm=) refuses an arm with no binding
     runtime._show_status = lambda status: None
     runtime.observe = lambda: pytest.fail("Selected faulted arm was not gated")
     result = runtime.execute("open_gripper", {"arm": "second"})

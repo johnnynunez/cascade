@@ -30,7 +30,7 @@ from ..grasping import plan_grasps_from_fix, select_grasp, select_profile
 from ..grasping import evidence as grasp_evidence
 from ..grasping.obb_grasp import AngledGrasp
 from ..grasping.selector import ALL_TOO_WIDE_MARKER
-from . import carry_attachment
+from . import carry_attachment, stop_retrace
 from ..memory import BeliefStore, EpisodicMemory, FrameObservation
 from ..memory.beliefs import camera_source
 from ..perception.colors import detection_color, parse_color_query
@@ -1643,6 +1643,10 @@ class SkillRuntime:
         # first command instead of being cleared by it (A3 review).
         skill_halt = self._skill_halt_baselines(effective_arm) if name in _MOTION_SKILLS else ()
         if name in _MOTION_SKILLS:
+            if name not in stop_retrace.EXPLICIT_SKILLS:
+                # Any other motion skill forfeits an approach column kept
+                # after a STOP below a grasp's pregrasp (stop_retrace.py).
+                stop_retrace.forget(self)
             raw = getattr(selected if selected is not None else self.arm, "raw", None)
             # Class lookup leaves a deferred LazyArm untouched. Real Franka
             # transports refuse the skill before opening the hand or moving
@@ -1876,6 +1880,7 @@ class SkillRuntime:
                     # Observed-finger grasp: ranked last / dropped / attempted
                     # candidates of the failed choice (grasp_object).
                     result["observed_selection"] = e.observed_selection
+            _with_retrace_result(result, e)
         except TypeError as e:
             result = {"ok": False, "error": f"bad arguments for {name}: {e}"}
         except Exception as e:  # camera dropouts, CAN loss, ... : the agent
@@ -1887,6 +1892,7 @@ class SkillRuntime:
                 "error": f"unexpected {type(e).__name__}: {e}",
                 "hint": "hardware/runtime fault; consider task_done(success=false)",
             }
+            _with_retrace_result(result, e)
             traceback.print_exc()
         if home_return is not None:
             result["return_home"] = home_return
@@ -3972,6 +3978,9 @@ class SkillRuntime:
         `_observed_selection_on_failure` wrapper.
         """
         scene_enabled = os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1"
+        # A new grasp forfeits an approach column kept after a STOP below an
+        # earlier grasp's pregrasp (stop_retrace.py), whoever calls it.
+        stop_retrace.forget(self)
         carry_attachment.check(self)
         # Native endpoint inspection also runs without the observed-finger
         # gate; a stop/clear during that passive work must invalidate it.
@@ -4566,6 +4575,10 @@ class SkillRuntime:
         next_after = None  # a pre-command veto withdrawn over a vetted route
         held_offset_at_close = None
         close_hold_open = None  # B36: the post-contact hold's opening, when one was commanded
+        stop_failure = None  # the refusal / stop that ended this block below the pregrasp
+        # The lift back to the pregrasp (step 4) runs at the profile's lift
+        # speed; a column kept after a STOP below the pregrasp retraces at it.
+        lift_dur = float(gcfg.get("descend_duration_s", 2.0)) / max(profile.lift_speed_scale, 0.2)
         grasp_evidence.phase("descent")
         grasp_evidence.event("move_target", q=q_grasp,
                              duration_s=gcfg.get("descend_duration_s", 2.0), bias_compensate=True)
@@ -4700,8 +4713,7 @@ class SkillRuntime:
                 if np.isfinite(offset) and 0 < offset < .15:
                     self._held_support_offset_m = offset
 
-            # 4. lift back to pregrasp (speed scaled by profile)
-            lift_dur = float(gcfg.get("descend_duration_s", 2.0)) / max(profile.lift_speed_scale, 0.2)
+            # 4. lift back to pregrasp (speed scaled by profile: lift_dur)
             grasp_evidence.phase("lift")
             q_lift = q_pre
             if getattr(self.arm, "motion_planner", None) is not None:
@@ -4717,6 +4729,7 @@ class SkillRuntime:
                 raise SkillError("did not settle at grasp lift pose")
             contact_completed = True
         except (SkillError, SafetyViolation) as exc:
+            stop_failure = exc
             # A failed descent can leave the open tool intentionally close to
             # the target. Finish the same contact episode by withdrawing to
             # its vetted pregrasp before removing its original exemption.
@@ -4771,6 +4784,19 @@ class SkillRuntime:
         finally:
             self.arm.harness.clear_grasp_exemption()
             contact_episode.finish(self, episode, completed=contact_completed)
+            # An operator STOP below the pregrasp (descent, close, lift, the
+            # pre-close retreat) leaves the arm in or at the target: keep this
+            # approach's column + pregrasp for the NEXT EXPLICIT move_home /
+            # reset_scene to retrace (never an automatic move) at the lift's
+            # own speed. keep() decides what is a stop; nothing is kept
+            # without a raised refusal.
+            try:
+                stop_retrace.keep(
+                    self, approach_column, q_pre, failure=stop_failure,
+                    halt_generation=scene_halt_generation, duration_s=lift_dur,
+                    ceiling_m=SkillRuntime.AIR_GRASP_EXIT_CEILING_M)
+            except Exception:  # noqa: BLE001 -- bookkeeping never replaces the stop
+                logger.exception("could not keep the approach column after a stop")
 
         if next_after is not None:
             return SkillRuntime._grasp_next_observed_candidate(
@@ -7960,11 +7986,17 @@ class SkillRuntime:
                 recovery_cancellation = out["withdrawal_recovery"]["cancellation"]
             else:
                 generation = recovery_generation if recovery_generation is not None else reset_generation
-                self.skill_move_home(_halt_generation=generation) if generation is not None else self.skill_move_home()
+                at_home = (self.skill_move_home(_halt_generation=generation) if generation is not None
+                           else self.skill_move_home())
+                if isinstance(at_home, dict) and "stop_retrace" in at_home:
+                    out["stop_retrace"] = at_home["stop_retrace"]
         except (SkillError, SafetyViolation) as e:
             out.update(ok=False, stage="home", home_error=str(e), beliefs_forgotten=0,
                        error=f"Scene reset could not reach home: {e}")
             return out
+        # The arm is home and the scene changes next: a column kept after a
+        # STOP (stop_retrace.py) no longer describes anything.
+        stop_retrace.forget(self)
         if recovery_cancelled():
             return out
         # At most ONE jaw command at home, to the profile's OPEN position
@@ -8146,23 +8178,41 @@ class SkillRuntime:
           still in the jaws must come out by hand before open_gripper.
         The hold sentence comes first and the driver's text is shortened, so
         the refusal fits the 240 characters of the agent's failure line. A
-        held flag is never reconciled here: it refuses as it is."""
+        held flag is never reconciled here: it refuses as it is.
+        While an approach column is kept after a STOP at the object
+        (stop_retrace.py), both refusals send the agent to move_home FIRST:
+        it raises the gripper up that column, with the object; place_at or
+        open_gripper first would forfeit the column and freeze the arm at the
+        object (#359 review, Important #1). "Kept" is `stop_retrace.live`,
+        the rule move_home's retrace acts on: a column that expired, or was
+        kept for another arm or backend or before a scene reset, names #363's
+        texts, never a move_home that could no longer raise the gripper."""
         read_error = None
         if not self.held_object and getattr(self, "_held_provisional", None) is not None:
             try:
                 self._reconcile_held(seat_aware=True)
             except Exception as exc:  # noqa: BLE001 -- unknown jaws: refused below
                 read_error = exc
+        column_kept = stop_retrace.live(self) is not None
         if self.held_object:
+            if column_kept:
+                return (f"holding {self.held_object}: call move_home first (it raises the gripper up its "
+                        "approach column, with the object), then place_at, then reset_scene")
             return f"holding {self.held_object}: place it first (place_at), then reset"
         provisional = getattr(self, "_held_provisional", None)
         if provisional is None:
             return None
-        way_out = (f"the jaw state could not be read: if {provisional[0]} is in the jaws, take it out by "
-                   "hand, then open_gripper, then reset_scene.")
+        way_out = ("the jaw state could not be read: "
+                   + (f"call move_home first (it raises the gripper up its approach column), then, if "
+                      f"{provisional[0]} is in the jaws, take it out by hand, open_gripper, reset_scene."
+                      if column_kept else
+                      f"if {provisional[0]} is in the jaws, take it out by hand, then open_gripper, then "
+                      "reset_scene."))
         why = read_error if read_error is not None else "no valid jaw feedback"
         error, room = f" Error: {why}", _FAILED_ERROR_CHARS - len(way_out)
-        return way_out + (error if len(error) <= room else error[:max(room - 3, 0)].rstrip() + "...")
+        if len(error) > room:
+            error = error[:room - 3].rstrip() + "..." if room >= 3 else ""
+        return way_out + error
 
     def _forget_held_object(self) -> None:
         """The jaws let the held object go: clear every held-object field."""
@@ -8285,22 +8335,69 @@ class SkillRuntime:
             home = context["home"]
         else:
             home = self._profile_q("home_q", "move home")
-        if self._home_policy_enabled():
-            # The caller's halt generation (the reset's) reaches this move too.
-            result = self._return_to_view_home(home, self.cfg.arm, halt_generation=_halt_generation)
-            if not result["ok"]:
-                if result["status"] == "halted":
-                    raise MotionHalted(result["reason"])     # a halt stays a halt
-                raise SkillError(result.get("error", result.get("reason", "home return failed")))
-            return {"at": "home", "return_home": result}
-        # SafeArm plans the complete return before motion and re-vets against
-        # actual feedback/map state at every segment. Legacy test doubles may
-        # expose only move_joints; all real runtime arms are SafeArms.
-        move = getattr(self.arm, "move_planned", self.arm.move_joints)
-        kwargs = {} if _halt_generation is None else {"_halt_generation": _halt_generation}
-        if not move(home, duration_s=3.0, **kwargs):
-            raise SkillError("did not settle at home")
-        return {"at": "home"}
+        # After an operator STOP below a grasp's pregrasp, an EXPLICIT
+        # move_home / reset_scene (execute()'s root skill) first retraces up
+        # the approach column that grasp kept, capped 5 mm above its hover,
+        # every step strictly upward inside it (stop_retrace.py). None:
+        # nothing kept or applicable, the home move below is today's.
+        retraced = stop_retrace.retrace(self, halt_generation=_halt_generation)
+        retrace_out = {} if retraced is None else {"stop_retrace": retraced}
+        if retraced is not None and context["root_skill"] == "move_home":
+            # The retrace was the interrupted lift's own segment: the jaws may
+            # hold the object. Say what they hold (`_retrace_jaws_report`);
+            # the jaws stay as they are. Not inside reset_scene: its own held
+            # rule runs at its start, and a hold promoted mid-reset would be
+            # released at home (a drop from ~0.44 m on a real gripper).
+            retrace_out.update(self._retrace_jaws_report())
+        try:
+            if self._home_policy_enabled():
+                # The caller's halt generation (the reset's) reaches this move too.
+                result = self._return_to_view_home(home, self.cfg.arm, halt_generation=_halt_generation)
+                if not result["ok"]:
+                    if result["status"] == "halted":
+                        raise MotionHalted(result["reason"])     # a halt stays a halt
+                    raise SkillError(result.get("error", result.get("reason", "home return failed")))
+                return {"at": "home", "return_home": result, **retrace_out}
+            # SafeArm plans the complete return before motion and re-vets against
+            # actual feedback/map state at every segment. Legacy test doubles may
+            # expose only move_joints; all real runtime arms are SafeArms.
+            move = getattr(self.arm, "move_planned", self.arm.move_joints)
+            kwargs = {} if _halt_generation is None else {"_halt_generation": _halt_generation}
+            if not move(home, duration_s=3.0, **kwargs):
+                raise SkillError("did not settle at home")
+            return {"at": "home", **retrace_out}
+        except Exception as exc:
+            if retrace_out:
+                # A stop or fault in the home move ends the call: its failed
+                # result still says what the retrace did and what the jaws
+                # hold (execute() merges it; review M2).
+                exc.retrace_result = dict(retrace_out)
+            raise
+
+    def _retrace_jaws_report(self) -> dict:
+        """What the jaws hold after a COMPLETED stop retrace inside an
+        explicit move_home, judged like reset_scene and the grasp's own verify
+        (`_reconcile_held(seat_aware=True)`, #363): stalled on the object ->
+        `holding` + place it first; at the commanded seat, closed or open ->
+        nothing (the provisional hold is dropped); unreadable (unknown
+        feedback, or the read raised) -> `holding_unknown`: the object may
+        still be in the jaws, never the empty-jaws result (review Important
+        #2, M3)."""
+        read_error = None
+        try:
+            self._reconcile_held(seat_aware=True)
+        except Exception as exc:  # noqa: BLE001 -- the jaw read failed: reported below
+            read_error = exc
+        if self.held_object:
+            return {"holding": self.held_object, "next_action": (
+                f"The jaws may still hold {self.held_object!r} (the STOP came after they closed on "
+                "it): place it first (place_at), before any other grasp or a reset.")}
+        provisional = getattr(self, "_held_provisional", None)
+        if provisional is None:
+            return {}
+        return {"holding_unknown": True, "next_action": (
+            f"the jaw state could not be read: {provisional[0]} may still be in the jaws; check the gripper "
+            "before any other grasp, open or reset" + ("" if read_error is None else f". Error: {read_error}"))}
 
     def skill_move_to_rest(self, keep_torque: bool = False) -> dict:
         """"Home" / "pose 0" / "rest" / "park": fold the arm onto its rest pose
@@ -8868,6 +8965,17 @@ def _stop_first(stop: str, error) -> str:
     own `error`: outcome first, as `_reset_release_failed` does, because the
     agent's FAILED line keeps only the first 240 characters of the error."""
     return f"{stop}; {error}" if error else stop
+
+
+def _with_retrace_result(result: dict, exc: BaseException) -> None:
+    """A move_home that retraced after a STOP and then failed in its home
+    move (a halt, an e-stop, a fault): its failed `result` keeps what the
+    retrace did and what the jaws hold (`stop_retrace`, `holding` or
+    `holding_unknown`, `next_action`), which skill_move_home attached to the
+    exception (review M2)."""
+    kept = getattr(exc, "retrace_result", None)
+    if isinstance(kept, dict):
+        result.update(kept)
 
 
 def _left_in_place(result: dict) -> bool:

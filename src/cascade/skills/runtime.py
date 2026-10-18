@@ -4498,6 +4498,9 @@ class SkillRuntime:
         held_offset_at_close = None
         close_hold_open = None  # B36: the post-contact hold's opening, when one was commanded
         stop_failure = None  # the refusal / stop that ended this block below the pregrasp
+        # The lift back to the pregrasp (step 4) runs at the profile's lift
+        # speed; a column kept after a STOP below the pregrasp retraces at it.
+        lift_dur = float(gcfg.get("descend_duration_s", 2.0)) / max(profile.lift_speed_scale, 0.2)
         grasp_evidence.phase("descent")
         grasp_evidence.event("move_target", q=q_grasp,
                              duration_s=gcfg.get("descend_duration_s", 2.0), bias_compensate=True)
@@ -4624,8 +4627,7 @@ class SkillRuntime:
                 if np.isfinite(offset) and 0 < offset < .15:
                     self._held_support_offset_m = offset
 
-            # 4. lift back to pregrasp (speed scaled by profile)
-            lift_dur = float(gcfg.get("descend_duration_s", 2.0)) / max(profile.lift_speed_scale, 0.2)
+            # 4. lift back to pregrasp (speed scaled by profile: lift_dur)
             grasp_evidence.phase("lift")
             q_lift = q_pre
             if getattr(self.arm, "motion_planner", None) is not None:
@@ -4699,14 +4701,13 @@ class SkillRuntime:
             # An operator STOP below the pregrasp (descent, close, lift, the
             # pre-close retreat) leaves the arm in or at the target: keep this
             # approach's column + pregrasp for the NEXT EXPLICIT move_home /
-            # reset_scene to retrace (never an automatic move). keep() decides
-            # what is a stop; nothing is kept without a raised refusal.
-            descend_s = float(gcfg.get("descend_duration_s", 2.0))
+            # reset_scene to retrace (never an automatic move) at the lift's
+            # own speed. keep() decides what is a stop; nothing is kept
+            # without a raised refusal.
             try:
                 stop_retrace.keep(
                     self, approach_column, q_pre, failure=stop_failure,
-                    halt_generation=scene_halt_generation,
-                    duration_s=max(descend_s, descend_s / max(profile.lift_speed_scale, 0.2)),
+                    halt_generation=scene_halt_generation, duration_s=lift_dur,
                     ceiling_m=SkillRuntime.AIR_GRASP_EXIT_CEILING_M)
             except Exception:  # noqa: BLE001 -- bookkeeping never replaces the stop
                 logger.exception("could not keep the approach column after a stop")
@@ -8176,6 +8177,18 @@ class SkillRuntime:
         # nothing kept or applicable, the home move below is today's.
         retraced = stop_retrace.retrace(self, halt_generation=_halt_generation)
         retrace_out = {} if retraced is None else {"stop_retrace": retraced}
+        if retraced is not None and context["root_skill"] == "move_home":
+            # The retrace was the interrupted lift's own segment: the jaws may
+            # hold the object. Reconcile (stalled jaws promote the provisional
+            # hold, closed or open jaws drop it) so this result says so; the
+            # jaws stay as they are. Not inside reset_scene: its own held
+            # rule runs at its start, and a hold promoted mid-reset would be
+            # released at home (a drop from ~0.44 m on a real gripper).
+            self._reconcile_held()
+            if self.held_object:
+                retrace_out.update(holding=self.held_object, next_action=(
+                    f"The jaws may still hold {self.held_object!r} (the STOP came after they closed on "
+                    "it): place it first (place_at), before any other grasp or a reset."))
         if self._home_policy_enabled():
             # The caller's halt generation (the reset's) reaches this move too.
             result = self._return_to_view_home(home, self.cfg.arm, halt_generation=_halt_generation)

@@ -19,11 +19,16 @@ the column.
 - `keep` (skill_grasp_object, when its descent / close / lift block ends on a
   stop) records the column the approach entered (`_target_column`: the
   mapping-only path with `grasp.approach_target_exemption`), `q_pre`, the
-  hover ceiling and the map's scene-reset generation, per arm. Never after a
-  contact (ContactDetected is no operator stop), never while a contact episode
-  is retained (payload maps: reset_scene's contact recovery owns that case).
+  hover ceiling, the map's scene-reset generation and when it was kept, per
+  arm. Never after a contact (ContactDetected is no operator stop), never
+  while a contact episode is retained (payload maps: reset_scene's contact
+  recovery owns that case).
 - `forget` drops every kept column: execute() on any other motion skill,
   skill_grasp_object at its start, reset_scene once its home move is done.
+  A column also expires `MAX_AGE_S` (300 s, monotonic clock) after the stop:
+  the explicit call then drops it and today's home move runs (frozen, 0
+  commands). The scene changes only through reset_scene on the reBot: its
+  map's `scene_reset_generation` moves only for payload-tracking maps.
 - `retrace` (skill_move_home, before its own home move) acts only when
   execute()'s ROOT motion skill is move_home or reset_scene. It moves ONE
   direct joint segment from the measured pose to `q_pre` (the reverse of the
@@ -50,6 +55,11 @@ from . import carry_attachment
 EXPLICIT_SKILLS = frozenset({"move_home", "reset_scene"})
 #: A TCP less than this below the hover has nothing to retrace.
 MIN_DROP_M = 0.001
+#: A kept column expires this long after the stop: an explicit call later
+#: than that drops it, and today's home move runs (frozen, 0 commands).
+MAX_AGE_S = 300.0
+#: The clock of `Kept.kept_at` and of the expiry: monotonic, never wall time.
+_clock = time.monotonic
 
 
 @dataclasses.dataclass(frozen=True)
@@ -70,6 +80,8 @@ class Kept:
     duration_s: float
     #: the map's scene_reset_generation when the column was kept
     scene: object
+    #: `_clock()` when the column was kept (it expires MAX_AGE_S later)
+    kept_at: float
 
 
 def _records(runtime) -> dict | None:
@@ -124,7 +136,7 @@ def keep(runtime, column, q_pre, *, failure, halt_generation, duration_s, ceilin
     record = Kept(arm=runtime.arm, raw=getattr(runtime.arm, "raw", None),
                   column=(np.asarray(center, dtype=float)[:2].copy(), float(radius), float(z_min)),
                   q_pre=q_pre, hover_z=hover_z, z_max=hover_z + float(ceiling_m),
-                  duration_s=float(duration_s), scene=_scene(harness))
+                  duration_s=float(duration_s), scene=_scene(harness), kept_at=_clock())
     records = _records(runtime)
     if records is None:
         records = runtime._stop_retraces = {}
@@ -169,6 +181,8 @@ def _no_longer_applies(runtime, record) -> str | None:
     arm = runtime.arm
     if record.arm is not arm or record.raw is not getattr(arm, "raw", None):
         return "the arm changed"
+    if _clock() - record.kept_at > MAX_AGE_S:
+        return f"the column expired ({MAX_AGE_S:.0f} s after the stop)"
     if _scene(arm.harness) != record.scene:
         return "the scene was reset"
     if getattr(runtime, "_contact_episode", None) is not None:
@@ -186,13 +200,15 @@ def retrace(runtime, *, halt_generation=None) -> str | None:
     Acts only inside an explicit move_home / reset_scene (execute()'s root
     motion skill); returns None and moves nothing otherwise, or when no
     column is kept, or when the kept column no longer applies (another arm or
-    backend, a scene reset, a contact episode, a carry attachment, a motion
-    planner) or the arm is not below its hover inside it -- those two drop the
-    column, and the caller's home move runs as before. "completed: ..." when
-    the arm reached the hover: the column is consumed.
+    backend, older than MAX_AGE_S, a scene reset, a contact episode, a carry
+    attachment, a motion planner) or the arm is not below its hover inside it
+    -- those two drop the column, and the caller's home move runs as before.
+    "completed: ..." when the arm reached the hover: the column is consumed.
 
-    Refusals before the first command raise SkillError("stop retrace refused:
-    ...") and keep the column. A halt, an e-stop or any other stop during the
+    A latched e-stop refuses first, as itself (SafetyViolation "e-stop
+    latched"), before any vetting; the column stays. Other refusals before
+    the first command raise SkillError("stop retrace refused: ...") and keep
+    the column. A halt, an e-stop or any other stop during the
     stream propagates as itself, nothing more is sent, and the column stays
     for the next explicit call (the arm is still below its hover), except
     after a contact, which forfeits it. `halt_generation`: the caller's (the
@@ -212,6 +228,8 @@ def retrace(runtime, *, halt_generation=None) -> str | None:
         records.pop(id(arm), None)
         return None
     harness = arm.harness
+    if harness.estopped:
+        raise SafetyViolation("e-stop latched")      # named first, never as a vetting refusal
     kin = harness.kin
     q = np.asarray(arm.get_state().q, dtype=float)
     if q.shape != record.q_pre.shape or not np.isfinite(q).all():

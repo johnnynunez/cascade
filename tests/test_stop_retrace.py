@@ -82,6 +82,17 @@ def box_map(kind="solid", *extra):
 
 @pytest.fixture
 def rebot(tmp_path, monkeypatch):
+    yield from _rebot(tmp_path, monkeypatch, real=False)
+
+
+@pytest.fixture
+def rebot_real(tmp_path, monkeypatch):
+    """The REAL rebot_rs type (a real gripper: `_drives_real_gripper()`), its
+    backend a MockArm (no driver, no bus)."""
+    yield from _rebot(tmp_path, monkeypatch, real=True)
+
+
+def _rebot(tmp_path, monkeypatch, *, real):
     monkeypatch.setenv("CASCADE_OCCUPANCY", "0")
     monkeypatch.setenv("CASCADE_GRASP_BACKEND", "obb")
     monkeypatch.delenv("CASCADE_OBSERVED_FINGER_GATE", raising=False)
@@ -91,11 +102,18 @@ def rebot(tmp_path, monkeypatch):
     with held_dead_port() as port:
         monkeypatch.setenv("CASCADE_GRASPGENX_PORT", str(port))
         cfg = load_demo_config(arm="rebot_rs", camera="mock", llm="mock")
-        cfg.arm._data["type"] = "mock"
+        if real:
+            from cascade.apps import demo
+            from cascade.control.mock_arm import MockArm
+
+            monkeypatch.setattr(demo, "make_arm", lambda acfg, kinematics=None: MockArm(acfg, kinematics))
+        else:
+            cfg.arm._data["type"] = "mock"
         runtime, arm = build_runtime(cfg, tmp_path / "run", view=False, serve=False)
         try:
             runtime.arm.harness.occupancy = box_map()
             mock_of(runtime).object_stop_frac = None
+            assert runtime._drives_real_gripper() is real
             yield runtime
         finally:
             shutdown_runtime(runtime, arm)
@@ -229,26 +247,83 @@ def test_reset_scene_after_a_stop_at_the_object_retraces_then_resets(rebot, monk
 def test_after_an_estop_at_the_object_the_explicit_home_retraces_once_cleared(rebot, monkeypatch):
     rt = rebot
     stopped_at_the_object(rt, monkeypatch, stop="e-stop")
+    from cascade.skills import stop_retrace
+
+    kept = stop_retrace.kept(rt)
     n0 = commands(rt)
     res = rt.execute("move_home", {})                            # still latched: refused
-    assert res["ok"] is False and "e-stop latched" in res["error"], res
-    assert commands(rt) == n0
+    # The e-stop is named first, as itself (never "stop retrace refused: ...").
+    assert res["ok"] is False and res["error"] == "SafetyViolation: e-stop latched", res
+    assert commands(rt) == n0 and stop_retrace.kept(rt) is kept
     rt.arm.harness.reset_estop()
     res = rt.execute("move_home", {})
     assert res["ok"] is True and res["stop_retrace"].startswith("completed"), res
     assert at_home(rt)
 
 
+def jaw_commands(rt, monkeypatch):
+    """Every jaw command the backend receives from now on."""
+    raw = mock_of(rt)
+    real, sent = raw.set_gripper, []
+
+    def set_gripper(pos, effort=1.0):
+        sent.append(pos)
+        return real(pos, effort)
+
+    monkeypatch.setattr(raw, "set_gripper", set_gripper)
+    return sent
+
+
+#: move_home's next_action when the retrace leaves an object in the jaws
+HOLDING_NEXT = ("The jaws may still hold 'red cube' (the STOP came after they closed on it): place it "
+                "first (place_at), before any other grasp or a reset.")
+
+
 def test_the_retrace_runs_with_jaws_that_may_hold_the_object(rebot, monkeypatch):
     """The jaws stalled on the object: the STOP left a provisional hold. The
-    explicit home retraces the interrupted lift (no payload gate changes)."""
+    explicit home retraces the interrupted lift (no payload gate changes),
+    never opens the jaws, and reconciles the hold so its result says the
+    object may be in the jaws (reviewer's jaw ruling)."""
+    rt = rebot
+    mock_of(rt).object_stop_frac = 0.5
+    stopped_at_the_object(rt, monkeypatch, skill=("grasp_object", {"label": "red cube"}))
+    assert rt._held_provisional is not None and rt.held_object is None
+    jaws = jaw_commands(rt, monkeypatch)
+    res = rt.execute("move_home", {})
+    assert res["ok"] is True and res["stop_retrace"].startswith("completed"), res
+    assert at_home(rt)
+    assert jaws == []                                              # no auto-open
+    assert rt.held_object == "red cube" and rt._held_provisional is None
+    assert res["holding"] == "red cube" and res["next_action"] == HOLDING_NEXT, res
+
+
+def test_jaws_closed_on_air_after_the_retrace_hold_nothing(rebot, monkeypatch):
+    """The jaws read fully closed (on air): the same reconcile drops the
+    provisional hold, and the result names nothing held."""
+    rt = rebot
+    stopped_at_the_object(rt, monkeypatch, skill=("grasp_object", {"label": "red cube"}))
+    assert rt._held_provisional is not None
+    mock_of(rt)._gripper = rt._grip_closed                         # the jaws measure closed: nothing between them
+    res = rt.execute("move_home", {})
+    assert res["ok"] is True and res["stop_retrace"].startswith("completed"), res
+    assert rt._held_provisional is None and rt.held_object is None
+    assert "holding" not in res and "next_action" not in res, res
+
+
+def test_reset_scene_never_promotes_a_hold_mid_reset(rebot, monkeypatch):
+    """Inside reset_scene the retrace does not reconcile the jaws: the reset's
+    own held rule runs at its start (a real gripper refuses there), and a hold
+    promoted after it would be released at home -- from ~0.44 m on a real
+    gripper, a drop. Here (mock type) the reset carries the jaws home as they
+    are, with no jaw command."""
     rt = rebot
     mock_of(rt).object_stop_frac = 0.5
     stopped_at_the_object(rt, monkeypatch, skill=("grasp_object", {"label": "red cube"}))
     assert rt._held_provisional is not None
-    res = rt.execute("move_home", {})
-    assert res["ok"] is True and res["stop_retrace"].startswith("completed"), res
-    assert at_home(rt)
+    jaws = jaw_commands(rt, monkeypatch)
+    res = rt.execute("reset_scene", {})
+    assert res["stop_retrace"].startswith("completed") and at_home(rt), res
+    assert jaws == [] and rt.held_object is None
 
 
 # ── never automatic ─────────────────────────────────────────────────────────
@@ -374,6 +449,40 @@ def test_a_scene_change_forfeits_the_column(rebot, monkeypatch):
     assert commands(rt) == n0 and stop_retrace.kept(rt) is None
 
 
+@pytest.mark.parametrize("age_s, retraces", [(300.0, True), (300.001, False)], ids=["at-300s", "past-300s"])
+def test_a_kept_column_expires_300_s_after_the_stop(rebot, monkeypatch, age_s, retraces):
+    """The column is kept for 300 s (monotonic clock). Past that, the explicit
+    home drops it with 0 commands: today's frozen behaviour (a manual jog)."""
+    rt = rebot
+    stopped_at_the_object(rt, monkeypatch)
+    from cascade.skills import stop_retrace
+
+    rt._stop_retraces[id(rt.arm)] = dataclasses.replace(stop_retrace.kept(rt), kept_at=1000.0)
+    monkeypatch.setattr(stop_retrace, "_clock", lambda: 1000.0 + age_s)
+    n0 = commands(rt)
+    res = rt.execute("move_home", {})
+    if retraces:
+        assert res["ok"] is True and res["stop_retrace"].startswith("completed"), res
+    else:
+        assert res["ok"] is False and "no safe joint route found" in res["error"], res
+        assert "stop_retrace" not in res and commands(rt) == n0
+    assert stop_retrace.kept(rt) is None
+
+
+def test_the_kept_column_records_when_it_was_kept(monkeypatch):
+    import time
+
+    from cascade.skills import stop_retrace
+
+    assert stop_retrace._clock is time.monotonic                   # the monotonic clock, never wall time
+    assert stop_retrace.MAX_AGE_S == 300.0
+    monkeypatch.setattr(stop_retrace, "_clock", lambda: 42.5)
+    rt = stub(generation=1)
+    out = stop_retrace.keep(rt, COLUMN, Q_PRE, failure=MotionHalted("h"), halt_generation=0, duration_s=2.0,
+                            ceiling_m=CEILING_M)
+    assert out.kept_at == 42.5
+
+
 def test_a_reset_that_changed_the_scene_forgets_the_column(rebot):
     """reset_scene called outside execute() (not an explicit retrace) from
     home: its home move needs no retrace; once it went home the scene
@@ -384,7 +493,8 @@ def test_a_reset_that_changed_the_scene_forgets_the_column(rebot):
     q = np.asarray(rt.arm.get_state().q, float)
     kept = stop_retrace.Kept(arm=rt.arm, raw=rt.arm.raw, column=(tcp(rt)[:2].copy(), 0.05, 0.0),
                              q_pre=q.copy(), hover_z=float(tcp(rt)[2]) + 0.05,
-                             z_max=float(tcp(rt)[2]) + 0.055, duration_s=2.0, scene=0)
+                             z_max=float(tcp(rt)[2]) + 0.055, duration_s=2.0, scene=0,
+                             kept_at=stop_retrace._clock())
     rt._stop_retraces = {id(rt.arm): kept}
     rt.skill_reset_scene()
     assert stop_retrace.kept(rt) is None
@@ -486,7 +596,8 @@ def test_the_arm_not_below_the_hover_has_nothing_to_retrace(rebot):
     p = tcp(rt)
     rt._stop_retraces = {id(rt.arm): stop_retrace.Kept(
         arm=rt.arm, raw=rt.arm.raw, column=(p[:2].copy(), 0.05, 0.0), q_pre=q.copy(),
-        hover_z=float(p[2]), z_max=float(p[2]) + CEILING_M, duration_s=2.0, scene=0)}
+        hover_z=float(p[2]), z_max=float(p[2]) + CEILING_M, duration_s=2.0, scene=0,
+        kept_at=stop_retrace._clock())}
     res = rt.execute("move_home", {})
     assert res["ok"] is True and "stop_retrace" not in res, res
     assert stop_retrace.kept(rt) is None

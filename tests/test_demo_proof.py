@@ -604,6 +604,52 @@ def test_bolt_answering_no_reply_is_still_not_ready(host_boundary):
         demo_proof.run_proof(h["repo"], h["state"], "mujoco", False)
 
 
+# The robot proof's world and reset turns must execute world_state. Asked "What
+# is the session status?", Bolt answered from the tool's description without
+# calling it (launch beside Isaac Newton, 2026-10-18): NOT READY. Its questions
+# name the tool; the judge (the executed tools) is the same for every brain.
+
+BOLT_WORLD = "What is the session status? Read it with the world_state tool."
+BOLT_RESET = "Let's start over, then show the session status with the world_state tool."
+
+
+def test_the_robot_proof_asks_bolt_questions_that_name_world_state(host_boundary):
+    h = host_boundary
+    h["model"] = "cascade/nemotron-3.5-bolt"
+    result = demo_proof.run_proof(h["repo"], h["state"], "mujoco", True)
+    assert result["verified"] is True
+    messages = [cmd[cmd.index("--message") + 1] for cmd in h["calls"]]
+    assert messages == [demo_proof.READINESS_PROMPTS["nemotron-3.5-bolt"], BOLT_WORLD,
+                        "Please put the red cube in the drop zone.", BOLT_RESET]
+
+
+def test_every_other_brain_keeps_mains_robot_proof_questions():
+    for model in ("openai/test", "cascade/qwen3.8-27b", "cascade/cosmos3-edge", "nemotron-3.5-bolt", ""):
+        assert demo_proof.proof_prompt(model, demo_proof.WORLD_PROMPT) == "What is the session status?"
+        assert (demo_proof.proof_prompt(model, demo_proof.RESET_PROMPT)
+                == "Let's start over, then show the session status.")
+
+
+def test_bolt_skipping_world_state_is_still_not_ready(host_boundary, monkeypatch):
+    import subprocess
+
+    h = host_boundary
+    h["model"] = "cascade/nemotron-3.5-bolt"
+    boundary = demo_proof.subprocess.run
+
+    def answers_without_the_tool(cmd, **kwargs):
+        result = boundary(cmd, **kwargs)
+        if cmd[0] == "openclaw" and "--message" in cmd and cmd[cmd.index("--message") + 1] == BOLT_WORLD:
+            data = json.loads(result.stdout)
+            del data["result"]["meta"]["toolSummary"]  # a text reply, as Bolt gave
+            return subprocess.CompletedProcess(cmd, 0, json.dumps(data), "")
+        return result
+
+    monkeypatch.setattr(demo_proof.subprocess, "run", answers_without_the_tool)
+    with pytest.raises(demo_proof.ProofError, match="no valid toolSummary"):
+        demo_proof.run_proof(h["repo"], h["state"], "mujoco", True)
+
+
 def test_auto_brain_resolves_bolt_on_the_local_brain_endpoint(model_http_boundary, monkeypatch):
     h = model_http_boundary
     h["model"] = "nemotron-3.5-bolt"

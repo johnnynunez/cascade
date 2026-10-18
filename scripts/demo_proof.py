@@ -58,6 +58,27 @@ def readiness_prompt(model: str) -> str:
     return READINESS_PROMPTS.get(model.partition("/")[2], READINESS_PROMPT)
 
 
+#: The robot proof's world and reset turns must reach the robot's world_state
+#: tool. Asked "What is the session status?", Nemotron 3.5 Bolt answered from
+#: that tool's description without calling it (launch beside Isaac Newton,
+#: 2026-10-18): no toolSummary, NOT READY. Bolt's questions name the tool. The
+#: judge (the tools the turn executed) is the same for every brain, and every
+#: other brain keeps main's wording.
+WORLD_PROMPT = "What is the session status?"
+RESET_PROMPT = "Let's start over, then show the session status."
+TOOL_NAMING_PROMPTS = {
+    NEMOTRON_BOLT_MODEL: {
+        WORLD_PROMPT: "What is the session status? Read it with the world_state tool.",
+        RESET_PROMPT: "Let's start over, then show the session status with the world_state tool.",
+    },
+}
+
+
+def proof_prompt(model: str, prompt: str) -> str:
+    """The proof's `prompt` as asked of OpenClaw's `<provider>/<served id>`."""
+    return TOOL_NAMING_PROMPTS.get(model.partition("/")[2], {}).get(prompt, prompt)
+
+
 def oc_command(*args: str) -> list[str]:
     """The OpenClaw CLI the proof drives. On the OpenShell route (Linux) it is
     the sandbox's own CLI, given as a JSON argv prefix in
@@ -543,7 +564,7 @@ def run_proof(repo, state_dir, sim: str, robot_turn: bool = True, *, spark_case_
     if robot_turn and sim != "none":
         target = "pink cube" if sim == "isaac" else "red cube"
         agent_turn(session, model,
-                   "What is the session status?", evidence / "02-world.json", 150, "world_state")
+                   proof_prompt(model, WORLD_PROMPT), evidence / "02-world.json", 150, "world_state")
         process = _bound_world(state_dir, owner, baseline, report["started_at"], persistent=persistent_mcp)
         trace = Path(process["run_dir"]) / "trace.jsonl"
         report["process"] = process
@@ -557,7 +578,7 @@ def run_proof(repo, state_dir, sim: str, robot_turn: bool = True, *, spark_case_
         reset_started = time.time()
         print("[proof] resetting the SAME world", file=sys.stderr, flush=True)
         agent_turn(session, model,
-                   "Let's start over, then show the session status.",
+                   proof_prompt(model, RESET_PROMPT),
                    evidence / "04-reset.json", 150, ("reset_scene", "world_state"))
         _bound_world(state_dir, owner, baseline, report["started_at"], process, persistent=persistent_mcp)
         props = validate_reset_trace(trace, reset_started, sim, target)

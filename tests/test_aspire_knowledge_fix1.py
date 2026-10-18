@@ -106,15 +106,22 @@ def test_a_booth_session_is_real_and_keeps_mains_description(monkeypatch):
     assert _description(server) == MAIN_DESCRIPTION
 
 
-def test_the_sentence_is_the_only_catalog_difference_between_the_classes(monkeypatch):
+def test_the_sentence_and_r2_are_the_only_catalog_differences_between_the_classes(monkeypatch):
+    """The sim class adds the learned-notes sentence to robot_knowledge and (ASPIRE A8, spec §4.6
+    R2) the set-down sentence to open_gripper, right after main's own sentence; nothing else differs."""
     from cascade import sim_profile
+    from cascade.skills.runtime import _SET_DOWN_WITH_PLACE_AT
 
     sim = _catalog_server(monkeypatch, "mock").list_tools()
     monkeypatch.setattr(sim_profile, "profile_class", lambda cfg: "real")    # the same profile read as real
     real = _catalog_server(monkeypatch, "mock").list_tools()
     differ = [(a["name"], a["description"], b["description"]) for a, b in zip(sim, real) if a != b]
     assert [t["name"] for t in sim] == [t["name"] for t in real]
-    assert differ == [("robot_knowledge", MAIN_DESCRIPTION + SENTENCE, MAIN_DESCRIPTION)]
+    opened = "Open the gripper (drops the held object where it is; also how a handover finishes)."
+    gripper = next(d for d in differ if d[0] == "open_gripper")
+    assert gripper[1] == gripper[2].replace(opened, opened + " " + _SET_DOWN_WITH_PLACE_AT, 1) != gripper[2]
+    assert [d for d in differ if d[0] != "open_gripper"] == [
+        ("robot_knowledge", MAIN_DESCRIPTION + SENTENCE, MAIN_DESCRIPTION)]
 
 
 def test_a_built_sim_runtime_lists_the_sentence(tmp_path):

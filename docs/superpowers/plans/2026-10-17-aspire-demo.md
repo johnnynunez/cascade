@@ -631,11 +631,14 @@ def test_gates_are_identical_with_the_retry_on_and_off():
 
 **Files:**
 - Modify: `demo/kitchen/visitor-instructions.md`, `demo/kitchen/openclaw-plugin/index.mjs` (identity string),
-  `src/cascade/skills/runtime.py` (`open_gripper` TOOL_SPECS entry ~8414), `tests/test_attendee_english.py`,
+  `demo/kitchen/openclaw-plugin/attendee-tools.json` (preflight R2), `src/cascade/skills/runtime.py`
+  (`tool_specs_for_config`: R2 on `open_gripper` for a sim-class profile only; `TOOL_SPECS` stays main's, §6.3),
+  `src/cascade/skills/notes.py` (lint rule `rule_trigger`: a note never carries R1's or R5's trigger),
   `tests/test_spark_openclaw_prompt.py`
 - Create: `tests/test_aspire_rules.py`
 
-**Interfaces:** none (text only; strings verbatim from spec §4.6).
+**Interfaces:** none (text only; strings verbatim from spec §4.6 as amended by preflight R2). As built: module
+constant `runtime._SET_DOWN_WITH_PLACE_AT` (R2), `notes._RULE_TRIGGERS` (in `_FAMILIES`).
 
 - [ ] **Step 1: Write the failing tests**
 

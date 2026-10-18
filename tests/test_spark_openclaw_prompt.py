@@ -221,6 +221,18 @@ def _identity(workspace):
     return prompt.removeprefix("A\n\n\n")
 
 
+def test_identity_allows_only_a_result_granted_retry(tmp_path):
+    """ASPIRE A8 (spec §4.6 R1, preflight R2): the identity the model reads repeats a motion order
+    once only on a result that allows a SIMULATION ONLY retry; no absolute "one motion action, then
+    report" and no "retry automatically" is left beside it."""
+    identity = _identity(tmp_path)
+    assert ("Use at most one motion action per order (repeat it once only when its result allows a "
+            "SIMULATION ONLY retry), then report the final result and end the turn.") in identity
+    assert ("including any return-home failure; never invent success; retry only when a tool result "
+            "allows it.") in identity
+    assert "retry automatically" not in identity and "at most one motion action per order, then" not in identity
+
+
 def test_no_learned_file_keeps_todays_prompt(tmp_path):
     identity = _identity(tmp_path)
     assert _prompt(tmp_path) == "A\n" + "\n\n" + identity

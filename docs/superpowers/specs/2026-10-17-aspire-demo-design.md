@@ -423,17 +423,28 @@ internal bounds. Worst case per order: 2 x (1 + `OBSERVED_NEXT_CANDIDATES`) gras
 
 ### 4.6 Rules and recipes (exact texts)
 
-The visitor block stays <= 400 words (`tests/test_attendee_english.py` pins it; 324 today), so R1, R3 and R4 replace
-or compress existing sentences instead of only adding.
+The visitor block stays <= 400 words (`tests/test_attendee_english.py` pins it; 324 before A8, 391 after), so R1, R3
+and R4 replace or compress existing sentences instead of only adding. Tests: `tests/test_aspire_rules.py`.
 
-- **R1, retry discipline** (kitchen visitor block, replacing "Do not retry, reset automatically or turn a failed
-  result into success."; the plugin identity's "never invent success or retry automatically" becomes "never invent
-  success; retry only when a tool result allows it"): "Do not retry on your own or reset automatically. Only when a
-  tool result says SIMULATION ONLY and allows one more attempt, repeat that call once with the same arguments, then
-  report the final result. Never turn a failed result into success."
-- **R2, set objects down** (`open_gripper` TOOL_SPECS description, OpenShell route; RESULTS §4.9, o4): append "To set a
+- **R1, retry discipline** (as amended by preflight ruling R2: every absolute "one motion per order" rule gets the
+  same exception, and the block stays 391 words). Kitchen visitor block: "Use at most one motion action per order
+  and wait for its real result; repeat it once only when its result says SIMULATION ONLY and allows one more
+  attempt, with the same arguments. Report the final result briefly in English, then stop." (replaces "Use at most
+  one motion action per order and wait for its real result. Report that result briefly in English, then stop.") and
+  "Never retry otherwise, reset automatically or turn a failed result into success." (replaces "Do not retry, reset
+  automatically or turn a failed result into success."), R5 right after it. Plugin identity: "Use at most one motion
+  action per order (repeat it once only when its result allows a SIMULATION ONLY retry), then report the final
+  result and end the turn." and "never invent success or retry automatically" becomes "never invent success; retry
+  only when a tool result allows it". Attendee `pick_and_place` description, last sentence: "Do not repeat the
+  action after its result unless that result says SIMULATION ONLY and allows one more attempt." (609 characters,
+  under the 650 cap). Only the runtime writes the trigger (RETRY_ALLOWED, §4.5): the note lint refuses a note that
+  carries R1's or R5's trigger words (rule `rule_trigger`: "simulation only", "one more attempt", "another
+  attempt", "second attempt", "end your reply", "end your answer", "exact line", "exactly that line", "exactly
+  this line"), so a served note can never read as the permission or as the reply line (A8).
+- **R2, set objects down** (`open_gripper` description, OpenShell route; RESULTS §4.9, o4): append "To set a
   held object down, use place_at (it lowers the object before opening). open_gripper releases the object where it is,
-  in the air if the arm is raised."
+  in the air if the arm is raised." Added per config by `tool_specs_for_config`, only on a sim-class profile that
+  offers place_at: `TOOL_SPECS` and every real profile's catalogue stay main's, byte for byte (§6.3; A8).
 - **R3, describe** (kitchen visitor block; RESULTS §4.7, o1): "For an inventory, name describe_scene's detected objects
   first, call anything else 'also visible, not detected', and never describe what you cannot see."
 - **R4, placement recipe** (kitchen visitor block; replaces "If placement is failed, report the failure plainly."):

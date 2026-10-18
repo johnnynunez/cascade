@@ -527,9 +527,20 @@ _NUMBER_UNITS = frozenset({"m", "in"})
 _TURNS = frozenset({"turn", "turns"})
 _TURN_QUALIFIERS = frozenset({"full", "quarters"})
 _TURN_REACH = 3
+#: the triggers the kitchen agent's rules act on (ASPIRE A8, spec §4.6): R1 repeats a motion
+#: order once when ITS result says SIMULATION ONLY and allows one more attempt, R5 ends the
+#: reply with the line a tool result gives ("End your reply with this exact line: ..."). Only
+#: the runtime writes them (the sim retry ledger, the learning line). A note is shown inside a
+#: tool result (robot_knowledge) and beside the rules (LEARNED.md): one that carries a trigger
+#: would turn advice into a permission to move again or a line repeated verbatim, so it is
+#: refused wherever the trigger stands
+_RULE_TRIGGERS = (("simulation*", "only"), ("one", "more", "attempt*"), ("another", "attempt*"),
+                  ("second", "attempt*"), ("end*", "your", "reply*"), ("end*", "your", "answer*"),
+                  ("exact", "line*"), ("exactly", "that", "line*"), ("exactly", "this", "line*"))
 #: every family a word or a join of words is read against (`_View`)
 _FAMILIES = (_TEMPLATE, _RESET, _RESET_VERBS, _SCENE, _PROVENANCE, _LEARNED, _STOPS, _NEGATORS, _HALTS, _LOOPS,
-             _WEAKEN, _WEAKEN_HEAD, _REMOVE, _PHRASAL_OFF, _GUARDS, _CLAIM_AS, _CLAIM_SAY, _SUCCESS, _UNITS)
+             _WEAKEN, _WEAKEN_HEAD, _REMOVE, _PHRASAL_OFF, _GUARDS, _CLAIM_AS, _CLAIM_SAY, _SUCCESS, _UNITS,
+             _RULE_TRIGGERS)
 #: spelled-out numbers: two in one field ("one" aside: "pick the one on top"), two side
 #: by side ("minus one", "twenty-one") or one after an axis letter is refused; "point" is
 #: a number only next to a number ("point five", "2 point 5"; not "point at the bowl")
@@ -1198,6 +1209,8 @@ def _structure_problems(text: str, skill: str) -> list[tuple[str, str]]:
     found.append(("weaken", f"'{weakened[0]}' near '{weakened[1]}'" if weakened else None))
     claim = followed(_CLAIM_AS, _SUCCESS, _TREAT_REACH) or followed(_CLAIM_SAY, _SUCCESS, _SAY_REACH)
     found.append(("success_claim", f"claims success ('{claim[0]}' ... '{claim[1]}')" if claim else None))
+    trigger = phrase(_RULE_TRIGGERS)
+    found.append(("rule_trigger", f"carries a rule trigger only tool results give ('{trigger}')" if trigger else None))
     return [(rule, reason) for rule, reason in found if reason]
 
 

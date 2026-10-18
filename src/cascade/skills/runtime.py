@@ -9879,9 +9879,18 @@ for _spec in TOOL_SPECS:
 del _spec
 
 
+#: Rule R2 of the ASPIRE demo port (spec §4.6): appended to `open_gripper`'s
+#: description on a sim-class profile that offers place_at (the OpenShell route);
+#: a real robot's catalogue stays main's, byte for byte (spec §6.3)
+_SET_DOWN_WITH_PLACE_AT = ("To set a held object down, use place_at (it lowers the object before opening). "
+                           "open_gripper releases the object where it is, in the air if the arm is raised.")
+
+
 def tool_specs_for_config(cfg=None):
     """Independent schemas for the selected rig; never mutate the shared catalog."""
     import copy
+
+    from .. import sim_profile
     from ..robot_context import arm_profiles
 
     specs = copy.deepcopy(TOOL_SPECS)
@@ -9895,7 +9904,11 @@ def tool_specs_for_config(cfg=None):
     home_arms = [a.get("name", "primary") for a in arms if a.get("return_home_after_motion")]
     summary = "; ".join(f"{a.get('name', 'primary')}: {a.get('display_name', a.get('name', 'arm'))}, "
                         f"{a['n_joints']}-DOF, TCP {a.get('ee_frame')}" for a in arms)
+    set_down = (any(s["name"] == "place_at" for s in specs)
+                and sim_profile.profile_class(cfg) == "sim")
     for spec in specs:
+        if set_down and spec["name"] == "open_gripper":
+            spec["description"] += " " + _SET_DOWN_WITH_PLACE_AT
         if home_arms and len(home_arms) == len(arms) and spec["name"] == "move_home":
             spec["description"] = (
                 "Return the arm to the saved operator camera-view home, preserving the gripper "

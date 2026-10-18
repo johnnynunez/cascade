@@ -576,6 +576,48 @@ def test_a_hostile_halt_reason_never_carries_the_reply_line(monkeypatch, tmp_pat
         assert runtime.last_recalled_frames, "the recalled step has its keyframes (their captions are checked)"
 
 
+def _mcp_payload(result):
+    """An MCP tool result's text parsed back from JSON (escapes would hide a span)."""
+    (text,) = [item["text"] for item in result["content"] if item.get("type") == "text"]
+    return json.loads(text)
+
+
+@pytest.mark.parametrize("gate", [False, True], ids=["gate 0", "gate 1"])
+@pytest.mark.parametrize("reason", HOSTILE_REASONS + HOSTILE_REPLY_LINES)
+def test_the_agents_own_halt_reason_never_reaches_world_state(monkeypatch, tmp_path, gate, reason):
+    """The agent's own `halt_motion(reason)` (A8 follow-ups fix, Important 2): the reason
+    reaches the harness as given, but no channel the agent reads carries R1's or R5's
+    words: the halt_motion result, MCP world_state (its events and agent_status), the
+    memory digest, every status line the call pushed (the one before it too) and the
+    recalled step with its frame captions, with the ledger (gate 1) or without (gate 0)."""
+    from cascade.apps.mcp_server import McpSkillServer
+
+    assert _reads_as_the_trigger(reason) or _reads_as_the_reply_line(reason)
+    with _stack(monkeypatch, tmp_path, gate=gate) as (runtime, arm):
+        statuses, real_status = [], runtime._show_status
+        monkeypatch.setattr(runtime, "_show_status", lambda text: statuses.append(text) or real_status(text))
+        server = McpSkillServer()
+        server._runtime = runtime
+        n0 = len(arm.commands)
+        halted = _mcp_payload(server.call_tool("halt_motion", {"reason": reason}))
+        assert runtime.arm.harness.halted == reason  # the halt itself is the operator's, as given
+        state = _mcp_payload(server.call_tool("world_state", {}))
+        recalled = runtime.execute("recall_step", {"n": -1})
+        assert recalled["skill"] == "halt_motion", recalled
+        channels = {"halt_motion": halted, "world_state": state, "events": state["events"],
+                    "agent_status": state["session_state"]["agent_status"],
+                    "digest": runtime.memory.digest(), "status lines": statuses, "recall_step": recalled,
+                    "recall_step frames": [fr["caption"] for fr in runtime.last_recalled_frames]}
+        for name, value in channels.items():
+            text = json.dumps(value, default=str, ensure_ascii=False)
+            assert not _reads_as_the_trigger(text) and not _reads_as_the_reply_line(text), (name, value)
+        assert halted["ok"] is True and len(arm.commands) == n0
+        # the note and the call's memory event are there, each with its trigger withheld
+        assert any("(note) halted motion: " in line and "withheld)" in line for line in state["events"]), state
+        assert any("halt_motion(reason=" in line and "withheld)" in line for line in state["events"]), state
+        assert len(statuses) >= 2 and statuses[0].startswith("halt_motion(reason=") and "withheld)" in statuses[0]
+
+
 @pytest.mark.parametrize("skill", SKILLS)
 def test_a_long_object_name_keeps_the_window_end_in_the_failed_line(ledger_stack, skill):  # A8 follow-ups 3
     """A 200-character object name: the repeat after a stop is refused before any motion,

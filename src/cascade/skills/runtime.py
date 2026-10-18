@@ -2058,7 +2058,9 @@ class SkillRuntime:
                                 getattr(effective_harness, "_halt_generation", None))
         retry_home = False
         refused_by = None  # the exact class name of the exception that ended the skill (R6)
-        self._show_status(f"{name}({_short(args)})")
+        # the call's arguments as the agent wrote them (halt_motion's reason, an object
+        # name): MCP world_state shows this line, so the rules' triggers are withheld
+        self._show_status(f"{name}({_without_rule_triggers(_short(args))})")
         # BEFORE keyframe. `last_frame` is only set by observe(), so the first
         # skill of a run used to record `keyframe_before: null` -- exactly the
         # image an outcome judge (eval/progress_judge.py) needs. Take a fresh
@@ -2555,7 +2557,7 @@ class SkillRuntime:
         extra = {"crops": call_crops} if call_crops else {}
         self.memory.add(
             "action" if result["ok"] else "outcome",
-            f"{name}({_short(args)}) -> {tail[:120]}",
+            f"{name}({_without_rule_triggers(_short(args))}) -> {tail[:120]}",
             data={"verdict": verdict} if verdict else None,
             rgb=(
                 self.last_frame.rgb
@@ -4256,7 +4258,9 @@ class SkillRuntime:
         instead when the rig is actually unsafe.
         """
         self.arm.harness.halt(reason)
-        self.memory.add("note", f"halted motion: {reason}")
+        # the note reaches the agent (MCP world_state, task_memory): the reason is the
+        # agent's own free text, so the rules' triggers are withheld (the harness keeps it whole)
+        self.memory.add("note", f"halted motion: {_without_rule_triggers(reason)}")
         return {"ok": True, "halted": reason,
                 "note": "clears automatically when the next motion begins"}
 
@@ -9307,9 +9311,10 @@ class SkillRuntime:
         args: dict = raw_args if isinstance(raw_args, dict) else {}
         tier = str(row.get("tier") or "unknown")
         skill = str(row.get("skill") or "?")
-        head = f"step {step}: {skill}({_short(args)})"
         # the frames' captions reach the agent outside this result (MCP recall_step): the
-        # trace row's own text, so the retry trigger is withheld here too (A8 fix 2)
+        # trace row's own text, so the rules' triggers are withheld here too, from the
+        # recorded arguments as well (halt_motion's reason; A8 fix 2, A8 follow-ups fix)
+        head = f"step {step}: {skill}({_without_rule_triggers(_short(args))})"
         tail = _without_rule_triggers("ok" if outcome == OUTCOME_OK
                                       else f"stuck -- {result.get('ask', '')}" if outcome == OUTCOME_STUCK
                                       else f"failed: {str(result.get('error', ''))[:120]}")

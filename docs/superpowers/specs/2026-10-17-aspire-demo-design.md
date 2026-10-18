@@ -450,7 +450,10 @@ and R4 replace or compress existing sentences instead of only adding. Tests: `te
   function words). Accepted over-blocks: kitchen lines that use "stop" as a verb and advice that respects a stop
   ("Never retry after a halt."). The runtime's `_with_retry_text`, which every result of
   `execute()` passes with or without a ledger, withholds R1's trigger words ("(retry wording withheld)") from every
-  result the ledger did not grant, an operator's free-text halt reason included (A8 fix, Important 3).
+  result the ledger did not grant, an operator's free-text halt reason included (A8 fix, Important 3), and from the
+  status line and memory event of every call (MCP `world_state`, `task_memory`), read through NFKD, combining
+  marks dropped, Cyrillic / Greek look-alikes, the digit 0, and format characters or spaces between the letters
+  (A8 fix 2).
 - **R2, set objects down** (`open_gripper` description, OpenShell route; RESULTS §4.9, o4): append "To set a
   held object down, use place_at (it lowers the object before opening). open_gripper releases the object where it is,
   in the air if the arm is raised." Added per config by `tool_specs_for_config`, only on a sim-class profile that

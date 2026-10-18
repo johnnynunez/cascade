@@ -2272,10 +2272,12 @@ class SkillRuntime:
                           keyframe_before_wrists=before_wrists, keyframe_after_wrists=after_wrists)
         err = str(result.get("error", "failed"))
         stuck = result.get("outcome") == OUTCOME_STUCK
-        # one tail for the status line and the memory event: ok / the ask / the error
-        tail = ("ok" if result["ok"]
-                else f"stuck -- {str(result.get('ask', ''))}" if stuck
-                else err)
+        # one tail for the status line and the memory event: ok / the ask / the error,
+        # the retry trigger withheld (A8 fix 2, Minor 2: MCP world_state and task_memory
+        # show both to the agent, and only a granted result's next_action may carry it)
+        tail = _without_retry_trigger("ok" if result["ok"]
+                                      else f"stuck -- {str(result.get('ask', ''))}" if stuck
+                                      else err)
         self._show_status(f"{name} -> {tail[:60]}")
         # Vesta memory tuple <step, time, observation, action, verdict>: the
         # action event carries the AFTER frame (what the world looked like
@@ -8993,23 +8995,83 @@ def _with_failure_instruction(result: dict) -> dict:
 #: The kitchen rules' retry trigger (A8 R1: repeat a motion order once only when ITS
 #: result says SIMULATION ONLY and allows one more attempt; the note lint's
 #: `rule_trigger` words): only a retry the ledger granted may carry it (A8 fix,
-#: Important 3). Read after NFKC with format characters dropped, in any case and
-#: across any separator ("Simulation-only", "ONE  more attempt", "simulation_only").
-_RETRY_TRIGGER_RE = re.compile(r"(?<![a-z0-9])(?:simulation[\W_]*only|one[\W_]*more[\W_]*attempt|"
-                               r"another[\W_]*attempt|second[\W_]*attempt)", re.IGNORECASE)
+#: Important 3). Read as a reader reads it (`_trigger_reading`; A8 fix 2): in any
+#: case, across any separator, also between its letters ("Simulation-only", "ONE  more
+#: attempt", "S I M U L A T I O N  O N L Y", a zero-width or other format character
+#: inside a word), with the digit 0 for the letter o.
+_RETRY_TRIGGER_PHRASES = ("simulation only", "one more attempt", "another attempt", "second attempt")
+_RETRY_TRIGGER_RE = re.compile(
+    r"(?<![a-z0-9])(?:" + "|".join(r"[\W_]*".join("[o0]" if ch == "o" else ch for ch in phrase.replace(" ", ""))
+                                   for phrase in _RETRY_TRIGGER_PHRASES) + ")", re.IGNORECASE)
 #: what stands in a trigger's place in a result the ledger did not grant
 _RETRY_TRIGGER_WITHHELD = "(retry wording withheld)"
+#: Cyrillic, Greek and Latin look-alikes of the trigger's letters, read as those letters
+_TRIGGER_LOOKALIKES = str.maketrans({
+    "\u0430": "a", "\u0410": "a", "\u0391": "a", "\u03b1": "a", "\u0251": "a", "\u0441": "c", "\u0421": "c",
+    "\u03f2": "c", "\u0501": "d", "\u0435": "e", "\u0415": "e", "\u0395": "e", "\u03b5": "e", "\u04bb": "h",
+    "\u041d": "h", "\u0397": "h", "\u0456": "i", "\u0406": "i", "\u0399": "i", "\u03b9": "i", "\u0131": "i",
+    "\u04cf": "l", "\u04c0": "l", "\u043c": "m", "\u041c": "m", "\u039c": "m", "\u039d": "n", "\u043e": "o",
+    "\u041e": "o", "\u039f": "o", "\u03bf": "o", "\u03c3": "o", "\u0440": "p", "\u0420": "p", "\u03a1": "p",
+    "\u03c1": "p", "\u0433": "r", "\u0455": "s", "\u0405": "s", "\u0442": "t", "\u0422": "t", "\u03a4": "t",
+    "\u03c4": "t", "\u03c5": "u", "\u0443": "y", "\u0423": "y", "\u03a5": "y", "\u04af": "y"})
+#: the trigger squeezed (no separators, lower case, 0 read as o): a cheap first look, a
+#: superset of `_RETRY_TRIGGER_RE` (no word-start guard) on bytes
+_TRIGGER_SQUEEZED = tuple(phrase.replace(" ", "").encode() for phrase in _RETRY_TRIGGER_PHRASES)
+_TRIGGER_SQUEEZE = bytes.maketrans(b"ABCDEFGHIJKLMNOPQRSTUVWXYZ0", b"abcdefghijklmnopqrstuvwxyzo")
+_TRIGGER_SEPARATORS = bytes(byte for byte in range(128) if not chr(byte).isalnum())
+
+
+def _trigger_reading(text: str) -> str:
+    """`text` as the trigger is read: NFKD, combining marks dropped, look-alike letters
+    as Latin letters (`_TRIGGER_LOOKALIKES`). Format characters stay: they are separators
+    to `_RETRY_TRIGGER_RE` like any other non-letter."""
+    decomposed = unicodedata.normalize("NFKD", text)
+    hidden = {ord(ch): None for ch in set(decomposed)
+              if not ch.isascii() and unicodedata.category(ch) in ("Mn", "Me")}
+    return decomposed.translate({**_TRIGGER_LOOKALIKES, **hidden} if hidden else _TRIGGER_LOOKALIKES)
+
+
+def _may_carry_trigger(reading: str) -> bool:
+    """A cheap first look (C-level byte ops): False only when `reading` cannot match
+    `_RETRY_TRIGGER_RE` (its letters, squeezed, contain no trigger phrase)."""
+    squeezed = reading.encode("ascii", "ignore").translate(_TRIGGER_SQUEEZE, _TRIGGER_SEPARATORS)
+    return any(phrase in squeezed for phrase in _TRIGGER_SQUEEZED)
+
+
+def _withhold_spans(text: str) -> str:
+    """`text` with each span that reads as the trigger replaced by `_RETRY_TRIGGER_WITHHELD`
+    (the rest kept as written: other scripts, accents, numbers), read character by
+    character so every match maps back to its own characters (the same reading as
+    `_trigger_reading` of the whole text: NFKD decomposes each character on its own,
+    and the marks it could reorder are dropped)."""
+    pieces, origin = [], []
+    for i, ch in enumerate(text):
+        reading = ch if ch.isascii() else _trigger_reading(ch)
+        pieces.append(reading)
+        origin.extend([i] * len(reading))
+    out, last = [], 0
+    for match in _RETRY_TRIGGER_RE.finditer("".join(pieces)):
+        start, end = origin[match.start()], origin[match.end() - 1] + 1
+        while end < len(text) and not pieces[end]:  # marks that only decorate the last letter
+            end += 1
+        out += [text[last:start], _RETRY_TRIGGER_WITHHELD]
+        last = end
+    out.append(text[last:])
+    return "".join(out)
 
 
 def _without_retry_trigger(value):
-    """`value` with every retry trigger (`_RETRY_TRIGGER_RE`) withheld from every
-    string in it: dicts, lists and tuples are walked, and a container is copied only
-    where a string changed (shared objects are never edited). A string with a
-    trigger comes back NFKC-normalised without format characters; any other value
-    comes back as it was, the same object."""
+    """`value` with every span that reads as a retry trigger (`_RETRY_TRIGGER_RE` on
+    `_trigger_reading`) withheld from every string in it: dicts, lists and tuples are
+    walked, and a container is copied only where a string changed (shared objects are
+    never edited). A plain-ASCII string skips the Unicode reading (A8 fix 2, Minor 6:
+    no mark, compatibility form or look-alike can be in it); a string without a trigger
+    comes back as it was, the same object, and so does any other value."""
     if isinstance(value, str):
-        folded = "".join(ch for ch in unicodedata.normalize("NFKC", value) if unicodedata.category(ch) != "Cf")
-        return _RETRY_TRIGGER_RE.sub(_RETRY_TRIGGER_WITHHELD, folded) if _RETRY_TRIGGER_RE.search(folded) else value
+        reading = value if value.isascii() else _trigger_reading(value)
+        if not _may_carry_trigger(reading) or not _RETRY_TRIGGER_RE.search(reading):
+            return value
+        return _RETRY_TRIGGER_RE.sub(_RETRY_TRIGGER_WITHHELD, value) if reading is value else _withhold_spans(value)
     if isinstance(value, dict):
         changed = {key: new for key, item in value.items() if (new := _without_retry_trigger(item)) is not item}
         return {**value, **changed} if changed else value

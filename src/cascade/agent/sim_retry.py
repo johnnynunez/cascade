@@ -71,6 +71,10 @@ at most one retry is granted within the window, however the agent interleaves
 goals, and an order that is not spent gets at most two motion calls: the first
 attempt and its retry. Halts and e-stops never open, use or re-arm a slot.
 
+Both refusals name the object by at most SHOWN_GOAL_CHARS characters (a longer
+name is cut and ends in "..."; A8 follow-ups 3), so the agent's FAILED line,
+which quotes 240 characters of the error, always keeps the sentence.
+
 Refusals are classified by the EXACT class name of the exception that refused
 the call (R6), never by error text: subclasses such as MotionHalted or
 ContactDetected never qualify, and error text can only exclude a result, never
@@ -163,6 +167,11 @@ RETRY_STOPPED = ("No retry for {goal}: the operator stopped the arm after the re
 RETRY_STOPPED_NEXT = ("The operator stopped the arm, so this repeat is refused: report it and wait. Never reset the "
                       "scene on your own: a new order on this object needs a scene reset, which only the operator "
                       "or the visitor can ask for (or the retry window's end).")
+#: the most characters of the object's name a refusal shows (A8 follow-ups 3): a longer
+#: name is cut and ends in "...", so the FAILED line's 240-character quote keeps the
+#: sentence (until when a stopped repeat is refused, why a used one is too late); the
+#: goal itself is never cut
+SHOWN_GOAL_CHARS = 60
 
 #: words a goal never compares (A6-fix I1)
 _DETERMINERS = frozenset({"a", "an", "the", "this", "that", "these", "those"})
@@ -218,6 +227,12 @@ def goal_of(name, args) -> Goal | None:
     if not words or destination is None or arm is None:
         return None
     return Goal(" ".join(obj.casefold().split()), words, destination, arm)
+
+
+def _shown_goal(goal: Goal) -> str:
+    """The goal's name as a refusal shows it: at most SHOWN_GOAL_CHARS characters."""
+    name = str(goal)
+    return name if len(name) <= SHOWN_GOAL_CHARS else name[:SHOWN_GOAL_CHARS - 3].rstrip() + "..."
 
 
 def same_object(a, b) -> bool:
@@ -553,14 +568,14 @@ class SimRetryLedger:
         return None
 
     def _used_refusal(self, slot: _Slot) -> dict:
-        error = RETRY_EXHAUSTED.format(goal=slot.goal)
+        error = RETRY_EXHAUSTED.format(goal=_shown_goal(slot.goal))
         if slot.late:
             error = f"{error}: {RETRY_TOO_LATE}"
         return {"ok": False, "error": error, "sim_retry": {"allowed": False, "used": True}}
 
     def _stopped_refusal(self, slot: _Slot, now: float) -> dict:
         left = math.ceil(slot.opened_at + self.window_s - now)  # > 0: an expired slot is gone
-        return {"ok": False, "error": RETRY_STOPPED.format(goal=slot.goal, seconds=left),
+        return {"ok": False, "error": RETRY_STOPPED.format(goal=_shown_goal(slot.goal), seconds=left),
                 "sim_retry": {"allowed": False, "stopped": True}}
 
     def _expire(self, now: float) -> None:

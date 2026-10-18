@@ -50,6 +50,20 @@ gripper:
   # docs/evidence/b36-pick-reliability-20261010/README.md
   hold_squeeze_frac:
     physx: 0.05
+  # Stall band of the close-feedback wait (`gripper.close_stall_band`, a
+  # fraction of jaw travel; default 0.002): after each close stage the arm
+  # lifts once the jaws reached the stage target or every read stayed within
+  # this band for 0.5 s. It runs where `grasp.close_feedback_timeout_s` is set
+  # (the kitchen profiles, 8 s). On Newton the jaws pinch a cube grasped
+  # 10-30 deg off its faces on its edges and turn it square against table
+  # friction, closing 0.003-0.004 per 0.5 s: at 0.002 that read as moving for
+  # up to 16.5 s and 4 of 20 recorded closes refused the lift ("gripper
+  # closure did not settle"). At 0.01 (0.5 mm per finger per 0.5 s) all 20
+  # settled in 1.0 s; live, 24 of 24 trials settled in 0.92-1.38 s and held
+  # the cube in the lift. Free closing moves >= 0.028 per bridge iteration,
+  # so it never reads as stopped. The post-contact hold above keeps its own
+  # 0.002 band.
+  close_stall_band: 0.01
 
 overrides:
   grasp:

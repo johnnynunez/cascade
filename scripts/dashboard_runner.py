@@ -27,7 +27,7 @@ from cascade.apps.demo import build_runtime, shutdown_runtime
 from cascade.config import load_demo_config
 
 # Real deliberation tier when available: Anthropic API key > the local brain
-# (Nemotron 3.5 Bolt, scripts/serve_nemotron_bolt_vllm.sh) > honest mock. The reflex/experience tiers work the same either way.
+# (Nemotron 3.5 Bolt, scripts/serve_nemotron_bolt_llamacpp.sh) > honest mock. The reflex/experience tiers work the same either way.
 llm_profile = "mock"
 qwen_up = False
 try:

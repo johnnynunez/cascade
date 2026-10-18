@@ -225,7 +225,7 @@ only and no hardware base exists. Code paths and evidence:
 | `codex_astra` | GPT-6-Astra through the Codex CLI (`codex exec`, no API key) | picked first by `--llm auto` after `codex login`; vision + tools |
 | `hermes` | [Hermes / Nous Portal](https://hermes-agent.nousresearch.com/) | `NOUS_API_KEY`; text only |
 | `anthropic` / `openai` | Claude / any OpenAI-compatible cloud endpoint | `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` |
-| `local_nemotron_bolt` | **default brain**: Nemotron 3.5 Bolt 74B-A9B 24GB via `scripts/serve_nemotron_bolt_vllm.sh` (:8080) | served id `nemotron-3.5-bolt`; sends `enable_thinking: false` itself |
+| `local_nemotron_bolt` | **default brain**: Nemotron 3.5 Bolt 74B-A9B 24GB via `scripts/serve_nemotron_bolt_llamacpp.sh` (llama.cpp v0.7.0, :8080; vLLM `serve_nemotron_bolt_vllm.sh` is opt-in, not beside Isaac) | served id `nemotron-3.5-bolt`; sends `enable_thinking: false` itself |
 | `local_qwen` | Qwen3.8-27B via `scripts/serve_qwen_llamacpp.sh` or `serve_qwen_vllm.sh` (:8080) | `model:` must be one of `serve_qwen_vllm.sh`'s served names |
 | `local_cosmos` / `local_cosmos_sglang` | Cosmos3-Edge via vLLM (:8082) / SGLang (:8083, **unverified**) | `type: cosmos3` (XML tool calls) |
 | `mock` | scripted | tests and wiring checks |
@@ -310,7 +310,7 @@ objects (`detector: type: brain`) and **SAM 2.1-L** masks its boxes
 ([bake-off evidence](docs/evidence/perception-bakeoff-20261015/REPORT.md),
 [Bolt evidence](docs/evidence/brain-nemotron-bolt-2026-10-18/REPORT.md)):
 
-1. Brain endpoint: `CASCADE_PERCEPTION_URL` (default `http://127.0.0.1:8080/v1`, where `scripts/serve_nemotron_bolt_vllm.sh` and `scripts/serve_qwen_*.sh` listen), `CASCADE_PERCEPTION_MODEL` (`nemotron-3.5-bolt`; `qwen3.8-27b` for Qwen), `CASCADE_PERCEPTION_KEY_FILE` (`~/.cascade/nemoclaw/llama.key`; the path is forwarded, never the key). `launch.sh --brain nemotron-bolt|qwen` and OpenShell instances saved with a local brain set them (the rig's instance uses its own brain on :8081).
+1. Brain endpoint: `CASCADE_PERCEPTION_URL` (default `http://127.0.0.1:8080/v1`, where `scripts/serve_nemotron_bolt_llamacpp.sh` and `scripts/serve_qwen_*.sh` listen), `CASCADE_PERCEPTION_MODEL` (`nemotron-3.5-bolt`; `qwen3.8-27b` for Qwen), `CASCADE_PERCEPTION_KEY_FILE` (`~/.cascade/nemoclaw/llama.key`; the path is forwarded, never the key). `launch.sh --brain nemotron-bolt|qwen` and OpenShell instances saved with a local brain set them (the rig's instance uses its own brain on :8081).
 2. SAM weights: `models/sam2.1_l.pt` (~450 MB), placed by `scripts/install.sh --profile spark`, named by absolute path in `configs/demo.yaml`; ultralytics runs offline and never downloads it. Missing file: boxes without masks (`scripts/booth_up.sh` warns).
 3. The watcher never waits for the brain: SAM tracks cached boxes while the brain refreshes them in the background. Brain down: known objects stay tracked while the scene is unchanged; nothing new is named.
 4. "Find the X" asks the brain directly (~2 s), then SAM masks the answer.

@@ -65,14 +65,16 @@ TLS from a private CA).
 ```bash
 # 0. the brain on 127.0.0.1:8081 with a bearer key read from a 0600 file (default
 #    ~/.cascade/nemoclaw/llama.key, or --brain-key-file / $CASCADE_BRAIN_KEY_FILE)
-#    and the bare served id nemotron-3.5-bolt: Nemotron 3.5 Bolt 74B-A9B 24GB in the
-#    model card's vLLM container (Docker CDI GPU, no drafter: SPEC=dflash adds LiLiCorr;
-#    ~53 GiB at GPU_UTIL 0.45); the key goes to VLLM_API_KEY, passed to docker by name, never argv.
-#    Once per host: scripts/serve_nemotron_bolt_vllm.sh --setup-only (pinned image + b12x,
-#    pinned weights, 24 GB). Restart this unit after pulling a new revision.
-systemd-run --user --unit=cascade-brain-vllm --collect -p MemoryMax=infinity \
+#    and the bare served id nemotron-3.5-bolt: Nemotron 3.5 Bolt 74B-A9B 24GB (GGUF)
+#    on llama.cpp v0.7.0 with the LiLiCorr drafter, two slots; llama-server reads the key
+#    file itself, never argv. Once per host: scripts/serve_nemotron_bolt_llamacpp.sh
+#    --setup-only (pinned GGUF + projector + drafter, 24.8 GB, and the pinned llama.cpp
+#    build). Restart this unit after pulling a new revision.
+systemd-run --user --unit=cascade-brain --collect -p MemoryMax=infinity \
     -E PORT=8081 -E API_KEY_FILE="$HOME/.cascade/nemoclaw/llama.key" \
-    "$PWD/scripts/serve_nemotron_bolt_vllm.sh"
+    "$PWD/scripts/serve_nemotron_bolt_llamacpp.sh"
+#    Opt-in, NOT beside Isaac Sim: Bolt on vLLM (scripts/serve_nemotron_bolt_vllm.sh, the
+#    model card's container) faulted the GPU (Xid 31) beside Isaac; see its header.
 #    Qwen3.8 NVFP4 + DFlash2 instead: the same unit with scripts/serve_qwen_vllm.sh, and
 #    `scripts/openshell_rig.py up --model qwen3.8-27b` (or launch.sh --brain qwen);
 #    or llama.cpp: PORT=8081 ALIAS=qwen3.8-27b API_KEY_FILE=... scripts/serve_qwen_llamacpp.sh

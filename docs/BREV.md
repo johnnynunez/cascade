@@ -73,7 +73,9 @@ python3 deploy/brev/build_bundle.py --assets /srv/cascade/assets \
 
 `scripts/kitchen_assets.py` fetches the audited `Cocina_Asier_01` release and verifies the
 archive and every unpacked file (`--check` verifies offline; an offline source machine passes
-the ZIP with `--archive /srv/cascade/cocina-asier-v1.zip`). The orange and bowl are generated
+the ZIP with `--archive /srv/cascade/cocina-asier-v1.zip`). While the repository is private,
+the anonymous release URL answers 404: run it with `GH_TOKEN` (or `GITHUB_TOKEN`) set to a
+token that can read the repository, and it resolves the asset through the GitHub API. The orange and bowl are generated
 from the checkout. Assembly and admission are offline.
 
 **Operations:** `deploy.sh {prepare,install,access,preflight,start,status,restart,stop}

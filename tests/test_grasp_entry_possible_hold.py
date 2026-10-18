@@ -303,10 +303,47 @@ def test_every_skill_that_opens_the_jaws_first_refuses_before_any_command(rebot_
     rt = rebot_real
     assert rt.execute("snapshot_scene", {"name": "scene"})["ok"] is not False
     holding_unknown_at_home(rt, monkeypatch, 0.5)
+    if skill == "restore_scene":
+        displaced(rt)                       # something to move: the restore would grasp
     args, error = ENTRIES[skill]
     prov, jaws, n0 = rt._held_provisional, T.jaw_commands(rt, monkeypatch), T.commands(rt)
     res = rt.execute(skill, args)
     assert_refused_before_any_command(rt, res, n0, jaws, prov, error=error)
+
+
+def displaced(rt, dy=0.06):
+    """The memorized layout puts every object `dy` to the side of where it
+    is now: restore_scene has something to move."""
+    import numpy as np
+
+    for entry in rt.beliefs.get_snapshot("scene").entries:
+        entry["position"] = list(np.asarray(entry["position"], dtype=float) + [0.0, dy, 0.0])
+
+
+#: composites that would grasp nothing from the same state: main ran them
+#: (ok, no command); #379 refused them at their entry
+NOTHING_TO_GRASP = {
+    "restore_scene": {"name": "scene"},                 # nothing displaced
+    "search_for_object": {"label": "red cube"},         # already in view
+    "sort_by_color": {"max_objects": 0},                # nothing to sort
+}
+
+
+@pytest.mark.parametrize("skill", sorted(NOTHING_TO_GRASP))
+def test_a_composite_that_would_grasp_nothing_runs_as_on_main(rebot_real, monkeypatch, skill):
+    """#379 review minor 4: restore_scene, search_for_object and sort_by_color
+    refuse a possible hold right before their first grasp, not at their
+    entry: nothing before it moves the arm or the jaws (perception and
+    planning only), so a call that grasps nothing runs as on main, with no
+    command, and the hold is left as it was."""
+    rt = rebot_real
+    assert rt.execute("snapshot_scene", {"name": "scene"})["ok"] is not False
+    holding_unknown_at_home(rt, monkeypatch, 0.5)
+    prov, jaws, n0 = rt._held_provisional, T.jaw_commands(rt, monkeypatch), T.commands(rt)
+    res = rt.execute(skill, NOTHING_TO_GRASP[skill])
+    assert "could not be read" not in str(res.get("error")) and res.get("outcome") != "stuck", res
+    assert res["ok"] is True, res
+    assert T.commands(rt) == n0 and jaws == [] and rt._held_provisional == prov and rt.held_object is None
 
 
 def test_handovers_errors_fit_the_agents_240_characters_with_a_long_label(rebot_real, monkeypatch):

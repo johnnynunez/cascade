@@ -2949,6 +2949,21 @@ class SkillRuntime:
         if refusal is not None:
             raise SkillStuck(refusal, _POSSIBLE_HOLD_ASK)
 
+    def _refuse_a_possible_hold_before_grasping(self) -> None:
+        """The guard of a composite whose motion starts with a grasp
+        (sort_by_color, restore_scene, search_for_object), placed right
+        before its FIRST grasp: an interrupted grasp's provisional hold is
+        judged as that grasp's entry would judge it (`_reconcile_held`) and
+        refused while it survives. Nothing before that point moves the arm
+        or the jaws (perception and planning only), so refusing there is as
+        safe as at the entry, and a call that grasps nothing (nothing to
+        sort, nothing displaced, the object already in view) runs as on main
+        (#379 review minor 4). A hold that a later object's failed attempt
+        leaves is the persistence loops' (`_grasp_retry_verdict`)."""
+        if getattr(self, "_held_provisional", None) is not None and not self.held_object:
+            self._reconcile_held()
+            self._raise_on_a_possible_hold()
+
     def _grasp_retry_verdict(self, object: str, attempt: int, last_err: str) -> str | None:
         """Why persistence should STOP retrying a grasp, or None to keep going.
 
@@ -7773,15 +7788,10 @@ class SkillRuntime:
         # (verified against the RS URDF); stay within +-0.20.
         zones_y = (-0.20, -0.10, 0.0, 0.10, 0.20)
         zone_x = float(self.cfg.grasp.get("drop_zone", [0.30, -0.20])[0])
-        if getattr(self, "_held_provisional", None) is not None and not self.held_object:
-            # An interrupted grasp's provisional hold: judged here, as the first
-            # object's grasp entry would, and refused before anything moves
-            # while it survives (every grasp would open the jaws on it).
-            self._reconcile_held()
-            self._raise_on_a_possible_hold()
         colors: dict[str, tuple[float, float]] = {}
         moved, failed = [], []
         left_in_place, left_by = False, None  # the last grasp attempt left the arm where it stopped
+        grasping = False  # a grasp was started (the possible-hold guard ran)
         for b in list(self.beliefs.all())[: int(max_objects)]:
             color = b.color or "unknown"
             if color not in colors:
@@ -7793,6 +7803,9 @@ class SkillRuntime:
             if np.linalg.norm(b.position[:2] - np.array([zx, zy])) < 0.07:
                 continue  # already sorted
             query = f"{b.color} {b.label}" if b.color else b.label
+            if not grasping:
+                grasping = True
+                self._refuse_a_possible_hold_before_grasping()   # every grasp would open the jaws on it
             try:
                 # a per-object slice of the budget: one stubborn object must
                 # not eat the whole sort
@@ -8188,7 +8201,6 @@ class SkillRuntime:
         self._reconcile_held()
         if self.held_object:
             raise SkillError(f"already holding {self.held_object!r}; place it first")
-        self._raise_on_a_possible_hold()   # every move starts with a grasp
         tolerance_m = float(np.clip(float(tolerance_m), 0.02, 0.15))
         max_moves = int(np.clip(int(max_moves), 1, 8))
         budget_s = float(self.cfg.grasp.get("restore_object_persist_seconds", 40.0))
@@ -8228,6 +8240,8 @@ class SkillRuntime:
                 skip.add(step["label"])
                 plan = self._restore_plan(snap, tolerance_m, skip, seen_after)
                 continue
+            if not moves:
+                self._refuse_a_possible_hold_before_grasping()   # every move starts with a grasp
             try:
                 rec = self._move_object_to(step["query"], step["to"], budget_s=budget_s, kind=step["kind"])
             except MotionHalted as halted:
@@ -8330,7 +8344,6 @@ class SkillRuntime:
         self._reconcile_held()
         if self.held_object:
             raise SkillError(f"already holding {self.held_object!r}; place it first")
-        self._raise_on_a_possible_hold()   # lifting an occluder starts with a grasp
         max_occluders = int(np.clip(int(max_occluders), 1, 4))
         gcfg = self.cfg.grasp
         budget_s = float(gcfg.get("search_occluder_persist_seconds", 40.0))
@@ -8395,6 +8408,8 @@ class SkillRuntime:
             if spot is None:
                 failed.append({"label": str(occ.label), "error": "no free, reachable spot to park it"})
                 continue
+            if not moved:
+                self._refuse_a_possible_hold_before_grasping()   # lifting an occluder starts with a grasp
             attempts += 1
             self.memory.add("note", f"lifting {occ.label!r} (likely occluder {attempts}/{max_occluders}) "
                                     f"and parking it at {np.round(spot, 3).tolist()}")

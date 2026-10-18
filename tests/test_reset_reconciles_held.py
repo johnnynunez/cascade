@@ -48,6 +48,7 @@ from types import SimpleNamespace
 import pytest
 
 from cascade.control.mock_arm import MockArm
+from cascade.skills import stop_retrace
 from cascade.skills.runtime import ProvisionalHold
 from cascade.types import MotionHalted
 
@@ -173,6 +174,11 @@ def _stop_in_the_grasp(r, *, stall, where="late_in_lift"):
     assert out["ok"] is False and MotionHalted.__name__ in out["error"], out
     assert r.log[stop[0]:] == [], "commands after the halt"
     assert runtime.held_object is None and runtime._held_provisional is not None
+    # #359 keeps the approach column after such a STOP (rebot_rs); these tests
+    # pin the reset's own rules once it is gone (expired, or given up by
+    # another motion skill): tests/test_stop_retrace.py pins the refusal
+    # texts while it is kept (move_home first).
+    stop_retrace.forget(runtime)
     r.log.clear()
 
 

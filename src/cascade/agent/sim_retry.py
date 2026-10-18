@@ -1,33 +1,56 @@
-"""Sim-only bounded retry ledger (ASPIRE spec §4.5; preflight R6, R7, R9, R10, R28).
+"""Sim-only bounded retry ledger (ASPIRE spec §4.5; preflight R6-R10, R28; A6-fix rulings).
 
 SIMULATION ONLY. On a sim profile with the retry switched on (`ledger_for`), an
 order the robot REFUSED -- a safety gate, slow or changed perception, no
-plannable grasp -- may be repeated once by the agent. The ledger keeps one slot
-per goal (object words + destination + arm):
+plannable grasp -- may be repeated once by the agent.
 
-- a qualifying refusal of a goal with no slot opens it (`finish`);
-- the next same-goal call is THE retry: `begin` marks the slot used before
-  anything moves and hands the call the refused grasps to exclude and whether
-  the refused attempt left the arm in place (the runtime homes it first);
-- every later same-goal call is refused before any motion (`precheck`) until
-  the goal succeeds, `reset_scene` succeeds, a motion call names another goal,
-  or the slot's window (one native turn) ends.
+A goal (`goal_of`) is the order's object, destination and arm, each normalised
+to a set of words: NFKC, casefold, runs of letters and digits (punctuation,
+hyphens and "_" separate words), determiners (a, an, the, this, that, these,
+those) dropped, no stemming. Two goals are the same (`same_goal`) when one
+object's words contain the other's, one destination's words contain the
+other's (an absent destination matches any) and the arms are equal or one is
+absent. An object without words is no goal. So a rephrased order ("the open
+box.", "green_cube", "cube") is the same goal; "pink cube" or another
+destination is not.
 
-So one order gets at most two motion calls: the first attempt and its retry.
+The ledger keeps one slot per goal, in one of three states:
 
-Halts and e-stops never open, use or re-arm a slot: a call that ends halted or
-latched opens nothing and clears every open slot; a retry cannot start under a
-latch, a hold or a pending episode (the call then runs as without the ledger and
-its refusal opens nothing); a retry the operator halts keeps its used slot, so
-nothing moves again on the ledger's behalf.
+- open: a qualifying refusal of a goal with no slot opened it (`finish`). The
+  next same-goal call is THE retry: `begin` marks the slot used before anything
+  moves and hands the call the refused grasps to exclude and whether the refused
+  attempt left the arm in place (the runtime homes it first). A retry that would
+  start too late for the agent's turn (R10: first call's start + reserve past
+  TURN_BUDGET_S) is not granted: the slot is marked used and that call runs as
+  without the ledger;
+- used: every later same-goal call is refused before any motion, by `precheck`
+  and again by `begin` itself (under the same lock as the slot's state, so the
+  bound never depends on the caller's locking);
+- spent: a halt, an e-stop latch, a hold, a pending contact or release episode
+  or a blocked arm touched the goal: its calls run exactly as without the
+  ledger -- no retry, no refusal, and nothing opens.
+
+A goal is touched when one of its calls starts held, latched, with an episode
+pending or with the arm blocked, or ends failed while held or with an episode
+pending, or ends halted or latched; every open slot is touched when any motion
+call starts latched or ends halted or latched. A retry the operator halts keeps
+its used slot, so nothing moves again on the ledger's behalf.
+
+A slot ends only when its goal succeeds, `reset_scene` succeeds (`clear`) or its
+window (one native turn, R9) ends; a used slot ends on success only when the call
+that used it succeeds. A call with another goal never touches a slot, so per goal
+at most one retry is granted within the window, however the agent interleaves
+goals, and an order that is not spent gets at most two motion calls: the first
+attempt and its retry. Halts and e-stops never open, use or re-arm a slot.
 
 Refusals are classified by the EXACT class name of the exception that refused
 the call (R6), never by error text: subclasses such as MotionHalted or
 ContactDetected never qualify, and error text can only exclude a result, never
 admit one. The ledger never edits agent text: it adds the `sim_retry` field and
-returns the precheck refusal; the runtime composes `next_action` from the texts
-below. Bookkeeping never fails a call: an internal error drops every slot (no
-retry) and leaves the result untouched.
+returns the used-slot refusal; the runtime composes `next_action` from the texts
+below. Bookkeeping never fails a call: an internal error turns the ledger off
+for good (every slot dropped; no refusal, no retry, nothing opens again: every
+call runs as without it) and leaves the result untouched.
 
 A real or unknown profile never gets a ledger: `ledger_for` returns one only for
 `profile_class(cfg) == "sim"` with `sim_retry_enabled(cfg)` and the
@@ -38,8 +61,10 @@ from __future__ import annotations
 import logging
 import math
 import os
+import re
 import threading
 import time
+import unicodedata
 from collections.abc import Callable, Mapping, MutableMapping
 from dataclasses import dataclass
 
@@ -64,10 +89,12 @@ REFUSAL_CLASSES = {
     "PlanningBudgetExceeded": "planning_refusal",
     "NoExecutableGrasp": "planning_refusal",
 }
-#: error text that EXCLUDES a result whatever its exception (a halt, a contact,
-#: a latched stop or an unfinished episode folded into a refusal's text)
+#: error text that EXCLUDES a result whatever its exception: a halt, a contact, a
+#: latched stop or an unfinished episode folded into a refusal's text, and the
+#: harness's own callback faults (safety/harness.py), which a retry repeats
 _NEVER_QUALIFY_TEXT = ("MotionHalted", "ContactDetected", "GripperFault", "AttachmentInvalid",
-                       "e-stop latched", "unfinished contact episode", "unfinished release episode")
+                       "e-stop latched", "unfinished contact episode", "unfinished release episode",
+                       "motion safety callback failed", "ambiguous motion preflight callbacks")
 
 #: scripts/native_turn_budget.py: one agent turn, and the grace its final reply needs
 NATIVE_TURN_TIMEOUT_S = 360.0
@@ -76,10 +103,13 @@ AGENT_EXIT_GRACE_S = 30.0
 #: a slot cannot expire inside the order it bounds
 DEFAULT_WINDOW_S = NATIVE_TURN_TIMEOUT_S
 MIN_WINDOW_S = NATIVE_TURN_TIMEOUT_S
-#: R10: the retry is granted only if the first attempt's duration plus this
-#: reserve fits TURN_BUDGET_S (re-ruled from A11's measured p95)
+#: R10: the retry is granted only if the time since the first attempt's start plus
+#: this reserve fits TURN_BUDGET_S (re-ruled from A11's measured p95)
 DEFAULT_RESERVE_S = 200.0
 TURN_BUDGET_S = NATIVE_TURN_TIMEOUT_S - AGENT_EXIT_GRACE_S
+#: a larger reserve leaves the first attempt less than the window's margin
+#: (window - turn budget = 30 s), so the ledger would silently never grant
+MAX_RESERVE_S = TURN_BUDGET_S - (DEFAULT_WINDOW_S - TURN_BUDGET_S)
 
 #: Agent texts, spec §4.5 verbatim (`{skill}` / `{goal}` formatted by the caller).
 RETRY_ALLOWED = (
@@ -90,31 +120,38 @@ RETRY_ALLOWED = (
 RETRY_USED = "The one simulation retry for this order is used: report the failure; do not call it again."
 RETRY_EXHAUSTED = "The one simulation retry for {goal} is used"
 
+#: words a goal never compares (A6-fix I1)
+_DETERMINERS = frozenset({"a", "an", "the", "this", "that", "these", "those"})
+_WORD = re.compile(r"[^\W_]+")
 
-def _words(value) -> str | None:
-    """Casefolded, whitespace-collapsed text; None when `value` is not a non-blank string."""
+
+def _word_set(value) -> frozenset[str] | None:
+    """The words of `value` a goal compares; None when `value` is not a string."""
     if not isinstance(value, str):
         return None
-    return " ".join(value.casefold().split()) or None
+    text = unicodedata.normalize("NFKC", value).casefold()
+    return frozenset(word for word in _WORD.findall(text) if word not in _DETERMINERS)
 
 
-def _optional_words(value) -> str | None:
-    """`_words` of an optional argument: "" when absent or blank, None when not a string."""
-    if value is None:
-        return ""
-    if not isinstance(value, str):
-        return None
-    return " ".join(value.casefold().split())
+def _optional_word_set(value) -> frozenset[str] | None:
+    """`_word_set` of an optional argument: empty when absent, None when not a string."""
+    return frozenset() if value is None else _word_set(value)
+
+
+def _nested(a: frozenset, b: frozenset) -> bool:
+    return a <= b or b <= a
 
 
 @dataclass(frozen=True)
 class Goal:
-    """What an order asks for (R28): the object's words, the destination and the arm,
-    each casefolded and whitespace-collapsed ("" = not given). Shown as its object words."""
+    """What an order asks for (R28, A6-fix I1): the object's words, the destination's
+    words and the arm's words (empty = not given). `name` is for display only: the
+    object as the agent said it, casefolded and whitespace-collapsed."""
 
     name: str
-    destination: str = ""
-    arm: str = ""
+    words: frozenset = frozenset()
+    destination: frozenset = frozenset()
+    arm: frozenset = frozenset()
 
     def __str__(self) -> str:
         return self.name
@@ -122,33 +159,34 @@ class Goal:
 
 def goal_of(name, args) -> Goal | None:
     """The goal of a `pick_and_place(object, destination)` or `grasp_object(label)`
-    call, or None: other skills, a missing or blank object, a non-string argument."""
+    call, or None: other skills, an object without words, a non-string argument."""
     key = _OBJECT_ARG.get(name) if isinstance(name, str) else None
     if key is None or not isinstance(args, Mapping):
         return None
-    obj = _words(args.get(key))
-    destination = _optional_words(args.get("destination")) if name == "pick_and_place" else ""
-    arm = _optional_words(args.get("arm"))
-    if obj is None or destination is None or arm is None:
+    obj = args.get(key)
+    words = _word_set(obj)
+    destination = _optional_word_set(args.get("destination")) if name == "pick_and_place" else frozenset()
+    arm = _optional_word_set(args.get("arm"))
+    if not words or destination is None or arm is None:
         return None
-    return Goal(obj, destination, arm)
+    return Goal(" ".join(obj.casefold().split()), words, destination, arm)
 
 
 def same_object(a, b) -> bool:
-    """One object name's word set contains the other's ("cube" / "green cube"):
+    """One object name's word set contains the other's ("cube" / "the green cube"):
     a renamed retry is the same order; "pink cube" / "green cube" are not."""
-    wa, wb = _words(a), _words(b)
-    if wa is None or wb is None:
-        return False
-    sa, sb = frozenset(wa.split()), frozenset(wb.split())
-    return sa <= sb or sb <= sa
+    wa, wb = _word_set(a), _word_set(b)
+    return bool(wa) and bool(wb) and _nested(wa, wb)
 
 
 def same_goal(a, b) -> bool:
-    """Same object words (containment), same destination, same arm (R28)."""
+    """Same order: object words nested, destination words nested, arms equal or
+    one absent. Raises TypeError unless both are `Goal`s (from `goal_of`)."""
     if not isinstance(a, Goal) or not isinstance(b, Goal):
-        return False
-    return same_object(a.name, b.name) and a.destination == b.destination and a.arm == b.arm
+        raise TypeError(f"same_goal compares two Goal values, got {type(a).__name__} and {type(b).__name__}")
+    return (bool(a.words) and bool(b.words) and _nested(a.words, b.words)
+            and _nested(a.destination, b.destination)
+            and (not a.arm or not b.arm or a.arm == b.arm))
 
 
 def refusal_class(exc_type, result, *, held: bool, latched: bool, halted: bool, episode_pending: bool) -> str | None:
@@ -161,7 +199,7 @@ def refusal_class(exc_type, result, *, held: bool, latched: bool, halted: bool, 
     during the call, no contact or release episode is pending, the motion was not
     blocked, no contact was measured, the step is not stuck, no completed motion
     had its postcondition refuted, and the error text names no halt, contact,
-    latch or episode."""
+    latch, episode or harness callback fault."""
     if not isinstance(result, Mapping) or result.get("ok"):
         return None
     if held or latched or halted or episode_pending:
@@ -188,14 +226,21 @@ class RetryCall:
     refusal: str
 
 
+_OPEN, _USED, _SPENT = "open", "used", "spent"
+#: several slots can match one goal (word containment): the most restrictive
+#: state decides, then the earliest slot
+_RESTRICTION = {_USED: 0, _SPENT: 1, _OPEN: 2}
+
+
 @dataclass
 class _Slot:
     goal: Goal
     opened_at: float
-    refusal: str
-    refused_grasps: tuple
-    arm_left_in_place: bool
-    used: bool = False
+    first_started_at: float
+    state: str = _OPEN
+    refusal: str = ""
+    refused_grasps: tuple = ()
+    arm_left_in_place: bool = False
 
 
 @dataclass
@@ -206,6 +251,7 @@ class _Call:
     started_at: float
     blocked: bool
     retry: RetryCall | None = None
+    slot: _Slot | None = None  # the slot this call used (its retry, or a late call under R10)
 
 
 def _seconds(label: str, value, *, minimum: float, inclusive: bool) -> float:
@@ -221,7 +267,8 @@ class SimRetryLedger:
     """Per-runtime retry slots (spec §4.5). Thread-safe; never touches the arm.
 
     The runtime calls, around each outermost motion call: `precheck` (a refusal to
-    return before any motion), `begin` (the RetryCall when the call is the retry),
+    return before any motion), `begin` (the RetryCall when the call is the retry,
+    the same refusal as `precheck` when the goal's retry is used, else None),
     `finish` (sets `sim_retry` on the result), `note_motion` (a counted home), and
     `clear` (reset_scene). `last_event` describes the last finished retry:
     `{t, kind: "retry", goal, outcome: "succeeded"|"failed"|"halted", refusal}`.
@@ -231,10 +278,14 @@ class SimRetryLedger:
                  clock: Callable[[], float] = time.monotonic):
         self.window_s = _seconds("sim_retry_window_s", window_s, minimum=MIN_WINDOW_S, inclusive=True)
         self.reserve_s = _seconds("sim_retry_reserve_s", reserve_s, minimum=0.0, inclusive=False)
+        if self.reserve_s >= MAX_RESERVE_S:
+            raise ValueError(f"sim_retry_reserve_s must be < {MAX_RESERVE_S:g} s (the first attempt needs "
+                             f"time in the turn), got {reserve_s!r}")
         self._clock = clock
         self._lock = threading.RLock()
         self._slots: list[_Slot] = []
         self._call: _Call | None = None
+        self._off = False
         self.last_event: dict | None = None
 
     # ── entry points ─────────────────────────────────────────────────────
@@ -247,47 +298,50 @@ class SimRetryLedger:
                 if goal is None:
                     return None
                 self._expire(self._clock())
-                slot = self._find(goal)
-                if slot is None or not slot.used:
+                slot = self._slot_for(goal)
+                if slot is None or slot.state != _USED:
                     return None
-                return {"ok": False, "error": RETRY_EXHAUSTED.format(goal=slot.goal),
-                        "sim_retry": {"allowed": False, "used": True}}
+                return self._used_refusal(slot)
             except Exception:  # noqa: BLE001 -- bookkeeping never fails a call
                 self._fail_closed("precheck")
                 return None
 
     def begin(self, name, args, *, held: bool, latched: bool, episode_pending: bool,
-              motion_blocked: bool) -> RetryCall | None:
-        """Start a motion call. Returns the RetryCall when it is THE retry of an
-        open slot (the slot is used from here on), else None. A goal-bearing call
-        clears the slots of other goals; any call under an e-stop or halt latch
-        clears every open slot. Under a hold, a latch, a pending episode or a
-        blocked arm, the goal's open slot is cleared instead of used and this call
-        runs as without the ledger (its refusal opens nothing)."""
+              motion_blocked: bool) -> RetryCall | dict | None:
+        """Start a motion call. Returns the refusal dict (as `precheck`) when this
+        goal's retry is used: the caller returns it before any motion. Returns the
+        RetryCall when the call is THE retry of an open slot (the slot is used from
+        here on), else None (the call runs as without the ledger). Under a hold, a
+        latch, a pending episode or a blocked arm the goal is spent instead, and a
+        latch spends every open slot. A retry that would start too late for the
+        turn (R10) is not granted: the slot is used and the call runs as without
+        the ledger."""
         with self._lock:
+            self._call = None
             try:
-                self._call = None
                 now = self._clock()
                 self._expire(now)
                 if latched:
-                    # a halt or e-stop pending at any motion call: every open slot is cleared
-                    self._slots = [slot for slot in self._slots if slot.used]
+                    self._spend_open()  # a halt or e-stop pending at any motion call
                 goal = goal_of(name, args)
                 if goal is None:
                     return None
-                self._slots = [slot for slot in self._slots if same_goal(slot.goal, goal)]
+                slot = self._slot_for(goal)
+                if slot is not None and slot.state == _USED:
+                    return self._used_refusal(slot)
                 blocked = bool(held or latched or episode_pending or motion_blocked)
-                self._call = _Call(goal, now, blocked)
-                slot = self._find(goal)
-                if slot is None or slot.used:
-                    return None
+                call = self._call = _Call(goal, now, blocked)
                 if blocked:
-                    self._slots.remove(slot)
+                    self._spend(goal, now)
                     return None
-                slot.used = True
-                retry = RetryCall(str(slot.goal), slot.refused_grasps, slot.arm_left_in_place, slot.refusal)
-                self._call.retry = retry
-                return retry
+                if slot is None or slot.state != _OPEN:
+                    return None
+                slot.state = _USED
+                call.slot = slot
+                if now - slot.first_started_at + self.reserve_s > TURN_BUDGET_S:
+                    return None  # R10: the retry would overrun the agent's turn
+                call.retry = RetryCall(str(slot.goal), slot.refused_grasps, slot.arm_left_in_place, slot.refusal)
+                return call.retry
             except Exception:  # noqa: BLE001
                 self._fail_closed("begin")
                 return None
@@ -301,6 +355,8 @@ class SimRetryLedger:
         of the refused grasp (exclusions for the retry)."""
         with self._lock:
             call, self._call = self._call, None
+            if self._off:
+                return result  # the only way a slot opens: off means nothing ever opens again
             try:
                 return self._finish(name, args, result, call, exc_type=exc_type, held=held, latched=latched,
                                     halted=halted, episode_pending=episode_pending,
@@ -319,7 +375,7 @@ class SimRetryLedger:
                 slot.arm_left_in_place = False
 
     def clear(self, reason: str) -> None:
-        """Drop every slot (reset_scene succeeded, or any other reason)."""
+        """Drop every slot, open, used or spent (reset_scene succeeded, or any other reason)."""
         with self._lock:
             if self._slots:
                 logger.info("sim retry: %d slot(s) cleared: %s", len(self._slots), reason)
@@ -329,56 +385,93 @@ class SimRetryLedger:
 
     def _finish(self, name, args, result, call: _Call | None, *, exc_type, held, latched, halted,
                 episode_pending, refused_grasps, retry):
-        if not isinstance(result, MutableMapping):
-            return result
-        stopped = bool(halted or latched)
-        if stopped:
-            # a halt or e-stop at any point: every open slot is cleared (a used one
-            # stays used, so the halted order never moves again on the ledger's behalf)
-            self._slots = [slot for slot in self._slots if slot.used]
+        now = self._clock()
         goal = goal_of(name, args)
-        if goal is None:
-            return result
         if call is not None and call.goal != goal:
             call = None
         if retry is None and call is not None:
             retry = call.retry
-        slot = self._find(goal)
+        stopped = bool(halted or latched)
+        if stopped:
+            # a halt or e-stop at any point, whatever the result: every open slot and
+            # this call's goal are spent (a used slot stays used: the halted order
+            # never moves again on the ledger's behalf)
+            self._spend_open()
+            if goal is not None:
+                self._spend(goal, now)
+        if goal is None or not isinstance(result, MutableMapping):
+            return result
+        own = call.slot if call is not None else None
+        if own is None and retry is not None:
+            own = self._slot_for(goal)
         if retry is not None:
             outcome = "halted" if stopped else "succeeded" if result.get("ok") else "failed"
-            if outcome == "succeeded" and slot is not None:
-                self._slots.remove(slot)
+            if outcome == "succeeded":
+                self._succeeded(goal, own)
             self.last_event = {"t": time.time(), "kind": "retry", "goal": retry.goal, "outcome": outcome,
                                "refusal": retry.refusal}
             if outcome == "failed":
                 result["sim_retry"] = {"allowed": False, "used": True}
             return result
-        if result.get("ok"):
-            if slot is not None:
-                self._slots.remove(slot)  # the goal succeeded
+        if result.get("ok") and not stopped:
+            self._succeeded(goal, own)
             return result
-        if slot is not None or call is None or call.blocked:
+        if held or episode_pending:
+            self._spend(goal, now)  # a hold or a pending episode touched this goal
+            return result
+        if self._slot_for(goal) is not None or call is None or call.blocked:
             return result  # a slot exists, no begin was seen, or the call started under a latch/hold
         refusal = refusal_class(exc_type, result, held=held, latched=latched, halted=halted,
                                 episode_pending=episode_pending)
         if refusal is None:
             return result
-        now = self._clock()
         if now - call.started_at + self.reserve_s > TURN_BUDGET_S:
             return result  # the retry would overrun the agent's turn (R10)
         grasps = () if refused_grasps is None else tuple(refused_grasps)
-        self._slots.append(_Slot(goal, now, refusal, grasps, bool(result.get("arm_left_in_place"))))
+        self._slots.append(_Slot(goal, now, call.started_at, _OPEN, refusal, grasps,
+                                 bool(result.get("arm_left_in_place"))))
         result["sim_retry"] = {"allowed": True, "goal": str(goal), "refusal": refusal}
         return result
 
-    def _find(self, goal: Goal) -> _Slot | None:
-        return next((slot for slot in self._slots if same_goal(slot.goal, goal)), None)
+    def _slot_for(self, goal: Goal) -> _Slot | None:
+        """The slot that decides for `goal`: the most restrictive matching one."""
+        matching = [slot for slot in self._slots if same_goal(slot.goal, goal)]
+        return min(matching, key=lambda slot: (_RESTRICTION[slot.state], slot.opened_at), default=None)
+
+    def _spend(self, goal: Goal, now: float) -> None:
+        """A halt, latch, hold or pending episode touched `goal`: its open slots are
+        spent, a used one stays used, and a goal without a slot gets a spent one."""
+        matching = [slot for slot in self._slots if same_goal(slot.goal, goal)]
+        for slot in matching:
+            if slot.state == _OPEN:
+                slot.state = _SPENT
+        if not matching:
+            self._slots.append(_Slot(goal, now, now, _SPENT))
+
+    def _spend_open(self) -> None:
+        for slot in self._slots:
+            if slot.state == _OPEN:
+                slot.state = _SPENT
+
+    def _succeeded(self, goal: Goal, own: _Slot | None) -> None:
+        """The goal succeeded: drop the slot this call used and every open or spent
+        slot of the goal. Another order's used slot stays (only its own call, a
+        reset or its window ends it)."""
+        self._slots = [slot for slot in self._slots
+                       if slot is not own and (slot.state == _USED or not same_goal(slot.goal, goal))]
+
+    def _used_refusal(self, slot: _Slot) -> dict:
+        return {"ok": False, "error": RETRY_EXHAUSTED.format(goal=slot.goal),
+                "sim_retry": {"allowed": False, "used": True}}
 
     def _expire(self, now: float) -> None:
         self._slots = [slot for slot in self._slots if now - slot.opened_at < self.window_s]
 
     def _fail_closed(self, where: str) -> None:
-        logger.exception("sim retry %s failed; every slot dropped (no retry)", where)
+        """Off for good: every slot dropped and `finish` never opens one again, so
+        `precheck` and `begin` have nothing left to refuse or grant."""
+        logger.exception("sim retry %s failed; the ledger is off (no retry, no refusal)", where)
+        self._off = True
         self._slots = []
         self._call = None
 

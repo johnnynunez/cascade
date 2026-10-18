@@ -458,15 +458,26 @@ def test_reset_scene_result_carries_the_seed(runtime_with_isaac_double): assert 
 - Create: `src/cascade/agent/sim_retry.py`, `tests/test_sim_retry_ledger.py`
 
 **Interfaces:**
-- Produces: `RETRY_SKILLS = frozenset({"pick_and_place", "grasp_object"})`; `goal_of(name: str, args: dict) -> str | None`;
-  `same_goal(a: str, b: str) -> bool`; `refusal_class(result: dict, *, held: bool, latched: bool) -> str | None`
-  (`"safety_refusal" | "perception_refusal" | "planning_refusal"`); `@dataclass(frozen=True) RetryCall(goal: str,
-  refused_grasps: tuple, arm_left_in_place: bool)`; `class SimRetryLedger` with `precheck(name, args) -> dict | None`,
-  `begin(name, args) -> RetryCall | None`, `finish(name, args, result, *, held: bool, latched: bool, refused_grasps:
-  tuple, retry: RetryCall | None) -> dict`, `note_motion(name: str, ok: bool) -> None`, `clear(reason: str) -> None`,
-  `last_event: dict | None`; texts `RETRY_ALLOWED`, `RETRY_USED`, `RETRY_EXHAUSTED` (spec §4.5 verbatim, `<skill>`
-  and `<goal>` formatted). The ledger only sets the `sim_retry` field and returns the precheck refusal; composing
-  `next_action` is the runtime's job (A7), so the ledger never edits agent text.
+- Produces (as built, 2fe139d + A6 fix 1; supersedes the first draft, which A7 must not copy):
+  `RETRY_SKILLS = frozenset({"pick_and_place", "grasp_object"})`; `@dataclass(frozen=True) Goal(name: str, words:
+  frozenset, destination: frozenset, arm: frozenset)` (`str(goal)` = `name`, display only); `goal_of(name, args) ->
+  Goal | None` (words = NFKC + casefold, `re.findall(r"[^\W_]+")`, determiners a/an/the/this/that/these/those
+  dropped, no stemming; an object without words is no goal); `same_goal(a: Goal, b: Goal) -> bool` (object words
+  nested, destination words nested, arms equal or one absent; TypeError for anything that is not a `Goal`);
+  `same_object(a: str, b: str) -> bool`; `refusal_class(exc_type: str, result: dict, *, held: bool, latched: bool,
+  halted: bool, episode_pending: bool) -> str | None` (R6: exact exception class name); `@dataclass(frozen=True)
+  RetryCall(goal: str, refused_grasps: tuple, arm_left_in_place: bool, refusal: str)`; `class
+  SimRetryLedger(*, window_s=360, reserve_s=200, clock=time.monotonic)` (R9/R10; `reserve_s` must be < `MAX_RESERVE_S`
+  = 300) with `precheck(name, args) -> dict | None`, `begin(name, args, *, held, latched, episode_pending,
+  motion_blocked) -> RetryCall | dict | None` (a dict = the used-slot refusal, the same dict `precheck` returns: return
+  it before any motion; None = run as without the ledger), `finish(name, args, result, *, exc_type, held, latched,
+  halted, episode_pending, refused_grasps, retry) -> result`, `note_motion(name: str, ok: bool) -> None`,
+  `clear(reason: str) -> None`, `last_event: dict | None`; `ledger_for(cfg) -> SimRetryLedger | None` (sim class +
+  `sim_retry_enabled` + `CASCADE_OBSERVED_FINGER_GATE == "1"`, else None); constants `DEFAULT_WINDOW_S`,
+  `MIN_WINDOW_S`, `DEFAULT_RESERVE_S`, `TURN_BUDGET_S`, `MAX_RESERVE_S`, `REFUSAL_CLASSES`; texts `RETRY_ALLOWED`,
+  `RETRY_USED`, `RETRY_EXHAUSTED` (spec §4.5 verbatim, `{skill}` and `{goal}` formatted). Slot states open / used /
+  spent (DECISIONS.md "A6 fix 1"). The ledger only sets the `sim_retry` field and returns the used-slot refusal;
+  composing `next_action` is the runtime's job (A7), so the ledger never edits agent text.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -519,7 +530,8 @@ def test_success_and_other_skills_are_untouched(): out = L.finish("pick_and_plac
 - Create: `tests/test_sim_retry_runtime.py`
 
 **Interfaces:**
-- Consumes: `SimRetryLedger`, `goal_of`, `refusal_class` (A6); `sim_retry_enabled` (A1).
+- Consumes: `ledger_for`, `SimRetryLedger`, `RetryCall`, `RETRY_ALLOWED` / `RETRY_USED` (A6, interface as built:
+  see A6 "Produces"); `sim_retry_enabled` (A1).
 - Produces: `runtime.sim_retry: SimRetryLedger | None`; `_ObservedSelection.refused_grasps() -> tuple` (attempted
   candidates whose outcome is not `"grasped"`); module function `_without_refused(grasps: list, excluded: tuple) ->
   list` (drops `_same_grasp` / `_near_copy` matches); runtime attributes `_retry_exclude: tuple = ()`,
@@ -565,10 +577,18 @@ def test_gates_are_identical_with_the_retry_on_and_off():
 ```
 
 - [ ] **Step 2: Run** -> FAIL.
-- [ ] **Step 3: Implement.** In `build_runtime`: `runtime.sim_retry = SimRetryLedger() if sim_retry_enabled(cfg) else
-  None`. In `execute` (only when `self.sim_retry` is set and this is the outermost call): `pre =
-  ledger.precheck(name, args)` -> return `_with_failure_instruction(pre)` before any keyframe; `retry =
-  ledger.begin(name, args)`; `g0 = self.arm.harness._halt_generation` at the retry's start. The auto-home runs
+- [ ] **Step 3: Implement.** In `build_runtime`: `runtime.sim_retry = ledger_for(cfg)` (A6; None on any real or
+  unknown profile, gate off or bad config). A7 moves the R8 gate check (`CASCADE_OBSERVED_FINGER_GATE == "1"`) into
+  `sim_retry_enabled` (it owns `test_sim_profile` under R22) or reports `ledger is not None` in run.json, so run.json's
+  `sim_retry` (`demo.py:1126`) never says true while no ledger exists. In `execute` (only when `self.sim_retry` is set
+  and this is the outermost call): `pre = ledger.precheck(name, args)` -> return `_with_failure_instruction(pre)`
+  before any keyframe (its own trace row, `context.sim_retry.refused`, R28); then `step = ledger.begin(name, args,
+  held=self._held_or_provisional(), latched=self._stop_latched(arm), episode_pending=<the selected arm's harness
+  `_pending_contact_episode` or `_pending_release_episode`>, motion_blocked=<...>)` (R7: all four are required
+  keywords): a dict is the same used-slot refusal (another caller used the slot after the precheck) -> return it
+  exactly like `pre`; a `RetryCall` makes this call THE retry; None runs the call as without the ledger (no auto-home,
+  no exclusions). `g0` is taken inside `_execute_skill` after the arm override, from the harness `skill_move_home`
+  will use (R7c), at the retry's start. The auto-home runs
   inside `_execute_skill`'s dispatch, immediately before `result = fn(**args)` (`runtime.py:1482`): when
   `self._retry_call.arm_left_in_place`, `self.skill_move_home(_halt_generation=g0)` then
   `self.arm.harness._check_halt_generation(g0)`; a refusal or MotionHalted there flows through the existing
@@ -577,8 +597,10 @@ def test_gates_are_identical_with_the_retry_on_and_off():
   restore it in `finally`; also keep `self._retry_call = retry` for the dispatch (None otherwise; cleared in
   `finally`). In `_execute_skill`, just before `self.trace.record(...)` (`runtime.py:1742`, after the existing
   `_with_failure_instruction`), so the trace row carries the verdict: `result = ledger.finish(name, args, result,
-  held=bool(self.held_object), latched=self._stop_latched(self.arm), refused_grasps=self._last_refused_grasps,
-  retry=self._retry_call)`, then `_with_retry_text(result, name)`; `trace_context["sim_retry"] = {"retry": True,
+  exc_type=<the refusing exception's exact class name, R6>, held=bool(self._held_or_provisional()),
+  latched=self._stop_latched(arm), halted=self._halted_since_skill_start(...), episode_pending=<as at begin>,
+  refused_grasps=self._last_refused_grasps, retry=self._retry_call)` (`_last_refused_grasps` reset at each call start,
+  R28), then `_with_retry_text(result, name)`; `trace_context["sim_retry"] = {"retry": True,
   "auto_home": <bool>}` on the retry's row;
   `ledger.note_motion(name, ok)` for every `_MOTION_SKILLS` call; `skill_reset_scene` ok ->
   `ledger.clear("reset_scene")`. In `skill_grasp_object`: `grasps = _without_refused(grasps, self._retry_exclude)`
@@ -588,8 +610,9 @@ def test_gates_are_identical_with_the_retry_on_and_off():
 - [ ] **Step 4: Run** the file + `tests/test_agent_results_compose.py tests/test_agent_honest_results.py
   tests/test_observed_neighbour_selection.py tests/test_reset_scene.py tests/test_persistence_leftovers.py` with
   `CASCADE_OBSERVED_FINGER_GATE` off and on -> PASS.
-- [ ] **Mutations** (each KILLED, read which test killed it): remove the `sim_retry_enabled` check in `build_runtime`
-  (`SimRetryLedger() if True`) -> real-profile test; skip the auto-home -> home test; `_halt_generation=g0` ->
+- [ ] **Mutations** (each KILLED, read which test killed it): build the ledger without `ledger_for` in
+  `build_runtime` (`runtime.sim_retry = SimRetryLedger()`) -> real-profile test; run a call whose `begin` returned the
+  used-slot dict (`if isinstance(step, dict)` -> `if False`) -> third-call test; skip the auto-home -> home test; `_halt_generation=g0` ->
   `_halt_generation=None` -> halt test; `_without_refused(grasps, ...)` -> `grasps` -> exclusion test.
 - [ ] **Commit:** `feat(runtime): one sim-only retry after a refusal: home first, fresh look, refused grasps excluded`
 

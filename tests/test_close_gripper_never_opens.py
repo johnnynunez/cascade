@@ -322,6 +322,10 @@ def test_fr3s_force_contact_close_and_a_handless_profile_close_as_on_main(rig):
     r.arms[0]._gripper = 0.04 * 0.15
     r.jaws.clear()
     assert r.runtime.execute("close_gripper", {})["ok"] is True and r.jaws == [pytest.approx(0.0)]
+    r.arms[0]._gripper = -0.001            # a reading past the closed end: closed is more open
+    r.jaws.clear()
+    res = r.runtime.execute("close_gripper", {})
+    assert res["ok"] is True and res["stages_skipped"] == 1 and r.jaws == [], (res, r.jaws)
     g1 = rig("g1")
     g1.jaws.clear()
     assert g1.runtime.execute("close_gripper", {})["ok"] is True and g1.jaws == [0.0, 0.0]

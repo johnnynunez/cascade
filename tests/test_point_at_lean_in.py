@@ -1376,6 +1376,50 @@ def test_a_rise_leg_never_brings_the_jaws_closer_to_the_target():
                                       rise=True) is None
 
 
+class _OutAndBack(_SlideKin):
+    """q[0] from start[0] to start[0] - 0.04 moves the TCP 4.5 cm out along
+    -x and 3.5 cm back (a joint-space arc): it ends 1 cm further out."""
+
+    def __init__(self, start):
+        self.start = np.asarray(start, float)
+
+    def fk(self, q):
+        s = float(np.clip((np.asarray(q, float)[0] - self.start[0]) / -0.04, 0.0, 1.0))
+        T = np.eye(4)
+        T[:3, 3] = self.start + [-(0.04 * math.sin(math.pi * s) + 0.01 * s), 0.0, 0.0]
+        return T
+
+    def lever_arms(self, q, tool):
+        return np.full(3, math.pi + 0.25), np.zeros((0, 3))
+
+
+def test_a_rise_leg_may_wiggle_but_never_below_where_it_started():
+    """The rule is the leg's start clearance: a rise that goes away and comes
+    partly back (8.0 -> 12 -> 9 cm) is admitted; one that ends at 7.9 cm is
+    not."""
+    from cascade.skills import pointing
+
+    args = (_box_column(), np.zeros((1, 3)), MARGIN, 0.0)
+    start = np.array([-0.1, 0.0, 0.05])                      # 8 cm beside the object
+    up = start + [-0.04, 0.0, 0.0]
+    assert pointing.segment_violation(_SlideKin(), start, up, *args, from_inside=True, rise=True) is None
+
+    assert pointing.segment_violation(_OutAndBack(start), start, up, *args, from_inside=True, rise=True) is None
+    assert pointing.segment_violation(_SlideKin(), start, start + [0.001, 0.0, 0.0], *args, from_inside=True,
+                                      rise=True).endswith("closing in on the rise")
+
+
+def test_a_rise_leg_that_left_the_margin_never_comes_back_in():
+    """From 1 cm beside the object: out of the margin (5 cm) and back to 2 cm.
+    Never below where it started, but back inside the margin: refused."""
+    from cascade.skills import pointing
+
+    start = np.array([-0.03, 0.0, 0.05])
+    why = pointing.segment_violation(_OutAndBack(start), start, start + [-0.04, 0.0, 0.0], _box_column(),
+                                     np.zeros((1, 3)), MARGIN, 0.0, from_inside=True, rise=True)
+    assert why is not None and why.endswith("closing in on the rise"), why
+
+
 def test_an_escape_never_dips_between_two_samples():
     """1 cm over the top, 6 cm across it in ONE sample step: both samples
     2.24 cm from the edge, 2.0 cm over the middle. The samples alone pass it;

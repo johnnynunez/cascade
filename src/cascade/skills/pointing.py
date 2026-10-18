@@ -54,7 +54,7 @@ the start's height + 3 or 6 cm or at the higher of the start and the goal
 (+0/3/6 cm), lowest first, then backed off 6 or 9 cm at the start's height
 + 0-2 cm (`BACK_OFF_WAYPOINTS`), at the start's rotation or tilted in the
 arm's plane; on the rise leg the jaws never come closer to the target than
-they were (sampled, and bounded between samples the same way).
+where it started (sampled, and bounded between samples the same way).
 
 The jaws close (`Route.close_at`) at the first pose of the route where their
 `sweep` samples keep `margin` from the target, every neighbour and the table
@@ -620,9 +620,9 @@ def segment_violation(kin, q_from, q_to, columns, tool, margin: float,
     one pair's slack never covers another closing in. Between two samples a
     pair still inside never dips more than DIP_TOL_M below its value where
     the arm starts (`_dip`). `rise` (a rise-first leg, from where the arm
-    is): the jaws never come closer to the target than the previous sample,
-    inside the margin or not, and never dip more than DIP_TOL_M below where
-    they started between two samples. Every other segment keeps the margin
+    is): each jaw group never comes closer to the target than where the leg
+    started, inside the margin or not (at every sample, and between two
+    samples by more than DIP_TOL_M). Every other segment keeps the margin
     for every pair at every sample."""
     columns = _columns(columns)
     q_from = np.asarray(q_from, dtype=float)
@@ -650,8 +650,8 @@ def segment_violation(kin, q_from, q_to, columns, tool, margin: float,
         was_in = np.zeros(len(values), dtype=bool) if previous is None else ~(previous >= margin)
         # written so that NaN refuses; `previous` is only kept from_inside
         floor = np.where(was_in, (previous if previous is not None else values) - ESCAPE_TOL_M, margin)
-        if previous is not None:
-            floor = np.where(jaws_target, previous - ESCAPE_TOL_M, floor)
+        if start is not None:
+            floor = np.where(jaws_target, np.maximum(floor, start - ESCAPE_TOL_M), floor)
         bad = ~(values >= floor)
         if bad.any():
             j = int(np.flatnonzero(bad)[np.argmin(np.nan_to_num(values[bad], nan=-np.inf))])

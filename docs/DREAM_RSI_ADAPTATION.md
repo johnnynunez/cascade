@@ -1,8 +1,10 @@
 # Scoped retry evidence admission
 
-**Next action:** inspect what the ASPIRE harvest would admit from your recorded runs, without
-writing notes (seconds; `runs/` is the CLI default and must hold reviewed sessions with
-`trace.jsonl`):
+**Next action:** inspect what the ASPIRE harvest would admit from your recorded kitchen sim runs,
+without writing notes (seconds; `runs/` is the CLI default and must hold reviewed sessions with
+`trace.jsonl`). Notes come only from runs whose `run.json` shows the sim retry ledger on (the
+kitchen sim at gate 1); every gate-0 and hardware run is skipped with a one-line reason and
+counted (`runs skipped`):
 
 ```bash
 uv run python scripts/learn_from_runs.py --runs runs --dry-run --report
@@ -53,9 +55,11 @@ a failed call (`REPAIR_WINDOW`). A candidate must pass all of these:
    stop in the row's signature, in an error that names a halt or the e-stop, or, with a sim retry
    ledger, in the ledger's mark `context.sim_retry.ended_in_stop` (a failed call that ended
    latched, with a halt since the skill started, or with another stop token than at its start: a
-   stop cleared again counts). Remaining gap: without a ledger (gate 0, every hardware profile)
-   nothing marks a stop the error does not name (the skill's own refusal after the stop), so such
-   a call stays unseen; harvesting only runs on the gate-1 kitchen sim, which has the ledger.
+   stop cleared again counts). Without a ledger (gate 0, every hardware profile) nothing marks a
+   stop the error does not name (the skill's own refusal after the stop), so `harvest()` skips
+   every run whose `run.json` (and any earlier `run.<started>.json` a rebuild kept beside it) does
+   not show `sim_retry: true` (`aspire.harvest_skip_reason`): a gate-0 or hardware run teaches
+   nothing, stopped or not. A missing or unreadable record is skipped too.
 
 ## Trace context and generated notes
 

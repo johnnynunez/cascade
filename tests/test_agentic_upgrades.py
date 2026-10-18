@@ -606,6 +606,7 @@ def _write_run(tmp_path, name, records, summary="task: pick the cube\nsuccess: t
         })} for r in records]
     (run / "trace.jsonl").write_text("\n".join(json.dumps(r) for r in records))
     (run / "summary.txt").write_text(summary)
+    (run / "run.json").write_text(json.dumps({"sim_retry": True}))  # harvest reads only gate-1 sim runs
     return run
 
 

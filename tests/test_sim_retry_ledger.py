@@ -31,6 +31,7 @@ from cascade.agent.sim_retry import (
     RETRY_ALLOWED,
     RETRY_EXHAUSTED,
     RETRY_SKILLS,
+    RETRY_THINK_S,
     RETRY_USED,
     TURN_BUDGET_S,
     Goal,
@@ -53,6 +54,8 @@ REFUSED = {"ok": False, "error": "SafetyViolation: the finger would enter the le
 #: the refusal `precheck` and `begin` return once green cube's retry is used
 USED = {"ok": False, "error": "The one simulation retry for green cube is used",
         "sim_retry": {"allowed": False, "used": True}}
+#: ... and once the retry would start too late for the agent's turn (A6-fix2 Minor 3)
+LATE = {**USED, "error": "The one simulation retry for green cube is used: the retry window for this turn has passed"}
 #: finish(): nothing held, no latch, no halt during the call, no pending episode
 CLEAR = {"held": False, "latched": False, "halted": False, "episode_pending": False}
 #: begin(): the rig may start a retry
@@ -589,13 +592,34 @@ def test_interleaving_other_goals_never_grants_a_second_retry(ledger, clock):  #
                                             "C": {"motions": 2, "grants": 1, "refused": 3}}
 
 
-def test_an_ambiguous_call_takes_the_most_restrictive_matching_slot(ledger, clock):
+def test_a_call_matching_two_open_slots_gets_no_retry_and_uses_both(ledger, clock):  # A6-fix2 Minor 5
     _refused_first(ledger, clock)  # green cube: open
     _refused_first(ledger, clock, args={"object": "pink cube"})  # pink cube: open
-    r = _begin(ledger, args={"object": "cube"})  # matches both: the earliest open slot is the retry
-    assert r.goal == "green cube"
+    assert _begin(ledger, args={"object": "cube"}) is None  # which order would it retry? none: runs as on main
     clock.advance(10)
-    _finish(ledger, args={"object": "cube"}, retry=r)
+    assert "sim_retry" not in _finish(ledger, args={"object": "cube"})  # and opens nothing
+    assert ledger.last_event is None  # it was no retry
+    pink = {**USED, "error": "The one simulation retry for pink cube is used"}
+    for args, refusal in ((A, USED), ({"object": "pink cube"}, pink), ({"object": "cube"}, USED)):
+        assert ledger.precheck("pick_and_place", args) == refusal  # both orders' retries are used
+        assert _begin(ledger, args=args) == refusal
+
+
+def test_a_call_matching_one_of_two_open_slots_is_that_slots_retry(ledger, clock):  # Minor 5 control
+    _refused_first(ledger, clock)
+    _refused_first(ledger, clock, args={"object": "pink cube"})
+    assert _begin(ledger, args={"object": "the green cube"}).goal == "green cube"
+    clock.advance(10)
+    _finish(ledger, args={"object": "the green cube"}, retry=None)
+    assert isinstance(_begin(ledger, args={"object": "pink cube"}), RetryCall)  # pink's slot was untouched
+
+
+def test_an_ambiguous_call_takes_the_most_restrictive_matching_slot(ledger, clock):
+    _refused_first(ledger, clock)  # green cube: open
+    r = _begin(ledger)
+    clock.advance(10)
+    _finish(ledger, retry=r)  # green cube: used
+    _refused_first(ledger, clock, args={"object": "pink cube"})  # pink cube: open
     assert _begin(ledger, args={"object": "cube"}) == USED  # green cube's used slot wins over pink's open one
     assert isinstance(_begin(ledger, args={"object": "pink cube"}), RetryCall)
 
@@ -906,8 +930,8 @@ def test_no_halt_hold_or_latch_ever_grants_a_second_retry(ledger, clock, event):
 def test_an_open_slot_lives_for_the_window(ledger, clock):
     _refused_first(ledger, clock, took=10.0)
     clock.advance(DEFAULT_WINDOW_S - 1)
-    assert _begin(ledger) is None  # too late for the turn (R10): no retry ...
-    assert ledger.precheck("pick_and_place", A) == USED  # ... but the slot was still there: now used
+    assert _begin(ledger) == LATE  # too late for the turn (R10): refused, no retry ...
+    assert ledger.precheck("pick_and_place", A) == LATE  # ... but the slot was still there: now used
 
 
 def test_a_slot_expires_exactly_one_window_after_it_opened(ledger, clock):
@@ -956,39 +980,46 @@ def test_the_window_is_read_from_the_monotonic_clock_by_default():
     assert SimRetryLedger()._clock is time.monotonic
 
 
-@pytest.mark.parametrize("took,allowed", [(130.0, True), (130.5, False)])
+@pytest.mark.parametrize("took,allowed", [(100.0, True), (100.5, False)])
 def test_no_permission_that_would_overrun_the_turn(ledger, clock, took, allowed):
-    # 330 s = the 360 s native turn minus the agent's exit grace; reserve 200 s for the retry
+    # 330 s = the 360 s native turn minus the agent's exit grace; reserve 200 s for the retry and
+    # 30 s for the agent to read the refusal and call again (A6-fix2 Minor 3)
     out = _refused_first(ledger, clock, took=took)
     assert ("sim_retry" in out) is allowed
     assert (_begin(ledger) is not None) is allowed
 
 
-@pytest.mark.parametrize("delay,granted", [(0.0, True), (0.5, False), (100.0, False), (199.0, False)])
-def test_a_retry_that_would_start_too_late_is_not_granted(ledger, clock, delay, granted):  # R10 at begin, P3
-    _refused_first(ledger, clock, took=130.0)  # 130 + 200 = 330: the slot opens
+def test_the_think_allowance_is_thirty_seconds():
+    assert RETRY_THINK_S == 30.0
+    assert TURN_BUDGET_S - DEFAULT_RESERVE_S - RETRY_THINK_S == 100.0  # the longest first attempt that opens a slot
+
+
+@pytest.mark.parametrize("delay,granted", [(0.0, True), (30.0, True), (30.5, False), (100.0, False)])
+def test_a_retry_that_would_start_too_late_is_refused_before_motion(ledger, clock, delay, granted):  # R10, Minor 3
+    _refused_first(ledger, clock, took=100.0)  # 100 + 200 + 30 = 330: the slot opens
     clock.advance(delay)
     started = _begin(ledger)
     assert isinstance(started, RetryCall) is granted
     if granted:
         return
-    assert started is None  # runs as on main: no auto-home, no exclusions
-    clock.advance(60)
-    assert "sim_retry" not in _finish(ledger)  # the late call opens nothing ...
-    assert ledger.last_event is None  # ... and was no retry
-    assert ledger.precheck("pick_and_place", A) == USED and _begin(ledger) == USED  # the slot is used, not dropped
+    # never runs as on main after the agent was told RETRY_ALLOWED (it would skip the promised home)
+    assert started == LATE
+    assert ledger.last_event is None  # no retry ran
+    assert ledger.precheck("pick_and_place", A) == LATE and _begin(ledger) == LATE  # the slot is used, not dropped
+    assert _begin(ledger, args={"object": "cube"}) == LATE
 
 
-def test_a_late_call_that_succeeds_clears_its_slot(ledger, clock):
-    _refused_first(ledger, clock, took=130.0)
-    clock.advance(1.0)
-    assert _begin(ledger) is None
-    clock.advance(30)
-    ledger.finish("pick_and_place", A, {"ok": True}, exc_type=None, refused_grasps=(), retry=None, **CLEAR)
-    assert ledger.precheck("pick_and_place", A) is None and _begin(ledger) is None
+def test_a_late_refusal_runs_nothing_and_opens_nothing(ledger, clock):
+    _refused_first(ledger, clock, took=100.0)
+    clock.advance(31.0)
+    assert _begin(ledger) == LATE
+    clock.advance(5)
+    # a finish the caller sends anyway (it must not) finds no call of this goal in flight
+    assert "sim_retry" not in _finish(ledger)
+    assert ledger.precheck("pick_and_place", A) == LATE
 
 
-@pytest.mark.parametrize("took,allowed", [(230.0, True), (230.5, False)])
+@pytest.mark.parametrize("took,allowed", [(200.0, True), (200.5, False)])
 def test_the_reserve_is_a_parameter(clock, took, allowed):
     L = SimRetryLedger(reserve_s=100, clock=clock)
     assert ("sim_retry" in _refused_first(L, clock, took=took)) is allowed
@@ -1230,3 +1261,54 @@ def test_a_config_that_raises_gets_no_ledger(switched_on, monkeypatch):
         raise RuntimeError("config fault")
     monkeypatch.setattr(sim_retry, "sim_retry_enabled", boom)
     assert ledger_for(cfg) is None
+
+
+# ── A6-fix2: the off state is visible; the primary arm's spellings ───────
+
+@pytest.mark.parametrize("where", ["precheck", "begin", "finish"])
+def test_the_off_state_is_readable_and_announced(clock, where):  # A6-fix2 Minor 4
+    L = SimRetryLedger(clock=clock)
+    assert L.off is False and L.last_event is None
+    with pytest.raises(AttributeError):
+        L.off = True  # read-only: only a fault switches the ledger off
+    _refused_first(L, clock)
+    if where == "finish":
+        _begin(L, args=LEMON)
+        _finish(L, args=LEMON, grasps=5)  # not a sequence
+    else:
+        def broken():
+            raise RuntimeError("clock fault")
+        L._clock = broken
+        getattr(L, where)("pick_and_place", A, **({} if where == "precheck" else READY))
+        L._clock = clock
+    assert L.off is True
+    event = dict(L.last_event)
+    assert isinstance(event.pop("t"), float)
+    assert event == {"kind": "off", "where": where}
+
+
+def test_a_ledger_without_faults_never_reports_off(ledger, clock):
+    _refused_first(ledger, clock)
+    r = _begin(ledger)
+    _finish(ledger, retry=r)
+    assert ledger.off is False and ledger.last_event["kind"] == "retry"
+
+
+@pytest.mark.parametrize("arm", [None, "", "  ", "default", "Default", " PRIMARY ", "primary.", "the default"])
+def test_the_primary_arm_spellings_are_the_absent_arm(arm):  # A6-fix2 Minor 1 (SkillRuntime._select_arm)
+    args = dict(A) if arm is None else {**A, "arm": arm}
+    goal = goal_of("pick_and_place", args)
+    assert goal.arm == frozenset()
+    assert same_goal(goal, goal_of("pick_and_place", {**A, "arm": "left"}))
+
+
+@pytest.mark.parametrize("arm,words", [("left", {"left"}), ("default arm", {"default", "arm"}),
+                                       ("primary left", {"primary", "left"})])
+def test_a_named_arm_stays_an_arm(arm, words):
+    assert goal_of("grasp_object", {"label": "cube", "arm": arm}).arm == frozenset(words)
+
+
+def test_the_primary_arm_spellings_share_one_slot(ledger, clock):  # review probe "arm default/primary"
+    orders = [("order", "pick_and_place", {**A, "arm": arm}) for arm in ("default", "primary", "", "Default")]
+    assert _agent(ledger, clock, orders, calls=12) == {"order": {"motions": 2, "grants": 1, "refused": 10}}
+

@@ -10,18 +10,25 @@ hyphens and "_" separate words), determiners (a, an, the, this, that, these,
 those) dropped, no stemming. Two goals are the same (`same_goal`) when one
 object's words contain the other's, one destination's words contain the
 other's (an absent destination matches any) and the arms are equal or one is
-absent. An object without words is no goal. So a rephrased order ("the open
-box.", "green_cube", "cube") is the same goal; "pink cube" or another
-destination is not.
+absent. An arm named "", "default" or "primary" is the runtime's primary arm
+(`SkillRuntime._select_arm`), so it counts as absent; the runtime passes the
+resolved arm's name. An object without words is no goal. So a rephrased order
+("the open box.", "green_cube", "cube") is the same goal; "pink cube" or
+another destination is not.
 
 The ledger keeps one slot per goal, in one of three states:
 
-- open: a qualifying refusal of a goal with no slot opened it (`finish`). The
-  next same-goal call is THE retry: `begin` marks the slot used before anything
-  moves and hands the call the refused grasps to exclude and whether the refused
-  attempt left the arm in place (the runtime homes it first). A retry that would
-  start too late for the agent's turn (R10: first call's start + reserve past
-  TURN_BUDGET_S) is not granted: the slot is marked used and that call runs as
+- open: a qualifying refusal of a goal with no slot opened it (`finish`), when
+  the refused call's time plus the retry's reserve and the agent's think time
+  (RETRY_THINK_S) fit the turn (R10). The next same-goal call is THE retry:
+  `begin` marks the slot used before anything moves and hands the call the
+  refused grasps to exclude and whether the refused attempt left the arm in
+  place (the runtime homes it first). A retry that would start too late for the
+  agent's turn (first call's start + reserve past TURN_BUDGET_S) is refused
+  before any motion ("the retry window for this turn has passed") and its slot
+  is used: a call the agent was told is the retry never runs without the
+  promised home. A call that matches two or more open slots (a rename that fits
+  several orders) is no retry: every matched slot is used and the call runs as
   without the ledger;
 - used: every later same-goal call is refused before any motion, by `precheck`
   and again by `begin` itself (under the same lock as the slot's state, so the
@@ -50,7 +57,8 @@ admit one. The ledger never edits agent text: it adds the `sim_retry` field and
 returns the used-slot refusal; the runtime composes `next_action` from the texts
 below. Bookkeeping never fails a call: an internal error turns the ledger off
 for good (every slot dropped; no refusal, no retry, nothing opens again: every
-call runs as without it) and leaves the result untouched.
+call runs as without it) and leaves the result untouched; `off` then reads True
+and `last_event` is `{t, kind: "off", where}`.
 
 A real or unknown profile never gets a ledger: `ledger_for` returns one only for
 `profile_class(cfg) == "sim"` with `sim_retry_enabled(cfg)` and the
@@ -107,6 +115,9 @@ MIN_WINDOW_S = NATIVE_TURN_TIMEOUT_S
 #: this reserve fits TURN_BUDGET_S (re-ruled from A11's measured p95)
 DEFAULT_RESERVE_S = 200.0
 TURN_BUDGET_S = NATIVE_TURN_TIMEOUT_S - AGENT_EXIT_GRACE_S
+#: A6-fix2 Minor 3: a slot opens only if the agent also has this long to read the
+#: refusal and call again before `begin`'s R10 check would refuse the retry
+RETRY_THINK_S = 30.0
 #: a larger reserve leaves the first attempt less than the window's margin
 #: (window - turn budget = 30 s), so the ledger would silently never grant
 MAX_RESERVE_S = TURN_BUDGET_S - (DEFAULT_WINDOW_S - TURN_BUDGET_S)
@@ -119,9 +130,13 @@ RETRY_ALLOWED = (
     "destination or invent coordinates.")
 RETRY_USED = "The one simulation retry for this order is used: report the failure; do not call it again."
 RETRY_EXHAUSTED = "The one simulation retry for {goal} is used"
+#: appended to RETRY_EXHAUSTED when the retry would have started too late (R10)
+RETRY_TOO_LATE = "the retry window for this turn has passed"
 
 #: words a goal never compares (A6-fix I1)
 _DETERMINERS = frozenset({"a", "an", "the", "this", "that", "these", "those"})
+#: arm names `SkillRuntime._select_arm` resolves to the primary arm: the absent arm (A6-fix2 Minor 1)
+_PRIMARY_ARM = (frozenset(), frozenset({"default"}), frozenset({"primary"}))
 _WORD = re.compile(r"[^\W_]+")
 
 
@@ -167,6 +182,8 @@ def goal_of(name, args) -> Goal | None:
     words = _word_set(obj)
     destination = _optional_word_set(args.get("destination")) if name == "pick_and_place" else frozenset()
     arm = _optional_word_set(args.get("arm"))
+    if arm in _PRIMARY_ARM:
+        arm = frozenset()
     if not words or destination is None or arm is None:
         return None
     return Goal(" ".join(obj.casefold().split()), words, destination, arm)
@@ -241,6 +258,7 @@ class _Slot:
     refusal: str = ""
     refused_grasps: tuple = ()
     arm_left_in_place: bool = False
+    late: bool = False  # used because the retry would have started too late (R10)
 
 
 @dataclass
@@ -251,7 +269,6 @@ class _Call:
     started_at: float
     blocked: bool
     retry: RetryCall | None = None
-    slot: _Slot | None = None  # the slot this call used (its retry, or a late call under R10)
 
 
 def _seconds(label: str, value, *, minimum: float, inclusive: bool) -> float:
@@ -270,8 +287,9 @@ class SimRetryLedger:
     return before any motion), `begin` (the RetryCall when the call is the retry,
     the same refusal as `precheck` when the goal's retry is used, else None),
     `finish` (sets `sim_retry` on the result), `note_motion` (a counted home), and
-    `clear` (reset_scene). `last_event` describes the last finished retry:
-    `{t, kind: "retry", goal, outcome: "succeeded"|"failed"|"halted", refusal}`.
+    `clear` (reset_scene). `last_event` describes the last finished retry,
+    `{t, kind: "retry", goal, outcome: "succeeded"|"failed"|"halted", refusal}`,
+    or the switch-off, `{t, kind: "off", where}` (then `off` is True).
     """
 
     def __init__(self, *, window_s: float = DEFAULT_WINDOW_S, reserve_s: float = DEFAULT_RESERVE_S,
@@ -287,6 +305,11 @@ class SimRetryLedger:
         self._call: _Call | None = None
         self._off = False
         self.last_event: dict | None = None
+
+    @property
+    def off(self) -> bool:
+        """True once a bookkeeping fault switched the ledger off for good (read-only)."""
+        return self._off
 
     # ── entry points ─────────────────────────────────────────────────────
 
@@ -309,13 +332,13 @@ class SimRetryLedger:
     def begin(self, name, args, *, held: bool, latched: bool, episode_pending: bool,
               motion_blocked: bool) -> RetryCall | dict | None:
         """Start a motion call. Returns the refusal dict (as `precheck`) when this
-        goal's retry is used: the caller returns it before any motion. Returns the
-        RetryCall when the call is THE retry of an open slot (the slot is used from
-        here on), else None (the call runs as without the ledger). Under a hold, a
-        latch, a pending episode or a blocked arm the goal is spent instead, and a
-        latch spends every open slot. A retry that would start too late for the
-        turn (R10) is not granted: the slot is used and the call runs as without
-        the ledger."""
+        goal's retry is used, or when this call would be the retry but starts too
+        late for the turn (R10: the slot is used): the caller returns it before
+        any motion. Returns the RetryCall when the call is THE retry of an open
+        slot (the slot is used from here on), else None (the call runs as without
+        the ledger). Under a hold, a latch, a pending episode or a blocked arm the
+        goal is spent instead, and a latch spends every open slot. A call that
+        matches two or more open slots is no retry: all of them are used."""
         with self._lock:
             self._call = None
             try:
@@ -330,16 +353,26 @@ class SimRetryLedger:
                 if slot is not None and slot.state == _USED:
                     return self._used_refusal(slot)
                 blocked = bool(held or latched or episode_pending or motion_blocked)
-                call = self._call = _Call(goal, now, blocked)
                 if blocked:
+                    self._call = _Call(goal, now, blocked)
                     self._spend(goal, now)
                     return None
                 if slot is None or slot.state != _OPEN:
+                    self._call = _Call(goal, now, blocked)
+                    return None
+                matched = [other for other in self._slots if same_goal(other.goal, goal)]
+                if len(matched) > 1:
+                    # a rename that fits several orders: retrying one of them would
+                    # be a guess, so none is retried and none is retried later
+                    for other in matched:
+                        other.state = _USED
+                    self._call = _Call(goal, now, blocked)
                     return None
                 slot.state = _USED
-                call.slot = slot
                 if now - slot.first_started_at + self.reserve_s > TURN_BUDGET_S:
-                    return None  # R10: the retry would overrun the agent's turn
+                    slot.late = True  # R10: the retry would overrun the agent's turn
+                    return self._used_refusal(slot)
+                call = self._call = _Call(goal, now, blocked)
                 call.retry = RetryCall(str(slot.goal), slot.refused_grasps, slot.arm_left_in_place, slot.refusal)
                 return call.retry
             except Exception:  # noqa: BLE001
@@ -401,9 +434,8 @@ class SimRetryLedger:
                 self._spend(goal, now)
         if goal is None or not isinstance(result, MutableMapping):
             return result
-        own = call.slot if call is not None else None
-        if own is None and retry is not None:
-            own = self._slot_for(goal)
+        # the slot a retry used: the one its goal matches (begin granted it as the only match)
+        own = self._slot_for(goal) if retry is not None else None
         if retry is not None:
             outcome = "halted" if stopped else "succeeded" if result.get("ok") else "failed"
             if outcome == "succeeded":
@@ -425,8 +457,8 @@ class SimRetryLedger:
                                 episode_pending=episode_pending)
         if refusal is None:
             return result
-        if now - call.started_at + self.reserve_s > TURN_BUDGET_S:
-            return result  # the retry would overrun the agent's turn (R10)
+        if now - call.started_at + self.reserve_s + RETRY_THINK_S > TURN_BUDGET_S:
+            return result  # the retry would overrun the agent's turn (R10, A6-fix2 Minor 3)
         grasps = () if refused_grasps is None else tuple(refused_grasps)
         self._slots.append(_Slot(goal, now, call.started_at, _OPEN, refusal, grasps,
                                  bool(result.get("arm_left_in_place"))))
@@ -461,8 +493,10 @@ class SimRetryLedger:
                        if slot is not own and (slot.state == _USED or not same_goal(slot.goal, goal))]
 
     def _used_refusal(self, slot: _Slot) -> dict:
-        return {"ok": False, "error": RETRY_EXHAUSTED.format(goal=slot.goal),
-                "sim_retry": {"allowed": False, "used": True}}
+        error = RETRY_EXHAUSTED.format(goal=slot.goal)
+        if slot.late:
+            error = f"{error}: {RETRY_TOO_LATE}"
+        return {"ok": False, "error": error, "sim_retry": {"allowed": False, "used": True}}
 
     def _expire(self, now: float) -> None:
         self._slots = [slot for slot in self._slots if now - slot.opened_at < self.window_s]
@@ -474,6 +508,7 @@ class SimRetryLedger:
         self._off = True
         self._slots = []
         self._call = None
+        self.last_event = {"t": time.time(), "kind": "off", "where": where}
 
 
 def ledger_for(cfg) -> SimRetryLedger | None:

@@ -472,11 +472,16 @@ def test_reset_scene_result_carries_the_seed(runtime_with_isaac_double): assert 
   motion_blocked) -> RetryCall | dict | None` (a dict = the used-slot refusal, the same dict `precheck` returns: return
   it before any motion; None = run as without the ledger), `finish(name, args, result, *, exc_type, held, latched,
   halted, episode_pending, refused_grasps, retry) -> result`, `note_motion(name: str, ok: bool) -> None`,
-  `clear(reason: str) -> None`, `last_event: dict | None`; `ledger_for(cfg) -> SimRetryLedger | None` (sim class +
-  `sim_retry_enabled` + `CASCADE_OBSERVED_FINGER_GATE == "1"`, else None); constants `DEFAULT_WINDOW_S`,
-  `MIN_WINDOW_S`, `DEFAULT_RESERVE_S`, `TURN_BUDGET_S`, `MAX_RESERVE_S`, `REFUSAL_CLASSES`; texts `RETRY_ALLOWED`,
-  `RETRY_USED`, `RETRY_EXHAUSTED` (spec §4.5 verbatim, `{skill}` and `{goal}` formatted). Slot states open / used /
-  spent (DECISIONS.md "A6 fix 1"). The ledger only sets the `sim_retry` field and returns the used-slot refusal;
+  `clear(reason: str) -> None`, `last_event: dict | None`, `off: bool` (read-only; A6 fix 2: a fault switches the
+  ledger off for good and sets `last_event = {t, kind: "off", where}`); `ledger_for(cfg) -> SimRetryLedger | None`
+  (sim class + `sim_retry_enabled` + `CASCADE_OBSERVED_FINGER_GATE == "1"`, else None); constants `DEFAULT_WINDOW_S`,
+  `MIN_WINDOW_S`, `DEFAULT_RESERVE_S`, `TURN_BUDGET_S`, `MAX_RESERVE_S`, `RETRY_THINK_S` (30 s: a slot opens only if
+  the refused call's time + reserve + this fits TURN_BUDGET_S), `REFUSAL_CLASSES`; texts `RETRY_ALLOWED`,
+  `RETRY_USED`, `RETRY_EXHAUSTED` (spec §4.5 verbatim, `{skill}` and `{goal}` formatted), `RETRY_TOO_LATE` (appended
+  to the used refusal when `begin` finds the retry too late for the turn: refused before motion, slot used). An arm
+  "" / "default" / "primary" is the absent arm; a call matching two or more open slots is no retry (all of them
+  used). Slot states open / used / spent (DECISIONS.md "A6 fix 1", "A6 fix 2"). The ledger only sets the `sim_retry`
+  field and returns the used-slot refusal;
   composing `next_action` is the runtime's job (A7), so the ledger never edits agent text.
 
 - [ ] **Step 1: Write the failing tests**

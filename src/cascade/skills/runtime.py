@@ -246,18 +246,13 @@ def _belief_footprint(belief) -> tuple[np.ndarray, float]:
     return np.vstack(xy), top
 
 
-def _raise_if_stopped(harness) -> None:
-    """A stop that arrived while point_at planned is reported as that stop,
-    never as the geometry the stop made fail (a latched e-stop vetoes every
-    route the harness vets): the e-stop's SafetyViolation, else MotionHalted
-    for an operator halt since the skill started."""
-    if harness is None:
-        return
+def _raise_if_estopped(harness) -> None:
+    """A latched e-stop vetoes every route the harness vets: when point_at
+    finds no route, an e-stop is reported as the e-stop, never as the
+    geometry it made fail. (An operator halt since the skill started is
+    reported as the halt by `execute`.)"""
     if getattr(harness, "estopped", False):
         raise SafetyViolation("e-stop latched")
-    check = getattr(harness, "_check_halt_generation", None)
-    if callable(check):
-        check(None)
 
 
 def _lowest_tool_z(T, tool_points) -> float:
@@ -6966,14 +6961,7 @@ class SkillRuntime:
             jaws = pointing.jaw_samples(sweep, self.cfg.arm.get("gripper"), self._tool_axis_order, opening)
         except ValueError as exc:
             raise SkillError(f"cannot point at {label!r}: {exc}; nothing was moved") from None
-        real_vet = getattr(harness, "vet_pose", None)
-
-        def vet(q):
-            reason = real_vet(q)
-            if reason is not None:
-                _raise_if_stopped(harness)
-            return reason
-
+        vet = getattr(harness, "vet_pose", None)
         lean = None
         if ik is None:
             if not rungs:
@@ -6990,9 +6978,8 @@ class SkillRuntime:
                 raise SkillError(f"cannot point at {label!r} while holding {held!r}: {from_above}; it leans in "
                                  f"only with empty jaws; nothing was moved")
             lean = pointing.lean_in(self.kin, column, jaws.closed, approach_col, q_now, margin=margin,
-                                    table_z=table_z, vet=vet if real_vet is not None else None, neighbours=near)
+                                    table_z=table_z, vet=vet, neighbours=near)
             if lean.q is None:
-                _raise_if_stopped(harness)
                 best = "" if lean.clearance is None else f" (the best solved pose had {lean.clearance.worst(margin)})"
                 raise SkillError(
                     f"cannot point at {label!r} on this arm: {from_above}; leaning in "
@@ -7012,16 +6999,15 @@ class SkillRuntime:
                 with trajectory.geometry_guard(harness):
                     return trajectory.vet_segment(harness, q_from, q_to, 2.0)
             except SkillError as exc:
-                _raise_if_stopped(harness)
                 return str(exc)
 
         try:
             route = pointing.plan_route(self.kin, q_now, target, column, jaws, approach_col, margin=margin,
                                         table_z=table_z, neighbours=near, direct_neighbours=lean is not None,
-                                        close=not held, vet=vet if real_vet is not None else None,
+                                        close=not held, vet=vet,
                                         preflight=preflight, preflight_direct=lean is not None)
         except pointing.RouteRefused as exc:
-            _raise_if_stopped(harness)
+            _raise_if_estopped(harness)
             raise SkillError(f"cannot reach the pointing pose over {label!r} keeping {margin:.3f} m from it: "
                              f"{exc}; nothing was moved") from None
         legs = ("did not settle at the rise-first waypoint", "did not settle at the pointing pose")

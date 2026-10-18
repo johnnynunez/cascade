@@ -989,6 +989,88 @@ def test_a_close_clear_only_at_the_waypoint_closes_there():
     assert pointing.close_violation(_SlideIK(), goal, _box_column(), jaws.sweep, MARGIN, 0.0) is not None
 
 
+def test_a_close_clear_only_at_the_pointing_pose_waits_past_the_waypoint():
+    """The close sweeps 5 cm under the TCP: clear only 8 cm above the table.
+    The start (4 cm) and the rise-first waypoint (7 cm) are too low, the
+    pointing pose (10 cm) is not: the arm goes over the object with the jaws
+    as they are and closes them only at the end."""
+    from cascade.skills import pointing
+
+    start, goal = np.array([-0.1, 0.0, 0.04]), np.array([0.1, 0.0, 0.10])
+    jaws = _sweep_jaws(np.array([[0.0, 0.0, -0.05]]))
+    route = pointing.plan_route(_SlideIK(), start, goal, _box_column(), jaws, 2, margin=MARGIN, table_z=0.0)
+    assert route.close_at == 2 and len(route.targets) == 2, route
+    np.testing.assert_allclose(route.targets[0], [-0.1, 0.0, 0.07])
+
+
+def test_the_close_keeps_the_margin_from_the_table():
+    from cascade.skills import pointing
+
+    sweep = (np.zeros((1, 3)), np.array([[0.0, 0.0, -0.04]]))
+    why = pointing.close_violation(_SlideIK(), np.array([0.2, 0.0, 0.05]), _box_column(), sweep, MARGIN, 0.0)
+    assert why == "the jaws, closing, 0.010 m above the table", why
+    assert pointing.close_violation(_SlideIK(), np.array([0.2, 0.0, 0.08]), _box_column(), sweep, MARGIN, 0.0) is None
+
+
+def test_the_close_keeps_the_margin_from_a_neighbour():
+    """The start's close sweeps 1 cm from a neighbour (8 cm from the target):
+    the jaws close at the pointing pose instead."""
+    from cascade.skills import pointing
+
+    near = pointing.neighbour_column(np.array([[-0.17, -0.02], [-0.13, -0.02], [-0.13, 0.02], [-0.17, 0.02]]), 0.05,
+                                      0.0, "the blue box")
+    jaws = _sweep_jaws(np.array([[-0.04, 0.0, -0.06]]))
+    start, goal = np.array([-0.08, 0.0, 0.10]), np.array([0.12, 0.0, 0.12])
+    assert pointing.plan_route(_SlideIK(), start, goal, _box_column(), jaws, 2, margin=MARGIN,
+                               table_z=0.0).close_at == 0
+    route = pointing.plan_route(_SlideIK(), start, goal, _box_column(), jaws, 2, margin=MARGIN, table_z=0.0,
+                                neighbours=(near,))
+    assert route == pointing.Route([goal], 1), route
+
+
+def test_the_direct_leg_to_a_lean_in_keeps_the_margin_from_a_neighbour():
+    """Straight to the pointing pose passes 2 cm over a neighbour's top: a
+    rise-first waypoint, unless the leg is main's top-down one."""
+    from cascade.skills import pointing
+
+    near = pointing.neighbour_column(np.array([[-0.12, -0.02], [-0.08, -0.02], [-0.08, 0.02], [-0.12, 0.02]]), 0.06,
+                                      0.0, "the blue box")
+    start, goal = np.array([-0.2, 0.0, 0.06]), np.array([0.0, 0.0, 0.10])
+    route = pointing.plan_route(_SlideIK(), start, goal, _box_column(), np.zeros((1, 3)), 2, margin=MARGIN,
+                                table_z=0.0, neighbours=(near,))
+    assert len(route.targets) == 2 and route.targets[0][2] > start[2], route
+    top_down = pointing.plan_route(_SlideIK(), start, goal, _box_column(), np.zeros((1, 3)), 2, margin=MARGIN,
+                                   table_z=0.0, neighbours=(near,), direct_neighbours=False)
+    assert top_down == pointing.Route([goal], 0), top_down
+
+
+def test_each_jaw_group_is_its_own_pair():
+    """Group A (the TCP) 1 cm over the top rises away; group B, 2.5 cm beside
+    the object, slides 4 mm closer. Their minimum grows, but B closes in from
+    inside the margin: refused."""
+    from cascade.skills import pointing
+
+    a, b = np.zeros((1, 3)), np.array([[0.045, 0.0, -0.03]])
+    start, goal = np.array([0.0, 0.0, 0.06]), np.array([-0.004, 0.0, 0.07])
+    why = pointing.segment_violation(_SlideKin(), start, goal, _box_column(), (a, b), MARGIN, 0.0, from_inside=True)
+    assert why is not None and "closing in from inside the margin" in why, why
+    assert pointing.segment_violation(_SlideKin(), start, goal, _box_column(), np.vstack([a, b]), MARGIN, 0.0,
+                                      from_inside=True) is None
+
+
+def test_a_rise_leg_outside_the_margin_never_dips_between_two_samples():
+    """4 cm over the top, 6 cm across it in one sample step: both samples
+    4.1 cm from it, 4.0 cm over the middle. Outside the margin, but on a rise
+    the jaws never come closer to the target: refused."""
+    from cascade.skills import pointing
+
+    args = (_box_column(), np.zeros((1, 3)), MARGIN, 0.0)
+    start, goal = np.array([-0.03, 0.0, 0.09]), np.array([0.03, 0.0, 0.09])
+    why = pointing.segment_violation(_SlideKin(), start, goal, *args, step_rad=0.06, from_inside=True, rise=True)
+    assert why is not None and "between two samples" in why, why
+    assert pointing.segment_violation(_SlideKin(), start, goal, *args, step_rad=0.06, from_inside=True) is None
+
+
 def test_no_pose_where_the_jaws_may_close_refuses():
     from cascade.skills import pointing
 
@@ -1124,6 +1206,27 @@ def test_the_so101_open_beak_beside_a_cube_backs_off_before_it_closes(rig, monke
     d = [float(column.distance(np.vstack(jaws.now) @ np.asarray(r.runtime.kin.fk(q))[:3, :3].T
                                + r.runtime.kin.fk(q)[:3, 3]).min()) for q in [q0, *_commands(r)[:first_leg]]]
     assert all(b >= a - 1e-6 for a, b in zip(d, d[1:])), d
+
+
+@needs_pin_so101
+@pytest.mark.parametrize("valid", [True, False])
+def test_the_jaws_as_they_are_come_from_the_gripper_reading(rig, monkeypatch, valid):
+    """`now` is built from the arm's gripper reading; an invalid reading is
+    the widest the profile opens them (None)."""
+    from cascade.skills import pointing
+
+    r = rig("so101_mock", prop=(*at(0.22, 0.0), 0.035, 0.035))
+    real_state = r.runtime.arm.get_state
+    monkeypatch.setattr(r.runtime.arm, "get_state",
+                        lambda: dataclasses.replace(real_state(), gripper_pos=0.31, gripper_valid=valid))
+    seen = []
+    real = pointing.jaw_samples
+    monkeypatch.setattr(pointing, "jaw_samples", lambda *a, **k: (seen.append(a[3] if len(a) > 3 else
+                                                                               k.get("opening")), real(*a, **k))[1])
+
+    r.runtime.execute("point_at", {"label": "red cube"})
+
+    assert seen == [0.31 if valid else None], seen
 
 
 @needs_pin

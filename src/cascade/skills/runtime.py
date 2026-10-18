@@ -234,6 +234,37 @@ OBSERVED_NEAR_COPY_M = 0.01
 OBSERVED_NEAR_COPY_DEG = 15.
 
 
+#: Stall band of the close-feedback wait (`_wait_gripper_closed`, the wait
+#: after each close stage when `grasp.close_feedback_timeout_s` is set): the
+#: jaws count as stopped once every read stays within this fraction of jaw
+#: travel of an anchor for 0.5 s. Per arm profile: `gripper.close_stall_band`.
+#: The Isaac profiles set 0.01: on Newton the jaws slowly turn a cube grasped
+#: 10-30 deg off its faces square, 0.003-0.004 per 0.5 s, which this default
+#: reads as moving until the 8 s timeout refuses the lift
+#: (configs/arms/isaac.yaml).
+CLOSE_STALL_BAND = 0.002
+#: Exclusive upper limit of a profile's band, a sanity bound. Keep a band
+#: well under the free-closing step (>= 0.028 per Newton bridge iteration),
+#: or a closing jaw reads as stopped.
+CLOSE_STALL_BAND_MAX = 0.05
+
+
+def close_stall_band(gripper_cfg) -> float:
+    """`gripper.close_stall_band` of an arm profile, CLOSE_STALL_BAND when unset.
+
+    Anything but a number in (0, CLOSE_STALL_BAND_MAX) raises SkillError:
+    build_runtime checks every arm profile before any arm exists, and the
+    close checks it again before its first jaw command."""
+    band = gripper_cfg.get("close_stall_band") if gripper_cfg is not None else None
+    if band is None:
+        return CLOSE_STALL_BAND
+    # NaN, inf, True/False (1/0) and anything that is no number fall outside
+    if not isinstance(band, (int, float)) or not 0.0 < band < CLOSE_STALL_BAND_MAX:
+        raise SkillError(f"gripper.close_stall_band must be a fraction of jaw travel in "
+                         f"(0, {CLOSE_STALL_BAND_MAX}), got {band!r}")
+    return float(band)
+
+
 def open_wait_timeout_s(grasp_cfg) -> float | None:
     """`grasp.open_wait_timeout_s` in seconds, None when unset.
 
@@ -1709,6 +1740,9 @@ class SkillRuntime:
         if owns_perception_timings:
             self._call_perception_timings = []
         home_return = None
+        # the operator's halt the skill had already met when its view-home
+        # return started (None: any halt there came during the return)
+        halt_before_return = None
         call_moved = False  # this call commanded the arm or gripper (motion scope owner only)
         # Arm motions counted before a grasp entry: its move_home hint needs
         # one counted in this call (None = no counting harness).
@@ -1772,6 +1806,7 @@ class SkillRuntime:
                         if (owns_motion_scope and return_enabled and scope.context["motion_started"]
                                 and name not in {"move_home", "move_to_rest", "reset_scene"}
                                 and not (isinstance(result, dict) and result.get("home_skipped"))):
+                            halt_before_return = self._skill_halt_reason(skill_halt)
                             try:
                                 # Outside the skill's halt scope now: the move
                                 # carries the skill's start generation, so a
@@ -1837,14 +1872,20 @@ class SkillRuntime:
             traceback.print_exc()
         if home_return is not None:
             result["return_home"] = home_return
+            reason = str(home_return.get("error") or home_return.get("reason"))
+            status = home_return["status"]
+            # A halt's own text already starts with "halted: ": say it once.
+            returned = ("return to saved home " + reason if reason.startswith(f"{status}: ")
+                        else f"return to saved home {status}: {reason}")
             if not home_return["ok"] and result.get("ok", False):
                 result["action_ok"] = True
                 result["ok"] = False
-                reason = str(home_return.get("error") or home_return.get("reason"))
-                status = home_return["status"]
-                # A halt's own text already starts with "halted: ": say it once.
-                result["error"] = ("return to saved home " + reason if reason.startswith(f"{status}: ")
-                                   else f"return to saved home {status}: {reason}")
+                result["error"] = returned
+            elif (not result.get("ok", False) and halt_before_return is None
+                  and _home_return_halted(home_return)):
+                # The skill failed, then the operator's halt stopped (or
+                # skipped) its return: the error names that halt first.
+                result["error"] = _stop_first(returned, result.get("error"))
         if name in _MOTION_SKILLS:
             # Readiness can fail DURING a motion as well as before it. A
             # trajectory abort latches STOP; handing that failure back to
@@ -2501,11 +2542,11 @@ class SkillRuntime:
 
         The loop holds the skill halt baseline execute() takes for a motion
         skill (`_skill_halt_scope`; inside a skill the outer, older baseline
-        stays): an operator halt from here on refuses every later motion of
-        the loop before its first command, also for a caller outside
-        execute(). Without it, a halt the re-home's skip checks found, or one
-        raised after the re-home or during the re-scan, was cleared by the
-        next motion (merged-tree halt matrix: 75-225 arm commands after it)."""
+        stays), also for a caller outside execute(): after an operator halt
+        every later motion of the loop is refused before its first command,
+        and a halt the re-home's skip checks found, or one raised after the
+        re-home or during the re-scan, raises MotionHalted before the next
+        attempt."""
         with self._skill_halt_scope(self._skill_halt_baselines(self.arm)):
             return self._persistent_grasp_attempts(object, material, budget_s)
 
@@ -5047,7 +5088,8 @@ class SkillRuntime:
         refused before the command, or commanded but not confirmed; a jaw
         fault that is not a SafetyViolation is "refused: jaw command failed:
         <error>", or "refused: jaw state could not be read: <error>" when the
-        gate's read before the command failed and nothing was sent) or
+        gate's read or check of the jaws before the command failed and
+        nothing was sent) or
         "skipped: <why>".
         """
         if getattr(self, "_held_provisional", None) is not None:
@@ -5077,12 +5119,11 @@ class SkillRuntime:
                 return width is not None and width >= wanted - air
 
         grasp_evidence.phase("jaws_reopen")
-        measured = gate is None   # with the gate, the jaws are read before the command
+        measured = gate is None   # with the gate, the jaws are read and checked before the command
         try:
             if gate is not None:
-                state = self.arm.get_state()
+                gate.require_reopening(self.arm.get_state(), check=check)
                 measured = True
-                gate.require_reopening(state, check=check)
             why = self._open_empty_jaws(open_pos, opened, halt_generation=generation, check=check)
         except SafetyViolation as exc:
             if isinstance(exc, MotionHalted):
@@ -5098,7 +5139,7 @@ class SkillRuntime:
             stop = _air_grasp_stop(harness, generation)
             if stop:
                 raise _air_grasp_stop_error(harness, stop) from exc
-            if not measured:   # review N2: the read before the command failed; nothing was sent
+            if not measured:   # the read or the gate's check before the command failed; nothing was sent
                 return f"refused: jaw state could not be read: {exc}"
             return f"refused: jaw command failed: {exc}"
         return "reopened" if why is None else f"refused: {why}"
@@ -5384,10 +5425,12 @@ class SkillRuntime:
             self._gripper_closes_commanded += 1
             return
         timeout = self.cfg.grasp.get("close_feedback_timeout_s")
+        band = CLOSE_STALL_BAND
         if timeout is not None:
             timeout = float(timeout)
             if not np.isfinite(timeout) or timeout <= 0:
                 raise SkillError("close_feedback_timeout_s must be finite and positive")
+            band = close_stall_band(self.cfg.arm.get("gripper"))
         span = self._grip_closed - self._grip_open
         for frac, eff in (
             (profile.close_frac_stage1, profile.effort * 0.7),
@@ -5404,7 +5447,7 @@ class SkillRuntime:
             self._gripper_closes_commanded += 1
             time.sleep(float(self.cfg.grasp.get("close_settle_s", 0.0)))
             if timeout is not None:
-                self._wait_gripper_closed(1.0 - frac, timeout)
+                self._wait_gripper_closed(1.0 - frac, timeout, band)
 
     def _hold_squeeze_frac(self) -> float | None:
         """`gripper.hold_squeeze_frac` of the arm profile, validated (None = off).
@@ -5501,12 +5544,13 @@ class SkillRuntime:
                 return None
             time.sleep(.05)
 
-    def _wait_gripper_closed(self, target_open: float, timeout_s: float) -> None:
+    def _wait_gripper_closed(self, target_open: float, timeout_s: float, band: float) -> None:
         """Wait for commanded travel or a measured stall before lifting.
 
         A fixed dwell expires while rate-limited sim jaws are still closing
         when physics runs slower than wall time. A stall is only a completion
         signal here; the existing post-lift check still adjudicates the grip.
+        `band` is the profile's `gripper.close_stall_band` (close_stall_band).
         """
         deadline = time.monotonic() + timeout_s
         anchor = None
@@ -5517,7 +5561,7 @@ class SkillRuntime:
             if width is not None and np.isfinite(width):
                 if width <= target_open + .01:
                     return
-                if anchor is None or abs(width - anchor) > .002:
+                if anchor is None or abs(width - anchor) > band:
                     anchor, stable_since = width, now
                 elif width < .95 and now - stable_since >= .5:
                     return
@@ -6318,9 +6362,12 @@ class SkillRuntime:
                 # Never leave the arm hanging mid-pose over the table after a
                 # failed attempt -- park it (best effort, nothing is held).
                 # Not under a latched e-stop: the operator stopped the arm.
+                park_halt = None
                 if not self._home_policy_enabled() and not self._estopped():
                     try:
                         self.skill_move_home()
+                    except MotionHalted as exc:
+                        park_halt = str(exc)   # the operator's halt stopped the park: named below
                     except (SkillError, SafetyViolation):
                         pass
                 out = {
@@ -6330,6 +6377,8 @@ class SkillRuntime:
                              f"({round(time.monotonic() - t0, 1)}s): {last_err}",
                     "suggestion": "check world_state / camera_snapshot; the object may be unreachable or mis-detected",
                 }
+                if park_halt is not None:
+                    out["error"] = _stop_first(_halted_text("final park", park_halt), out["error"])
                 # The robot did everything it can on its own: the budget is
                 # spent, or the stop reason is one no retry cures (never
                 # seen, too wide). That is STUCK -- a request to the human,
@@ -8751,6 +8800,27 @@ def _with_move_home_first(result: dict, source: dict | None = None) -> dict:
     if closed:
         result["air_grasp_jaws_closed"] = True
     return result
+
+
+def _home_return_halted(home_return: dict) -> bool:
+    """The operator's halt stopped a view-home return (status "halted") or
+    its skip checks found one (status "skipped", "motion halted: ...")."""
+    status = home_return.get("status")
+    return status == "halted" or (status == "skipped"
+                                  and str(home_return.get("reason") or "").startswith("motion halted: "))
+
+
+def _halted_text(move: str, halt: str) -> str:
+    """`move` stopped by the operator's halt, whose MotionHalted text is
+    `halt` (a text that starts with "halted: " is said once)."""
+    return f"{move} {halt}" if halt.startswith("halted: ") else f"{move} halted: {halt}"
+
+
+def _stop_first(stop: str, error) -> str:
+    """The operator's stop that also ended a failed skill, then the skill's
+    own `error`: outcome first, as `_reset_release_failed` does, because the
+    agent's FAILED line keeps only the first 240 characters of the error."""
+    return f"{stop}; {error}" if error else stop
 
 
 def _left_in_place(result: dict) -> bool:

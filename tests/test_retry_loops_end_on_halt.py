@@ -21,6 +21,7 @@ place primitives are replaced by fakes that move the arm and miss.
 
 from __future__ import annotations
 
+import re
 from types import SimpleNamespace
 
 import numpy as np
@@ -241,18 +242,33 @@ def _halt_around_rehome(r, monkeypatch, where):
 
 AROUND_REHOME = [(p, w) for p in RETRY_PROFILES + ["mock"] for w in ("entry", "status", "after", "rescan")
                  if w != "status" or p == "fr3"]
+#: the re-home's own refusal: SafeArm refuses its first command
+REFUSED = "halt received during route planning or execution"
+#: the loop's check before its next attempt (`_end_on_halt`)
+NOT_RETRYING = "motion halted: operator: stop; not retrying"
+
+
+def _around_rehome_halt_text(profile, where):
+    """What ends the loop for a halt at `where` around its first re-home.
+
+    A halt on entry to a direct home move (rebot_rs, mock) or at fr3's
+    view-home status line (after its skip checks) is refused by that move.
+    fr3's skip checks find a halt raised on entry, so its view-home return is
+    skipped (a SkillError the loop swallows); that halt, and one raised after
+    the re-home or during the re-scan, ends the loop before its next attempt."""
+    if where == "status" or (where == "entry" and profile != "fr3"):
+        return REFUSED
+    return NOT_RETRYING
 
 
 @pytest.mark.parametrize("profile, where", AROUND_REHOME, ids=[f"{p}-{w}" for p, w in AROUND_REHOME])
 def test_grasp_with_persistence_called_directly_ends_on_a_halt_around_its_rehome(rig, monkeypatch, profile,
                                                                                  where):
-    """Merged-tree halt matrix (main 80af666 + PR-A): called outside
-    execute(), the loop had no skill halt baseline, so a halt the re-home's
-    skip checks found, or one raised after it or during the re-scan, was
-    cleared by the next motion (75-225 arm commands after it) before
-    `_end_on_halt` caught it. The loop now holds the same skill halt baseline
+    """Called outside execute(), the loop holds the same skill halt baseline
     execute() takes (a no-op inside a skill) and checks its generation before
-    every further attempt."""
+    every further attempt: a halt on entry to its re-home, one the re-home's
+    skip checks find, one raised after it or during the re-scan ends the loop
+    with no further arm command."""
     r = rig(profile)
     _missing_grasp(r, monkeypatch)
     _halt_around_rehome(r, monkeypatch, where)
@@ -260,10 +276,7 @@ def test_grasp_with_persistence_called_directly_ends_on_a_halt_around_its_rehome
     with pytest.raises(MotionHalted) as raised:
         r.runtime._grasp_with_persistence("red cube")
 
-    # the re-home's own refusal (rebot_rs / mock entry, fr3 status) or the
-    # loop's check before the next attempt (the rest)
-    assert str(raised.value) in ("halt received during route planning or execution", HALT,
-                                 "motion halted: operator: stop; not retrying"), raised.value
+    assert str(raised.value) == _around_rehome_halt_text(profile, where)
     assert r.at_stop is not None, "the halt was never raised"
     assert r.sends == r.at_stop, f"{r.sends - r.at_stop} arm commands went out after the halt"
     assert r.grasps == 1, "the loop tried again after the halt"
@@ -341,3 +354,230 @@ def test_an_estop_in_the_fr3_retry_rehome_stays_an_estop(rig, monkeypatch, kind)
     assert "SafetyViolation: e-stop latched" in out["error"], out
     assert "MotionHalted" not in out["error"], out
     assert r.runtime.arm.harness.estopped
+
+
+# ── a halt in the home move after a failed skill is named in its error ──────
+
+#: pick_and_place's error after one missed attempt (its duration scrubbed)
+PICK_MISSED = "grasp failed after 1 attempts (<t>s): grasp missed: closed on air"
+#: handover's error after one missed attempt
+HANDOVER_MISSED = "could not grasp 'red cube' for handover: grasp missed: closed on air"
+
+
+def _scrub_time(error):
+    return re.sub(r"\(\d+(\.\d+)?s\)", "(<t>s)", error)
+
+
+def _one_marked_miss(r, monkeypatch):
+    """One grasp attempt that moves the arm through the runtime (so execute()
+    counts it as this skill's motion) and misses."""
+    runtime = r.runtime
+    runtime.cfg._data.setdefault("grasp", {})["max_pick_attempts"] = 1
+    _missing_grasp(r, monkeypatch)
+    miss = runtime.skill_grasp_object
+
+    def marked_miss(*a, **k):
+        runtime._mark_motion_started()
+        return miss(*a, **k)
+    monkeypatch.setattr(runtime, "skill_grasp_object", marked_miss)
+
+
+@pytest.mark.parametrize("kind", ["halt", "estop_harness", "estop_safearm"])
+@pytest.mark.parametrize("profile", ["rebot_rs", "mock"])
+def test_a_halt_in_a_failed_pick_and_place_park_is_named_in_its_error(rig, monkeypatch, profile, kind):
+    """After its last missed attempt pick_and_place parks the arm (rigs
+    without the view-home return). A halt that stops that park is named
+    first in the error, before the grasp failure it keeps. An e-stop there
+    (the harness's, or `SafeArm.stop()`) is not the operator's halt: the
+    error stays the grasp failure and the e-stop stays latched."""
+    r = rig(profile)
+    _one_marked_miss(r, monkeypatch)
+    _stop_in_rehome(r, monkeypatch, kind=kind)      # the 1st home move: the final park
+
+    out = r.runtime.execute("pick_and_place", {"object": "red cube"})
+
+    assert r.at_stop is not None and r.sends == r.at_stop, "an arm command went out after the stop"
+    assert out["ok"] is False and out["stage"] == "grasp", out
+    if kind == "halt":
+        assert _scrub_time(out["error"]) == f"final park {HALT}; {PICK_MISSED}", out["error"]
+        assert not r.runtime.arm.harness.estopped
+    else:
+        assert _scrub_time(out["error"]) == PICK_MISSED, out["error"]
+        assert r.runtime.arm.harness.estopped
+
+
+def test_a_failed_pick_and_place_park_without_a_halt_keeps_its_error(rig, monkeypatch):
+    r = rig("rebot_rs")
+    _one_marked_miss(r, monkeypatch)
+
+    out = r.runtime.execute("pick_and_place", {"object": "red cube"})
+
+    assert _scrub_time(out["error"]) == PICK_MISSED, out["error"]
+
+
+def _stop_in_view_home_return(r, monkeypatch, where, kind="halt"):
+    """Stop (halt / e-stop) in execute()'s post-skill view-home return (fr3):
+    on `entry` (before its skip checks) or at its 2nd `route` command."""
+    runtime = r.runtime
+    back = runtime._return_to_view_home
+
+    def spy_return(*a, **k):
+        r.home_start = r.sends
+        if where == "entry":
+            _stop_now(r, kind)
+        return back(*a, **k)
+
+    def on_send():
+        if where == "route" and r.at_stop is None and r.home_start is not None \
+                and r.sends - r.home_start >= 2:
+            _stop_now(r, kind)
+    monkeypatch.setattr(runtime, "_return_to_view_home", spy_return)
+    r.on_send = on_send
+
+
+#: the return's own text, as execute() says it for a skill that succeeded
+VIEW_HOME_HALTED = {"route": f"return to saved home {HALT}",
+                    "entry": "return to saved home skipped: motion halted: operator: stop"}
+
+
+@pytest.mark.parametrize("where", sorted(VIEW_HOME_HALTED))
+@pytest.mark.parametrize("skill, args, missed", [
+    ("pick_and_place", {"object": "red cube"}, PICK_MISSED),
+    ("handover", {"label": "red cube"}, HANDOVER_MISSED),
+], ids=["pick_and_place", "handover"])
+def test_a_halt_in_fr3_view_home_return_after_a_failed_skill_is_named_in_its_error(
+        rig, monkeypatch, skill, args, missed, where):
+    """fr3 returns to its camera-view home after every motion skill. When the
+    skill failed and the operator's halt stops (or skips) that return, the
+    error names the halt first, before the skill's own failure, not only in
+    `return_home.status`."""
+    r = rig("fr3")
+    _one_marked_miss(r, monkeypatch)
+    _stop_in_view_home_return(r, monkeypatch, where)
+
+    out = r.runtime.execute(skill, args)
+
+    assert r.at_stop is not None and r.sends == r.at_stop, "an arm command went out after the halt"
+    assert out["ok"] is False, out
+    assert out["return_home"]["status"] == ("halted" if where == "route" else "skipped"), out["return_home"]
+    assert _scrub_time(out["error"]) == f"{VIEW_HOME_HALTED[where]}; {missed}", out["error"]
+    assert not r.runtime.arm.harness.estopped
+
+
+@pytest.mark.parametrize("stop", ["none", "e-stop"])
+def test_fr3_view_home_return_after_a_failed_skill_without_a_halt_keeps_its_error(rig, monkeypatch, stop):
+    """A return that completed, or one an e-stop skipped (an e-stop is not
+    the operator's halt), leaves the failed skill's error as it is."""
+    r = rig("fr3")
+    _one_marked_miss(r, monkeypatch)
+    if stop == "e-stop":
+        _stop_in_view_home_return(r, monkeypatch, "entry", kind="estop_harness")
+
+    out = r.runtime.execute("pick_and_place", {"object": "red cube"})
+
+    assert out["return_home"]["status"] == ("returned" if stop == "none" else "skipped"), out["return_home"]
+    assert _scrub_time(out["error"]) == PICK_MISSED, out["error"]
+
+
+def test_a_halt_inside_an_fr3_skill_is_not_named_again_by_its_return(rig, monkeypatch):
+    """Only a halt that came during the view-home return is added to the
+    error. One that a grasp swallowed skips the return too; the grasp held,
+    so execute() already reports the halt (`MotionHalted: ...`), once."""
+    r = rig("fr3")
+    runtime = r.runtime
+
+    def grasp(label, **kwargs):
+        runtime._mark_motion_started()
+        _move_off(runtime, 0.15)
+        _stop_now(r, "halt")
+        runtime.held_object, runtime._held_det_label = label, "cube"
+        return {"held": label, "grip_verified": True}
+    monkeypatch.setattr(runtime, "skill_grasp_object", grasp)
+
+    out = runtime.execute("grasp_object", {"label": "red cube"})
+
+    assert r.sends == r.at_stop, "an arm command went out after the halt"
+    assert out["return_home"]["reason"] == "motion halted: operator: stop", out["return_home"]
+    assert out["error"] == f"MotionHalted: {HALT}", out["error"]
+
+
+# ── the stop leads a long error: the agent's FAILED line keeps 240 characters ──
+
+#: the real air-grasp text of a grasp whose reopen could not read the jaws
+AIR_UNREAD = ("air grasp: gripper closed fully, object not held; the jaws were not confirmed open: "
+              "jaw state could not be read: gripper feedback timed out")
+#: (profile, skill, args, the skill's failure, the stop that ends it): a halt
+#: on entry to the final park (rebot_rs) or to fr3's view-home return
+LONG = [
+    ("rebot_rs", "pick_and_place", {"object": "red cube"},
+     f"grasp failed after 1 attempts (<t>s): {AIR_UNREAD}", f"final park halted: {REFUSED}"),
+    ("fr3", "handover", {"label": "red cube"},
+     f"could not grasp 'red cube' for handover: {AIR_UNREAD}",
+     "return to saved home skipped: motion halted: operator: stop"),
+]
+
+
+def _one_air_grasp_unread_reopen(r, monkeypatch):
+    """One attempt that moves the arm and closes on air; its reopen could not
+    read the jaws (the grasp result's real keys and texts)."""
+    runtime = r.runtime
+    runtime.cfg._data.setdefault("grasp", {})["max_pick_attempts"] = 1
+
+    def grasp(*a, **k):
+        r.grasps += 1
+        runtime._mark_motion_started()
+        _move_off(runtime, 0.15)
+        return {"ok": False, "error": AIR_UNREAD,
+                "jaws_reopen": "refused: jaw state could not be read: gripper feedback timed out",
+                "exit_withdrawal": "skipped: the jaws were not confirmed open"}
+    monkeypatch.setattr(runtime, "skill_grasp_object", grasp)
+
+
+def _stop_on_entry(r, monkeypatch, name):
+    """Halt on entry to the runtime's `name` (the final park's
+    skill_move_home, or execute()'s view-home return)."""
+    move = getattr(r.runtime, name)
+
+    def spy(*a, **k):
+        if r.at_stop is None:
+            _stop_now(r, "halt")
+        return move(*a, **k)
+    monkeypatch.setattr(r.runtime, name, spy)
+
+
+@pytest.mark.parametrize("profile, skill, args, failure, stop", LONG, ids=[p for p, *_ in LONG])
+def test_the_stop_leads_a_long_failed_skill_error(rig, monkeypatch, profile, skill, args, failure, stop):
+    """The stop comes first, so the FAILED line keeps it when the error is
+    longer than the 240 characters that line keeps (appended at the end it
+    was cut off)."""
+    r = rig(profile)
+    _one_air_grasp_unread_reopen(r, monkeypatch)
+    _stop_on_entry(r, monkeypatch, "skill_move_home" if profile == "rebot_rs" else "_return_to_view_home")
+
+    out = r.runtime.execute(skill, args)
+
+    assert r.at_stop is not None and r.sends == r.at_stop, "an arm command went out after the halt"
+    assert out["ok"] is False, out
+    assert _scrub_time(out["error"]) == f"{stop}; {failure}", out["error"]
+    assert len(out["error"]) > 240, out["error"]
+    kept = out["next_action"].split(" (truncated; see error)")
+    assert len(kept) == 2 and f"This attempt FAILED: {stop}; " in kept[0], out["next_action"]
+    assert not r.runtime.arm.harness.estopped
+
+
+def test_a_failed_skill_with_no_error_of_its_own_gets_the_stop_alone(rig, monkeypatch):
+    """A skill that failed without an error text: the error is the stop."""
+    r = rig("fr3")
+    runtime = r.runtime
+
+    def grasp(*a, **k):
+        runtime._mark_motion_started()
+        _move_off(runtime, 0.15)
+        return {"ok": False}
+    monkeypatch.setattr(runtime, "skill_grasp_object", grasp)
+    _stop_on_entry(r, monkeypatch, "_return_to_view_home")
+
+    out = runtime.execute("grasp_object", {"label": "red cube"})
+
+    assert r.at_stop is not None and r.sends == r.at_stop, "an arm command went out after the halt"
+    assert out["ok"] is False and out["error"] == VIEW_HOME_HALTED["entry"], out

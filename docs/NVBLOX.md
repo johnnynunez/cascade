@@ -54,6 +54,7 @@ Hardware validation ([receipts](../benchmark/results/), `nvblox-rtx-*` and `nvbl
 1. Carry attachment: with `CASCADE_ISAAC_CONTACT_MASK=1` the bridge reuses the
    contacts captured after each completed update. Lost or unknown attachment
    during lift or transport is terminal: no automatic open, retry, home or reset.
+   An explicit `open_gripper`, like `place_at`'s release, ends the carry scope.
 2. Release retreat: `skills/release_episode.wait_open` waits for open jaws and
    stable measured joints held for `settle_hold_s` (0.1 s, `configs/arms/isaac.yaml`);
    once open and free of bilateral attachment, regressing either is terminal.

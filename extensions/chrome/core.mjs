@@ -65,3 +65,10 @@ export function freshness({now, lastFrame, lastState, lastAdvance, hasAdvanced, 
 export function frameAgeNote(ageS) {
   return typeof ageS === 'number' && Number.isFinite(ageS) && ageS > 1 ? `Last frame · ${Math.floor(ageS)} s old` : '';
 }
+// The age of the frame on screen now: its part's X-Frame-Age plus the time it
+// has been shown (`shownMs`), so a frame keeps ageing when no further part
+// arrives. null when the part had no age (any other server).
+export function frameAgeNow(ageS, shownMs) {
+  if (typeof ageS !== 'number' || !Number.isFinite(ageS)) return null;
+  return ageS + Math.max(0, shownMs) / 1000;
+}

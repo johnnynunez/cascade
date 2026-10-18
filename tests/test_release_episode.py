@@ -137,13 +137,16 @@ def test_changed_state_refuses_recovery_without_any_actuator(change):
     assert not events and rt._release_episode is ep and h._grasp_exempt is None
 
 
-@pytest.mark.parametrize('stop,signature',[('estop','safety:estop'),('halt','safety:halt')])
+@pytest.mark.parametrize('stop,signature',[('estop','safety:estop'),('halt','safety:halt'),
+                                           ('halt then estop','safety:estop')])
 def test_a_stopped_recovery_names_which_stop_it_was(stop,signature):
     """An e-stop is not the operator's halt: the refusal names which stop it
-    was, so an e-stop is never filed as (or dropped like) a halt."""
+    was, so an e-stop is never filed as (or dropped like) a halt, also when a
+    newer halt came first (the e-stop is checked before the halt generation)."""
     rt,ep,events=retained();h=rt.arm.harness
     if stop=='estop':h.estop('operator e-stop')
-    else:h.halt('late stop');ep['halt_generation']=h._halt_generation  # pending, no newer generation
+    elif stop=='halt':h.halt('late stop');ep['halt_generation']=h._halt_generation  # pending, no newer generation
+    else:h.halt('late stop');h.estop('operator e-stop')   # a newer halt generation AND a latched e-stop
     with pytest.raises(SafetyViolation) as refused:release.recover(rt)
     assert normalize_failure(f'SafetyViolation: {refused.value}')==signature,str(refused.value)
     assert not events and rt._release_episode is ep

@@ -23,6 +23,7 @@ import dataclasses
 import pytest
 
 import test_stop_retrace as T
+from cascade.memory.envelope import failure_signature, normalize_failure
 from cascade.skills import carry_attachment, stop_retrace
 from cascade.skills.runtime import ProvisionalHold, SkillRuntime
 from cascade.types import SkillError
@@ -46,8 +47,9 @@ REFUSAL = ("SkillError: the jaw state could not be read: if red cube is in the j
 REFUSAL_KEPT = ("SkillError: the jaw state could not be read: call move_home first (it raises the gripper up its "
                 "approach column), then, if red cube is in the jaws, take it out by hand, open_gripper, try again. "
                 "Error: no valid jaw feedback")
-#: a persistence loop's stop when a failed attempt leaves a possible hold
-LOOP_STOP = "the jaws may still hold an object; not retrying"
+#: a persistence loop's stop when a failed attempt leaves a possible hold, in
+#: #366/#377's words so the envelope files it `state:jaws_unreadable`
+LOOP_STOP = "the jaw state could not be read and the jaws may still hold an object; not retrying"
 #: ... and the human-actionable ask it ends STUCK with
 LOOP_ASK = ("My jaws may still hold an object, and I cannot read whether they do. If one is in them, take it out "
             "by hand, then say 'open the gripper' (open_gripper), and ask again.")
@@ -360,3 +362,23 @@ def test_a_persistence_loop_stops_when_a_failed_attempt_leaves_a_possible_hold(
     assert res["ok"] is False and res["outcome"] == "stuck" and res["ask"] == LOOP_ASK, res
     assert f"did not settle at grasp lift pose ({LOOP_STOP})" in res["error"], res
     assert rt._held_provisional is not None and rt.held_object is None
+    # Filed by what stopped the loop: jaws it cannot read (#377's class),
+    # never as an object too wide for them (the old suffix's `jaw` match).
+    assert normalize_failure(res["error"]) == "state:jaws_unreadable", res["error"]
+    assert failure_signature(res) == "state:jaws_unreadable", res
+
+
+@pytest.mark.parametrize("error", [
+    "grasp failed after 1 attempts: SkillError: gripper closure did not settle; refusing to lift",
+    "could not grasp 'red cube' for handover: SkillError: did not settle at grasp lift pose",
+    "SkillError: did not settle at grasp lift pose"])
+def test_the_loop_stop_files_as_unreadable_jaws_and_keeps_its_ask(error):
+    """The review's row: main filed the same miss `other:grasp_failed_after`
+    and #379's suffix turned it into `geometry:object_too_wide`. Whatever
+    the attempt's own text, the stop files it as jaws that cannot be read,
+    and the persistence ask still names the way out."""
+    from cascade.skills.runtime import _stuck_ask
+
+    stopped = f"{error} ({LOOP_STOP})"
+    assert normalize_failure(stopped) == "state:jaws_unreadable", stopped
+    assert _stuck_ask("red cube", stopped, 1) == LOOP_ASK

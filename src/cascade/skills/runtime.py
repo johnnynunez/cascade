@@ -413,7 +413,9 @@ _JAWS_NOT_JUDGED = "the jaw reading could not be judged"
 #: Why a persistence loop stops after a failed attempt that left an
 #: interrupted grasp's provisional hold (`_grasp_retry_verdict`): the next
 #: grasp would refuse it (`_possible_hold_refusal`); the ask names the way out.
-_POSSIBLE_HOLD_STOP = "the jaws may still hold an object; not retrying"
+#: In #366/#377's words, so the envelope files the stop `state:jaws_unreadable`
+#: whatever the attempt's own text ("jaws" alone matched `object_too_wide`).
+_POSSIBLE_HOLD_STOP = _JAWS_NOT_READ + " and the jaws may still hold an object; not retrying"
 
 
 def _error_text(exc: BaseException) -> str:

@@ -297,7 +297,8 @@ def test_a_hostile_halt_reason_never_reaches_world_state_or_task_memory(monkeypa
     """The re-review's probe (a8-rereview-keep/probe_rr_reason.py, Minor 2): the halted call's status line
     and memory event carried the operator's reason as written, so MCP `world_state` (`agent_status`,
     `events`) and `task_memory`'s captions showed the trigger with the gate off (no ledger), and every
-    look-alike spelling on both gates. A8 fix 2: no channel the agent reads carries it, in any spelling."""
+    look-alike spelling on both gates; `recall_step`'s frame captions (the trace row's text) too. A8 fix 2:
+    no channel the agent reads carries it, in any spelling."""
     from test_agent_results_compose import _seen
     from test_sim_retry_runtime import _nudged, _reads_as_the_trigger
 
@@ -316,11 +317,14 @@ def test_a_hostile_halt_reason_never_reaches_world_state_or_task_memory(monkeypa
         runtime.skill_grasp_object = grasp
         res = runtime.execute(skill, ARGS[skill])
         captions = [runtime.memory.frame_caption(fr) for fr in runtime.memory.memory_frames(4)]
+        recalled = runtime.execute("recall_step", {"n": -1})
         channels = {"result": res, "world_state": _runtime_state(runtime), "task_memory": captions,
-                    "events": runtime.memory.digest()}
+                    "events": runtime.memory.digest(), "recall_step": recalled,
+                    "recall_step frames": [fr["caption"] for fr in runtime.last_recalled_frames]}
         for name, value in channels.items():
             assert not _reads_as_the_trigger(json.dumps(value, default=str, ensure_ascii=False)), (name, value)
-        assert res["ok"] is False and len(captions) >= 1
+        assert res["ok"] is False and len(captions) >= 1 and recalled["skill"] == skill
+        assert runtime.last_recalled_frames, "the recalled step has its keyframes (their captions are checked)"
 
 
 #: an operator's halt reason in the spellings the re-review probed (a8-rereview-keep/probe_rr_reason.py)

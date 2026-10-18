@@ -8530,9 +8530,11 @@ class SkillRuntime:
         tier = str(row.get("tier") or "unknown")
         skill = str(row.get("skill") or "?")
         head = f"step {step}: {skill}({_short(args)})"
-        tail = ("ok" if outcome == OUTCOME_OK
-                else f"stuck -- {result.get('ask', '')}" if outcome == OUTCOME_STUCK
-                else f"failed: {str(result.get('error', ''))[:120]}")
+        # the frames' captions reach the agent outside this result (MCP recall_step): the
+        # trace row's own text, so the retry trigger is withheld here too (A8 fix 2)
+        tail = _without_retry_trigger("ok" if outcome == OUTCOME_OK
+                                      else f"stuck -- {result.get('ask', '')}" if outcome == OUTCOME_STUCK
+                                      else f"failed: {str(result.get('error', ''))[:120]}")
         caption = f"{head} -> {tail} [verdict: {verdict.upper()}; via {tier}]"
         frames: list[dict] = []
         for tag in ("before", "after"):

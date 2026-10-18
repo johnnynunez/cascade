@@ -6455,19 +6455,20 @@ class SkillRuntime:
         return self._hold_after_contact(profile, squeeze, 1.0 - profile.close_frac_stage2, **close_kw)
 
     def _close_two_stage(self, profile, *, _halt_generation=None, _before_close=None,
-                         _never_past=None) -> int | None:
+                         _never_past=None, _count_skips=False) -> int | None:
         """The two-stage close (scout stage, then seat). A close never opens
         the jaws: a stage more open than `_never_past` (the jaw position the
         caller read before the close; None = not read) or than the stage
         before it is skipped (`closing_stages`), and so is the backend's own
         two-stage close when every stage would be (that driver skips by its
-        own reading too). Returns how many stages were skipped when the
-        caller passed a reading, else None as before. The grasp's and the
-        screw stroke's closes start from jaws they just opened and pass no
-        reading: every stage goes, exactly as before."""
+        own reading too, and its own count is the one returned). Returns how
+        many stages were skipped when asked (`_count_skips`: close_gripper),
+        else None as before. The grasp's and the screw stroke's closes start
+        from jaws they just opened and pass no reading: every stage goes,
+        exactly as before."""
         skipped = self._close_stages(profile, _halt_generation=_halt_generation,
                                      _before_close=_before_close, _never_past=_never_past)
-        return None if _never_past is None else skipped
+        return skipped if _count_skips else None
 
     def _close_stages(self, profile, *, _halt_generation, _before_close, _never_past) -> int:
         # Some hardware drivers expose a raw two-stage escape hatch. It may
@@ -6508,8 +6509,15 @@ class SkillRuntime:
                 width_frac_stage2=profile.close_frac_stage2,
                 effort=profile.effort,
             )
-            self._gripper_closes_commanded += 1
-            return len(stages) - len(kept)
+            # What the driver itself skipped, by its own start reading (it may
+            # differ from ours: a read that failed on one side only, jaws that
+            # moved); a backend that keeps no count is judged by ours. A close
+            # is credited only when the driver sent a stage.
+            sent_skips = getattr(raw, "close_stages_skipped", None)
+            skipped = sent_skips if type(sent_skips) is int else len(stages) - len(kept)
+            if skipped < len(stages):
+                self._gripper_closes_commanded += 1
+            return skipped
         timeout = self.cfg.grasp.get("close_feedback_timeout_s")
         band = CLOSE_STALL_BAND
         if timeout is not None:
@@ -9224,7 +9232,7 @@ class SkillRuntime:
                                             "jaws on it; place it first (place_at)", repr(self.held_object),
                                             keep=len("SkillError: ")))
         closes = self._gripper_closes_commanded
-        skipped = self._close_two_stage(select_profile("", "rigid"), _never_past=reading)
+        skipped = self._close_two_stage(select_profile("", "rigid"), _never_past=reading, _count_skips=True)
         wf = self._gripper_width_frac()
         out = {"gripper": "closed", "open_frac": round(wf, 2) if wf is not None else "unknown"}
         if skipped:

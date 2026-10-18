@@ -19,9 +19,19 @@ Runtime rows run the REAL rebot_rs type over a MockArm
 (`test_stop_retrace.rebot_real`) and every profile over a recording MockArm;
 driver rows run both RS transports over the simulated RobStride jaw of
 `test_rebot_grip_squeeze_cap`.
+
+One failed jaw read inside the driver's own close (a bus error, or a NaN /
++-inf value the driver refuses) left it no start reading, and with none it
+kept every stage: the 3.1 rad scout stage went to the gripper guard, whose
+next good read ramped the jaws open on the object (#387 review, Important 1).
+An unread start now falls back to the guard's last jaw target, and with none
+either (unreferenced jaws) to the most closed stage; the result's
+`stages_skipped` is what the driver itself skipped.
 """
 from __future__ import annotations
 
+import dataclasses
+import threading
 from types import SimpleNamespace
 
 import pytest
@@ -29,10 +39,15 @@ import pytest
 import test_grasp_entry_possible_hold as P
 import test_rebot_grip_squeeze_cap as S
 import test_stop_retrace as T
+from cascade.control import rebot_rs_arm as rs_mod
+from cascade.control import rebot_rs_mb_arm as mb_mod
+from cascade.control import robstride as rbs
+from cascade.control import rs_gripper as rg
 from cascade.control.mock_arm import MockArm
+from cascade.control.rebot_rs_arm import RebotRSArm
 from cascade.grasping.force import GRIP_PROFILES
 from cascade.skills import stop_retrace
-from cascade.skills.runtime import SkillRuntime
+from cascade.skills.runtime import ProvisionalHold, SkillRuntime
 from cascade.types import SkillStuck
 from conftest import needs_pin
 
@@ -361,16 +376,20 @@ def test_the_driver_close_from_open_jaws_runs_both_stages_as_on_main(clock, make
 
 
 @TRANSPORTS
-def test_unreferenced_jaws_are_referenced_by_closing_first_as_on_main(clock, make):
-    """No reading: the first stage goes to the gripper guard, which closes to
-    the stop before anything else (rs_gripper.py), then runs both stages."""
+def test_unreferenced_jaws_are_referenced_by_closing_first_then_get_only_the_seat(clock, make):
+    """No reading and no last jaw target (the guard lost its turn reference):
+    only the most closed stage is sent. The gripper guard references the
+    jaws by closing to the stop first (rs_gripper.py; an object between them
+    faults there), and the scout stage never goes: main and #387 sent 3.1 rad
+    after the reference."""
     jaw = S._SimJaw(pos=SEAT, contact=S.CLOSED)
     arm = make(jaw)
     arm._grip_guard.offset = None
     arm._grip_guard._last_target = None
     S._close(arm, RIGID)
     targets = [t for t, _ in jaw.commands()]
-    assert targets[0] < SEAT and max(targets) == pytest.approx(SCOUT) and targets[-1] == pytest.approx(SEAT)
+    assert targets[0] < SEAT and targets[-1] == pytest.approx(SEAT), targets
+    assert max(targets) <= SEAT + 1e-6 and arm.close_stages_skipped == 1, targets
 
 
 def test_a_seat_reading_lets_the_close_skip_only_the_scout_stage():
@@ -386,3 +405,224 @@ def test_a_seat_reading_lets_the_close_skip_only_the_scout_stage():
     # the mock's polarity (open 0.0, closed 1.0), and a hand with no travel
     assert closing_stages(((0.5, 1), (0.85, 1)), 0.85, 0.0, 1.0) == ((0.85, 1),)
     assert closing_stages(((0.0, 1), (0.0, 1)), 0.0, 0.0, 0.0) == ((0.0, 1), (0.0, 1))
+
+
+# ── one failed jaw read inside the driver's own close (#387 review I1) ──────
+
+
+#: a mechPos read the driver cannot use: a bus error, or a value it refuses
+#: as implausible (`robstride.plausible_position`)
+BAD_READS = {"err": None, "nan": float("nan"), "pinf": float("inf"), "ninf": float("-inf")}
+
+
+class _OneBadRead(S._Motor):
+    """The jaw's RobStride motor: its `bad_at`-th mechPos read (1-based, None
+    = none) is bad; `reads` counts them."""
+
+    def __init__(self, jaw, bad_at=None, how="err"):
+        super().__init__(jaw)
+        self.bad_at, self.how, self.reads = bad_at, how, 0
+
+    def robstride_get_param_f32(self, param, timeout_ms=None):
+        if param == S.MECH_POS:
+            self.reads += 1
+            if self.reads == self.bad_at:
+                if self.how == "err":
+                    raise RuntimeError("CAN read timeout (test)")
+                return BAD_READS[self.how]
+        return self.jaw.read(param)
+
+
+def _jaw_driver(make, cap, start, contact, bad_at=None, how="err"):
+    """A driver over the simulated jaw resting at `start` (an object stops it
+    at `contact`, None = nothing between the jaws), its `bad_at`-th mechPos
+    read bad. `sent` = every jaw command with where the jaw physically was."""
+    jaw = S._SimJaw(pos=start, contact=contact)
+    sent, real = [], jaw.command
+
+    def command(pos, kp, kd):
+        jaw._advance()
+        sent.append((float(pos), jaw.pos))
+        real(pos, kp, kd)
+
+    jaw.command = command
+    drv = make(jaw, cap)
+    motor = _OneBadRead(jaw, bad_at, how)
+    if isinstance(drv, RebotRSArm):
+        drv._arm.gripper._mm["gripper"] = motor
+    else:
+        drv._motors[7] = motor
+    return SimpleNamespace(jaw=jaw, drv=drv, motor=motor, sent=sent)
+
+
+def _openings(sent):
+    """Commands more open than the jaw was when they went out (RS: open > closed)."""
+    return [(round(t, 3), round(p, 3)) for t, p in sent if t > p + 0.02]
+
+
+#: jaws at rest on an object, closer than the scout stage
+ON_AN_OBJECT = pytest.mark.parametrize("start", [SEAT, S._contact(0.03), 2.5],
+                                       ids=["seated", "stalled-on-3cm", "half-closed"])
+
+
+@TRANSPORTS
+@CAPS
+@ON_AN_OBJECT
+@pytest.mark.parametrize("how", sorted(BAD_READS))
+def test_one_failed_jaw_read_anywhere_in_the_driver_close_never_opens_the_jaws(clock, make, cap, start, how):
+    """#387 sent the scout stage (3.1 rad) when the driver's start read failed
+    and the guard's next good read ramped the jaws open off the object. One
+    bad read at every read index: never a command more open than the jaw,
+    the jaw stays on the object, the scout is the one stage skipped."""
+    clean = _jaw_driver(make, cap, start, start)
+    S._close(clean.drv, RIGID)
+    assert _openings(clean.sent) == []
+    for bad_at in range(1, clean.motor.reads + 1):
+        row = _jaw_driver(make, cap, start, start, bad_at, how)
+        S._close(row.drv, RIGID)
+        assert row.motor.reads >= bad_at, (bad_at, row.motor.reads)
+        assert _openings(row.sent) == [], (bad_at, _openings(row.sent))
+        assert all(t <= SEAT + 1e-6 for t, _ in row.sent), (bad_at, row.sent)
+        assert row.jaw.pos == pytest.approx(start) and row.drv.close_stages_skipped == 1, bad_at
+
+
+@TRANSPORTS
+@CAPS
+@pytest.mark.parametrize("how", sorted(BAD_READS))
+def test_one_failed_jaw_read_from_open_jaws_still_sends_both_stages(clock, make, cap, how):
+    """The unread start falls back to the guard's last jaw target: the open
+    jaws' own, so from open jaws both stages go, as on main."""
+    contact = S._contact(0.05)
+    clean = _jaw_driver(make, cap, S.OPEN, contact)
+    S._close(clean.drv, RIGID)
+    for bad_at in range(1, clean.motor.reads + 1):
+        row = _jaw_driver(make, cap, S.OPEN, contact, bad_at, how)
+        S._close(row.drv, RIGID)
+        assert [t for t, _ in row.jaw.commands()] == [pytest.approx(SCOUT), pytest.approx(SEAT)], bad_at
+        assert _openings(row.sent) == [] and row.drv.close_stages_skipped == 0, bad_at
+
+
+@TRANSPORTS
+@CAPS
+def test_an_unread_start_is_judged_by_the_last_jaw_target_then_by_the_most_closed_stage(clock, make, cap):
+    """The fallback's two steps, each deciding alone: a last target between
+    the stages (2.0 rad, jaws stalled there) skips only the scout; none at all
+    (and the start unread) sends only the seat."""
+    for last, kept in ((2.0, [SEAT]), (S.OPEN, [SCOUT, SEAT]), (None, [SEAT])):
+        row = _jaw_driver(make, cap, 2.0, 2.0)
+        row.drv._grip_guard._last_target = last
+        stages = ((SCOUT, 0.49), (SEAT, 0.7))
+        sent = rbs.driver_close_stages(row.drv, stages, None)
+        assert [t for t, _ in sent] == [pytest.approx(v) for v in kept], (last, sent)
+        assert row.drv.close_stages_skipped == 2 - len(kept)
+    # the most closed stage in either polarity (the mock's: open 0, closed 1) and order
+    drv = SimpleNamespace(_grip_open=0.0, _grip_closed=1.0, _grip_guard=SimpleNamespace(_last_target=None))
+    assert rbs.driver_close_stages(drv, ((0.5, 1), (0.85, 1)), None) == ((0.85, 1),)
+    drv = SimpleNamespace(_grip_open=S.OPEN, _grip_closed=S.CLOSED, _grip_guard=SimpleNamespace(_last_target=None))
+    assert rbs.driver_close_stages(drv, ((SEAT, 1), (SCOUT, 1)), None) == ((SEAT, 1),)
+    assert drv.close_stages_skipped == 1
+
+
+# ── the runtime over the real driver close: one failed read anywhere ────────
+
+
+def _driver_jaws(rt, monkeypatch, make, cap, start, bad_at=None, how="err"):
+    """The rebot_rs runtime's jaws served by the REAL reBot driver (its RS
+    gripper guard and its own close_gripper_two_stage) over the simulated jaw
+    resting on an object at `start`; the drivers run on a fake clock, the
+    runtime on real time. Only main-thread reads reach the bus (a watcher
+    thread gets the last value), so the read indices are deterministic."""
+    clock = S._Clock()
+    clock.now = 1000.0
+    fake = SimpleNamespace(monotonic=clock.monotonic, sleep=clock.sleep, time=clock.monotonic)
+    for mod in (rg, rbs, rs_mod, mb_mod, S):
+        monkeypatch.setattr(mod, "time", fake)
+    j = _jaw_driver(make, cap, start, start, bad_at, how)
+    raw, main, last = T.mock_of(rt), threading.main_thread(), {"pos": start}
+    real_state = type(raw).get_state.__get__(raw)
+
+    def get_state():
+        if threading.current_thread() is main:
+            last["pos"] = j.drv._gripper_pos()
+        pos = last["pos"]
+        return dataclasses.replace(real_state(), gripper_pos=0.0 if pos is None else float(pos),
+                                   gripper_valid=pos is not None)
+
+    monkeypatch.setattr(raw, "get_state", get_state)
+    monkeypatch.setattr(raw, "set_gripper", lambda pos, effort=1.0: j.drv.set_gripper(pos, effort=effort))
+    monkeypatch.setattr(raw, "close_gripper_two_stage", j.drv.close_gripper_two_stage, raising=False)
+    # the MockArm stands in for the driver: its skip count is the driver's
+    monkeypatch.setattr(type(raw), "close_stages_skipped", property(lambda _: j.drv.close_stages_skipped),
+                        raising=False)
+    return j
+
+
+def _holding(rt, hold):
+    rt.held_object = rt._held_det_label = rt._held_color = None
+    rt._held_provisional = None
+    if hold == "provisional":
+        rt._held_provisional = ProvisionalHold(("red cube", "cube", "red"), 0.15, 0.5)
+    elif hold == "held":
+        rt.held_object, rt._held_det_label, rt._held_color = "red cube", "cube", "red"
+
+
+@needs_pin
+@TRANSPORTS
+@CAPS
+@pytest.mark.parametrize("start", [SEAT, S._contact(0.03)], ids=["seated", "stalled-on-3cm"])
+@pytest.mark.parametrize("hold", ["nothing", "held", "provisional"])
+def test_close_gripper_over_the_real_driver_never_opens_on_one_failed_read(rebot_real, monkeypatch, make, cap,
+                                                                          start, hold):
+    """The review's runtime rows: #387 opened the jaws on the object in 72 of
+    them (the driver's own start read failed after the runtime's succeeded)
+    and reported `stages_skipped: 1` for a stage it sent. One bad read at
+    every read index: no jaw command more open than the jaw, no arm command,
+    the jaw stays on the object, and an ok close reports the stage the driver
+    skipped (also when it was the runtime's read that failed). Only a failed
+    runtime read with an object possibly held refuses, before any command."""
+    rt = rebot_real
+    with monkeypatch.context() as m:
+        _holding(rt, hold)
+        clean = _driver_jaws(rt, m, make, cap, start)
+        assert rt.execute("close_gripper", {}).get("stages_skipped") == 1
+    refused = []
+    for how in ("err", "nan"):
+        for bad_at in range(1, clean.motor.reads + 1):
+            with monkeypatch.context() as m:
+                _holding(rt, hold)
+                row, n0 = _driver_jaws(rt, m, make, cap, start, bad_at, how), T.commands(rt)
+                res = rt.execute("close_gripper", {})
+            where = (how, bad_at, res)
+            assert _openings(row.sent) == [] and T.commands(rt) == n0, where
+            assert row.jaw.pos == pytest.approx(start), where
+            if res["ok"]:
+                assert res.get("stages_skipped") == 1 and row.drv.close_stages_skipped == 1, where
+                assert [t for t, _ in row.jaw.commands()][:1] == [pytest.approx(SEAT)], where
+            else:
+                refused.append(bad_at)
+                assert res["error"] in (P.REFUSAL, HELD_UNREAD) and row.sent == [], where
+    assert bool(refused) is (hold != "nothing"), refused
+
+
+@needs_pin
+@TRANSPORTS
+@CAPS
+def test_stages_skipped_is_what_the_driver_skipped_not_the_runtimes_count(rebot_real, monkeypatch, make, cap):
+    """The runtime reads the jaws at the seat (it would skip one stage), the
+    driver's own start read finds them shut (it skips both): the result says
+    2, credits no close, and notes that none was sent (#387 said 1 and
+    counted a close the driver never sent)."""
+    rt = rebot_real
+    j = _driver_jaws(rt, monkeypatch, make, cap, SEAT)
+    real_close = j.drv.close_gripper_two_stage
+
+    def close(**kw):
+        j.jaw.pos = j.jaw.target = j.jaw.contact = S.CLOSED     # shut between the two reads
+        return real_close(**kw)
+
+    monkeypatch.setattr(T.mock_of(rt), "close_gripper_two_stage", close, raising=False)
+    closes = rt._gripper_closes_commanded
+    res = rt.execute("close_gripper", {})
+    assert res["ok"] is True and res.get("stages_skipped") == 2 and "none was sent" in res.get("note", ""), res
+    assert j.sent == [] and rt._gripper_closes_commanded == closes
+    assert res["postcondition"]["status"] == "unverified", res["postcondition"]

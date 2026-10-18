@@ -37,7 +37,7 @@ class ModelNotServed(ProofError):
     """The endpoint answers, but not with the requested model."""
 
 
-#: Nemotron 3.5 Bolt, the default brain (scripts/serve_nemotron_bolt_vllm.sh).
+#: Nemotron 3.5 Bolt, the default brain (scripts/serve_nemotron_bolt_llamacpp.sh).
 NEMOTRON_BOLT_MODEL = "nemotron-3.5-bolt"
 
 #: The readiness turn. OpenClaw's agent prompt says "Nothing to say: entire

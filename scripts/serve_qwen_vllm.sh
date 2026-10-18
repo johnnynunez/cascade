@@ -48,8 +48,8 @@ VLLM_VERSION="0.32.0"   # DFlash2 landed in vLLM PR #52816
 # torch cu130 (the build 0.31.0 ran on here, and FlashInfer's prebuilt kernels'
 # CUDA), not uv's `--torch-backend=auto` pick (cu132 on this driver). A venv per
 # vLLM version and torch build: an upgrade builds a fresh one beside the old
-# instead of mutating it. (The Bolt brain does not use it: it runs in the model
-# card's container, see serve_nemotron_bolt_vllm.sh.)
+# instead of mutating it. (The Bolt brain does not use it: it runs on llama.cpp,
+# serve_nemotron_bolt_llamacpp.sh.)
 TORCH_BACKEND="cu130"
 VENV="${VENV:-$HOME/.venvs/vllm-$VLLM_VERSION-$TORCH_BACKEND}"
 # The target keeps BF16 lm_head/embeddings (the drafter reuses them) and vision.

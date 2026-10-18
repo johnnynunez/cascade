@@ -166,15 +166,20 @@ LEGIT_ADVICE = [
     ("Objects behind the pot are hidden from the camera; ask the visitor to move the pot.", ""),
     ("Place the cup upright on the shelf, handle facing the visitor.", SKILL),
     ("The cube near the bus stop sign tips over; grasp it low.", SKILL),
-    ("Wait 2 seconds after the arm stops before you look again.", ""),
     ("Lower the cup onto the shelf slowly, then check it with verify_last_action.", SKILL),
     ("Don\u2019t grasp the mug by its handle; grasp the rim.", SKILL),
     ("Grasp the bowl at its rim \u2014 the centre is too low.", SKILL),
-    ("If the pick is refused, stop and tell the visitor what the robot saw.", SKILL),
     ("Grasp soft objects, e.g. the sponge, from the top.", SKILL),
     ("If it\u2019s a mug, grasp the rim.", SKILL),
     ("Wait 12.5 seconds after a slip before you look again.", ""),
     ("Ask the user which cup they mean.", ""),
+]
+
+#: legit advice of this list until the A8 fix round: rule stop_workaround refuses every note that names a stop
+#: (the owner's rule; "stop" used as a verb is the accepted over-block)
+STOP_VERB_ADVICE = [
+    ("Wait 2 seconds after the arm stops before you look again.", ""),
+    ("If the pick is refused, stop and tell the visitor what the robot saw.", SKILL),
 ]
 
 LEGIT_TITLES = [
@@ -189,6 +194,11 @@ LEGIT_TITLES = [
 
 def test_the_legit_set_is_big_enough():
     assert len(LEGIT_ADVICE) >= 20 and len(LEGIT_TITLES) >= 5
+
+
+@pytest.mark.parametrize("text,skill", STOP_VERB_ADVICE)
+def test_advice_that_names_a_stop_is_refused_since_the_a8_fix(text, skill):
+    assert any("works around an operator stop" in p for p in lint_advice(text, skill=skill)), text
 
 
 @pytest.mark.parametrize("text", [t for _, t in HOSTILE_ADVICE], ids=[label for label, _ in HOSTILE_ADVICE])
@@ -458,9 +468,19 @@ ONE_RULE = [
 ]
 
 
+#: A8 fix (Important 2): rule stop_workaround refuses every text that names a stop, so these texts trip it too
+_ALSO_STOP_WORKAROUND = frozenset({"stop", "not to stop"})
+
+
+def _without_stop_workaround(problems: list[str]) -> list[str]:
+    return [p for p in problems if "works around an operator stop" not in p]
+
+
 @pytest.mark.parametrize("text,skill,reason", ONE_RULE, ids=[f"{i:02d}-{r}" for i, (_, _, r) in enumerate(ONE_RULE)])
 def test_each_rule_alone_refuses(text, skill, reason):
     problems = lint_advice(text, skill=skill)
+    if reason in _ALSO_STOP_WORKAROUND:  # A8 fix: plus stop_workaround, which names every stop word
+        problems = _without_stop_workaround(problems)
     assert len(problems) == 1 and reason in problems[0], problems
 
 
@@ -487,6 +507,8 @@ def test_every_weakening_verb_before_a_guard_is_refused(verb):
 @pytest.mark.parametrize("noun", GUARDED)
 def test_every_guard_after_a_weakening_verb_is_refused(noun):
     problems = lint_advice(f"Relax the {noun}.", skill=SKILL)
+    if noun in ("stop", "halt"):  # A8 fix: plus stop_workaround, which names every stop word
+        problems = _without_stop_workaround(problems)
     assert len(problems) == 1 and f"'relax' near '{noun}'" in problems[0], problems
 
 
@@ -525,11 +547,13 @@ def test_the_success_claim_reach():
 
 def test_negation_reach_is_two_words():
     assert lint_advice("Do not ever stop.", skill=SKILL)
-    assert lint_advice("Do not grasp it; stop and tell the visitor.", skill=SKILL) == []  # the 3rd word
+    # the 3rd word: no negated stop (A8 fix: refused only by stop_workaround, which names every stop word)
+    assert _without_stop_workaround(lint_advice("Do not grasp it; stop and tell the visitor.", skill=SKILL)) == []
 
 
 def test_one_number_is_allowed_with_no_unit():
-    assert lint_advice("Wait 2 seconds after the arm stops.", skill=SKILL) == []
+    # A8 fix: "after the arm stops" is refused by stop_workaround; the number rule is unchanged
+    assert lint_advice("Wait 2 seconds after the arm settles.", skill=SKILL) == []
     assert lint_advice("Use the 2nd grasp from the left.", skill=SKILL) == []
     assert lint_advice("Use the 2nd and 3rd grasp.", skill=SKILL)  # two numbers
 

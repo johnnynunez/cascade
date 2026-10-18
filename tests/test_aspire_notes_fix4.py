@@ -169,9 +169,10 @@ def test_the_stem_kinds():
 
 
 def test_the_skeleton_allowlist():
-    # fix round 5 adds pre-set / pre-sets (test_aspire_notes_fix5)
+    # fix round 5 adds pre-set / pre-sets (test_aspire_notes_fix5); the A8 fix adds asphalt / halter (the
+    # "halt" hard stem of rule stop_workaround)
     assert notes._SKELETON_ALLOW == frozenset({"preset", "presets", "pre-set", "pre-sets", "you're", "we're",
-                                               "they're"})
+                                               "they're", "asphalt", "asphalts", "halter", "halters"})
 
 
 def test_an_allowlisted_word_is_left_out_whole():

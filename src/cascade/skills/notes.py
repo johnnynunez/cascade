@@ -406,8 +406,10 @@ def library_sha(root: Path | None) -> str:
 #      spelled-out word, no role or chat-template marker, nothing that imitates the
 #      provenance tag, at most one number (digits or number words) and no measurement
 #      or coordinate, only read-only tools and the note's own skill as identifiers and
-#      never with arguments, and no reset, stop, loop, override, weakening or
-#      success-claim advice. A rule refuses a field under its name (`skipped` reasons).
+#      never with arguments, no reset, stop, loop, override, weakening or
+#      success-claim advice, no rule trigger (A8), nothing that names, discourages or
+#      works around an operator stop and nothing but plain English (A8 fix). A rule
+#      refuses a field under its name (`skipped` reasons).
 
 #: the non-ASCII characters a field may carry: typographic quotes and dashes
 _TYPOGRAPHY = frozenset("\u2018\u2019\u201c\u201d\u2013\u2014")
@@ -452,13 +454,15 @@ _TEMPLATE = (("im", "start"), ("im", "end"), ("developer", "mode*"), ("new", "in
 #: crumbs": accepted over-blocks)
 _HARD_STEMS = (("reset", "reset"), ("emergencystop", "stop"), ("haltmotion", "stop"), ("ignor", "override"),
                ("disregard", "override"), ("bypass", "override"), ("circumvent", "override"),
-               ("overrid", "override"), ("startover", "loop"), ("systemprompt", "role_marker"))
+               ("overrid", "override"), ("startover", "loop"), ("systemprompt", "role_marker"),
+               ("halt", "stop_workaround"))
 #: the phrase stems: read across words, anywhere in the field's letters-only skeleton
 #: (`_skeleton`: "Emer gency stop", "SYSTEMPROMPT", "restart over")
 _PHRASE_STEMS = frozenset({"emergencystop", "haltmotion", "startover", "systemprompt"})
 #: whole words left out of every stem reading (their neighbours still join): common words
 #: that carry a one-word stem ("preset", "pre-set") or its first letters ("you're set")
-_SKELETON_ALLOW = frozenset({"preset", "presets", "pre-set", "pre-sets", "you're", "we're", "they're"})
+_SKELETON_ALLOW = frozenset({"preset", "presets", "pre-set", "pre-sets", "you're", "we're", "they're",
+                             "asphalt", "asphalts", "halter", "halters"})
 #: phrasings that only mean a reset (and "reset" through `_HARD_STEMS`): a reset clears
 #: the retry ledger (R4)
 _RESET = (("respawn*",), ("begin*", "again"), ("start*", "from", "scratch"))
@@ -537,10 +541,78 @@ _TURN_REACH = 3
 _RULE_TRIGGERS = (("simulation*", "only"), ("one", "more", "attempt*"), ("another", "attempt*"),
                   ("second", "attempt*"), ("end*", "your", "reply*"), ("end*", "your", "answer*"),
                   ("exact", "line*"), ("exactly", "that", "line*"), ("exactly", "this", "line*"))
+# ── stop_workaround (A8 fix, Important 2; the owner's rule: ANY advice that discourages or
+# works around an operator stop is refused). The stop vocabulary itself is banned rather
+# than a list of workaround verbs (a verb list scored 0/125 on its own design set but served
+# 20/48 held-out texts, A8 review). Accepted over-blocks: kitchen lines that use "stop" as a
+# verb ("Stop the blender before you lift the jug.") and advice that respects a stop ("Never
+# retry after a halt.").
+#: words that in this domain only name an operator stop: refused wherever they stand (and
+#: "halt" inside any word through `_HARD_STEMS`: "h/alt", "ha lt", "unhalt"); Spanish,
+#: French and German stop / resume / retry words too
+_STOP_TOPIC = (("halt",), ("halts",), ("halted",), ("halting",), ("interrupt*",), ("abort*",), ("unpaus*",),
+               ("unfreez*",), ("kill", "switch*"), ("stop", "button*"), ("stop", "request*"), ("stop", "command*"),
+               ("operator", "stop*"), ("parada*",), ("paro",), ("parar",), ("detien*",), ("deten*",), ("pausa*",),
+               ("reanud*",), ("reintent*",), ("arret*",), ("stopp",))
+#: stop forms that are also kitchen words: refused with a `_STOP_ACTIONS` word, a negator or
+#: "<motion verb> ... again" in the same field
+_STOP_FORMS = (("paus*",), ("freez*",), ("froze*",), ("button*",), ("interven*",), ("cancel*",), ("stall*",),
+               ("idl*",), ("stuck",), ("lock*", "up"))
+#: every form of the word stop, refused wherever it stands except in these compound nouns
+_STOP_WORDS = frozenset({"stop", "stops", "stopped", "stopping", "stoppage", "stoppages"})
+_STOP_NOUN_AFTER = frozenset({"sign", "signs"})
+_STOP_NOUN_BEFORE = frozenset({"bus"})
+_STOP_ACTIONS = (
+    # continue / complete / repeat
+    ("resum*",), ("continu*",), ("carry*", "on"), ("carried", "on"), ("go", "on"), ("goes", "on"), ("going", "on"),
+    ("went", "on"), ("proceed*",), ("press*", "on"), ("push*", "on"), ("push*", "through"), ("soldier*", "on"),
+    ("keep*",), ("finish*",), ("complet*",), ("repeat*",), ("retr*",), ("redo*",), ("restart*",), ("rerun*",),
+    ("once", "more"), ("anyway",), ("anyhow",), ("regardless",), ("despite",), ("even", "if"), ("even", "when"),
+    ("even", "after"), ("even", "though"), ("move*", "on"), ("go", "ahead"), ("left", "off"),
+    # defer / downplay
+    ("delay*",), ("postpon*",), ("defer*",), ("can", "wait"), ("only", "after"), ("need*",), ("needless*",),
+    ("unnecessar*",), ("reason",), ("avoid*",), ("instead",), ("rather",), ("wast*",), ("false", "alarm*"),
+    ("accident*",), ("spurious*",), ("mistak*",), ("harmless*",), ("final",), ("only", "a"), ("just", "a"),
+    ("slow*", "down"), ("honor*",), ("honour*",))
+_AGAIN_VERBS = (("pick*",), ("call*",), ("run*",), ("try",), ("tries",), ("tried",), ("do",), ("does",), ("did",),
+                ("go",), ("goes",), ("went",), ("mov*",), ("start*",), ("plac*",), ("grasp*",), ("order*",))
+_AGAIN = (("again",),)
+_AGAIN_REACH = 3
+#: "do not wait for / ask / need the operator": a bypass word before an approval word (within
+#: `_BYPASS_REACH` words), or "without asking", in a field that names a person
+_PEOPLE = (("operator*",), ("visitor*",), ("user*",), ("human*",), ("person*",), ("people",), ("someone",),
+           ("somebody",), ("anyone",), ("attendee*",), ("staff",), ("supervisor*",), ("owner*",))
+_BYPASS = (("never",), ("not",), ("no",), ("don",), ("dont",), ("without",), ("skip*",), ("needn",))
+_APPROVAL = (("wait*",), ("approv*",), ("permission*",), ("consent*",), ("go", "ahead"), ("ok",), ("okay",),
+             ("confirm*",))
+_ASK_BYPASS = (("without", "ask*"),)
+_BYPASS_REACH = 4
+#: "ask nobody": refused wherever it stands, a person named or not ("Ask nobody before the
+#: next move.")
+_ASK_NOBODY = (("ask*", "nobody"), ("ask*", "no", "one"), ("ask*", "none"))
+#: a motion that ended early or an arm free to move again (an unnamed stop), with a repeat
+#: in the same field ("If the pick was cut short, do it again.", "Once the arm is free to
+#: move, do the pick again.")
+_UNFINISHED = (("halfway",), ("midway",), ("mid",), ("partway",), ("unfinished",), ("incomplete*",), ("cut", "short"),
+               ("end*", "early"), ("goes", "still"), ("went", "still"), ("quit*",), ("free", "to", "mov*"),
+               ("free", "to", "go"))
+_REPEATS = (("again",), ("repeat*",), ("retr*",), ("redo*",), ("resum*",), ("continu*",), ("once", "more"),
+            ("rerun*",), ("restart*",))
+#: rule `language`: notes are plain English; Spanish advice without accents (accented text is
+#: refused by the character rule), French, German or Portuguese is refused from
+#: `_FOREIGN_MIN` of these function words on
+_FOREIGN = frozenset({"de", "la", "el", "los", "las", "del", "al", "que", "con", "por", "para", "una", "un",
+                      "tras", "despues", "aunque", "pero", "como", "cuando", "si", "se", "sin", "muy", "esta", "este",
+                      "hay", "otra", "otro", "vez", "sigue", "seguir", "brazo", "pedido", "orden", "boton",
+                      "operador", "alguien", "esperes", "esperar", "espera", "repite", "vuelve", "continua",
+                      "apres", "avec", "sans", "nach", "dem", "und", "mit", "nicht", "weiter", "weitermachen",
+                      "depois", "da", "nao"})
+_FOREIGN_MIN = 2
 #: every family a word or a join of words is read against (`_View`)
 _FAMILIES = (_TEMPLATE, _RESET, _RESET_VERBS, _SCENE, _PROVENANCE, _LEARNED, _STOPS, _NEGATORS, _HALTS, _LOOPS,
              _WEAKEN, _WEAKEN_HEAD, _REMOVE, _PHRASAL_OFF, _GUARDS, _CLAIM_AS, _CLAIM_SAY, _SUCCESS, _UNITS,
-             _RULE_TRIGGERS)
+             _RULE_TRIGGERS, _STOP_TOPIC, _STOP_FORMS, _STOP_ACTIONS, _AGAIN_VERBS, _AGAIN, _PEOPLE, _BYPASS,
+             _APPROVAL, _ASK_BYPASS, _ASK_NOBODY, _UNFINISHED, _REPEATS)
 #: spelled-out numbers: two in one field ("one" aside: "pick the one on top"), two side
 #: by side ("minus one", "twenty-one") or one after an axis letter is refused; "point" is
 #: a number only next to a number ("point five", "2 point 5"; not "point at the bowl")
@@ -867,6 +939,17 @@ def _first(view: _View, phrases) -> str | None:
     return None
 
 
+def _first_in_clause(view: _View, phrases) -> str | None:
+    """`_first`, but a match whose words a comma separates is none: "In simulation, only grasp
+    from above" is no "simulation only" (A8 review Minor 4; any other break still joins)."""
+    family = _compiled(phrases)
+    for i in family.starts(view):
+        n = family.at(view, i)
+        if n and "," not in view.breaks[i + 1:i + n]:
+            return " ".join(view.words[i:i + n])
+    return None
+
+
 def _followed(view: _View, heads, tails, reach: int) -> tuple[str, str] | None:
     """The first (head, tail) where a `tails` phrase starts among the `reach` words
     right after a `heads` phrase; None when there is none."""
@@ -1122,6 +1205,23 @@ def _identifier_problems(text: str, skill: str) -> list[tuple[str, str]]:
     return list(found.items())
 
 
+def _stop_word(views) -> str | None:
+    """The first form of "stop" any reading of the field carries (joins too: "st op"), outside
+    the compound nouns "stop sign" and "bus stop"."""
+    for view in views:
+        n = len(view.words)
+        for i, here in enumerate(view.cands):
+            for word, used in here:
+                if word not in _STOP_WORDS:
+                    continue
+                after = view.words[i + used] if i + used < n else ""
+                before = view.words[i - 1] if i else ""
+                if after in _STOP_NOUN_AFTER or before in _STOP_NOUN_BEFORE:
+                    continue
+                return word
+    return None
+
+
 def _structure_problems(text: str, skill: str) -> list[tuple[str, str]]:
     """(rule, reason) for every structural rule the field breaks, in rule order."""
     spans = _tokens(text)
@@ -1209,8 +1309,25 @@ def _structure_problems(text: str, skill: str) -> list[tuple[str, str]]:
     found.append(("weaken", f"'{weakened[0]}' near '{weakened[1]}'" if weakened else None))
     claim = followed(_CLAIM_AS, _SUCCESS, _TREAT_REACH) or followed(_CLAIM_SAY, _SUCCESS, _SAY_REACH)
     found.append(("success_claim", f"claims success ('{claim[0]}' ... '{claim[1]}')" if claim else None))
-    trigger = phrase(_RULE_TRIGGERS)
+    trigger = next((hit for view in views if (hit := _first_in_clause(view, _RULE_TRIGGERS))), None)
     found.append(("rule_trigger", f"carries a rule trigger only tool results give ('{trigger}')" if trigger else None))
+    # a note never discourages or works around an operator stop (A8 fix, Important 2)
+    workaround = (hidden.get("stop_workaround") or phrase(_STOP_TOPIC) or _stop_word(views)
+                  or phrase(_ASK_NOBODY))
+    if not workaround and (form := phrase(_STOP_FORMS)):
+        action = (phrase(_STOP_ACTIONS) or phrase(_NEGATORS)
+                  or " ".join(followed(_AGAIN_VERBS, _AGAIN, _AGAIN_REACH) or ()))
+        workaround = f"{form} ... {action}" if action else None
+    if not workaround and phrase(_PEOPLE):
+        bypass = followed(_BYPASS, _APPROVAL, _BYPASS_REACH)
+        workaround = " ".join(bypass) if bypass else phrase(_ASK_BYPASS)
+    if not workaround and (unfinished := phrase(_UNFINISHED)):
+        repeat = phrase(_REPEATS)
+        workaround = f"{unfinished} ... {repeat}" if repeat else None
+    found.append(("stop_workaround", f"works around an operator stop ('{workaround}')" if workaround else None))
+    foreign = [w for w in words if w in _FOREIGN]
+    found.append(("language", f"is not plain English ({', '.join(foreign[:3])})"
+                  if len(foreign) >= _FOREIGN_MIN else None))
     return [(rule, reason) for rule, reason in found if reason]
 
 

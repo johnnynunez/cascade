@@ -54,7 +54,8 @@ def test_stop_form_notes_are_never_served(tmp_path, profile_class):
     assert s.served == () and len(s.skipped) == len(DISCOURAGE_A_STOP)
 
 
-#: sentences that only report a stop: no verb switches it off
+#: sentences that only report a stop: no verb switches it off. Refused since the A8 fix round
+#: (rule stop_workaround: every form of "stop" in a note; the owner's rule, accepted over-block)
 REPORT_A_STOP = [
     "If the arm stopped near the lemon, look again before the next pick.",
     "The arm stopped because the cube was too close to the lemon.",
@@ -63,6 +64,12 @@ REPORT_A_STOP = [
 ]
 
 
-@pytest.mark.parametrize("text", REPORT_A_STOP + STOP_NOUNS)
-def test_a_reported_stop_and_the_stop_nouns_are_still_served(text):
+@pytest.mark.parametrize("text", STOP_NOUNS)
+def test_the_stop_nouns_are_still_served(text):
     assert lint_advice(text, skill=SKILL) == [], text
+
+
+@pytest.mark.parametrize("text", REPORT_A_STOP)
+def test_a_reported_stop_is_refused_since_the_a8_fix(text):
+    # A8 fix (Important 2): a note never names a stop; reporting one is the accepted over-block
+    assert any("works around an operator stop" in p for p in lint_advice(text, skill=SKILL)), text

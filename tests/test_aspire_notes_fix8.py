@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 from test_aspire_knowledge import _knowledge_text, _sim_runtime
-from test_aspire_notes_fix7 import COMPOSED, ORDINARY, SKILL, N, _note, _rules
+from test_aspire_notes_fix7 import COMPOSED, ORDINARY, SKILL, STOP_ADVICE, N, _note, _rules
 
 from cascade.skills import notes
 from cascade.skills.notes import lint_note, load_snapshot, note_tag
@@ -73,7 +73,8 @@ def test_the_separator_never_adds_a_name_pair(title, advice):
 @pytest.mark.parametrize("title,advice,rule", COMPOSED, ids=[f"pair{i}" for i in range(len(COMPOSED))])
 def test_the_six_composed_pairs_stay_refused_through_the_dash(title, advice, rule):
     assert f"{title} - {advice}" == notes._note_text(title, advice)                       # rendered with " - "
-    assert rule in _rules(N(title, advice))
+    # A8 fix: advice that names a stop is refused on its own (stop_workaround), before the composed line
+    assert (rule if advice not in STOP_ADVICE else "stop_workaround") in _rules(N(title, advice))
 
 
 @pytest.mark.parametrize("title,advice", ROLE_PAIR_TITLES)

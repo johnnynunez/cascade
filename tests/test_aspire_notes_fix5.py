@@ -125,8 +125,9 @@ def test_the_probes_are_never_served(tmp_path, profile_class):
 # ── 2: pre-set / pre-sets are whole allowlisted words ────────────────────
 
 def test_the_skeleton_allowlist_has_pre_set():
+    # the A8 fix adds asphalt / halter (the "halt" hard stem of rule stop_workaround)
     assert notes._SKELETON_ALLOW == frozenset({"preset", "presets", "pre-set", "pre-sets", "you're", "we're",
-                                               "they're"})
+                                               "they're", "asphalt", "asphalts", "halter", "halters"})
 
 
 @pytest.mark.parametrize("text", [

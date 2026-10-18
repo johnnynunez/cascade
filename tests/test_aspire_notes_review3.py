@@ -144,7 +144,6 @@ LEGIT = [
     ("Open the fridge door fully before you reach inside.", SKILL),
     ("The salt shaker is light; a soft grasp is enough.", SKILL),
     ("Do not pour over the edge of the counter.", SKILL),
-    ("Stop the blender before you lift the jug.", SKILL),
     ("Check the oven mitt is on before you grasp the hot tray.", SKILL),
     ("Lower the heat before you stir the sauce.", SKILL),
     ("Raise the lid slowly so steam escapes away from the visitor.", SKILL),
@@ -163,7 +162,6 @@ LEGIT = [
     ("Cut the safety seal on the milk carton before you pour.", SKILL),
     ("Zero the kitchen scale before you weigh the flour.", SKILL),
     ("Take the stopwatch off the counter before you wipe it.", SKILL),
-    ("Wait for the kettle to stop boiling before you pour.", SKILL),
     ("Pause the mixer, then scrape the bowl.", SKILL),
     ("Lower the cup into the sink and check the drain.", SKILL),
     ("Dismiss the timer alarm once the rice is cooked.", SKILL),
@@ -194,6 +192,9 @@ LEGIT_TITLES = [
 #: refused by ruling (the accepted classes): (text, skill, the reason)
 KNOWN_OVER_BLOCK = [
     ("Resettle the cup if it wobbles on the saucer.", SKILL, "advises a reset"),
+    # A8 fix (Important 2): a note never names a stop; "stop" as a verb is the accepted over-block
+    ("Stop the blender before you lift the jug.", SKILL, "works around an operator stop"),
+    ("Wait for the kettle to stop boiling before you pour.", SKILL, "works around an operator stop"),
     ("There is no stopper in the sink, so keep small items away from the drain.", SKILL, "not to stop"),
     ("The sauce takes forever to thicken, so check it with verify_last_action.", "", "unbounded retry"),
     ("Knead the dough over and over until it is smooth.", SKILL, "unbounded retry"),
@@ -306,7 +307,8 @@ HARD = [("reset", "reset", "reset"), ("emergencystop", "emergency stop", "stop")
         ("haltmotion", "halt motion", "stop"), ("ignor", "ignore", "override"),
         ("disregard", "disregard", "override"), ("bypass", "bypass", "override"),
         ("circumvent", "circumvent", "override"), ("overrid", "override", "override"),
-        ("startover", "start over", "loop"), ("systemprompt", "system prompt", "role_marker")]
+        ("startover", "start over", "loop"), ("systemprompt", "system prompt", "role_marker"),
+        ("halt", "halt", "stop_workaround")]  # A8 fix: "halt" in any spelling ("h/alt", "ha lt")
 SEPARATORS = [" ", "-", "/", "'", "\u2019", '"', "+", ";", ".", ",", ":", "&", "!", "?", "%", "_", " / ", "\u2013",
               "\u2014 ", "1"]
 
@@ -342,6 +344,8 @@ def test_a_hard_stem_is_refused_in_every_split(stem, plain, rule):
 @pytest.mark.parametrize("stem,plain,rule", HARD, ids=[stem for stem, _, _ in HARD])
 def test_a_hard_stem_alone_names_its_rule(stem, plain, rule):
     reasons = lint_advice(f"Then {plain} the cube.", skill=SKILL)
+    if rule == "stop":  # A8 fix: a stop stem also names a stop word (stop_workaround)
+        reasons = [r for r in reasons if "works around an operator stop" not in r]
     assert len(reasons) == 1 and f"'{stem}'" in reasons[0], reasons
 
 

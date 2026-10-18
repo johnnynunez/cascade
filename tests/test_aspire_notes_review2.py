@@ -134,7 +134,6 @@ LEGIT = [
     ('Lower it to avoid collision with the plate.', SKILL),
     ('Reduce speed for safety near the visitor.', SKILL),
     ('Lower the cup and check it with verify_last_action.', SKILL),
-    ('Stop and ask the visitor when you are unsure which mug they mean.', ''),
     ('Tell the visitor the truth: the pick was refused near the knife.', ''),
     ('The tomato can is heavy; grasp it low and lift slowly.', SKILL),
     ('Grasp the bottle at its neck.', SKILL),
@@ -188,6 +187,8 @@ KNOWN_OVER_BLOCK = [
     ('Never report a refused pick as done.', '', 'claims success'),
     ('Say done only after verify_last_action passes.', '', 'claims success'),
     ('Pick the 1st mug, then the 2nd one.', SKILL, 'numbers (at most one)'),
+    # A8 fix (Important 2): a note never names a stop; "stop" as a verb is the accepted over-block
+    ('Stop and ask the visitor when you are unsure which mug they mean.', '', 'works around an operator stop'),
     ('The mug handle (if any) faces the arm; grasp the rim.', SKILL, 'which plain advice does not use'),
 ]
 KNOWN_OVER_BLOCK_TITLES = [

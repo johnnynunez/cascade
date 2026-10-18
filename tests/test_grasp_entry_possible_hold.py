@@ -23,6 +23,7 @@ import dataclasses
 import pytest
 
 import test_stop_retrace as T
+from people_sides import no_visitor_side
 from cascade.skills import carry_attachment, stop_retrace
 from cascade.skills.runtime import ProvisionalHold, SkillRuntime
 from cascade.types import SkillError
@@ -293,6 +294,7 @@ def test_every_skill_that_opens_the_jaws_first_refuses_before_any_command(rebot_
     persistence loop stops on its first refused grasp, STUCK with the way
     out, no re-home."""
     rt = rebot_real
+    no_visitor_side(rt)     # throw: its own entry refusal (people_sides.py)
     assert rt.execute("snapshot_scene", {"name": "scene"})["ok"] is not False
     holding_unknown_at_home(rt, monkeypatch, 0.5)
     args, error = ENTRIES[skill]

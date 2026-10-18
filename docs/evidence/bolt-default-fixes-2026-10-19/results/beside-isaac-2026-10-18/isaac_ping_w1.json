@@ -1,0 +1,54 @@
+{
+ "t": 1792360047.755752,
+ "cascade_file": "/home/spark/Projects/cascade-wt/demo-video/src/cascade/__init__.py",
+ "ok": true,
+ "engine": "newton",
+ "dofs": [
+  "joint1",
+  "joint2",
+  "joint3",
+  "joint4",
+  "joint5",
+  "joint6",
+  "joint_left",
+  "joint_right"
+ ],
+ "scene_name": "paai-cocina-asier-v1",
+ "scene_config": "/home/spark/Projects/cascade-wt/demo-video/demo/scene/kitchen_config.json",
+ "scene_config_sha256": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+ "scene_assets_sha256": "6afcaeac80636673f65707cd640e0b96fafc0d7f54aea83c143b355ee5b3d751",
+ "scene_content_sha256": "e52fe2f8ad23c5931f39a45937e52d12ee23d95e379288338663dfc181ee11bc",
+ "physics_dt_s": 0.008333333333333333,
+ "physics_dt_source": "SimulationManager.get_physics_dt",
+ "physics_dt_scene_count": 1,
+ "physics_device": "cuda:0",
+ "physics_tensor_device": "cuda:0",
+ "physics_gpu": true,
+ "gpu_attestation": {
+  "required": true,
+  "backend": "newton",
+  "device": "cuda:0",
+  "tensor_device": "cuda:0",
+  "tensor_device_ordinal": 0,
+  "cuda_context_present": true,
+  "gpu_dynamics": null,
+  "broadphase": [],
+  "cpu_fallback_allowed": false,
+  "newton": {
+   "device": "cuda:0",
+   "cuda": true,
+   "ordinal": 0,
+   "cuda_context_present": true,
+   "pci_bus_id": "0000000F:01:00",
+   "uuid": "GPU-351eae57-e78f-55ed-a08a-686a5713086f",
+   "array_devices": [
+    "cuda:0"
+   ],
+   "solver": "SolverMuJoCo",
+   "mujoco_cpu": false,
+   "cuda_graph": true
+  },
+  "fallback_log_count": 0
+ },
+ "camera_frame_errors": {}
+}

@@ -1,0 +1,26 @@
+00:28:39 WINDOW 3 (alone, no Isaac) main /home/spark/.hermes/cache/scratch/boltfix/snap-main-3aa0a30 head /home/spark/.hermes/cache/scratch/boltfix/snap-6e9ffc5; load 2.13 2.18 1.38; MemAvailable 113 GiB
+00:29:05 READY main (3aa0a30) after 26.2 s; MemAvailable 85 GiB; load 2.14 2.18 1.40
+00:29:05 argv main: --spec-type draft-dflash --parallel 2 --load-mode none 
+00:29:10 START prefix2_main
+00:33:11 OK prefix2_main (241 s)
+00:33:11 START newchat_main
+00:36:27 OK newchat_main (196 s)
+00:36:38 brain stopped; MemAvailable 113 GiB
+00:36:42 READY head (6e9ffc5) after 4.1 s; MemAvailable 85 GiB; load 2.59 2.60 1.91
+00:36:42 argv head: --spec-type draft-dflash --chat-template-file /home/spark/.hermes/cache/scratch/boltfix/snap-6e9ffc5/scripts/chat_templates/nemotron-3.5-bolt-openclaw.jinja --parallel 2 --load-mode none 
+00:36:47 START prefix2_head
+00:40:10 OK prefix2_head (203 s)
+00:40:10 START newchat_head
+00:42:49 OK newchat_head (159 s)
+00:42:49 START perc_prod12
+00:45:54 OK perc_prod12 (185 s)
+00:45:54 START refer_prod12
+00:51:47 OK refer_prod12 (353 s)
+00:51:57 brain stopped; MemAvailable 112 GiB
+00:52:01 READY main2 (3aa0a30) after 4.1 s; MemAvailable 84 GiB; load 2.91 3.10 2.71
+00:52:02 argv main2: --spec-type draft-dflash --parallel 2 --load-mode none 
+00:52:07 START newchat_main2
+00:55:28 OK newchat_main2 (201 s)
+00:55:38 brain stopped; MemAvailable 112 GiB
+00:55:38 WINDOW 3 DONE
+00:55:38 cleanup: units stopped (bf-brain3 bf-memwatch3)

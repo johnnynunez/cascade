@@ -11,6 +11,7 @@ with coordinates normalized to 0-1000 of the full image.
 from __future__ import annotations
 
 import base64
+import collections
 import contextlib
 import json
 import logging
@@ -120,8 +121,131 @@ def parse_boxes(text: str, width: int, height: int) -> list[tuple[str, np.ndarra
     0..1000, corners ordered, then scaled to pixels; entries without a label or
     with a malformed or zero-area box are dropped. Never raises on any string.
     """
+    return _pixel_boxes(_answer_list(_reply_body(text)), width, height)
+
+
+#: Served ids of brains whose box replies are guarded (`reply_guards`).
+#: Nemotron 3.5 Bolt, greedy, repeated one label with its box sliding a few
+#: units per entry until the token cap on 6 of the 47 bake-off frames, and the
+#: cut reply was rejected, so those frames showed nothing
+#: (docs/evidence/bolt-default-fixes-2026-10-19). It also lists categories the
+#: inventory prompt excludes (keyboards, the robot arm) and the rest of that
+#: computer (mice, computer towers). Guarded requests ask for BOX_LIST_SCHEMA
+#: within GUARDED_MAX_TOKENS and their replies go through parse_guarded_boxes.
+#: Every other brain (Qwen3.8 never looped) keeps its request and parse
+#: unchanged.
+GUARDED_REPLY_MODELS = frozenset({"nemotron-3.5-bolt"})
+#: A guarded reply lists at most this many boxes (the schema's maxItems): the
+#: busiest bake-off frame has 9 identifiable objects, and no object Bolt found
+#: sat past the 12th entry of its reply (it listed at most 15 when it did not
+#: loop). A loop starts within the first 8 entries and ends here, after ~430
+#: tokens instead of the ~720 a bound of 20 let it spend.
+GUARDED_MAX_BOXES = 12
+#: ...and decodes at most this many tokens (Bolt spends ~36 per box), so a
+#: loop ends at the schema's bound well before this cap.
+GUARDED_MAX_TOKENS = 1024
+#: The answer both prompts ask for, as a JSON schema the server turns into a
+#: grammar (llama.cpp; vLLM's structured outputs): a list of at most
+#: GUARDED_MAX_BOXES {label, bbox_2d} objects, 4 integer coordinates 0..1000.
+BOX_LIST_SCHEMA = {
+    "type": "array", "maxItems": GUARDED_MAX_BOXES,
+    "items": {"type": "object", "additionalProperties": False, "required": ["label", "bbox_2d"],
+              "properties": {"label": {"type": "string", "minLength": 1, "maxLength": 64},
+                             "bbox_2d": {"type": "array", "minItems": 4, "maxItems": 4,
+                                         "items": {"type": "integer", "minimum": 0, "maximum": 1000}}}}}
+#: In a guarded reply that hit a bound, a label with this many or more entries
+#: is a repetition loop: only its first entry is kept.
+_LOOP_ENTRIES = 4
+#: A label whose head noun (its last words) is a category _EXCLUDE names, or
+#: the rest of the computer whose screen and keyboard it names (a computer
+#: mouse, a mouse pad, a computer tower or PC case: 11 of Bolt's 41 false
+#: positives on the bake-off frames): the inventory prompt asks the brain not
+#: to list these, and a guarded reply's entries that do are dropped. Head noun
+#: only: "keyboard" goes, "table tennis ball", "hand cream", "plush mouse" and
+#: "pencil case" stay.
+_EXCLUDED_HEAD = re.compile(
+    r"(?:\brobot(?:ic)? arm|\bgrippers?|\bperson|\bpeople|\bhands?|\bscreens?|\bmonitors?|\blaptops?|"
+    r"\bkeyboards?|\bfurniture|\bwalls?|\btables?|"
+    r"\bcomputer (?:mouse|mice)|\bmouse ?pads?|\b(?:computer|pc) (?:towers?|cases?))$")
+
+
+def _complete_items(body: str) -> list:
+    """The complete JSON values of the first list in `body` that was cut
+    before its closing ']' (a reply stopped by max_tokens), in order."""
+    decoder = json.JSONDecoder()
+    start = body.find("[")
+    items: list = []
+    if start < 0:
+        return items
+    i, n = start + 1, len(body)
+    while True:
+        while i < n and body[i] in " \t\r\n,":
+            i += 1
+        if i >= n or body[i] != "{":
+            return items
+        try:
+            value, i = decoder.raw_decode(body, i)
+        except (ValueError, RecursionError):  # the entry the cut went through
+            return items
+        items.append(value)
+
+
+def _label_key(item) -> str | None:
+    label = item.get("label") if isinstance(item, dict) else None
+    return " ".join(label.lower().split()) if isinstance(label, str) else None
+
+
+def _without_loops(items: list) -> list:
+    """Each label with _LOOP_ENTRIES or more entries reduced to its first
+    entry. A loop's later boxes are not objects: they slide off the object,
+    often off the image, and the loop can alternate with a second label."""
+    counts = collections.Counter(_label_key(item) for item in items)
+    seen: set = set()
+    out: list = []
+    for item in items:
+        key = _label_key(item)
+        if key is not None and counts[key] >= _LOOP_ENTRIES:
+            if key in seen:
+                continue
+            seen.add(key)
+        out.append(item)
+    return out
+
+
+def parse_guarded_boxes(text: str, width: int, height: int, *, cut: bool,
+                        inventory: bool = True) -> list[tuple[str, np.ndarray]]:
+    """A guarded reply (GUARDED_REPLY_MODELS) -> [(label, pixel box)].
+
+    `cut`: the server stopped the reply at max_tokens. Its complete entries
+    before the cut are kept (parse_boxes would find no closed list). A reply
+    that hit a bound (cut, or GUARDED_MAX_BOXES entries) ends in a repetition
+    loop: each label with _LOOP_ENTRIES or more entries keeps only its first.
+    An entry repeating an earlier one exactly (label and box) is dropped, and
+    in an `inventory` reply one naming an excluded category (_EXCLUDED_HEAD):
+    a refer's entries carry the agent's own words. Then as parse_boxes.
+    Never raises.
+    """
+    body = _reply_body(text)
+    items = _answer_list(body)
+    if not items and cut:
+        items = _complete_items(body)
+    if cut or len(items) >= GUARDED_MAX_BOXES:
+        items = _without_loops(items)
+    seen: set = set()
+    kept = []
+    for item in items:
+        label = _label_key(item)
+        key = (label, json.dumps(item.get("bbox_2d")) if isinstance(item, dict) else None)
+        if label is not None and (key in seen or (inventory and _EXCLUDED_HEAD.search(label))):
+            continue
+        seen.add(key)
+        kept.append(item)
+    return _pixel_boxes(kept, width, height)
+
+
+def _pixel_boxes(items: list, width: int, height: int) -> list[tuple[str, np.ndarray]]:
     out: list[tuple[str, np.ndarray]] = []
-    for item in _answer_list(_reply_body(text)):
+    for item in items:
         if not isinstance(item, dict):
             continue
         label = item.get("label")
@@ -673,6 +797,14 @@ class BrainDetector(Detector):
     ends, the oldest waiting request starts. An agent's refers stay single
     non-streaming requests (`timeout_s`).
 
+    Guarded replies (`reply_guards`, default: by served id, see
+    GUARDED_REPLY_MODELS: Nemotron 3.5 Bolt): every request asks for
+    BOX_LIST_SCHEMA within GUARDED_MAX_TOKENS, a reply cut at the token cap
+    keeps its complete boxes instead of failing, a reply that hit a bound
+    loses its repetition loop, and entries naming a category the prompt
+    excludes are dropped (parse_guarded_boxes). Other brains' requests and
+    replies are handled exactly as before.
+
     Safe to call from several threads at once: the cache lock is never held
     across the brain or SAM call, and the segmenter serializes its own model
     calls.
@@ -690,7 +822,7 @@ class BrainDetector(Detector):
                  refresh_s: float = 4.0, max_cache_age_s: float | None = None, scene_change: float = 6.0,
                  idle_refresh_s: float = 30.0, inventory_timeout_s: float | None = None,
                  reanchor_local_diff: float = 8.0, reanchor_mask_agreement: float = 0.95,
-                 client=None, clock=time.monotonic):
+                 reply_guards: bool | None = None, client=None, clock=time.monotonic):
         self._base_url = str(base_url)
         self._model = str(model)
         self._timeout_s = float(timeout_s)
@@ -698,6 +830,8 @@ class BrainDetector(Detector):
         # chunk. Defaults to timeout_s; a slow brain's inventory needs more.
         self._inventory_timeout_s = float(timeout_s if inventory_timeout_s is None else inventory_timeout_s)
         self._max_tokens = int(max_tokens)
+        # None: by served id (GUARDED_REPLY_MODELS), the default every profile uses.
+        self._guarded = self._model in GUARDED_REPLY_MODELS if reply_guards is None else bool(reply_guards)
         self._segmenter = segmenter
         self._refresh_s = float(refresh_s)
         self._idle_refresh_s = float(idle_refresh_s)
@@ -1093,16 +1227,25 @@ class BrainDetector(Detector):
                                       timeout=self._timeout_s, max_retries=0)
             return self._client
 
-    def _ask(self, image_url: str, prompt: str, cancel: threading.Event | None = None,
-             timeout: float | None = None) -> str:
-        """One brain request. Foreground (`cancel` None): a single
-        non-streaming completion under `timeout` (None: the client's
-        `timeout_s`, an agent's refer). Background (a refresh's cancel
-        Event): streamed under `inventory_timeout_s`, see `_ask_streamed`."""
+    def _ask(self, image_url: str, prompt: str, width: int, height: int, cancel: threading.Event | None = None,
+             timeout: float | None = None, *, inventory: bool = False) -> list[tuple[str, np.ndarray]]:
+        """One brain request -> its (label, pixel box) list. Foreground
+        (`cancel` None): a single non-streaming completion under `timeout`
+        (None: the client's `timeout_s`, an agent's refer). Background (a
+        refresh's cancel Event): streamed under `inventory_timeout_s`, see
+        `_ask_streamed`. A guarded brain (GUARDED_REPLY_MODELS) is asked for
+        BOX_LIST_SCHEMA within GUARDED_MAX_TOKENS and its reply goes through
+        parse_guarded_boxes (`inventory`: INVENTORY_PROMPT's reply); any
+        other brain's request and parse are as they always were."""
+        max_tokens = min(self._max_tokens, GUARDED_MAX_TOKENS) if self._guarded else self._max_tokens
+        extra_body: dict = {"chat_template_kwargs": {"enable_thinking": False}}
+        if self._guarded:
+            extra_body["response_format"] = {"type": "json_schema",
+                                             "json_schema": {"name": "box_list", "schema": BOX_LIST_SCHEMA}}
         request = dict(
             model=self._model,
             temperature=0,
-            max_tokens=self._max_tokens,
+            max_tokens=max_tokens,
             messages=[{
                 "role": "user",
                 "content": [
@@ -1110,7 +1253,7 @@ class BrainDetector(Detector):
                     {"type": "text", "text": prompt},
                 ],
             }],
-            extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+            extra_body=extra_body,
         )
         if cancel is None:
             per_request = {} if timeout is None else {"timeout": timeout}
@@ -1119,14 +1262,24 @@ class BrainDetector(Detector):
         else:
             text, finish_reason = self._ask_streamed(request, cancel)
         # A garbled reply is a failed call, never an empty table: cut at
-        # max_tokens (even if a list closed before the cut), or neither a box
-        # list nor a reply opening with "[]" (what both prompts ask for when
-        # nothing is there).
-        if finish_reason == "length":
+        # max_tokens (even if a list closed before the cut; a guarded brain's
+        # cut reply only when no complete box precedes the cut), or neither a
+        # box list nor a reply opening with "[]" (what both prompts ask for
+        # when nothing is there).
+        cut = finish_reason == "length"
+        if self._guarded:
+            found = parse_guarded_boxes(text, width, height, cut=cut, inventory=inventory)
+            if cut and not found:
+                raise ValueError(f"garbled reply, truncated at max_tokens={max_tokens} without a usable box")
+            if cut:
+                logger.info("brain detector (%s): reply cut at max_tokens=%d; kept its %d complete boxes",
+                            self._model, max_tokens, len(found))
+                return found
+        elif cut:
             raise ValueError(f"garbled reply, truncated at max_tokens={self._max_tokens}")
         if not _is_answer(text):
             raise ValueError(f"garbled reply, no box list: {text[:80]!r}")
-        return text
+        return found if self._guarded else parse_boxes(text, width, height)
 
     def _ask_streamed(self, request: dict, cancel: threading.Event) -> tuple[str, str | None]:
         """A background request: `stream=True` with the per-request timeout
@@ -1172,7 +1325,7 @@ class BrainDetector(Detector):
         labels: list[str] = []
         boxes: list[np.ndarray] = []
         for q in queries:
-            for _, box in parse_boxes(self._ask(image_url, REFER_PROMPT.format(q=q), cancel, timeout), w, h):
+            for _, box in self._ask(image_url, REFER_PROMPT.format(q=q), w, h, cancel, timeout):
                 labels.append(q)
                 boxes.append(box)
         return labels, np.array(boxes, dtype=np.float32).reshape(-1, 4)
@@ -1180,7 +1333,7 @@ class BrainDetector(Detector):
     def _ask_inventory(self, frame: Frame, thumb: np.ndarray, t: float,
                        cancel: threading.Event | None = None, timeout: float | None = None) -> _Entry:
         h, w = frame.rgb.shape[:2]
-        found = parse_boxes(self._ask(_jpeg_data_url(frame), INVENTORY_PROMPT, cancel, timeout), w, h)
+        found = self._ask(_jpeg_data_url(frame), INVENTORY_PROMPT, w, h, cancel, timeout, inventory=True)
         boxes = np.array([box for _, box in found], dtype=np.float32).reshape(-1, 4)
         boxes.setflags(write=False)
         return _Entry(tuple(label for label, _ in found), boxes, thumb, t)

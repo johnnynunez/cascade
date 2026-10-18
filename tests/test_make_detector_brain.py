@@ -110,6 +110,19 @@ def test_the_perception_variables_reach_the_detector(key_file, env):
     assert (det._base_url, det._model) == ("http://10.1.2.3:8000/v1", "brain-x")
 
 
+def test_reply_guards_follow_the_served_brain_unless_the_config_says(key_file, env):
+    """demo.yaml ships `reply_guards: auto`: Bolt (the default brain) gets
+    guarded replies, Qwen3.8 keeps its request; true / false force it."""
+    assert load_demo_config(camera="isaac")._data["detector"]["reply_guards"] == "auto"
+    assert demo._make_detector(brain_cfg(), warm_up=False)._guarded is True
+    env.setenv("CASCADE_PERCEPTION_MODEL", "qwen3.8-27b")
+    assert demo._make_detector(brain_cfg(), warm_up=False)._guarded is False
+    block = dict(load_demo_config(camera="isaac")._data["detector"], model="nemotron-3.5-bolt")
+    assert demo._make_detector(brain_cfg(**dict(block, reply_guards=False)), warm_up=False)._guarded is False
+    block["model"] = "qwen3.8-27b"
+    assert demo._make_detector(brain_cfg(**dict(block, reply_guards=True)), warm_up=False)._guarded is True
+
+
 def test_building_the_brain_detector_imports_neither_openai_nor_ultralytics(tmp_path):
     """A fresh interpreter: the CI minimal install has neither package, and
     the factory must not need them before the first detect."""

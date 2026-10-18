@@ -1,0 +1,35 @@
+23:23:08 WINDOW 1 snap /home/spark/.hermes/cache/scratch/boltfix/snap-699fab7 (699fab7); load 0.46 0.98 0.99; MemAvailable 113 GiB
+23:23:32 READY s1 after 24.2 s; MemAvailable 85 GiB
+23:23:37 START newchat_s1_alone
+23:25:42 OK newchat_s1_alone (125 s)
+23:25:42 START perc_v0
+23:29:34 OK perc_v0 (232 s)
+23:29:34 START perc_js20
+23:32:55 OK perc_js20 (201 s)
+23:32:55 START perc_js20dry
+23:32:56 OK perc_js20dry (1 s)
+23:32:56 START perc_js20drynb
+23:32:58 OK perc_js20drynb (2 s)
+23:32:58 START refer_js20
+23:38:44 OK refer_js20 (346 s)
+23:38:44 START tool_eval_s1
+23:42:51 OK tool_eval_s1 (247 s)
+23:43:02 brain stopped; MemAvailable 111 GiB
+23:43:28 READY s0 after 26.2 s; MemAvailable 84 GiB
+23:43:33 START newchat_s0_alone
+23:46:12 OK newchat_s0_alone (159 s)
+23:46:12 START isaac NEWTON (MemAvailable 73 GiB, load 2.96; prebundle CONSISTENT)
+{"ok": true, "engine": "newton", "scene_name": "paai-cocina-asier-v1", "physics_dt_s": 0.008333333333333333}
+23:47:27 isaac up, engine newton; MemAvailable 65 GiB; load 3.47
+23:47:57 START newchat_s0_isaac
+23:52:38 OK newchat_s0_isaac (281 s)
+23:52:49 brain stopped; MemAvailable 102 GiB
+23:53:09 READY s1b after 20.5 s; MemAvailable 74 GiB
+23:53:15 START newchat_s1_isaac
+23:56:51 OK newchat_s1_isaac (216 s)
+{"ok": true, "engine": "newton", "scene_name": "paai-cocina-asier-v1", "physics_dt_s": 0.008333333333333333}
+23:56:51 isaac still newton at the end
+23:57:05 isaac stopped; MemAvailable 73 GiB
+23:57:15 brain stopped; MemAvailable 111 GiB
+23:57:15 WINDOW 1 DONE
+23:57:15 cleanup: units stopped (bf-brain bf-isaac bf-memwatch)

@@ -1,0 +1,182 @@
+"""scripts/serve_nemotron_bolt_llamacpp.sh: the Bolt GGUF brain on llama.cpp v0.7.0, hermetically.
+
+A fake llama-server prints its argv; the pinned files are small stand-ins described by a manifest of the real
+shape, so fetch_models.py verifies them exactly as it verifies the 24.8 GB originals. Nothing is downloaded or built.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+REPO = Path(__file__).resolve().parents[1]
+SCRIPT = "scripts/serve_nemotron_bolt_llamacpp.sh"
+MANIFEST = "deploy/brev/profiles/nemotron-3.5-bolt-24gb.json"
+HELP = ("--mmproj --alias --chat-template-kwargs --reasoning --spec-draft-model --api-key-file "
+        "--spec-type none,draft-simple,draft-dflash")
+
+
+@pytest.fixture
+def prepared(tmp_path):
+    repo = tmp_path / "repo"
+    for rel in (SCRIPT, "deploy/brev/fetch_models.py"):
+        (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(REPO / rel, repo / rel)
+    real = json.loads((REPO / MANIFEST).read_text())
+    directory = repo / "models/nemotron-3.5-bolt"
+    directory.mkdir(parents=True)
+    for item in real["quantization"]["files"]:     # same names, URLs and roles; small bodies
+        body = b"GGUF" + item["filename"].encode()
+        (directory / item["filename"]).write_bytes(body)
+        item.update(size_bytes=len(body), sha256=hashlib.sha256(body).hexdigest())
+    licence = b"OpenMDW License Agreement, version 1.1\n"
+    (directory / "LICENSE").write_bytes(licence)
+    real["source_model"]["license"].update(size_bytes=len(licence), sha256=hashlib.sha256(licence).hexdigest())
+    (repo / MANIFEST).parent.mkdir(parents=True, exist_ok=True)
+    (repo / MANIFEST).write_text(json.dumps(real))
+    server = repo / "explicit-server/bin/llama-server"
+    server.parent.mkdir(parents=True)
+    server.write_text(f"#!{sys.executable}\n" + f"""
+import json, sys
+if sys.argv[1:] == ['--help']:
+    print({HELP!r})
+else:
+    print(json.dumps({{'server_args': sys.argv[1:]}}))
+""")
+    server.chmod(0o755)
+    env = {**os.environ, "HOME": str(tmp_path / "home"), "PY": sys.executable, "LLAMA_SERVER": str(server),
+           "CASCADE_LLAMA_CUDA_ARCH": "121"}
+    for key in ("LLAMA_DIR", "MODEL_ROOT", "PORT", "CTX", "PARALLEL", "NSPEC", "ALIAS", "API_KEY_FILE",
+                "CASCADE_MODEL_MIRROR_URL"):
+        env.pop(key, None)
+    return {"repo": repo, "dir": directory, "server": server, "env": env}
+
+
+def invoke(p, *args, **env):
+    return subprocess.run(["bash", str(p["repo"] / SCRIPT), *args], env={**p["env"], **env},
+                          capture_output=True, text=True, timeout=60)
+
+
+def served(result) -> list[str]:
+    assert result.returncode == 0, result.stdout + result.stderr
+    return next(json.loads(line) for line in result.stdout.splitlines() if '"server_args"' in line)["server_args"]
+
+
+def flag(args, name):
+    return args[args.index(name) + 1]
+
+
+def test_the_cards_recipe_on_loopback_with_two_slots_and_thinking_off(prepared):
+    args = served(invoke(prepared))
+    d = prepared["dir"]
+    assert flag(args, "--model") == str(d / "NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf")
+    assert flag(args, "--mmproj") == str(d / "mmproj-NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf")
+    assert flag(args, "--spec-type") == "draft-dflash"
+    assert flag(args, "--spec-draft-model") == str(d / "NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB-LiLiCorr.gguf")
+    assert (flag(args, "--spec-draft-n-max"), flag(args, "--spec-draft-ngl")) == ("7", "999")
+    assert (flag(args, "--alias"), flag(args, "--host"), flag(args, "--port")) == ("nemotron-3.5-bolt", "127.0.0.1", "8080")
+    assert (flag(args, "--parallel"), flag(args, "--ctx-size")) == ("2", str(2 * 65536))
+    assert (flag(args, "--cache-type-k"), flag(args, "--cache-type-v")) == ("q8_0", "q8_0")
+    assert flag(args, "--reasoning") == "off"
+    assert json.loads(flag(args, "--chat-template-kwargs")) == {"enable_thinking": False}
+    assert "--jinja" in args and flag(args, "--flash-attn") == "on"
+    assert "--api-key-file" not in args
+
+
+def test_knobs_reach_the_server(prepared):
+    args = served(invoke(prepared, PORT="18492", CTX="32768", PARALLEL="1", NSPEC="6", ALIAS="bolt"))
+    assert (flag(args, "--port"), flag(args, "--ctx-size"), flag(args, "--parallel"), flag(args, "--spec-draft-n-max"),
+            flag(args, "--alias")) == ("18492", "32768", "1", "6", "bolt")
+
+
+@pytest.mark.parametrize("env, message", [({"ALIAS": "nvidia/bolt"}, "bare id"), ({"PARALLEL": "0"}, "PARALLEL"),
+                                          ({"PORT": "70000"}, "PORT"), ({"CTX": "64k"}, "CTX")])
+def test_bad_knobs_are_refused(prepared, env, message):
+    result = invoke(prepared, **env)
+    assert result.returncode == 2 and message in result.stderr
+
+
+def test_the_key_file_path_reaches_the_server_never_the_key(prepared, tmp_path):
+    key = tmp_path / "brain.key"
+    key.write_text("bolt-gguf-key-4e1\n")
+    key.chmod(0o600)
+    result = invoke(prepared, API_KEY_FILE=str(key))
+    assert flag(served(result), "--api-key-file") == str(key)
+    assert "bolt-gguf-key-4e1" not in result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("problem", ["loose", "empty", "missing"])
+def test_a_bad_key_file_is_refused(prepared, tmp_path, problem):
+    key = tmp_path / "brain.key"
+    if problem != "missing":
+        key.write_text("" if problem == "empty" else "k\n")
+        key.chmod(0o644 if problem == "loose" else 0o600)
+    result = invoke(prepared, API_KEY_FILE=str(key))
+    assert result.returncode == 1 and "API_KEY_FILE" in result.stderr
+    assert '"server_args"' not in result.stdout
+
+
+def test_check_verifies_the_pinned_files_and_the_server_without_starting_it(prepared):
+    result = invoke(prepared, "--check")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert '"server_args"' not in result.stdout and "no runtime proof performed" in result.stdout
+
+
+def test_a_tampered_model_is_refused(prepared):
+    (prepared["dir"] / "NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB-LiLiCorr.gguf").write_bytes(b"GGUF tampered")
+    result = invoke(prepared)
+    assert result.returncode != 0 and '"server_args"' not in result.stdout
+
+
+def test_a_server_without_dflash_is_refused(prepared):
+    prepared["server"].write_text(f"#!{sys.executable}\nprint('--mmproj --alias --chat-template-kwargs --reasoning')\n")
+    result = invoke(prepared)
+    assert result.returncode == 1 and "llama-server lacks" in result.stderr
+
+
+def test_both_llamacpp_brains_pin_llamacpp_v070():
+    pins = {name: re.search(r"^LLAMA_REF=([0-9a-f]{40})", (REPO / "scripts" / name).read_text(), re.M).group(1)
+            for name in ("serve_nemotron_bolt_llamacpp.sh", "serve_qwen_llamacpp.sh")}
+    assert set(pins.values()) == {"620d2225cc436ab0b001e3200e590e3b286ef9ab"}
+
+
+def test_the_bolt_manifest_pins_the_official_gguf_files():
+    sys.path.insert(0, str(REPO / "deploy" / "brev"))
+    import fetch_models
+
+    artifacts = fetch_models.load_manifest(REPO / MANIFEST, 32 * 1024**3)
+    assert {a.filename: a.sha256 for a in artifacts} == {
+        "NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf": "91d63363e782c8a3d5f4be42816eba8e0d42dd2530bd07a7d0d2dc440599af75",
+        "mmproj-NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf": "0ee891eadc7bf0cae6289b249c74eb1ef420534351f6ef8b64d49f0ca6a926b0",
+        "NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB-LiLiCorr.gguf": "080e1ea41c9562a7804dbf30c6fbd4d17e216c6b8ff666f88e6edb1816010194",
+        "LICENSE": "8a0c5e232551abcb102d1bd39a34866ef4520361b613bd6405d55b36562e4d88"}
+    assert fetch_models.manifest_directory(REPO / MANIFEST) == Path("models/nemotron-3.5-bolt")
+    assert sum(a.size_bytes for a in artifacts) == 24750264442
+
+
+@pytest.mark.parametrize("change, message", [
+    (lambda m: m["quantization"]["files"][2].update(repo_id="evil/Bolt-GGUF"), "reviewed quantization"),
+    (lambda m: m["source_model"].update(repo_id="nvidia/Other"), "reviewed official model"),
+    (lambda m: m["source_model"]["license"].update(repo_id="evil/x"), "reviewed quantization"),
+    (lambda m: m["quantization"]["files"][2].update(revision="main"), "complete quantization revision"),
+    (lambda m: m["quantization"].update(repo_id="evil/Bolt-GGUF"), "reviewed quantization"),
+    (lambda m: m["quantization"].pop("repo_id"), "reviewed quantization"),
+    (lambda m: m["quantization"].update(revision="main"), "complete quantization revision"),
+])
+def test_the_bolt_manifest_refuses_unreviewed_sources(tmp_path, change, message):
+    sys.path.insert(0, str(REPO / "deploy" / "brev"))
+    import fetch_models
+
+    data = json.loads((REPO / MANIFEST).read_text())
+    change(data)
+    path = tmp_path / "m.json"
+    path.write_text(json.dumps(data))
+    with pytest.raises(fetch_models.DownloadError, match=message):
+        fetch_models.load_manifest(path, 32 * 1024**3)

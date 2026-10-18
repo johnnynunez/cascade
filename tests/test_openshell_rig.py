@@ -24,6 +24,7 @@ import importlib.util
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import types
@@ -282,6 +283,66 @@ def test_render_fills_ports_and_model_and_mints_a_private_token(tmp_path):
     assert re.fullmatch(r"[0-9a-f]{48}", cfg["gateway"]["auth"]["token"])
     assert cfg["models"]["providers"]["cascade"]["apiKey"] == "${CASCADE_BRAIN_API_KEY}"
     assert r.stdout.count(cfg["gateway"]["auth"]["token"]) == 0, "never echoed"
+
+
+def test_render_defaults_to_nemotron_bolt_with_its_name_and_thinking_off(tmp_path):
+    """The default brain is Nemotron 3.5 Bolt: its served id, its own display
+    name (never another model's), and chat_template_kwargs enable_thinking
+    false on every request (its ultra_v3 parser ignores the server default)."""
+    assert _render(tmp_path).returncode == 0
+    cfg = json.loads((tmp_path / ".openclaw" / "openclaw.json").read_text())
+    [model] = cfg["models"]["providers"]["cascade"]["models"]
+    assert (model["id"], model["name"]) == ("nemotron-3.5-bolt", "Nemotron 3.5 Bolt 74B-A9B (cascade brain)")
+    assert cfg["agents"]["defaults"]["model"]["primary"] == "cascade/nemotron-3.5-bolt"
+    assert cfg["agents"]["defaults"]["models"] == {
+        "cascade/nemotron-3.5-bolt": {"params": {"chat_template_kwargs": {"enable_thinking": False}}}}
+
+
+@pytest.mark.parametrize("model, name", [
+    ("qwen3.8-27b", "Qwen3.8-27B (cascade brain)"),
+    ("cosmos3-edge", "cosmos3-edge (cascade brain)"),
+    ("constructor", "constructor (cascade brain)"),
+    ("toString", "toString (cascade brain)"),
+])
+def test_render_names_the_brain_actually_served(tmp_path, model, name):
+    """The chat's model label comes from CASCADE_MODEL: a known brain by its
+    name, any other by its own id; never a hard-coded other model. Only
+    Nemotron gets request params, so Qwen's config is main's."""
+    assert _render(tmp_path, CASCADE_MODEL=model).returncode == 0
+    cfg = json.loads((tmp_path / ".openclaw" / "openclaw.json").read_text())
+    [entry] = cfg["models"]["providers"]["cascade"]["models"]
+    assert (entry["id"], entry["name"]) == (model, name)
+    assert "models" not in cfg["agents"]["defaults"]
+
+
+def test_render_for_qwen_is_byte_identical_to_main(tmp_path):
+    """--brain qwen / --model qwen3.8-27b: the generated config equals the one
+    origin/main's template and renderer write (token aside)."""
+    git = shutil.which("git")
+    main = tmp_path / "main"
+    main.mkdir()
+    for name in ("openclaw.json", "render-config.mjs"):
+        shown = subprocess.run([git, "-C", str(REPO), "show", f"91bac52:deploy/openshell/{name}"],
+                               capture_output=True, text=True, check=False)
+        if shown.returncode:
+            pytest.skip("origin/main's deploy/openshell is not in this clone")
+        (main / name).write_text(shown.stdout)
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node not on PATH")
+    rendered = []
+    for root in (main, DEPLOY):
+        home = tmp_path / f"home-{len(rendered)}"
+        home.mkdir()
+        env = {"HOME": str(home), "PATH": os.environ.get("PATH", ""),
+               "CASCADE_OPENCLAW_TEMPLATE": str(root / "openclaw.json"), "CASCADE_MODEL": "qwen3.8-27b",
+               "CASCADE_BRAIN_PORT": "18481", "CASCADE_CONTEXT_WINDOW": "32768"}
+        r = subprocess.run([node, str(root / "render-config.mjs")], env=env, capture_output=True, text=True,
+                           timeout=30, check=False)
+        assert r.returncode == 0, r.stderr
+        rendered.append(re.sub(r'"token": "[0-9a-f]{48}"', '"token": "T"',
+                               (home / ".openclaw" / "openclaw.json").read_text()))
+    assert rendered[0] == rendered[1]
 
 
 def test_render_keeps_an_existing_config(tmp_path):
@@ -662,10 +723,10 @@ TODAY_SANDBOX_ARGV = [
     "sandbox", "create", "--name", "cascade-agent", "--from", "IMG",
     "--provider", "cascade-brain", "--provider", "cascade-robot",
     "--env", "CASCADE_BRAIN_PORT=8081", "--env", "CASCADE_MCP_PORT=18741",
-    "--env", "CASCADE_CHAT_PORT=18799", "--env", "CASCADE_MODEL=qwen3.8-27b",
+    "--env", "CASCADE_CHAT_PORT=18799", "--env", "CASCADE_MODEL=nemotron-3.5-bolt",
     "--restart-policy", "on-failure", "--detach", "--", "cascade-openclaw"]
 TODAY_SETTINGS = {"brain_port": 8081, "mcp_port": 18741, "chat_port": 18799,
-                  "model": "qwen3.8-27b", "sandbox": "cascade-agent",
+                  "model": "nemotron-3.5-bolt", "sandbox": "cascade-agent",
                   # added with the launcher route; a deployed.json written before it
                   # carries no such key and is NOT stale for it (see the test below)
                   "context_window": 65536}
@@ -1374,7 +1435,8 @@ def _serve(host, monkeypatch, *args):
 def test_golden_the_default_robot_server_is_todays_plus_the_brain_endpoint(host, monkeypatch):
     """The live rig's server (default instance, no flags): today's argv on
     :18741 and today's environment, plus the brain its sandbox uses (:8081,
-    qwen3.8-27b, NemoClaw's key file). The key's contents appear nowhere."""
+    the default brain nemotron-3.5-bolt, NemoClaw's key file). The key's
+    contents appear nowhere."""
     for name in SERVE_SCRUB:
         monkeypatch.delenv(name, raising=False)
     home = host.install(host.user / ".cascade" / "openshell")
@@ -1385,7 +1447,7 @@ def test_golden_the_default_robot_server_is_todays_plus_the_brain_endpoint(host,
     key = host.user / ".cascade" / "nemoclaw" / "llama.key"
     assert env == {**before, "PYTHONPATH": str(REPO / "src"), "YOLO_OFFLINE": "True", "ULTRALYTICS_OFFLINE": "True",
                    "CASCADE_VIEW": "0", "CASCADE_PERCEPTION_URL": "http://127.0.0.1:8081/v1",
-                   "CASCADE_PERCEPTION_MODEL": "qwen3.8-27b", "CASCADE_PERCEPTION_KEY_FILE": str(key)}
+                   "CASCADE_PERCEPTION_MODEL": "nemotron-3.5-bolt", "CASCADE_PERCEPTION_KEY_FILE": str(key)}
     secret = key.read_text().strip()
     assert secret == "brain-key"
     assert not [k for k, v in env.items() if secret in v] and not [a for a in argv if secret in a]
@@ -1402,16 +1464,31 @@ def test_a_named_instance_points_perception_at_its_own_brain(host, monkeypatch):
     argv, env = _serve(host, monkeypatch, "--instance", "sim", "serve-mcp")
     assert argv[argv.index("--http") + 1] == "127.0.0.1:17810"
     assert env["CASCADE_PERCEPTION_URL"] == "http://127.0.0.1:8093/v1"
-    assert env["CASCADE_PERCEPTION_MODEL"] == "qwen3.8-27b"
+    assert env["CASCADE_PERCEPTION_MODEL"] == "nemotron-3.5-bolt"
     assert env["CASCADE_PERCEPTION_KEY_FILE"] == str(host.user / ".cascade" / "nemoclaw" / "llama.key")
+
+
+def test_an_instance_saved_with_qwen_points_perception_at_qwen(host, monkeypatch):
+    """`up --model qwen3.8-27b` (scripts/serve_qwen_vllm.sh's id) keeps Qwen
+    for perception too: the saved served id, not the default brain's."""
+    for name in PERCEPTION:
+        monkeypatch.delenv(name, raising=False)
+    home = host.install(host.user / ".cascade" / "openshell-sim", "sim")
+    host.gateways_up.add(str(home / "0.1.3" / "bin" / "openshell"))
+    assert host.rig.main(["--instance", "sim", "up", "--brain-port", "8093", "--model", "qwen3.8-27b"]) == 0
+    _, env = _serve(host, monkeypatch, "--instance", "sim", "serve-mcp")
+    assert {name: env[name] for name in PERCEPTION} == {
+        "CASCADE_PERCEPTION_URL": "http://127.0.0.1:8093/v1", "CASCADE_PERCEPTION_MODEL": "qwen3.8-27b",
+        "CASCADE_PERCEPTION_KEY_FILE": str(host.user / ".cascade" / "nemoclaw" / "llama.key")}
 
 
 def test_an_instance_saved_with_another_brain_leaves_perception_to_the_profile(host, monkeypatch):
     """Ruling 20: serve-mcp fills in the endpoint only for an instance whose
-    saved brain is the Qwen served id. A sim instance last brought up on
-    Cosmos (:8082, cosmos3-edge) sets none of the three, so configs/demo.yaml's
-    defaults (the local Qwen brain) apply and Cosmos never gets the Qwen
-    grounding prompt. An operator's own value still reaches the server."""
+    saved brain is a local brain's served id (Nemotron 3.5 Bolt or Qwen3.8).
+    A sim instance last brought up on Cosmos (:8082, cosmos3-edge) sets none
+    of the three, so configs/demo.yaml's defaults (the local default brain)
+    apply and Cosmos never gets the grounding prompt. An operator's own value
+    still reaches the server."""
     for name in PERCEPTION:
         monkeypatch.delenv(name, raising=False)
     home = host.install(host.user / ".cascade" / "openshell-sim", "sim")
@@ -1466,7 +1543,7 @@ def test_an_operators_or_launchers_perception_endpoint_wins(host, monkeypatch, t
     f = _env_file(tmp_path, {"CASCADE_PERCEPTION_KEY_FILE": "/launcher/brain.key"})
     _, env = _serve(host, monkeypatch, "serve-mcp", "--env-file", str(f))
     assert {name: env[name] for name in PERCEPTION} == {
-        "CASCADE_PERCEPTION_URL": "http://10.0.0.7:8000/v1", "CASCADE_PERCEPTION_MODEL": "qwen3.8-27b",
+        "CASCADE_PERCEPTION_URL": "http://10.0.0.7:8000/v1", "CASCADE_PERCEPTION_MODEL": "nemotron-3.5-bolt",
         "CASCADE_PERCEPTION_KEY_FILE": "/launcher/brain.key"}
 
 

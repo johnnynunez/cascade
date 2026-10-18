@@ -35,8 +35,11 @@
 #                  is waited on and PROBED; the demo banner names what answered.
 #   4. openclaw    install/upgrade guard (>= 2.0), gateway up, cascade MCP
 #                  server registered IDEMPOTENTLY (`mcp set`, not `mcp add`),
-#                  brain resolved (--brain auto keeps whatever auth OpenClaw
-#                  already has; a local server is only used when it answers)
+#                  brain resolved (--brain auto: a local Cosmos, else the
+#                  brain on :8080 -- Nemotron 3.5 Bolt by default,
+#                  scripts/serve_nemotron_bolt_vllm.sh, or Qwen3.8 -- else
+#                  whatever auth OpenClaw already has; a local server is only
+#                  used when it answers. --brain nemotron-bolt|qwen pins one)
 #   5. proof       `openclaw mcp probe cascade` must list the robot tools; the
 #                  brain answers a turn; in sim modes ONE real pick is checked
 #                  against physics and the scene is reset (--no-robot-turn
@@ -70,7 +73,7 @@ fi
 SIM="auto"            # auto | isaac | mujoco | none
 ARM=""                # default depends on SIM
 CAMERAS=""            # default depends on SIM
-BRAIN="auto"          # auto | keep | cosmos | cosmos-sglang | qwen
+BRAIN="auto"          # auto | keep | cosmos | cosmos-sglang | nemotron-bolt | qwen
 OPEN_CHAT=1
 SETUP=0               # --setup: create venv + install extras + fetch assets + install OpenClaw
 ROBOT_TURN=1          # --no-robot-turn: skip the real pick_and_place proof (sim modes only)
@@ -130,7 +133,7 @@ if [[ $CHECK == 1 && $SETUP == 1 ]]; then
     printf '[launch] ERROR: --check and --setup are mutually exclusive\n' >&2
     exit 2
 fi
-case "$BRAIN" in auto|keep|cosmos|cosmos-sglang|qwen) ;; *) printf 'unknown --brain %s\n' "$BRAIN" >&2; exit 2 ;; esac
+case "$BRAIN" in auto|keep|cosmos|cosmos-sglang|nemotron-bolt|qwen) ;; *) printf 'unknown --brain %s\n' "$BRAIN" >&2; exit 2 ;; esac
 case "$SIM" in auto|isaac|mujoco|none) ;; *) printf 'unknown --sim %s\n' "$SIM" >&2; exit 2 ;; esac
 case "$OCCUPANCY" in auto|nvblox|warp|voxel|none) ;; *) printf 'unknown --occupancy %s\n' "$OCCUPANCY" >&2; exit 2 ;; esac
 case "$GRASPGENX" in auto|local|stub|external|none) ;; *) printf 'unknown --graspgenx %s\n' "$GRASPGENX" >&2; exit 2 ;; esac
@@ -457,14 +460,27 @@ fi
 # OpenShell sandbox's id; serve_qwen_vllm.sh's default SERVED_NAME,
 # llama.cpp ignores the name) and the brain key FILE, never the
 # key. An operator's own value wins; an empty one counts as unset, as in
-# demo.yaml. Every other brain leaves perception on the configured Qwen brain.
+# demo.yaml. --brain nemotron-bolt does the same for the default brain
+# (scripts/serve_nemotron_bolt_vllm.sh, served id nemotron-3.5-bolt) at the
+# CASCADE_NEMOTRON_BOLT_BASE_URL endpoint (else CASCADE_QWEN_BASE_URL's: both
+# serve scripts default to :8080). Every other brain leaves perception on the
+# configured default brain (configs/demo.yaml: Nemotron 3.5 Bolt at :8080).
 if [[ "$BRAIN" == qwen ]]; then
     export CASCADE_PERCEPTION_URL="${CASCADE_PERCEPTION_URL:-${CASCADE_QWEN_BASE_URL:-http://127.0.0.1:8080/v1}}"
     export CASCADE_PERCEPTION_MODEL="${CASCADE_PERCEPTION_MODEL:-qwen3.8-27b}"
     export CASCADE_PERCEPTION_KEY_FILE="${CASCADE_PERCEPTION_KEY_FILE:-${CASCADE_BRAIN_KEY_FILE:-$HOME/.cascade/nemoclaw/llama.key}}"
     log "perception: $CASCADE_PERCEPTION_MODEL at $CASCADE_PERCEPTION_URL (key file $CASCADE_PERCEPTION_KEY_FILE)"
+elif [[ "$BRAIN" == nemotron-bolt ]]; then
+    export CASCADE_PERCEPTION_URL="${CASCADE_PERCEPTION_URL:-${CASCADE_NEMOTRON_BOLT_BASE_URL:-${CASCADE_QWEN_BASE_URL:-http://127.0.0.1:8080/v1}}}"
+    export CASCADE_PERCEPTION_MODEL="${CASCADE_PERCEPTION_MODEL:-nemotron-3.5-bolt}"
+    export CASCADE_PERCEPTION_KEY_FILE="${CASCADE_PERCEPTION_KEY_FILE:-${CASCADE_BRAIN_KEY_FILE:-$HOME/.cascade/nemoclaw/llama.key}}"
+    # The brain check reads the bearer from this FILE (never from argv/env values).
+    if [[ -z "${CASCADE_MODEL_API_KEY:-}${CASCADE_MODEL_API_KEY_FILE:-}" && -r "$CASCADE_PERCEPTION_KEY_FILE" ]]; then
+        export CASCADE_MODEL_API_KEY_FILE="$CASCADE_PERCEPTION_KEY_FILE"
+    fi
+    log "perception: $CASCADE_PERCEPTION_MODEL at $CASCADE_PERCEPTION_URL (key file $CASCADE_PERCEPTION_KEY_FILE)"
 else
-    printf '[launch] NOTE: --brain %s: object identification uses the local Qwen3.8 brain at %s, which must be running\n' \
+    printf '[launch] NOTE: --brain %s: object identification uses the local Nemotron 3.5 Bolt brain at %s, which must be running\n' \
         "$BRAIN" "${CASCADE_PERCEPTION_URL:-http://127.0.0.1:8080/v1 (configs/demo.yaml default)}" >&2
 fi
 # SAM masks the brain's boxes (configs/demo.yaml segmenter.model). Without the
@@ -1094,6 +1110,36 @@ PYEOF
 )" || die "local provider config is incomplete"
     run oc config set models.providers "$providers" --strict-json >/dev/null
     log "contextWindow=$ctx for $mid (selected profile only)"
+    [[ "$mid" == nemotron-3.5-bolt ]] || return 0
+    # Nemotron 3.5 Bolt: its own display name, and thinking off on every
+    # request (its ultra_v3 reasoning parser ignores the server default).
+    providers="$("$PY" - "$active_cfg" "$mid" <<'PYEOF'
+import json, pathlib, sys
+cfg = json.loads(pathlib.Path(sys.argv[1]).expanduser().read_text())
+for provider in cfg.get("models", {}).get("providers", {}).values():
+    for model in provider.get("models", []):
+        if model.get("id") == sys.argv[2]:
+            model["name"] = "Nemotron 3.5 Bolt 74B-A9B (cascade brain)"
+print(json.dumps(cfg.get("models", {}).get("providers", {})))
+PYEOF
+)" || die "cannot name the local provider's model"
+    run oc config set models.providers "$providers" --strict-json >/dev/null
+    local agent_models
+    agent_models="$("$PY" - "$active_cfg" "$mid" <<'PYEOF'
+import json, pathlib, sys
+cfg = json.loads(pathlib.Path(sys.argv[1]).expanduser().read_text())
+defaults = cfg.get("agents", {}).get("defaults", {})
+selection = defaults.get("model", {})
+selected = selection.get("primary") if isinstance(selection, dict) else selection
+if not selected or selected.partition("/")[2] != sys.argv[2]:
+    raise SystemExit("onboarding did not select the requested model")
+models = defaults.get("models", {})
+models.setdefault(selected, {}).setdefault("params", {}).setdefault(
+    "chat_template_kwargs", {})["enable_thinking"] = False
+print(json.dumps(models))
+PYEOF
+)" || die "cannot turn thinking off for $mid"
+    run oc config set agents.defaults.models "$agent_models" --strict-json >/dev/null
 }
 RESOLVED_BRAIN="$(printf '%s' "$BRAIN_INFO" | "$PY" -c 'import json,sys; print(json.load(sys.stdin)["brain"])')"
 if [[ "$RESOLVED_BRAIN" == keep ]]; then

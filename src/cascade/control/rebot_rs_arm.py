@@ -45,6 +45,7 @@ from .robstride import (
     UnsafeReading,
     clear_motor_faults,
     close_two_stage_capped,
+    closing_stages,
     contact_squeeze_cap,
     joint_reading_problem,
     plausible_position,
@@ -403,17 +404,20 @@ class RebotRSArm(ArmBase):
         `gripper.max_contact_squeeze_rad` (opt-in, B38) bounds it: every target
         after the first contact is at most that far past it
         (robstride.close_two_stage_capped). null = this fixed close, unchanged.
+
+        A close never opens the jaws: a stage more open than they read when
+        the close starts (a second close from the stage-2 seat at 0.93 rad
+        would first reopen them to the 3.1 rad scout stage) is skipped
+        (robstride.closing_stages).
         """
         span = self._grip_closed - self._grip_open
+        stages = ((self._grip_open + span * width_frac_stage1, effort * 0.7),
+                  (self._grip_open + span * width_frac_stage2, effort))
         if self._grip_squeeze_cap is not None:
-            return close_two_stage_capped(
-                self,
-                ((self._grip_open + span * width_frac_stage1, effort * 0.7),
-                 (self._grip_open + span * width_frac_stage2, effort)),
-                self._grip_squeeze_cap, timeout_s)
+            return close_two_stage_capped(self, stages, self._grip_squeeze_cap, timeout_s)
         start_pos = self._gripper_pos()
-        for frac, eff in ((width_frac_stage1, effort * 0.7), (width_frac_stage2, effort)):
-            target = self._grip_open + span * frac
+        for target, eff in closing_stages(stages, start_pos, self._grip_open, self._grip_closed,
+                                          log=lambda line: print(f"[rebot] {line}")):
             self.set_gripper(target, effort=eff)
             time.sleep(0.3)  # spin-up grace period
             slow_samples = 0

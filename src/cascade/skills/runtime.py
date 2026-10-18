@@ -10,6 +10,7 @@ instead of crashing the loop.
 from __future__ import annotations
 
 from ..control import motion_evidence
+from ..control.robstride import closing_stages, opens_past
 
 import contextlib
 import functools
@@ -5970,23 +5971,42 @@ class SkillRuntime:
             return None
         return self._hold_after_contact(profile, squeeze, 1.0 - profile.close_frac_stage2, **close_kw)
 
-    def _close_two_stage(self, profile, *, _halt_generation=None, _before_close=None) -> None:
+    def _close_two_stage(self, profile, *, _halt_generation=None, _before_close=None,
+                         _never_past=None) -> int:
+        """The two-stage close (scout stage, then seat). A close never opens
+        the jaws: a stage more open than `_never_past` (the jaw position the
+        caller read before the close; None = not read) or than the stage
+        before it is skipped (`closing_stages`), and so is the backend's own
+        two-stage close when every stage would be (that driver skips by its
+        own reading too). Returns how many stages were skipped. The grasp's
+        and the screw stroke's closes start from jaws they just opened and
+        pass no reading: every stage goes, exactly as before."""
         # Some hardware drivers expose a raw two-stage escape hatch. It may
         # not bypass a retained model-backed empty-tool withdrawal either.
         check = getattr(self.arm.harness, "check_model_withdrawal", None)
         if check is not None:
             check(command=True, gripper=True)
         if self._force_contact_close_enabled():
+            if opens_past(self._grip_closed, _never_past, self._grip_open, self._grip_closed):
+                return 1
             if _before_close is not None:
                 _before_close()
             self._set_gripper(self._grip_closed, effort=profile.effort,
                               **({"_halt_generation": _halt_generation} if _halt_generation is not None else {}))
             self._gripper_closes_commanded += 1
-            return
+            return 0
+        span = self._grip_closed - self._grip_open
+        stages = tuple((self._grip_open + span * frac, eff, frac) for frac, eff in (
+            (profile.close_frac_stage1, profile.effort * 0.7),
+            (profile.close_frac_stage2, profile.effort),
+        ))
+        kept = closing_stages(stages, _never_past, self._grip_open, self._grip_closed)
         raw = self.arm.raw
         if hasattr(raw, "close_gripper_two_stage"):
             if _before_close is not None:
                 raise SafetyViolation("observed-finger closing requires individually guarded stages")
+            if not kept:
+                return len(stages)
             # The backend's own close bypasses SafeArm.set_gripper: a halt
             # since the running skill started keeps the jaws open (A3 review).
             check_halt = getattr(self.arm.harness, "_check_halt_generation", None)
@@ -5999,7 +6019,7 @@ class SkillRuntime:
                 effort=profile.effort,
             )
             self._gripper_closes_commanded += 1
-            return
+            return len(stages) - len(kept)
         timeout = self.cfg.grasp.get("close_feedback_timeout_s")
         band = CLOSE_STALL_BAND
         if timeout is not None:
@@ -6007,16 +6027,12 @@ class SkillRuntime:
             if not np.isfinite(timeout) or timeout <= 0:
                 raise SkillError("close_feedback_timeout_s must be finite and positive")
             band = close_stall_band(self.cfg.arm.get("gripper"))
-        span = self._grip_closed - self._grip_open
-        for frac, eff in (
-            (profile.close_frac_stage1, profile.effort * 0.7),
-            (profile.close_frac_stage2, profile.effort),
-        ):
+        for target, eff, frac in kept:
             if _before_close is not None:
                 _before_close()
             grasp_evidence.event("close_stage", closed_frac=frac, effort=eff,
-                                 target_pos=self._grip_open + span * frac)
-            self._set_gripper(self._grip_open + span * frac, effort=eff,
+                                 target_pos=target)
+            self._set_gripper(target, effort=eff,
                                  **({"_halt_generation": _halt_generation} if _halt_generation is not None else {}))
             # Counted once the command is accepted: the verifier may then say
             # "the jaw closed" (a refused stage leaves the count unchanged).
@@ -6024,6 +6040,7 @@ class SkillRuntime:
             time.sleep(float(self.cfg.grasp.get("close_settle_s", 0.0)))
             if timeout is not None:
                 self._wait_gripper_closed(1.0 - frac, timeout, band)
+        return len(stages) - len(kept)
 
     def _hold_squeeze_frac(self) -> float | None:
         """`gripper.hold_squeeze_frac` of the arm profile, validated (None = off).
@@ -8556,9 +8573,35 @@ class SkillRuntime:
             time.sleep(.05)
 
     def skill_close_gripper(self) -> dict:
-        self._close_two_stage(select_profile("", "rigid"))
+        """Close the jaws (the rigid two-stage close). A close never opens
+        them: a stage more open than the jaws read is skipped, so a close
+        from the stage-2 seat (0.93 rad on the reBot) no longer reopens them
+        to the 3.1 rad scout stage first, which could drop a thin object
+        seated there (#379 review A). Jaws that give no reading (no valid
+        feedback, or one that is no number) while an object may be in them
+        -- an interrupted grasp's provisional hold, or a held object --
+        refuse before any command: no stage can be shown not to open them.
+        With nothing held, unread jaws close as before."""
+        state = self._jaw_state()
+        reading = float(state.gripper_pos) if getattr(state, "gripper_valid", True) else None
+        if reading is not None and not math.isfinite(reading):
+            reading = None
+        if reading is None:
+            self._raise_on_a_possible_hold()
+            if self.held_object:
+                raise SkillError(_fit_label(_JAWS_NOT_READ + " while holding {}: a close stage could open the "
+                                            "jaws on it; place it first (place_at)", repr(self.held_object),
+                                            keep=len("SkillError: ")))
+        closes = self._gripper_closes_commanded
+        skipped = self._close_two_stage(select_profile("", "rigid"), _never_past=reading)
         wf = self._gripper_width_frac()
-        return {"gripper": "closed", "open_frac": round(wf, 2) if wf is not None else "unknown"}
+        out = {"gripper": "closed", "open_frac": round(wf, 2) if wf is not None else "unknown"}
+        if skipped:
+            out["stages_skipped"] = skipped
+            if self._gripper_closes_commanded == closes:
+                out["note"] = ("the jaws already read at least as closed as every close stage, so none was "
+                               "sent: a close never opens them")
+        return out
 
     def _reset_camera_frames(self, *, require_geometry=False, scene_changed=True):
         """Reopen reset's capture barrier, retaining failed attempts for retry."""

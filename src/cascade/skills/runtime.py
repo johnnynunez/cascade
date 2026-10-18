@@ -234,6 +234,37 @@ OBSERVED_NEAR_COPY_M = 0.01
 OBSERVED_NEAR_COPY_DEG = 15.
 
 
+#: Stall band of the close-feedback wait (`_wait_gripper_closed`, the wait
+#: after each close stage when `grasp.close_feedback_timeout_s` is set): the
+#: jaws count as stopped once every read stays within this fraction of jaw
+#: travel of an anchor for 0.5 s. Per arm profile: `gripper.close_stall_band`.
+#: The Isaac profiles set 0.01: on Newton the jaws slowly turn a cube grasped
+#: 10-30 deg off its faces square, 0.003-0.004 per 0.5 s, which this default
+#: reads as moving until the 8 s timeout refuses the lift
+#: (configs/arms/isaac.yaml).
+CLOSE_STALL_BAND = 0.002
+#: Exclusive upper limit of a profile's band, a sanity bound. Keep a band
+#: well under the free-closing step (>= 0.028 per Newton bridge iteration),
+#: or a closing jaw reads as stopped.
+CLOSE_STALL_BAND_MAX = 0.05
+
+
+def close_stall_band(gripper_cfg) -> float:
+    """`gripper.close_stall_band` of an arm profile, CLOSE_STALL_BAND when unset.
+
+    Anything but a number in (0, CLOSE_STALL_BAND_MAX) raises SkillError:
+    build_runtime checks every arm profile before any arm exists, and the
+    close checks it again before its first jaw command."""
+    band = gripper_cfg.get("close_stall_band") if gripper_cfg is not None else None
+    if band is None:
+        return CLOSE_STALL_BAND
+    # NaN, inf, True/False (1/0) and anything that is no number fall outside
+    if not isinstance(band, (int, float)) or not 0.0 < band < CLOSE_STALL_BAND_MAX:
+        raise SkillError(f"gripper.close_stall_band must be a fraction of jaw travel in "
+                         f"(0, {CLOSE_STALL_BAND_MAX}), got {band!r}")
+    return float(band)
+
+
 def open_wait_timeout_s(grasp_cfg) -> float | None:
     """`grasp.open_wait_timeout_s` in seconds, None when unset.
 
@@ -1849,8 +1880,8 @@ class SkillRuntime:
             elif (not result.get("ok", False) and halt_before_return is None
                   and _home_return_halted(home_return)):
                 # The skill failed, then the operator's halt stopped (or
-                # skipped) its return: the error names that halt too.
-                result["error"] = _with_also(result.get("error"), returned)
+                # skipped) its return: the error names that halt first.
+                result["error"] = _stop_first(returned, result.get("error"))
         if name in _MOTION_SKILLS:
             # Readiness can fail DURING a motion as well as before it. A
             # trajectory abort latches STOP; handing that failure back to
@@ -5370,10 +5401,12 @@ class SkillRuntime:
             self._gripper_closes_commanded += 1
             return
         timeout = self.cfg.grasp.get("close_feedback_timeout_s")
+        band = CLOSE_STALL_BAND
         if timeout is not None:
             timeout = float(timeout)
             if not np.isfinite(timeout) or timeout <= 0:
                 raise SkillError("close_feedback_timeout_s must be finite and positive")
+            band = close_stall_band(self.cfg.arm.get("gripper"))
         span = self._grip_closed - self._grip_open
         for frac, eff in (
             (profile.close_frac_stage1, profile.effort * 0.7),
@@ -5390,7 +5423,7 @@ class SkillRuntime:
             self._gripper_closes_commanded += 1
             time.sleep(float(self.cfg.grasp.get("close_settle_s", 0.0)))
             if timeout is not None:
-                self._wait_gripper_closed(1.0 - frac, timeout)
+                self._wait_gripper_closed(1.0 - frac, timeout, band)
 
     def _hold_squeeze_frac(self) -> float | None:
         """`gripper.hold_squeeze_frac` of the arm profile, validated (None = off).
@@ -5487,12 +5520,13 @@ class SkillRuntime:
                 return None
             time.sleep(.05)
 
-    def _wait_gripper_closed(self, target_open: float, timeout_s: float) -> None:
+    def _wait_gripper_closed(self, target_open: float, timeout_s: float, band: float) -> None:
         """Wait for commanded travel or a measured stall before lifting.
 
         A fixed dwell expires while rate-limited sim jaws are still closing
         when physics runs slower than wall time. A stall is only a completion
         signal here; the existing post-lift check still adjudicates the grip.
+        `band` is the profile's `gripper.close_stall_band` (close_stall_band).
         """
         deadline = time.monotonic() + timeout_s
         anchor = None
@@ -5503,7 +5537,7 @@ class SkillRuntime:
             if width is not None and np.isfinite(width):
                 if width <= target_open + .01:
                     return
-                if anchor is None or abs(width - anchor) > .002:
+                if anchor is None or abs(width - anchor) > band:
                     anchor, stable_since = width, now
                 elif width < .95 and now - stable_since >= .5:
                     return
@@ -6320,7 +6354,7 @@ class SkillRuntime:
                     "suggestion": "check world_state / camera_snapshot; the object may be unreachable or mis-detected",
                 }
                 if park_halt is not None:
-                    out["error"] = _with_also(out["error"], _halted_text("final park", park_halt))
+                    out["error"] = _stop_first(_halted_text("final park", park_halt), out["error"])
                 # The robot did everything it can on its own: the budget is
                 # spent, or the stop reason is one no retry cures (never
                 # seen, too wide). That is STUCK -- a request to the human,
@@ -8762,9 +8796,11 @@ def _halted_text(move: str, halt: str) -> str:
     return f"{move} {halt}" if halt.startswith("halted: ") else f"{move} halted: {halt}"
 
 
-def _with_also(error, also: str) -> str:
-    """A failed result's `error` followed by what also happened."""
-    return f"{error}; {also}" if error else also
+def _stop_first(stop: str, error) -> str:
+    """The operator's stop that also ended a failed skill, then the skill's
+    own `error`: outcome first, as `_reset_release_failed` does, because the
+    agent's FAILED line keeps only the first 240 characters of the error."""
+    return f"{stop}; {error}" if error else stop
 
 
 def _left_in_place(result: dict) -> bool:

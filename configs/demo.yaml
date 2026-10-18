@@ -26,6 +26,19 @@ safety:
   # profile overrides) with thresholds for their MIT loop.
   contact_monitor:
     enabled: false
+  # People guard (src/cascade/safety/people_guard.py): the agent's motion
+  # tools never target, approach or throw at a person. Both settings are in
+  # the TABLE frame (where people stand; the base frame of an arm without a
+  # base_pose, and every arm-frame point is lifted by base_pose first).
+  # visitor_sides: the sides of the table where visitors may stand (forward =
+  # +x, away from the base of a single arm; left = +y); a throw toward one is
+  # refused, because nothing vets where the object lands. Every side until a
+  # rig measures one free of visitors. visitor_zones: boxes where visitors
+  # stand ({name, min: [x,y,z], max: [x,y,z]}), grown by min_clearance_m; the
+  # TCP never enters one (harness) and no call aims into one. None measured yet.
+  people:
+    visitor_sides: [forward, left, right, back]
+    visitor_zones: []
 
 # Occupancy / distance-field map (perception/occupancy.py). ON by default:
 # the harness gains a measured-clearance gate whenever the bridge answers.

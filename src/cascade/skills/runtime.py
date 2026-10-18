@@ -43,6 +43,7 @@ from ..perception.reference import ReferenceResolutionError, parse_reference
 from typing import TYPE_CHECKING, Any, Callable
 
 from ..perception.workspace import WorkspaceFilter
+from ..safety import people_guard
 from ..safety.trajectory import ROUTE_LIFT_HEIGHTS_M
 
 from ..perception.grounding import (
@@ -1783,6 +1784,16 @@ class SkillRuntime:
         return tuple(getattr(harness, "_observation_cancel_generation", None)
                      for harness in self._arm_harnesses())
 
+    def _people_refusal(self, name, args, refusal, trace_context) -> dict:
+        """A call the people guard refused (`people_guard.check_call`): the
+        failure line, its own trace row (filed `safety:people`), returned
+        before any status line, keyframe, retry ledger or command. Nothing
+        moved, so there is no move_home step and no envelope outcome."""
+        result = _with_failure_instruction(_normalize_outcome(people_guard.refusal_result(name, refusal), name))
+        self.trace.record(name, args, result, 0.0, tier=self.current_tier,
+                          context={**trace_context, "people_guard": dict(refusal.evidence)})
+        return result
+
     def _sim_retry_refusal(self, name, args, refusal: dict, trace_context: dict) -> dict:
         """The refusal `begin` returned (the dict `precheck` returns): a used retry
         (RETRY_USED) or a stopped one (the operator stopped the arm after the
@@ -2385,6 +2396,16 @@ class SkillRuntime:
                 profile = next(p for p in profiles if p.get("name") == arm_name)
             if name in profile.get("unsupported_skills", []):
                 return {"ok": False, "error": f"skill {name!r} is unsupported on {profile.get('name', 'this arm')}"}
+            # People guard (safety/people_guard.py): a motion call whose target or
+            # destination is a person, a body part, the person watching, a visitor
+            # side for a throw, a localized person or a visitor zone is refused
+            # here, before any perception, status line, keyframe, retry ledger,
+            # hardware read or command. Deterministic, whatever the agent's brain
+            # decided. (A call this arm cannot run at all was refused just above.)
+            if name in _MOTION_SKILLS:
+                refusal = people_guard.check_call(self, name, args, effective_arm)
+                if refusal is not None:
+                    return self._people_refusal(name, requested_args, refusal, trace_context)
             # The skill starts here: an operator halt raised from now on (while it
             # localizes or plans, between two of its moves) ends it. Every motion
             # the skill body issues carries this halt generation (the harness's
@@ -8048,20 +8069,32 @@ class SkillRuntime:
             top = max(top, max(t for _, t in occluders))
         return top, occluders, neighbours
 
-    def skill_wave(self, cycles: int = 2) -> dict:
-        """Greeting gesture: wag the base + wrist around home. Every
-        waypoint still goes through the safety harness."""
+    def _wave_waypoints(self, cycles=2) -> list[np.ndarray]:
+        """The joint poses `skill_wave` streams, in order: home, the base +
+        wrist wags around it, home. Shared with the people guard, which vets
+        each one's TCP before the first command."""
         home = self._profile_q("home_q", "wave")
-        if not self._move_joints(home, duration_s=2.0):
-            raise SkillError("could not reach home to wave")
         cycles = int(np.clip(cycles, 1, 4))
         wrist = self._gesture_joint
+        out = [home]
         for side in [+1, -1] * cycles:
             q = home.copy()
             q[0] += 0.25 * side
             q[wrist] += 0.30 * side
+            out.append(q)
+        out.append(home)
+        return out
+
+    def skill_wave(self, cycles: int = 2) -> dict:
+        """Greeting gesture: wag the base + wrist around home. Every
+        waypoint still goes through the safety harness."""
+        poses = self._wave_waypoints(cycles)
+        if not self._move_joints(poses[0], duration_s=2.0):
+            raise SkillError("could not reach home to wave")
+        cycles = int(np.clip(cycles, 1, 4))
+        for q in poses[1:-1]:
             self._move_joints(q, duration_s=0.7)
-        self._move_joints(home, duration_s=0.8)
+        self._move_joints(poses[-1], duration_s=0.8)
         self.memory.add("action", "waved at the audience")
         return {"waved": True, "cycles": cycles}
 
@@ -8107,6 +8140,28 @@ class SkillRuntime:
             "note": "holding steady; call open_gripper once the human has it",
         }
 
+    #: base yaw that aims each throw direction (`safety/people_guard.SIDES`)
+    _THROW_YAWS = {"forward": 0.0, "left": np.pi / 2, "right": -np.pi / 2, "back": np.pi}
+
+    def _throw_keyframes(self, direction: str = "forward") -> tuple[np.ndarray, np.ndarray]:
+        """(wind-up, release) joint poses of a throw toward `direction`.
+        Joint-space keyframes keep this reachable on the B601-RS wrist
+        envelope (top-down IK is limited above z~0.15): base yaw (j1) aims
+        the throw; j2/j3 load the swing. Shared with the people guard."""
+        if direction not in self._THROW_YAWS:
+            raise SkillError(f"direction must be one of {sorted(self._THROW_YAWS)}")
+        yaw = self._THROW_YAWS[direction]
+        base = self._profile_q("home_q", "throw")
+        windup = base.copy()
+        windup[0] = yaw                     # aim
+        windup[1] = base[1] - 0.5           # shoulder back/down (loaded)
+        windup[2] = base[2] + 0.4           # elbow tucked
+        release = base.copy()
+        release[0] = yaw                    # same aim
+        release[1] = base[1] + 0.6          # shoulder swings up/forward
+        release[2] = base[2] - 0.3          # elbow extends
+        return windup, release
+
     def skill_throw(self, label: str | None = None, direction: str = "forward") -> dict:
         """Booth crowd-pleaser: grasp the object (if not already held), wind
         the arm up, swing it toward `direction`, and RELEASE at the top of
@@ -8114,14 +8169,12 @@ class SkillRuntime:
         every waypoint (velocity cap, workspace AABB, table clearance), so
         this is a *gestural* throw -- arm swing speed + release timing give
         the toss, never an unsafe joint velocity. Great for "grab the banana
-        and throw it".
+        and throw it". The people guard refuses it toward any side listed in
+        `safety.people.visitor_sides` (every side unless a profile narrows
+        it): nothing vets where the object lands.
         """
-        dirs = {
-            "forward": 0.0, "left": np.pi / 2, "right": -np.pi / 2,
-            "back": np.pi,
-        }
-        if direction not in dirs:
-            raise SkillError(f"direction must be one of {sorted(dirs)}")
+        if direction not in self._THROW_YAWS:
+            raise SkillError(f"direction must be one of {sorted(self._THROW_YAWS)}")
         # 1) make sure we're holding something.
         if not self.held_object:
             if not label:
@@ -8133,21 +8186,9 @@ class SkillRuntime:
                     "error": f"could not grasp {label!r} to throw: {res.get('error')}",
                 }
         thrown = self.held_object
-        yaw = dirs[direction]
 
         # 2) wind-up pose: arm drawn back and low, jaws still closed.
-        #    Joint-space keyframes keep this reachable on the B601-RS wrist
-        #    envelope (top-down IK is limited above z~0.15). base yaw (j1)
-        #    aims the throw; j2/j3 load the swing.
-        base = self._profile_q("home_q", "throw")
-        windup = base.copy()
-        windup[0] = yaw                     # aim
-        windup[1] = base[1] - 0.5           # shoulder back/down (loaded)
-        windup[2] = base[2] + 0.4           # elbow tucked
-        release = base.copy()
-        release[0] = yaw                    # same aim
-        release[1] = base[1] + 0.6          # shoulder swings up/forward
-        release[2] = base[2] - 0.3          # elbow extends
+        windup, release = self._throw_keyframes(direction)
 
         # 3) execute: settle at wind-up, then swing FAST (short duration --
         #    the harness auto-stretches it only if it would breach the cap,
@@ -11217,7 +11258,7 @@ TOOL_SPECS: list[dict] = [
     },
     {
         "name": "throw",
-        "description": "Grab an object (if not already held) and throw it by winding up and releasing at the top of a harness-vetted swing. direction is forward/left/right/back (default forward). Use for 'grab the banana and throw it' / 'launch the X'.",
+        "description": "Grab an object (if not already held) and throw it by winding up and releasing at the top of a harness-vetted swing. direction is forward/left/right/back (default forward). Use for 'grab the banana and throw it' / 'launch the X'. Never at a person: a throw toward a side where visitors may stand is refused (safety.people.visitor_sides, every side unless the rig declares one free of visitors).",
         "parameters": {
             "type": "object",
             "properties": {
@@ -11276,8 +11317,9 @@ TOOL_SPECS: list[dict] = [
         "description": (
             "Move the gripper -- and anything it holds -- a short straight distance, then report "
             "exactly how the request was interpreted. Use for vague nudges. Examples: 'lift it up' "
-            "-> direction=up; 'a bit to the left' -> direction=left, amount=small; 'bring it toward "
-            "me' -> direction=toward_viewer; 'push it away from me' -> direction=away_from_viewer; "
+            "-> direction=up; 'a bit to the left' -> direction=left, amount=small; never toward a "
+            "person: toward_viewer ('bring it toward me') is refused (to give someone an object, use "
+            "handover); 'push it away from me' -> direction=away_from_viewer; "
             "'move it right on the screen' -> direction=right, frame=viewer; 'a bit more' / 'again' "
             "/ 'keep going' -> direction=again (same direction; add amount to change the size); "
             "'3 cm left and 2 cm up' -> vector=[0, 0.03, 0.02]. SIZE: amount tiny=1 cm ('a hair', "
@@ -11328,8 +11370,9 @@ TOOL_SPECS: list[dict] = [
             "more toward a direction (direction=up / down / left / right / forward / back in the "
             "robot frame, or toward_viewer / away_from_viewer / frame=viewer for the screen). "
             "Examples: 'rotate it a bit' -> clockwise, amount=small; 'twist the other way' -> "
-            "counterclockwise; 'tilt it down a little' -> down, amount=small; 'point it toward me' "
-            "-> toward_viewer; 'a bit more' -> direction=again. SIZE: amount tiny=5, small=10, "
+            "counterclockwise; 'tilt it down a little' -> down, amount=small; never at a person: "
+            "toward_viewer ('point it toward me') is refused; 'a bit more' -> direction=again. SIZE: "
+            "amount tiny=5, small=10, "
             "medium=15 (default), large=30 deg; or angle_deg 1-30 (at most 30 deg per call). "
             "SAFETY: obey the rig's configured wrist-camera orientation and clearance limits; "
             "never offer to turn the gripper upside down. Camera volume checks apply only when "
@@ -11364,8 +11407,9 @@ TOOL_SPECS: list[dict] = [
             "over it ('hold it above the green spool' -> label='green spool', relation=above); "
             "just_above: barely over it ('lower it until it's just above the table' -> "
             "label='table', relation=just_above); next_to: beside it ('hold it next to the cup' "
-            "-> next_to; side=left/right/forward/back or toward_viewer/away_from_viewer with "
-            "frame=viewer picks the side, default the side nearest the gripper); closer: move "
+            "-> next_to; side=left/right/forward/back or away_from_viewer with frame=viewer picks "
+            "the side, default the side nearest the gripper; toward_viewer is refused: never toward "
+            "a person); closer: move "
             "toward it ('bring it closer to the box' -> closer, amount/distance_m as in "
             "move_relative; it stops before touching). Heights use the target's measured top; "
             "when holding something, the held object's bottom (not the gripper) is kept "

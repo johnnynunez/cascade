@@ -37,7 +37,7 @@ does not invent numbers or frames.
 | "lift it up" | `move_relative(direction="up")` (5 cm) |
 | "a bit to the left" | `move_relative(direction="left", amount="small")` (2 cm, the ROBOT's left) |
 | "move it right on the screen" / "to my right" | `move_relative(direction="right", frame="viewer")` |
-| "bring it toward me" | `move_relative(direction="toward_viewer")` |
+| "bring it toward me" | refused: the people guard never moves toward a person (`toward_viewer`); to give someone an object, `handover` |
 | "a bit more", "again", "keep going" | `move_relative(direction="again", amount="small")` |
 | "3 cm left and 2 cm up" | `move_relative(vector=[0, 0.03, 0.02])` |
 | "push it in a little" (along the jaws) | `move_relative(direction="in", amount="small")` |

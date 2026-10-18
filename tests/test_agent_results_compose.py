@@ -26,6 +26,7 @@ import numpy as np
 import pytest
 from conftest import needs_pin
 from owned_server import held_dead_port
+from people_sides import no_visitor_side
 
 from cascade.agent.effects import UNVERIFIED
 from cascade.grasping import observed_scene
@@ -189,6 +190,7 @@ ARGS = {
 @pytest.mark.parametrize("skill", ["grasp_object", "pick_and_place", "handover", "throw"])
 def test_a_slow_perception_refusal_says_failed_once_and_asks_no_move_home(mock_runtime, monkeypatch, skill):
     runtime, arm = mock_runtime
+    no_visitor_side(runtime)     # throw: its own mechanics (people_sides.py)
     _seen(runtime)
     _slow_perception(monkeypatch)
     n0 = len(arm.commands)
@@ -420,6 +422,7 @@ def test_the_persistence_loop_asks_for_move_home_only_after_a_counted_motion(moc
 @pytest.mark.parametrize("skill", sorted(COMPOSITES) + ["grasp_object", "throw"])
 def test_a_grasp_that_moved_the_arm_asks_for_move_home_once_with_the_gate_on(mock_runtime, monkeypatch, skill):
     runtime, arm = mock_runtime
+    no_visitor_side(runtime)     # throw: its own mechanics (people_sides.py)
     result = _run_composite(runtime, monkeypatch, skill, "moved") if skill in COMPOSITES else None
     if result is None:
         _seen(runtime)

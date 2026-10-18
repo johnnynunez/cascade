@@ -7,7 +7,10 @@ Checks, in order (cheapest first):
 4. workspace AABB on the TCP (FK);
 5. table-plane clearance for TCP and intermediate joint origins, with a
    grasp-exemption cylinder so the tool may descend onto the active target;
-6. optional keep-out AABBs (e.g. the camera tripod).
+6. optional keep-out AABBs (e.g. the camera tripod);
+7. visitor zones (`safety.people.visitor_zones`, grown by min_clearance_m):
+   the TCP never enters where visitors stand (safety/people_guard.py). The
+   zones are table-frame boxes: the TCP is lifted by `base_pose` first.
 
 The arm SDK enforces none of this (joint limits only inside its IK), so this
 layer is the difference between "the LLM suggested a pose" and "the arm is
@@ -38,6 +41,7 @@ from typing import NamedTuple
 import numpy as np
 
 from ..types import ContactDetected, MotionHalted, SafetyViolation
+from . import people_guard
 from .contact import ContactMonitor, ContactMonitorConfig, format_summary
 
 
@@ -87,11 +91,17 @@ class SafetyLimits:
     #: cascade/safety/contact.py and docs/CONTACT_STOP.md): None or disabled
     #: = no feedback is read mid-stream.
     contact: ContactMonitorConfig | None = None
+    #: `safety.people` (safety/people_guard.py): the sides of the table where
+    #: visitors may stand (every side unless a profile narrows it) and the
+    #: visitor zones, grown by min_clearance_m. The tool layer refuses calls
+    #: aimed at them; approve()/vet_pose() refuse a TCP inside a zone.
+    people: people_guard.PeopleSettings = field(default_factory=people_guard.PeopleSettings)
 
     @classmethod
     def from_config(cls, cfg) -> "SafetyLimits":
         ws = cfg.workspace
         radii = cfg.get("link_radii_m")
+        min_clearance = float(cfg.get("min_clearance_m", 0.03))
         return cls(
             workspace_min=np.asarray(ws.min, dtype=float),
             workspace_max=np.asarray(ws.max, dtype=float),
@@ -104,12 +114,24 @@ class SafetyLimits:
                 (np.asarray(k["min"], dtype=float), np.asarray(k["max"], dtype=float))
                 for k in cfg.get("keep_out", [])
             ],
-            min_clearance_m=float(cfg.get("min_clearance_m", 0.03)),
+            min_clearance_m=min_clearance,
             neighbor_clearance_m=float(cfg.get("neighbor_clearance_m", 0.10)),
             link_radii_m=None if radii is None else tuple(float(r) for r in radii),
             **_wrist_camera_up(cfg.get("wrist_camera_up")),
             contact=ContactMonitorConfig.from_config(cfg.get("contact_monitor")),
+            people=people_guard.parse(cfg.get("people"), min_clearance),
         )
+
+
+def _visitor_zone_violation(tcp, people) -> str | None:
+    """Why a TCP at `tcp` (TABLE frame: zones are where people stand around
+    the table) is refused by a visitor zone (already grown by the clearance
+    margin when parsed), or None. No zone configured: None."""
+    for zone in getattr(people, "zones", ()):
+        if zone.contains(tcp):
+            return (f"TCP {np.round(tcp, 3).tolist()} inside visitor zone {zone.name!r} (people keep-out, "
+                    f"safety.people.visitor_zones grown by {people.margin_m:.3f} m)")
+    return None
 
 
 def _wrist_camera_up(block) -> dict:
@@ -1178,6 +1200,10 @@ class SafetyHarness:
             if np.all(tcp >= kmin) and np.all(tcp <= kmax):
                 reject(f"TCP inside keep-out zone {kmin.tolist()}..{kmax.tolist()}")
 
+        reason = self._visitor_zone_reason(tcp)
+        if reason is not None:
+            reject(reason)
+
         if self._contact_zones:
             reason = self._contact_zone_violation(
                 tcp, self.kin.fk(np.asarray(q_prev, dtype=float))[:3, 3])
@@ -1305,6 +1331,10 @@ class SafetyHarness:
             if np.all(tcp >= kmin) and np.all(tcp <= kmax):
                 return f"TCP inside keep-out zone {kmin.tolist()}..{kmax.tolist()}"
 
+        reason = self._visitor_zone_reason(tcp)
+        if reason is not None:
+            return reason
+
         if self._contact_zones:
             reason = self._contact_zone_violation(tcp)
             if reason is not None:
@@ -1370,6 +1400,14 @@ class SafetyHarness:
         from ..types import transform_points
 
         return transform_points(self.base_pose, points)
+
+    def _visitor_zone_reason(self, tcp) -> str | None:
+        """Visitor zones are TABLE-frame boxes (`safety.people`): the
+        base-frame TCP is lifted by this arm's base_pose first (none: the
+        frames coincide and nothing is transformed)."""
+        if not self.limits.people.zones:
+            return None
+        return _visitor_zone_violation(self._to_map_frame(np.asarray(tcp, dtype=float)), self.limits.people)
 
     def _to_base_frame(self, points: np.ndarray) -> np.ndarray:
         """Map-frame points (or voxels) in this arm's base frame."""

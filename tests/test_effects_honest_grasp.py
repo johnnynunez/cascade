@@ -27,6 +27,7 @@ import pytest
 
 from conftest import needs_pin
 from owned_server import held_dead_port
+from people_sides import no_visitor_side
 
 from cascade.agent.effects import (
     CONFIRMED,
@@ -506,6 +507,7 @@ def test_handover_that_keeps_holding_is_not_a_release(mock_runtime):
 
 def test_throw_refused_before_motion_is_not_a_throw(mock_runtime, monkeypatch):
     runtime, arm = mock_runtime
+    no_visitor_side(runtime)     # the throw's own mechanics (people_sides.py)
     _seen(runtime)
     _slow_perception(monkeypatch)
     n0 = len(arm.commands)
@@ -524,6 +526,7 @@ def test_throw_refused_mid_swing_keeps_the_object_and_says_so(mock_runtime):
     """On the mock the swing leaves the workspace and the harness stops it
     before the release: the object is still in the jaws."""
     runtime, arm = mock_runtime
+    no_visitor_side(runtime)
     _hold(runtime, arm)
     n0 = len(arm.commands)
 
@@ -545,6 +548,7 @@ def test_throw_that_releases_is_judged_by_the_object(mock_runtime, monkeypatch):
     pose dips under the table clearance, so the swing itself is stubbed; the
     release is the real gripper command."""
     runtime, arm = mock_runtime
+    no_visitor_side(runtime)
     _hold(runtime, arm)
     monkeypatch.setattr(runtime, "_move_joints", lambda *_a, **_k: True)
 

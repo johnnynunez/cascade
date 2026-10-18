@@ -78,15 +78,16 @@ def test_bare_left_is_the_robots_left_and_the_result_says_so(rig):
 
 
 @needs_pin
-def test_toward_the_viewer_uses_the_scene_camera(rig):
-    """Mock camera: image up = base +x, so 'toward the viewer' (down on the
-    screen) is base -x."""
+def test_away_from_the_viewer_uses_the_scene_camera(rig):
+    """Mock camera: image up = base +x, so 'away from the viewer' (up on the
+    screen) is base +x. ('toward the viewer' moves toward the person watching:
+    the people guard refuses it, tests/test_people_guard_runtime.py.)"""
     runtime, _ = rig
     start = _tcp(runtime)[:3, 3]
-    r = runtime.execute("move_relative", {"direction": "toward_viewer", "distance_m": 0.03})
+    r = runtime.execute("move_relative", {"direction": "away_from_viewer", "distance_m": 0.03})
     assert r["ok"], r
     assert r["frame"] == "viewer" and r["camera"] == "mock"
-    np.testing.assert_allclose(_tcp(runtime)[:3, 3] - start, [-0.03, 0.0, 0.0], atol=2e-3)
+    np.testing.assert_allclose(_tcp(runtime)[:3, 3] - start, [0.03, 0.0, 0.0], atol=2e-3)
 
 
 @needs_pin
@@ -690,7 +691,7 @@ def test_an_invalidated_scene_camera_disables_only_the_viewer_frame(rig):
     runtime, arm = rig
     runtime.extrinsics.invalidate("extrinsic drift: camera moved 3 cm")
     n0 = len(arm.commands)
-    r = runtime.execute("move_relative", {"direction": "toward_viewer", "amount": "small"})
+    r = runtime.execute("move_relative", {"direction": "away_from_viewer", "amount": "small"})
     assert r["ok"] is False and "viewer frame unavailable" in r["error"] and "frame='base'" in r["error"]
     assert len(arm.commands) == n0
     ok = runtime.execute("move_relative", {"direction": "left", "amount": "small"})

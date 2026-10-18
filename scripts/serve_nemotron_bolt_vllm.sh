@@ -32,16 +32,15 @@
 #
 # Knobs: HOST (127.0.0.1), PORT (8080), API_KEY_FILE, GPU_UTIL (0.45), CTX (65536),
 # MAX_SEQS (4), SPEC=none|dflash (none), NSPEC (7), SERVED_NAME (nemotron-3.5-bolt),
-# PREFIX_MATCH (64; 0 = vLLM's own choice), KV_DTYPE=fp8|nvfp4 (fp8), MEM_FLOOR_GB (3),
+# PREFIX_MATCH (64; 0 = vLLM's own choice), KV_DTYPE=nvfp4|fp8 (nvfp4), MEM_FLOOR_GB (3),
 # CACHE_DIR, HF_HUB_CACHE, CONTAINER, EXTRA_ARGS.
 #
-# KV cache: FP8 by default; KV_DTYPE=nvfp4 is supported. The pinned nightly 77154ca6 carries
-# vLLM #46963 (NVFP4 KV on SM12x through FlashInfer) and #60452 (XQA decode of it on SM12x),
-# and Bolt's attention layers (head size 128, 2 KV heads) qualify. On an RTX PRO 6000
-# (docs/evidence/brain-kv-nvfp4-2026-10-19), NVFP4 gave 28% more KV tokens, but capacity
-# was never the limit (26x a 64k request at GPU_UTIL 0.45). It cost 20% on a 54k-token
-# prefill and 1.4% decode, and scored GSM8K the same: so FP8 stays the default. The Mamba
-# state stays BF16 (--mamba-*-cache-dtype).
+# KV cache: NVFP4 by default (KV_DTYPE=fp8 is the cache this route served before). The
+# pinned nightly 77154ca6 carries vLLM #46963 (NVFP4 KV on SM12x through FlashInfer) and
+# #60452 (XQA decode of it on SM12x); Bolt's attention layers (head size 128, 2 KV heads)
+# qualify. Measured against FP8 on an RTX PRO 6000 (docs/evidence/brain-kv-nvfp4-2026-10-19):
+# 28% more KV tokens, the same GSM8K, 1.4% slower decode, 20% slower 54k-token prefill. The
+# Mamba state stays BF16 (--mamba-*-cache-dtype).
 #
 # Pinned: the vendor image by digest (vLLM 0.32.0rc1 nightly 77154ca6), b12x by
 # wheel hash (baked into a local image by --setup-only, so serving needs no
@@ -88,7 +87,7 @@ SPEC="${SPEC:-none}"
 NSPEC="${NSPEC:-7}"
 SERVED_NAME="${SERVED_NAME:-nemotron-3.5-bolt}"
 PREFIX_MATCH="${PREFIX_MATCH:-64}"
-KV_DTYPE="${KV_DTYPE:-fp8}"
+KV_DTYPE="${KV_DTYPE:-nvfp4}"
 MEM_FLOOR_GB="${MEM_FLOOR_GB:-3}"
 CACHE_DIR="${CACHE_DIR:-$HOME/.cache/cascade/nemotron-bolt}"
 HF_HUB_CACHE="${HF_HUB_CACHE:-${HF_HOME:-$HOME/.cache/huggingface}/hub}"
@@ -119,7 +118,7 @@ for arg in "$@"; do
 done
 
 case "$SPEC" in none|dflash) ;; *) die "SPEC must be none|dflash (got '$SPEC')" 2 ;; esac
-case "$KV_DTYPE" in fp8|nvfp4) ;; *) die "KV_DTYPE must be fp8|nvfp4 (got '$KV_DTYPE')" 2 ;; esac
+case "$KV_DTYPE" in nvfp4|fp8) ;; *) die "KV_DTYPE must be nvfp4|fp8 (got '$KV_DTYPE')" 2 ;; esac
 [[ "$SERVED_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]*$ ]] || die "SERVED_NAME must be a bare id (no '/'): $SERVED_NAME" 2
 [[ "$PORT" =~ ^[0-9]{1,5}$ ]] && (( PORT >= 1 && PORT <= 65535 )) || die "PORT must be a TCP port (got '$PORT')" 2
 for knob in CTX MAX_SEQS NSPEC PREFIX_MATCH MEM_FLOOR_GB; do

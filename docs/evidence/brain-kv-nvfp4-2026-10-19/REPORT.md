@@ -1,15 +1,16 @@
 # NVFP4 KV cache (vLLM 0.32.0) on CASCADE's two vLLM brains (2026-10-19)
 
 **Result.** vLLM 0.32.0 serves an NVFP4 KV cache on SM12x. It loads, decodes through XQA, and scores the same on
-GSM8K, a 54k-token passkey test and a tool-choice probe. For our two brains it gives nothing they need, and costs
-prefill time:
+GSM8K, a 54k-token passkey test and a tool-choice probe. On Qwen it costs on every axis; on Bolt it buys capacity
+the route did not lack, at a prefill cost:
 
 - **Qwen3.8-27B (hybrid, Gated DeltaNet):** fewer KV tokens than BF16 (−11%). Prefix-cache blocks are 7× coarser,
   long-prompt prefill is 32% slower, and decode is 7% slower than the vLLM 0.31.0 we serve. The default stays
   vLLM 0.31.0 with a BF16 cache.
-- **Nemotron 3.5 Bolt, vLLM route (hybrid, Mamba-2):** 28% more KV tokens, but the FP8 cache already holds 26× a
-  64k request. Long-prompt prefill is 20% slower and decode 1.4% slower. FP8 stays the default; `KV_DTYPE=nvfp4`
-  is now a supported knob of `scripts/serve_nemotron_bolt_vllm.sh`.
+- **Nemotron 3.5 Bolt, vLLM route (hybrid, Mamba-2):** 28% more KV tokens, though the FP8 cache already held 26× a
+  64k request. Long-prompt prefill is 20% slower and decode 1.4% slower. Johnny chose NVFP4 as the default:
+  `scripts/serve_nemotron_bolt_vllm.sh` now serves `KV_DTYPE=nvfp4`, and `KV_DTYPE=fp8` restores the previous
+  cache.
 
 **Why the capacity does not grow on Qwen.** With prefix caching, vLLM's hybrid allocator sizes every page to hold
 one Mamba state (`Setting attention block size to N tokens to ensure that attention page size is >= mamba page
@@ -51,7 +52,7 @@ robot.
 
 ## Nemotron 3.5 Bolt, vLLM route
 
-| | E: FP8 (shipped) | F: NVFP4 |
+| | E: FP8 (before) | F: NVFP4 (default now) |
 |---|---|---|
 | GPU KV cache size (tokens), concurrency of 64k | 1,737,761, 26.5× | **2,230,954, 34.0×** |
 | kv cache groups / lcm (tokens) | 4224 ×6 / 4224 | 7552 ×6 / 7552 |

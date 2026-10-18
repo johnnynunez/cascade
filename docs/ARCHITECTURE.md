@@ -334,6 +334,22 @@ cascade's own rule; upstream ASPIRE v0.1 counts occurrences in any task, v1.0
 promotes on a blind verifier's verdict; `memory.skill_min_tasks: 1` relaxes it). Details:
 [retry evidence admission](DREAM_RSI_ADAPTATION.md).
 
+**Learned notes on the kitchen route.** A runtime reads its note library once
+(`skills/notes.py`; the kitchen reads `${CASCADE_ASPIRE_LIBRARY:-~/.cascade/aspire/sim/library}`)
+and records its `library_sha` and `block_sha` (the rendered prompt block's sha256) in
+`run.json` beside `trace.jsonl`. A Spark launch first freezes the library: it copies the
+note files into `<launch state>/aspire-library` and points `CASCADE_ASPIRE_LIBRARY` there,
+so every robot server of the launch and `LEARNED.md` read the same bytes (a failed copy
+points it at the one empty `<launch state>/aspire-library-off`: notes off, one warning
+line). Then
+`skills/learned_block.py` writes `LEARNED.md` into the kitchen workspace: one header
+line with both shas, then the top-2 note block (at most 2000 bytes). The kitchen prompt
+plugin injects it right after `AGENTS.md`, only when the block hashes to the header's
+`block_sha`; no `AGENTS.md` is edited. After the proof the
+launcher still compares it with the proof robot server's `run.json` and removes it on any
+difference (a warning line). `robot_knowledge`, the seventh attendee tool, lists every
+served note.
+
 **Memory embedder (opt-in).** `memory.embedder.backend` is `none` in the shipped
 profile. `hash` is deterministic and dependency-free (separate image and text
 spaces; notes match at cosine ≥ `text_floor` OR a guard-word overlap). `siglip` /

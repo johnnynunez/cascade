@@ -879,6 +879,15 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
         kin, safe_arm, memory, beliefs, trace, cfg,
     )
     runtime.rig = rig
+    # ASPIRE (spec §4.5): the sim-only retry ledger. None on every real or unknown
+    # profile and whenever a switch is off or its config is bad (`ledger_for`
+    # fails closed). Config only: no arm is touched.
+    from ..agent.sim_retry import ledger_for
+
+    runtime.sim_retry = ledger_for(cfg)
+    # ASPIRE (spec §4.2): the note library is read ONCE, here; run.json records
+    # it and every trace row carries its sha. Config only: no arm is touched.
+    _stamp_run(runtime, trace, cfg)
     _wire_held_payload(runtime)
     runtime._kitchen_camera_renderer = kitchen_renderer
     # Where to persist the world model on shutdown (None = disabled).
@@ -1080,6 +1089,62 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
 
     print(f"[cascade] capabilities: {format_matrix(capability_matrix(runtime))}")
     return runtime, arm
+
+
+#: run.json `purpose` values (preflight R18), from CASCADE_RUN_PURPOSE: the
+#: verifier and acceptance stacks set theirs; harvest and grading count only
+#: "live" runs, so a stack's own runs never teach the library.
+RUN_PURPOSES = ("live", "verify", "acceptance")
+
+
+def _run_purpose() -> str:
+    """CASCADE_RUN_PURPOSE, case and surrounding space aside: unset or empty is
+    "live"; any value outside RUN_PURPOSES is "unknown" (never "live")."""
+    raw = os.environ.get("CASCADE_RUN_PURPOSE", "")
+    value = raw.strip().lower()
+    if not value:
+        return "live"
+    if value in RUN_PURPOSES:
+        return value
+    logger.warning("CASCADE_RUN_PURPOSE=%r is none of %s: this run records purpose \"unknown\"",
+                   raw, "/".join(RUN_PURPOSES))
+    return "unknown"
+
+
+def _stamp_run(runtime, trace, cfg) -> None:
+    """Take the runtime's one note-library snapshot (`runtime.learned`) and
+    record the run in `run.json` (spec §4.2, preflight R18/R23); later trace rows
+    carry its `library_sha`. `sim_retry` says whether the runtime built a retry
+    ledger (`runtime.sim_retry`, set before this call). `library_root` is the
+    resolved path (symlinks and `..` resolved); `skipped` counts the skipped
+    note files and lists the first
+    `notes.SKIPPED_RECORDED` by id and reason. Never fails the build: a library
+    that cannot be read is served as empty (`notes.config_snapshot`;
+    `library_error` says why), and a run.json that cannot be written leaves the
+    rows unstamped and serves no note, since a served note must be on record."""
+    import dataclasses
+    from datetime import datetime, timezone
+
+    from .. import sim_profile
+    from ..skills import notes
+
+    snapshot = notes.config_snapshot(cfg, sim_profile.profile_class(cfg))
+    try:
+        meta = {"schema": 1, **snapshot.manifest(),
+                "library_root": None if snapshot.root is None else str(snapshot.root.resolve()),
+                "library_error": snapshot.error,
+                "skipped": {"count": len(snapshot.skipped),
+                            "first": [dict(entry) for entry in snapshot.skipped[:notes.SKIPPED_RECORDED]]},
+                "arm_types": sim_profile.arm_types(cfg),
+                # the ledger this runtime HAS (A7): never true while none exists
+                "sim_retry": getattr(runtime, "sim_retry", None) is not None, "purpose": _run_purpose(),
+                "started": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+        trace.stamp(meta)
+    except Exception as e:  # noqa: BLE001 -- the run record never stops a robot
+        logger.warning("ASPIRE notes: run manifest %s not written (%s: %s); serving no note this session",
+                       trace.run_dir / "run.json", type(e).__name__, e)
+        snapshot = dataclasses.replace(snapshot, served=())
+    runtime.learned = snapshot
 
 
 def _probe_grasp_backend(runtime) -> None:
@@ -2159,16 +2224,16 @@ def _run_demo(args, cfg, runtime, mobile):
     # ASPIRE: validated repairs distilled from earlier runs, retrieved into
     # context at task start. This is the loop the ROADMAP listed as open --
     # `scripts/learn_from_runs.py` writes the entries, the agent reads them.
-    from ..skills.library import PROMOTION_MIN_TASKS, SkillLibrary
+    # The CLI reads them through the run's snapshot (spec §4.2): exactly the notes
+    # `runtime.learned` serves (lint-clean, never refuted, the cross-task gate of
+    # `memory.skill_min_tasks`), from the bytes it hashed, and only as the prompt
+    # block renders them (title, advice, tag; never a note's body); the directory
+    # is never created here.
+    from ..skills import notes
+    from ..skills.library import PROMOTION_MIN_TASKS
 
-    # Cross-task gate (cascade's own rule): a distilled note reaches the agent
-    # only after it recurred in >= `memory.skill_min_tasks` distinct tasks
-    # (default 2). 1 is the explicit single-observation mode; nothing lowers
-    # it silently.
-    library = None if mobile else SkillLibrary(
-        Path(cfg.memory.get("skill_library_path", PACKAGE_ROOT / "skills_library")).expanduser(),
-        min_tasks=int(cfg.memory.get("skill_min_tasks", PROMOTION_MIN_TASKS)),
-    )
+    library = None if mobile else notes.served_library(
+        getattr(runtime, "learned", None), cfg.memory.get("skill_min_tasks", PROMOTION_MIN_TASKS))
     agent = AgentOrchestrator(
         llm, runtime, advisor=advisor, max_steps=args.max_steps,
         decompose=not is_mock,

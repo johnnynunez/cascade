@@ -332,6 +332,12 @@ _PROGRAM_TOOLS = frozenset({"list_programs", "run_program"})
 #: e-stop like any `_MOTION_SKILLS` call
 _PROGRAM_MOTION_TOOLS = frozenset({"run_program"})
 
+#: appended to `robot_knowledge`'s description on a sim-class profile only
+#: (`sim_profile.profile_class`, ASPIRE spec §4.3): a real robot's tool catalogue
+#: stays main's, byte for byte, until verified notes are served there
+_LEARNED_NOTES_SENTENCE = (" It also lists learned notes with where they were learned and whether a "
+                           "verifier passed them.")
+
 #: B46 (opt-in): the tools the read-only lane may answer WHILE a motion runs
 #: on the worker. Each is a server-side read that never enters
 #: `SkillRuntime.execute()` (no trace row, memory event, envelope record,
@@ -1193,6 +1199,7 @@ class McpSkillServer:
 
             candidates = tool_specs_for_profiles(self._get_mobile_config().bases)
         else:
+            from .. import sim_profile
             from ..skills.runtime import tool_specs_for_config
 
             extras = (_EXTRA_TOOLS if self._programs_on()
@@ -1204,6 +1211,9 @@ class McpSkillServer:
                     "Requires current command completion and native controller readiness. "
                     "STOP interrupts return; failure relatches STOP. Does not recover hardware faults or enable FCI."
                 )) if t["name"] == "reset_stop" else t for t in extras]
+            if sim_profile.profile_class(cfg) == "sim":
+                extras = [dict(t, description=t["description"] + _LEARNED_NOTES_SENTENCE)
+                          if t["name"] == "robot_knowledge" else t for t in extras]
             candidates = tool_specs_for_config(cfg) + extras
         # three independent filters: loop-internal, operator override, and
         # what the probed rig cannot do (empty until the runtime is built).
@@ -1475,6 +1485,32 @@ class McpSkillServer:
             out["grasp_priors"] = runtime.grasp_memory.agent_digest() or "(no grasp history)"
         except Exception:
             pass
+        out.update(self._learned_notes(runtime))
+        return out
+
+    @staticmethod
+    def _learned_notes(runtime) -> dict:
+        """The ASPIRE note keys of `robot_knowledge` (spec §4.3), all from the
+        runtime's build-time snapshot: `learned_notes` (the served notes with their
+        tags, at most 10 listed) and `library_sha` when a note is served, plus
+        `skipped_notes` (the note files the lint refused, counted per rule and never
+        named; older harvested notes one count) when there are any. A sim
+        profile also lists skipped files when nothing is served; any other profile
+        adds nothing until a verified note is served. Nothing to show -> {}: the
+        payload stays main's, byte for byte."""
+        from ..skills.notes import LibrarySnapshot
+
+        snap = getattr(runtime, "learned", None)
+        if not isinstance(snap, LibrarySnapshot):
+            return {}
+        if not (snap.served or (snap.skipped and snap.profile_class == "sim")):
+            return {}
+        out: dict = {}
+        if snap.served:
+            out["learned_notes"] = snap.knowledge()
+        out["library_sha"] = snap.sha
+        if snap.skipped:
+            out["skipped_notes"] = snap.skipped_listing()
         return out
 
     def _task_memory(self, runtime, arguments: dict) -> dict:

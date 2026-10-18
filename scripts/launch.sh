@@ -898,6 +898,39 @@ if [[ "$SIM" == "mujoco" && "$(uname -s)" == "Darwin" && -x "$(dirname "$PY")/mj
     MCP_PY="$(dirname "$PY")/mjpython"
     log "macOS + mujoco: MCP server runs under mjpython so the viewer can open"
 fi
+# ASPIRE learned notes, one library per launch (spec §4.3): copy the note files the
+# robot server would read (A1 reader rules) into $STATE_DIR/aspire-library and point
+# CASCADE_ASPIRE_LIBRARY at that copy before the server environment below is built, so
+# every robot server of this launch and LEARNED.md read the same bytes whatever the
+# library does meanwhile. Never stops the launch (preflight R26): a failed freeze warns
+# and points every reader at the empty $STATE_DIR/aspire-library-off (notes off).
+freeze_note_library() {
+    local frozen="$STATE_DIR/aspire-library" off="$STATE_DIR/aspire-library-off" out=""
+    if [[ $DRY == 1 ]]; then
+        printf '        $ %s\n' "python -m cascade.skills.learned_block --freeze $frozen"
+        return 0
+    fi
+    # One notes-off directory, reused: the one an earlier failed freeze left (and any
+    # aspire-library-off.* fallback) goes first, so a launch leaves at most one behind.
+    rm -rf -- "$off" "$off".* 2>/dev/null || true
+    if out="$(cd "$REPO/models" && CASCADE_ARM="$ARM" CASCADE_CAMERAS="$CAMERAS" \
+            PYTHONPATH="$REPO/src${PYTHONPATH:+:$PYTHONPATH}" \
+            "$PY" -m cascade.skills.learned_block --freeze "$frozen" 2>&1)"; then
+        log "learned notes: $out"
+    else
+        # always a new empty directory: one that could not be emptied is never exported
+        if mkdir -m 700 -- "$off" 2>/dev/null; then
+            frozen="$off"
+        else
+            frozen="$(mktemp -d "$off.XXXXXX")" || frozen="$off"
+        fi
+        warn "learned notes: ${out:-the note library freeze did not report}; notes off for this launch: every robot server reads the empty library $frozen"
+    fi
+    export CASCADE_ASPIRE_LIBRARY="$frozen"
+}
+if [[ "${CASCADE_INSTALL_PROFILE:-}" == spark ]]; then
+    freeze_note_library
+fi
 MCP_JSON="$("$PY" - "$MCP_PY" "$REPO" "$CAMERAS" "$ARM" "$CLASSES" "$SIM" "$STATE_DIR" "$LAUNCH_OWNER" "$ISAAC_GUI" "$OCCUPANCY" <<'PYEOF'
 import json, os, sys
 from cascade.apps.mcp_env import forwarded_env
@@ -999,6 +1032,32 @@ judge_pass() {
         log "judge: $JUDGE_NOTE"
     fi
     # <<< judge pass
+}
+
+# ASPIRE learned notes on the kitchen route (spec §4.3): write <workspace>/LEARNED.md
+# from the note library the robot server reads (same arm, cameras and environment),
+# or with --check-run compare it with the run.json of the robot server the proof
+# bound. Never stops the launch (preflight R26): on any failure warn, remove only a
+# LEARNED.md this generator wrote, and go on with the kitchen prompt notes off.
+learned_notes() {
+    local workspace="$1" out="" first=""
+    shift
+    if [[ $DRY == 1 ]]; then
+        printf '        $ %s\n' "python -m cascade.skills.learned_block --workspace $workspace $*"
+        return 0
+    fi
+    if out="$(cd "$REPO/models" && CASCADE_ARM="$ARM" CASCADE_CAMERAS="$CAMERAS" \
+            PYTHONPATH="$REPO/src${PYTHONPATH:+:$PYTHONPATH}" \
+            "$PY" -m cascade.skills.learned_block --workspace "$workspace" "$@" 2>&1)"; then
+        log "learned notes: $out"
+        return 0
+    fi
+    warn "learned notes: ${out:-the generator did not report}; the kitchen prompt runs without learned notes"
+    if [[ -f "$workspace/LEARNED.md" && ! -L "$workspace/LEARNED.md" ]]; then
+        first="$(head -c 30 "$workspace/LEARNED.md" 2>/dev/null || true)"
+        if [[ "$first" == "<!-- cascade-learned-notes v1 " ]]; then rm -f "$workspace/LEARNED.md"; fi
+    fi
+    return 0
 }
 
 # On Linux the agent lives in an OpenShell sandbox: steps 4-6 of that route
@@ -1226,6 +1285,10 @@ sys.path.insert(0, str(Path(sys.argv[1]) / 'demo/kitchen'))
 from visitor_instructions import sync_visitor_instructions
 sync_visitor_instructions(Path(sys.argv[2]))
 PYEOF
+        # The learned-notes block the kitchen plugin injects right after AGENTS.md
+        # (never an AGENTS.md edit); checked against the proof's robot server below.
+        LEARNED_WORKSPACE="$PROFILE_WORKSPACE"
+        learned_notes "$PROFILE_WORKSPACE"
     fi
 fi
 
@@ -1292,6 +1355,16 @@ print(len(tools), int(need <= set(tools)))
     PROOF_VERIFIED="$(printf '%s' "$PROOF_JSON" | "$PY" -c 'import json,sys; print(int(json.load(sys.stdin)["verified"]))')"
     PROOF_TRACE="$(printf '%s' "$PROOF_JSON" | "$PY" -c 'import json,sys; print(json.load(sys.stdin).get("trace", ""))')"
     BRAIN_DESC="$(printf '%s' "$PROOF_JSON" | "$PY" -c 'import json,sys; print(json.load(sys.stdin)["model"])')"
+    # The proof bound the robot server visitors talk to: its run.json must record
+    # the library and block LEARNED.md renders, else the file goes (a visible warning).
+    # An assertion: the frozen library already gives every server the same bytes.
+    if [[ -n "${LEARNED_WORKSPACE:-}" ]]; then
+        if [[ -n "${PROOF_TRACE:-}" ]]; then
+            learned_notes "$LEARNED_WORKSPACE" --check-run "$(dirname "$PROOF_TRACE")"
+        elif [[ -f "$LEARNED_WORKSPACE/LEARNED.md" ]]; then
+            log "learned notes: no robot proof to check $LEARNED_WORKSPACE/LEARNED.md against; every robot server of this launch reads the frozen library ${CASCADE_ASPIRE_LIBRARY:-(none)}"
+        fi
+    fi
 
     # Judge as a METRIC of the proof turn (opt-in, advisory; ROADMAP #6).
     # scripts/judge_proof.py reads proof.json (never writes it), runs

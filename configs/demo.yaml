@@ -486,6 +486,15 @@ agent:
   # keyword overlap. false = the pre-tier CLI and MCP server exactly.
   programs: false
   program_min_tasks: 2
+  # ASPIRE sim retry (docs/superpowers/specs/2026-10-17-aspire-demo-design.md
+  # §4.5). SIMULATION ONLY: after a refused pick_and_place / grasp_object the
+  # agent may repeat that call ONCE; the repeat homes the arm first and never
+  # reuses a refused grasp. A runtime builds the retry ledger only when every arm
+  # type is isaac / mujoco / mock, the booth is off, CASCADE_SIM_RETRY is not 0
+  # and CASCADE_OBSERVED_FINGER_GATE=1: a real profile never gets it, whatever
+  # this says. Optional: sim_retry_window_s (>= 360) and sim_retry_reserve_s
+  # (< 300). The kitchen profile (configs/arms/isaac_kitchen.yaml) turns it on.
+  sim_retry: false
 
 # Always-on perception: every rig camera feeds the belief store continuously
 # so commands resolve against an already-warm world model.

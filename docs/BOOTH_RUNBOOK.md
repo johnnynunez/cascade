@@ -167,7 +167,8 @@ move on, win or lose (exit lines in §8). One `pick_and_place` per group, ever.
    restores SIM props, opens closed empty jaws, clears the world model and task-memory frames
    and takes one fresh observation. In SIM a held object is released at home. On the real rig
    (the reBot) it refuses before any motion while the jaws hold something, also an object
-   they stalled on when a STOP interrupted the grasp: place it first (`place_at`). Jaws that
+   they stalled on when a STOP interrupted the grasp: place it first (`place_at`; while the
+   approach column is kept after a STOP at the object, `move_home` first, see §8.3). Jaws that
    closed on air after such a STOP (the rigid close stops at 85 % of travel, 15 % open) hold
    nothing: the reset runs and opens them at home. After such a STOP it also refuses when the
    jaws cannot be read: if the object is in the jaws, take it out by hand, then
@@ -197,7 +198,9 @@ to the morning baseline after a bad streak (restart the server to load the resto
    (reBot):** the first motion call after the stop must be `move_home` or `reset the scene`, within
    5 min: it raises the gripper straight up its approach column first. `open the gripper` or a
    relative move first gives that column up and the arm stays frozen (jog it by hand). Object
-   still in the jaws: `move_home`, then place it (the reset refuses while holding). The launcher
+   still in the jaws: `move_home` (the reset refuses and says so), then `place_at`, then
+   `reset the scene`. If `move_home` reports `holding_unknown` (the jaws could not be read),
+   check the gripper by hand before any grasp, open or reset. The launcher
    registers the server with a 300 s budget so a persistent pick (60–120 s) is never cut by the
    host's 60 s default; picks dying at exactly 60 s mean a stale registration: `./run.sh <mode>`
    re-registers.

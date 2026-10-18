@@ -53,7 +53,8 @@ from . import carry_attachment
 
 #: execute()'s root motion skills that may retrace: an explicit call.
 EXPLICIT_SKILLS = frozenset({"move_home", "reset_scene"})
-#: A TCP less than this below the hover has nothing to retrace.
+#: A TCP less than this below the hover, inside the column, has nothing left
+#: to retrace: the retrace counts as completed.
 MIN_DROP_M = 0.001
 #: A kept column expires this long after the stop: an explicit call later
 #: than that drops it, and today's home move runs (frozen, 0 commands).
@@ -201,9 +202,10 @@ def retrace(runtime, *, halt_generation=None) -> str | None:
     motion skill); returns None and moves nothing otherwise, or when no
     column is kept, or when the kept column no longer applies (another arm or
     backend, older than MAX_AGE_S, a scene reset, a contact episode, a carry
-    attachment, a motion planner) or the arm is not below its hover inside it
-    -- those two drop the column, and the caller's home move runs as before.
-    "completed: ..." when the arm reached the hover: the column is consumed.
+    attachment, a motion planner) or the arm is not inside it -- those drop
+    the column, and the caller's home move runs as before.
+    "completed: ..." when the arm reached the hover, or was already within
+    MIN_DROP_M of it inside the column (review M1): the column is consumed.
 
     A latched e-stop refuses first, as itself (SafetyViolation "e-stop
     latched"), before any vetting; the column stays. Other refusals before
@@ -235,9 +237,15 @@ def retrace(runtime, *, halt_generation=None) -> str | None:
     if q.shape != record.q_pre.shape or not np.isfinite(q).all():
         raise SkillError("stop retrace refused: the joint feedback is not a finite pose")
     tcp = kin.fk(q)[:3, 3]
-    if not (record.hover_z - tcp[2] > MIN_DROP_M and _inside(tcp, record.column, record.z_max)):
-        records.pop(id(arm), None)       # not below the hover inside the column: nothing to retrace
+    if not _inside(tcp, record.column, record.z_max):
+        records.pop(id(arm), None)       # not inside the column: nothing to retrace
         return None
+    if record.hover_z - tcp[2] <= MIN_DROP_M:
+        # Already at the hover inside the column (a STOP within MIN_DROP_M
+        # of it, late in the lift or the retrace): nothing is left to raise,
+        # so the retrace counts as completed (move_home reconciles the jaws).
+        records.pop(id(arm), None)
+        return "completed: the TCP was already at the pregrasp hover inside the kept approach column"
     from ..control.motion_profile import resolve_motion_rate
     from ..safety.trajectory import (PLAN_BUDGET_S, geometry_guard, motion_duration,
                                      route_end_reason, vet_segment)

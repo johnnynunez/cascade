@@ -434,6 +434,22 @@ def test_a_halt_is_never_refused_by_an_unreadable_pose(make_runtime):
     assert right.harness.halted == "operator"
 
 
+def test_a_halt_is_never_refused_for_a_missing_binding(tmp_path):
+    rt = _hand_built_runtime(tmp_path)
+    rt._show_status = lambda _: None
+    rt.observe = lambda **kwargs: None
+    halted = {}
+    for safe in rt.arm_rig.arms.values():
+        safe.harness.halt = lambda reason, _n=safe.name: halted.setdefault(_n, reason)
+    notes = []
+    rt.memory.add = lambda *a, **kw: notes.append(a)
+    assert "right" not in (getattr(rt, "_arm_bindings", None) or {})      # never registered
+    result = rt.execute("halt_motion", {"reason": "operator", "arm": "right"})
+    assert result["ok"] is True, result
+    assert halted == {"right": "operator"}                  # the selected arm's harness, not the primary's
+    assert notes[0] == ("note", "halted motion: operator")
+
+
 def _every_camera_dict(cfg):
     data = cfg._data
     out = [data["camera"], *(data.get("cameras") or [])]
@@ -590,12 +606,25 @@ def test_arm_scoped_sections_cover_every_shipped_override_key():
     assert RIG_SCOPED_OVERRIDES == {"workspace_filter", "memory", "perception_loop", "detector",
                                     "object_descriptions", "occupancy"}
     assert RIG_GRASP_SERVICE_KEYS == {"backend", "executor", "graspgenx", "hug", "vla"}
-    seen = set()
+    seen, services = set(), {}
     for path in sorted((REPO / "configs" / "arms").glob("*.yaml")):
         overrides = (yaml.safe_load(path.read_text()) or {}).get("overrides") or {}
         seen |= set(overrides)
         assert set(overrides) <= set(ARM_SCOPED_SECTIONS) | RIG_SCOPED_OVERRIDES, path.name
+        overridden = set(overrides.get("grasp") or {}) & RIG_GRASP_SERVICE_KEYS
+        if overridden:
+            services[path.name] = overridden
     assert {"grasp", "safety", "workspace_filter"} <= seen
+    # R13: a non-primary arm's view takes these grasp keys from the TOP level (the
+    # services the rig built), so its own override of one is dropped there. Every
+    # profile that overrides one is listed: a new one forces a decision.
+    assert services == {
+        "fr3.yaml": {"backend"},
+        "isaac_kitchen_gpu.yaml": {"backend", "graspgenx"},
+        "isaac_kitchen_hug.yaml": {"backend", "hug"},
+        "piper.yaml": {"graspgenx"},       # grasp.graspgenx.sweep
+        "so101.yaml": {"graspgenx"},       # grasp.graspgenx.sweep (so101_left/_right inherit it)
+    }
 
 
 def test_rig_grasp_services_stay_top_level(make_runtime, monkeypatch):            # R13
@@ -633,6 +662,46 @@ def test_arm_view_cfg_keeps_the_rig_and_takes_the_arms_sections():
 # ── 7. no thread inside skills sees the wrong frame (Review Focus 1) ──────
 
 
+def _thread_starts(source: str, filename: str = "<src>") -> list[str]:
+    """Calls that run code on another thread: a Thread / Timer (or a subclass
+    named so), an executor's submit / map, asyncio.to_thread, a loop's
+    run_in_executor, _thread.start_new_thread. The bound frame is
+    thread-local, so code started that way would read the primary's."""
+    found = []
+    for node in ast.walk(ast.parse(source, filename=filename)):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+        if (name.endswith(("Thread", "Timer"))
+                or name in ("to_thread", "run_in_executor", "start_new_thread")
+                or (isinstance(func, ast.Attribute) and name in ("submit", "map"))):
+            found.append((node.lineno, node.col_offset, f"{filename}:{node.lineno} {ast.unparse(func)}"))
+    return [hit for *_, hit in sorted(found)]
+
+
+def test_the_thread_census_sees_every_way_to_start_a_thread():
+    source = "\n".join([
+        "threading.Thread(target=f).start()",
+        "Thread(target=f)",
+        "threading.Timer(1.0, f).start()",
+        "pool.submit(f)",
+        "pool.map(f, xs)",
+        "asyncio.to_thread(f)",
+        "loop.run_in_executor(None, f)",
+        "_thread.start_new_thread(f, ())",
+        "_WorkerThread()",
+        # not thread starts
+        "class _W(threading.Thread): pass",
+        "list(map(f, xs))",
+        "self.map.add_pose(p)",
+        "ThreadContract(x)",
+    ])
+    assert [hit.split(" ", 1)[1] for hit in _thread_starts(source)] == [
+        "threading.Thread", "Thread", "threading.Timer", "pool.submit", "pool.map", "asyncio.to_thread",
+        "loop.run_in_executor", "_thread.start_new_thread", "_WorkerThread"]
+
+
 def test_no_skill_or_grasp_module_starts_a_thread():
     allowed = {REPO / "src" / "cascade" / "skills" / "mobile_runtime.py"}
     found = []
@@ -640,9 +709,5 @@ def test_no_skill_or_grasp_module_starts_a_thread():
         for path in sorted((REPO / "src" / "cascade" / pkg).rglob("*.py")):
             if path in allowed:
                 continue
-            for node in ast.walk(ast.parse(path.read_text(), filename=str(path))):
-                if isinstance(node, ast.Call):
-                    text = ast.unparse(node.func)
-                    if text.endswith(("Thread", ".submit")):
-                        found.append(f"{path.name}:{node.lineno} {text}")
+            found += _thread_starts(path.read_text(), path.name)
     assert found == []

@@ -33,8 +33,8 @@ R5 (§3.4 D9, §5), R9 (§3.7, §5, §9), R10 (§3.3), R11 (§3.5), R12 (§4), R
    - The one exception: the `list_arms` sentence that #352 added is removed.
 6. **The guard shrinks one skill at a time.** A skill leaves `_WORLD_TARGET_SKILLS` in the same commit whose
    tests prove that it reaches the world point.
-7. **Merge order.** PR-A (`feat/nvblox-object-aware`, option C) merges first. This branch then rebases onto that
-   main and also fixes PR-A's review finding M6.
+7. **Merge order.** PR-A (`feat/nvblox-object-aware`, option C) merges first. That main is then merged into this
+   branch (`git merge --no-ff`, not a rebase; §8, R19), and this branch also fixes PR-A's review finding M6.
 8. **Acceptance.** The so101 pair places a picked object at the world target:
    - mock pair in CI: the FK of the commanded joints, lifted by base_pose, lands within 5 mm;
    - MuJoCo pair in a scratch venv: physical equivariance (R1). The prop's physics position in rig B (the pair)
@@ -77,7 +77,7 @@ below were made that way. The owner can override any of them.
   and a Cfg built once, with the arm-scoped sections taken from its resolved view.
 - D4: fail closed when the binding or the pose is missing or broken. A tilted mount refuses only the world-target
   skills.
-- D5: an eye-in-hand camera on a rig with any base_pose refuses to build.
+- D5: an eye-in-hand camera on a rig with any non-identity base_pose refuses to build.
 - D6: WorkspaceFilter stays in the table frame and excludes every arm's base. Reach counts from any base.
 - D7: agent text changes only on rigs that declare a base_pose. The #352 `list_arms` sentence is removed.
 - D8: directions stay relative to the running arm's base: push_object, throw, bare move_relative. Only the
@@ -151,8 +151,9 @@ calls are refused:
 The error reads `"<skill> refused on arm 'X': <why>; no motion was sent"`. The result carries no move_home hint.
 `halt_motion` is never refused this way: a halt is never deniable.
 
-**D5: eye-in-hand cameras.** A rig with an eye-in-hand camera and any base_pose arm refuses to build, in the
-pre-pass, before any arm is made. The reason: `Extrinsics.cam_to_base()` composes the PRIMARY's FK, which is a
+**D5: eye-in-hand cameras.** A rig with an eye-in-hand camera and any arm with a non-identity base_pose refuses to
+build, in the pre-pass, before any arm is made. The identity counts as no base_pose (§4), so an identity rig keeps
+today's path. The reason: `Extrinsics.cam_to_base()` composes the PRIMARY's FK, which is a
 base frame, not the table frame (demo.py:718-727, 748). No shipped combination exists: the MuJoCo loader already
 refuses wrist cameras on a rig.
 
@@ -323,7 +324,7 @@ Each converted site gets a RED test on a base 3 cm above the table plane (`base_
 | base_pose unreadable or not rigid | refused: "base_pose is not a rigid transform" | 0 | none |
 | Tilted base_pose + world-target skill | refused: tilt text with roll and pitch in degrees, plus the §3.5 `next_action` | 0 | none |
 | Tilted base_pose + joint or relative skill | runs as today | as today | as today |
-| Eye-in-hand camera + any base_pose arm | the build refuses in the pre-pass | 0 make / 0 connect | none |
+| Eye-in-hand camera + any arm with a non-identity base_pose | the build refuses in the pre-pass | 0 make / 0 connect | none |
 | Release skill (place_at, place_on_object, throw, handover) on the arm that does not hold the object | refused by `_check_holding_arm`: "<obj> is held by arm 'Y', not 'X'" (the held-observation binding stays a second layer) | 0 | none |
 | `open_gripper` on an arm that does not hold the object (R5) | opens that arm's own jaws; `held_object`, `_held_arm` and the carry attachment stay | that arm's jaw only | none |
 | `reset_scene` while another arm holds the object (R5) | refused: "<obj> is held by arm 'Y'" | 0 | none |

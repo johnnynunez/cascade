@@ -266,13 +266,20 @@ def readable_again(rt, monkeypatch, jaw_pos):
 def test_jaws_that_read_open_let_every_other_entry_run_as_on_main(rebot_real, monkeypatch, skill, args, moves):
     """The entries without a grasp's own reconcile first (sort_by_color,
     turn_screw, handover) judge the hold as that grasp would: open jaws drop
-    it, and the skill runs as on main."""
+    it, and the skill runs as on main. sort_by_color judges it right before
+    its first grasp, and on this rig it finds something to sort on some runs
+    only: a run that grasps nothing leaves the hold unjudged and sends no
+    command, as on main (it failed 1 run in 6 on main when asserted dropped)."""
     rt = rebot_real
     holding_unknown_at_home(rt, monkeypatch, 0.5)
     readable_again(rt, monkeypatch, rt._grip_open)
     jaws, n0 = T.jaw_commands(rt, monkeypatch), T.commands(rt)
     res = rt.execute(skill, args)
-    assert "could not be read" not in str(res.get("error")) and rt._held_provisional is None, res
+    assert "could not be read" not in str(res.get("error")), res
+    if skill == "sort_by_color" and not (res.get("moved") or res.get("failed")):
+        assert res["ok"] is True and T.commands(rt) == n0 and jaws == [] and rt._held_provisional is not None, res
+    else:
+        assert rt._held_provisional is None, res
     if moves:
         assert T.commands(rt) > n0 and len(jaws) > 0, res
 

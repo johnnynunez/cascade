@@ -1043,6 +1043,66 @@ def test_a_stop_or_a_hold_during_the_call_opens_no_slot(ledger_stack, monkeypatc
     assert [slot.state for slot in runtime.sim_retry._slots] == ["spent"]
 
 
+#: main's halt filing (#364/#366/#377) of a refusal the operator's stop then ended; execute()'s
+#: view-home return (whose halt main names first) follows grasp_object only: pick_and_place homes itself
+MAIN_HALT_FORMS = [(skill, form) for skill in SKILLS
+                   for form in ("halt after the decided refusal", "both stops", "halt stops the return home")
+                   if (skill, form) != ("pick_and_place", "halt stops the return home")]
+
+
+@pytest.mark.parametrize(("skill", "form"), MAIN_HALT_FORMS)
+def test_mains_halt_filing_of_a_stopped_refusal_opens_no_slot(ledger_stack, monkeypatch, skill, form):
+    """Merged taxonomy x ledger: a refusal (a qualifying class) the operator's stop
+    then ended, in main's three filings -- a MotionHalted carrying the decided refusal
+    (`skill_error`), the e-stop raised as itself when a halt came too, a failed call
+    whose view-home return the halt stopped (the stop's text first, the refusal in
+    `skill_error`) -- opens no slot (the goal is spent, the next call runs as on main),
+    carries no retry text, and is filed as main files it."""
+    from cascade.memory.envelope import failure_signature
+
+    runtime, arm = ledger_stack
+    harness = runtime.arm.harness
+    # a SafetyViolation skips the view-home return (a safety abort): a perception refusal runs it
+    perception = form == "halt stops the return home"
+    exc = SlowPerceptionError if perception else SafetyViolation
+    refusal = ("SlowPerceptionError: perception too slow: test" if perception
+               else "SafetyViolation: finger trajectory intersects observed surface: test")
+
+    def grasp(*_a, **_k):
+        assert runtime._move_joints(_nudged(runtime), duration_s=0.3)
+        if form == "halt after the decided refusal":
+            harness.halt("operator")
+            halted = runtime_mod.MotionHalted("motion halted: operator; not retrying")
+            runtime_mod._keep_decided_failure(halted, refusal)
+            raise halted
+        if form == "both stops":
+            harness.halt("operator")
+            harness.estop("test e-stop")
+            raise SafetyViolation("e-stop latched; not retrying")
+        raise exc(refusal.split(": ", 1)[1])
+    runtime.skill_grasp_object = grasp
+    if perception:
+        runtime.cfg._data["arm"]["return_home_after_motion"] = True
+        real_status = runtime._show_status
+
+        def status(msg):
+            if msg.startswith("Returning to the saved camera-view home"):
+                harness.halt("operator")  # after the refusal, during its return
+            return real_status(msg)
+        monkeypatch.setattr(runtime, "_show_status", status)
+    res = runtime.execute(skill, ARGS[skill])
+    assert res["ok"] is False and "sim_retry" not in res, (res.get("return_home"), res)
+    assert "SIMULATION ONLY" not in json.dumps(res, default=str)
+    assert [slot.state for slot in runtime.sim_retry._slots] == ["spent"], runtime.sim_retry._slots
+    if form == "both stops":
+        assert failure_signature(res) == "safety:estop", res
+    else:
+        assert res["skill_error"].startswith(refusal) and failure_signature(res) != "safety:halt", res
+        assert failure_signature(res) == failure_signature({"error": res["skill_error"]})
+    if perception:
+        assert res["error"].startswith("return to saved home halted"), res
+
+
 # ── clear events ─────────────────────────────────────────────────────────
 
 

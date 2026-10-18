@@ -260,12 +260,13 @@ def readable_again(rt, monkeypatch, jaw_pos):
 
 @pytest.mark.parametrize("skill, args, moves", [("sort_by_color", {}, None),     # whatever is left to sort
                                                 ("turn_screw", {"label": "red cube"}, True),
-                                                ("pick_and_place", {"object": "red cube"}, True)],
-                         ids=["sort_by_color", "turn_screw", "pick_and_place"])
+                                                ("pick_and_place", {"object": "red cube"}, True),
+                                                ("handover", {"label": "red cube"}, True)],
+                         ids=["sort_by_color", "turn_screw", "pick_and_place", "handover"])
 def test_jaws_that_read_open_let_every_other_entry_run_as_on_main(rebot_real, monkeypatch, skill, args, moves):
     """The entries without a grasp's own reconcile first (sort_by_color,
-    turn_screw) judge the hold as that grasp would: open jaws drop it, and
-    the skill runs as on main."""
+    turn_screw, handover) judge the hold as that grasp would: open jaws drop
+    it, and the skill runs as on main."""
     rt = rebot_real
     holding_unknown_at_home(rt, monkeypatch, 0.5)
     readable_again(rt, monkeypatch, rt._grip_open)
@@ -286,7 +287,7 @@ ENTRIES = {
     "sort_by_color": ({}, REFUSAL),
     "turn_screw": ({"label": "red cube"}, REFUSAL),
     "throw": ({"label": "red cube"}, REFUSAL),
-    "handover": ({"label": "red cube"}, None),   # through its persistence loop: see below
+    "handover": ({"label": "red cube"}, REFUSAL),
 }
 
 
@@ -295,22 +296,54 @@ def test_every_skill_that_opens_the_jaws_first_refuses_before_any_command(rebot_
     """From the same state (at home, holding_unknown): pick_and_place (the
     ASPIRE seam: a provisional hold between a grant and its repeat ran main's
     pick), grasp_at_pixel, search_for_object, restore_scene, sort_by_color,
-    turn_screw and throw refuse at their entry (or their grasp's); handover's
-    persistence loop stops on its first refused grasp, STUCK with the way
-    out, no re-home."""
+    turn_screw, throw and handover refuse at their entry (or their grasp's),
+    STUCK with the way out. handover refuses before its persistence loop:
+    the refusal is its error, whole (its loop wrapped it past 240
+    characters, #379 review minor 2)."""
     rt = rebot_real
     assert rt.execute("snapshot_scene", {"name": "scene"})["ok"] is not False
     holding_unknown_at_home(rt, monkeypatch, 0.5)
     args, error = ENTRIES[skill]
     prov, jaws, n0 = rt._held_provisional, T.jaw_commands(rt, monkeypatch), T.commands(rt)
     res = rt.execute(skill, args)
-    if error is not None:
-        assert_refused_before_any_command(rt, res, n0, jaws, prov, error=error)
-        return
+    assert_refused_before_any_command(rt, res, n0, jaws, prov, error=error)
+
+
+def test_handovers_errors_fit_the_agents_240_characters_with_a_long_label(rebot_real, monkeypatch):
+    """#379 review minor 2: handover wrapped the 240-character refusal in
+    "could not grasp {label!r} for handover: " plus its loop's stop (248
+    characters; a long label cut into the sentence). The refusal now comes
+    first, whole; a loop that stops after an attempt keeps its error whole
+    and gives way only with the label."""
+    rt = rebot_real
+    T.mock_of(rt).object_stop_frac = 0.5
+    T.stopped_at_the_object(rt, monkeypatch, skill=("grasp_object", {"label": "red cube"}))
+    stop_retrace.forget(rt)
+    rt._held_provisional = ProvisionalHold((T.LONG_LABEL, *tuple(rt._held_provisional)[1:]),
+                                           rt._held_provisional.commanded_open, rt._held_provisional.expected_open)
+    unreadable(rt, monkeypatch, "unknown")
+    jaws, n0 = T.jaw_commands(rt, monkeypatch), T.commands(rt)
+    res = rt.execute("handover", {"label": T.LONG_LABEL})
+    error = res["error"]
     assert res["ok"] is False and res["outcome"] == "stuck" and res["ask"] == LOOP_ASK, res
-    assert res["error"].startswith("could not grasp 'red cube' for handover: " + REFUSAL), res
-    assert res["error"].endswith(f"({LOOP_STOP})") and res["grasp_attempts"] == 1, res
-    assert T.commands(rt) == n0 and jaws == [] and rt._held_provisional == prov
+    assert len(error) <= 240 and error in res["next_action"] and T.commands(rt) == n0 and jaws == [], (len(error), res)
+    assert error.startswith("SkillStuck: the jaw state could not be read: if the very very"), error
+    assert error.endswith("... is in the jaws, take it out by hand, then open_gripper, then try again. "
+                          "Error: no valid jaw feedback"), error
+    # A loop that stopped after an attempt: its error whole, the label cut.
+    rt._held_provisional = None
+    why = f"SkillError: did not settle at grasp lift pose ({LOOP_STOP})"
+    monkeypatch.setattr(rt, "_grasp_with_persistence", lambda label, **kw: {
+        "ok": False, "held": False, "error": why, "grasp_attempts": 1, "outcome": "stuck", "ask": LOOP_ASK})
+    res = rt.execute("handover", {"label": T.LONG_LABEL})
+    error = res["error"]
+    assert 238 <= len(error) <= 240 and error in res["next_action"], (len(error), error)
+    assert error.startswith("could not grasp 'the very very") and error.endswith("... for handover: " + why), error
+    assert normalize_failure(error) == "state:jaws_unreadable" and res["ask"] == LOOP_ASK, res
+    monkeypatch.setattr(rt, "_grasp_with_persistence", lambda label, **kw: {
+        "ok": False, "held": False, "error": why, "grasp_attempts": 1})
+    res = rt.execute("handover", {"label": "red cube"})          # a short label: as before
+    assert res["error"] == f"could not grasp 'red cube' for handover: {why}", res
 
 
 def test_turn_screw_never_opens_the_jaws_on_a_held_object(rebot_real, monkeypatch):

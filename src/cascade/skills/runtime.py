@@ -7464,11 +7464,22 @@ class SkillRuntime:
         if not self.held_object:
             if not label:
                 raise SkillError("not holding anything; say which object to hand over")
+            if getattr(self, "_held_provisional", None) is not None:
+                # An interrupted grasp's hold, judged as the grasp would judge
+                # it and refused here while it survives (unread jaws): the
+                # refusal itself is the error, whole within the agent's 240
+                # characters, never wrapped in this skill's prefix (#379
+                # review minor 2).
+                self._reconcile_held()
+                self._raise_on_a_possible_hold()
             res = self._grasp_with_persistence(label)
             if not res.get("ok", True) or not res.get("held"):
+                why = str(res.get("error"))
                 out = {
                     "ok": False,
-                    "error": f"could not grasp {label!r} for handover: {res.get('error')}",
+                    # A long label is cut so the loop's error (its stop last)
+                    # stays whole in the agent's failure line.
+                    "error": _fit_label("could not grasp {} for handover: ", repr(label), keep=len(why)) + why,
                     "grasp_attempts": res.get("grasp_attempts"),
                 }
                 if _left_in_place(res):

@@ -47,6 +47,13 @@ from base_pose_oracle import (  # noqa: F401  (fixtures by name)
 ORACLE_T3 = {"localize_object": {"label": "red cube"}, "point_at": {"label": "red cube"},
              "preview_grasp": {"label": "red cube"}, "get_observation": {}, "list_objects": {},
              "describe_scene": {}, "count_objects": {}}
+#: The arm each oracle row runs on. point_at runs on the `mock` profile: #369
+#: refuses it on every SO-101 (its 0.04 m top-down ceiling is below a 5 cm
+#: cube's top + `safety.min_clearance_m` + the jaws' reach), so on so101_right
+#: both rigs would only compare a refusal.
+POINT_AT_ARM = "mock"
+#: mock_small's red box: 5 cm tall on the table (z = 0 in the table frame).
+WORLD_TOP_Z = 0.05
 
 #: mock_small's red cube, with the camera shifted 10 cm in -y in the table
 #: frame: W (0.198, -0.10), r = 0.231 from so101_right's base (spec §6.2).
@@ -78,16 +85,41 @@ def _world_object_rig():
 @pytest.mark.parametrize("pose", [SHIPPED_RIGHT, YAWED], ids=["so101_right", "yawed"])
 @pytest.mark.parametrize("skill", sorted(ORACLE_T3))
 def test_perception_skills_are_equivariant(make_pair_rigs, pose, skill):  # noqa: F811
-    rt_a, rt_b, T = make_pair_rigs(pose)
+    arm = POINT_AT_ARM if skill == "point_at" else "so101_right"
+    rt_a, rt_b, T = make_pair_rigs(pose, arm=arm)
     run = run_pair(rt_a, rt_b, T, skill, ORACLE_T3[skill])
     if skill in ("localize_object", "point_at", "preview_grasp"):
         assert run["result_a"].get("ok", True) is True, run["result_a"]     # rig A really ran it
     if skill == "point_at":
         assert run["cmds_a"], "rig A pointed: the arm moved"
+        for rt, cmds, Tr in ((rt_a, run["cmds_a"], np.eye(4)), (rt_b, run["cmds_b"], T)):
+            _assert_pointing_clears(rt, cmds, Tr)
     assert_equivariant(run, T)
 
 
 # ── 2. the world point ────────────────────────────────────────────────────
+
+
+def _lowest_lifted_tool_z(rt, q, T) -> float:
+    """Lowest table-frame z of the TCP and the jaws (the profile's open-jaw
+    sweep box, which bounds the closed jaws: #369's `_pointing_tool_points`)
+    at the joint command q, lifted by the arm's base_pose T."""
+    from cascade.skills.runtime import _pointing_tool_points
+
+    tool = _pointing_tool_points(rt.cfg.grasp, rt._tool_axis_order)
+    pose = rt.kin.fk(np.asarray(q, dtype=float))
+    return float(lift(T, tool @ pose[:3, :3].T + pose[:3, 3])[:, 2].min())
+
+
+def _assert_pointing_clears(rt, cmds, T, top=WORLD_TOP_Z) -> None:
+    """The T3 review's Important 1 (#369's rule, in the table frame): no pose
+    point_at commanded put the TCP or the jaws within `safety.min_clearance_m`
+    of the object's top on the table."""
+    margin = float(rt.cfg.safety.get("min_clearance_m"))
+    assert margin == 0.03, margin                          # the shipped margin, never relaxed
+    assert cmds, "point_at commanded a pose"
+    low = min(_lowest_lifted_tool_z(rt, q, T) for q in cmds)
+    assert low >= top + margin - 1e-9, (low, top + margin)
 
 
 def _belief_xy(rt, label):
@@ -105,7 +137,13 @@ def test_localize_reports_the_world_position_on_so101_right(make_runtime):  # no
 
 
 def test_point_at_hovers_over_the_world_object(make_runtime, monkeypatch):  # noqa: F811
-    rt = make_runtime(_world_object_rig())
+    """The world cube, seen by a camera fixed in the table frame, on an arm at
+    the shipped right-arm pose (the `mock` profile: #369 refuses pointing on
+    the SO-101's ceiling). The hover sits over the WORLD object and keeps the
+    jaws the margin above its world top."""
+    rt = make_runtime(moved_cfg(POINT_AT_ARM, SHIPPED_RIGHT, move_cameras=False, shift_xy=(0.0, -0.10)))
+    raw = raw_arm(rt.arm)
+    n0 = len(raw.commands)
     targets = []
     original = rt._move_joints
 
@@ -120,6 +158,7 @@ def test_point_at_hovers_over_the_world_object(make_runtime, monkeypatch):  # no
     hover = lift(transform(SHIPPED_RIGHT), rt.kin.fk(targets[0])[:3, 3])
     assert np.hypot(*(hover[:2] - WORLD_OBJECT_XY)) <= 0.005, hover
     assert np.hypot(*(np.asarray(result["position"][:2]) - WORLD_OBJECT_XY)) <= 0.005, result
+    _assert_pointing_clears(rt, raw.commands[n0:], transform(SHIPPED_RIGHT))
 
 
 def test_the_belief_fallback_aims_in_the_arm_frame(make_pair_rigs, monkeypatch):  # noqa: F811
@@ -130,8 +169,8 @@ def test_the_belief_fallback_aims_in_the_arm_frame(make_pair_rigs, monkeypatch):
     rt_a, rt_b, T = make_pair_rigs(YAWED)
     misses, returned = [], {}
     for tag, rt in (("a", rt_a), ("b", rt_b)):
-        # point_at's hold and the IK search take seconds on rig A; keep rig B's
-        # belief (seeded with A's) inside the fallback's freshness window
+        # keep rig B's belief (seeded with A's) inside the fallback's
+        # freshness window while rig A runs
         rt.cfg._data.setdefault("perception_loop", {})["belief_fallback_age_s"] = 60.0
         monkeypatch.setattr(rt.detector, "detect", lambda *a, **k: (misses.append(1), [])[1])
         real = rt._localize
@@ -143,7 +182,7 @@ def test_the_belief_fallback_aims_in_the_arm_frame(make_pair_rigs, monkeypatch):
             return frame, fix
 
         monkeypatch.setattr(rt, "_localize", localize)
-    run = run_pair(rt_a, rt_b, T, "point_at", {"label": "red cube"})
+    run = run_pair(rt_a, rt_b, T, "preview_grasp", {"label": "red cube"})
     assert misses, "the detector was asked and missed"
     assert run["result_a"]["ok"] is True, run["result_a"]
     assert any("world-model fix" in e.text for e in rt_b.memory.events(("note",))), "rig B used the belief"
@@ -196,8 +235,8 @@ def test_the_belief_fallback_checks_the_workspace_in_the_arm_frame(make_runtime,
         rt._reobserve(1)
         assert np.allclose(_belief_xy(rt, "red cube"), (0.198, -0.40), atol=0.005)
         monkeypatch.setattr(rt.detector, "detect", lambda *a, **k: [])
-        result = rt.execute("point_at", {"label": "red cube"})
-    assert result["ok"] is True, result
+        result = rt.execute("localize_object", {"label": "red cube"})
+    assert result.get("ok", True) is True, result
     assert any("world-model fix" in e.text for e in rt.memory.events(("note",)))
     assert np.hypot(*(np.asarray(result["position"][:2]) - (0.198, -0.40))) <= 0.005, result
 
@@ -218,7 +257,7 @@ def _side_camera_only(cfg):
 def test_a_side_camera_localizes_in_the_arm_frame(make_pair_rigs):  # noqa: F811
     rt_a, rt_b, T = make_pair_rigs(YAWED, edit=_side_camera_only)
     assert len(rt_b._other_cams()) == 1
-    run = run_pair(rt_a, rt_b, T, "point_at", {"label": "red cube"})
+    run = run_pair(rt_a, rt_b, T, "preview_grasp", {"label": "red cube"})
     assert run["result_a"]["ok"] is True, run["result_a"]
     assert any("found through" in e.text for e in rt_b.memory.events(("note",))), "the side camera found it"
     assert_equivariant(run, T)
@@ -274,7 +313,7 @@ def test_another_camera_is_placed_by_its_own_extrinsics(make_pair_rigs, monkeypa
             rt._grounder = _RedBoxGrounder()
             rt.cfg._data.setdefault("perception_loop", {})["belief_fallback_age_s"] = -1.0       # no memory fix
             monkeypatch.setattr(rt.detector, "detect", lambda *a, **k: [])
-    run = run_pair(rt_a, rt_b, T, "point_at", {"label": "red cube"})
+    run = run_pair(rt_a, rt_b, T, "preview_grasp", {"label": "red cube"})
     assert run["result_a"]["ok"] is True, run["result_a"]
     note = "found through" if path == "detector" else "the VLM (2nd filter) found it"
     assert any(note in e.text for e in rt_b.memory.events(("note",))), "the side camera found it"
@@ -297,7 +336,7 @@ def test_the_vlm_fallback_grounds_in_the_arm_frame(make_pair_rigs, monkeypatch):
         rt._grounder = _BoxGrounder()
         rt.cfg._data.setdefault("perception_loop", {})["belief_fallback_age_s"] = -1.0       # no memory fix
         monkeypatch.setattr(rt.detector, "detect", lambda *a, **k: [])
-    run = run_pair(rt_a, rt_b, T, "point_at", {"label": "red cube"})
+    run = run_pair(rt_a, rt_b, T, "preview_grasp", {"label": "red cube"})
     assert run["result_a"]["ok"] is True, run["result_a"]
     assert any("the VLM (2nd filter) found it" in e.text for e in rt_b.memory.events(("note",)))
     assert_equivariant(run, T)

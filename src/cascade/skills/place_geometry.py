@@ -129,14 +129,17 @@ def plan(runtime, q_now, target, *, x, y, release_z, z_cap,
             target, hover, retreat_target = candidate_target, candidate_hover, candidate_retreat
             break
     if pre is None or low is None:
-        retreat_detail = (f", post-place retreat {retreat_target.round(3).tolist()}"
+        # Agent text quotes table-frame points (base_pose Q1 a; a runtime
+        # double without the arm frame quotes its own).
+        shown = getattr(runtime, "_to_world", None) or (lambda p: p)
+        retreat_detail = (f", post-place retreat {np.round(shown(retreat_target), 3).tolist()}"
                           if retreat_target is not None else "")
         error_type = _PostPlaceRetreatPlanError if retreat_target is not None else SkillError
         if rejected:
             raise error_type("no collision-free place path; " + "; ".join(rejected))
         raise error_type(
-            f"place pose unreachable at {target.round(3).tolist()} "
-            f"(hover {hover.round(3).tolist()}{retreat_detail}, all yaws tried)"
+            f"place pose unreachable at {np.round(shown(target), 3).tolist()} "
+            f"(hover {np.round(shown(hover), 3).tolist()}{retreat_detail}, all yaws tried)"
         )
 
     return PlaceGeometry(lift, pre, low, retreat, retreat_target, R, hover, target)

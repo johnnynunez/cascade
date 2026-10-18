@@ -43,7 +43,7 @@ from ..perception.depth_provider import DepthProvider
 from ..perception.grounding import Extrinsics
 from ..perception.stream import CameraRig, CameraStream
 from ..perception.world import LockedDetector, WatchedCamera, WorldWatcher
-from ..perception.workspace import WorkspaceFilter
+from ..perception.workspace import WorkspaceBase, WorkspaceFilter, config_float
 from ..safety.harness import SafeArm, SafetyHarness, SafetyLimits
 from ..safety.tool_volume import build_tool_volume
 from ..skills.runtime import SkillRuntime
@@ -264,6 +264,21 @@ def _arm_safety(acfg, occupancy, fallback_cfg, *, payload_tracked: bool = False)
     already connected. `_build_arm` keeps its own checks (defence in depth).
     """
     view = acfg.get("resolved") or fallback_cfg
+    arm_name = str(acfg.get("name", acfg.get("type", "arm")))
+    # Every arm's grasp section is live under execute(arm=) (spec Q4 a): its
+    # jaw-open bound must be valid before any arm exists (R8), never first
+    # after a grasp's close on the second arm.
+    from ..skills.runtime import close_stall_band, open_wait_timeout_s
+    from ..types import SkillError
+
+    try:
+        open_wait_timeout_s(view.get("grasp") or _empty_cfg())
+        # The close under execute(arm=) reads the bound profile's arm section
+        # (the resolved view): its stall band must be valid here too, not only
+        # the arm entry's own `gripper` (checked in _build_runtime).
+        close_stall_band((view.get("arm") or _empty_cfg()).get("gripper"))
+    except SkillError as exc:
+        raise ValueError(f"arm {arm_name!r}: {exc}") from None
     kin = Kinematics(
         model_path=acfg.model,
         ee_frame=acfg.get("ee_frame", "gripper_end"),
@@ -271,7 +286,6 @@ def _arm_safety(acfg, occupancy, fallback_cfg, *, payload_tracked: bool = False)
         joint_signs=acfg.get("joint_signs"),
         ik_task_weights=acfg.get("ik_task_weights"),
     )
-    arm_name = str(acfg.get("name", acfg.get("type", "arm")))
     harness = SafetyHarness(
         SafetyLimits.from_config(view.safety), kinematics=kin, occupancy=occupancy,
         base_pose=_base_transform(acfg),
@@ -509,6 +523,67 @@ def _base_transform(acfg):
     return pose_to_transform(pose)
 
 
+def _moves_the_base(T) -> bool:
+    """A `_base_transform` that moves the arm off the table origin: not None
+    and not the exact identity. The identity counts as no base_pose (spec §4,
+    D2), so an identity rig keeps today's paths (D5, D6)."""
+    return T is not None and not np.array_equal(T, np.eye(4))
+
+
+def _refuse_eye_in_hand_beside_a_base_pose(cfg, arm_names, arm_cfgs) -> None:
+    """Spec D5: a rig with an arm mounted at a (non-identity) `base_pose`
+    refuses an eye-in-hand camera, before any arm is made.
+
+    `Extrinsics.cam_to_base()` composes the PRIMARY arm's FK for such a
+    camera: a base-frame pose, not the table frame every other camera, the
+    map and the beliefs share. No shipped profile combines the two (the
+    MuJoCo loader already refuses wrist cameras on a rig). Rigs without a
+    base_pose (or with the identity) are not inspected here at all."""
+    mounted = [name for name, acfg in zip(arm_names, arm_cfgs, strict=True)
+               if _moves_the_base(_base_transform(acfg))]
+    if not mounted:
+        return
+    for i, ccfg in enumerate(_camera_cfgs(cfg)):
+        if (ccfg.get("extrinsics") or _empty_cfg()).get("mode") == "eye_in_hand":
+            raise ValueError(
+                f"camera {str(ccfg.get('name', f'cam{i}'))!r}: an eye_in_hand camera cannot run beside an arm "
+                f"mounted with a base_pose ({', '.join(mounted)}): its pose composes the primary arm's "
+                "FK, a base frame, not the table frame the rig shares")
+
+
+def _workspace_bases(cfg, arm_cfgs) -> tuple[WorkspaceBase, ...] | None:
+    """Spec D6: every arm's base in the TABLE frame, for the one detection
+    filter the watcher and the runtime share.
+
+    None when no arm declares a non-identity `base_pose` (the identity counts
+    as none, spec §4): the filter keeps its origin checks, exactly as before.
+    Otherwise one entry per arm: at its base_pose translation (an arm without
+    one sits at the origin), with that arm's own resolved
+    `workspace_filter.base_radius_m` / `base_height_m` / `reach_m` (the
+    top-level section for an arm without a resolved view).
+    """
+    transforms = [_base_transform(a) for a in arm_cfgs]
+    if not any(_moves_the_base(T) for T in transforms):
+        return None
+    defaults = WorkspaceFilter()
+    bases = []
+    for i, (acfg, T) in enumerate(zip(arm_cfgs, transforms, strict=True)):
+        view = acfg.get("resolved")
+        own = (view.get("workspace_filter") if view else cfg.get("workspace_filter")) or _empty_cfg()
+        x, y, z = (0.0, 0.0, 0.0) if T is None else (float(v) for v in T[:3, 3])
+        try:
+            bases.append(WorkspaceBase(
+                x=x, y=y, z=z,
+                radius_m=config_float(own, "base_radius_m", defaults.base_radius_m),
+                height_m=config_float(own, "base_height_m", defaults.base_height_m),
+                reach_m=config_float(own, "reach_m", defaults.reach_m),
+            ))
+        except ValueError as e:    # a non-finite base_pose: refuse the build, before any arm is made
+            raise ValueError(f"arm {str(acfg.get('name', f'arm{i}'))!r}: base_pose {acfg.get('base_pose')!r}: "
+                             f"{e}") from None
+    return tuple(bases)
+
+
 def _shared_map_region(cfg, arm_cfgs):
     """Default region of the ONE occupancy map every arm shares: the union of
     the arms' workspaces, in the map's frame (the TABLE frame).
@@ -690,6 +765,13 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
     arm_names = [str(acfg.get("name", f"arm{i}")) for i, acfg in enumerate(arm_cfgs)]
     if len(set(arm_names)) != len(arm_names):
         raise ValueError(f"duplicate arm names in rig: {arm_names}")    # ArmRig's rule
+    _refuse_eye_in_hand_beside_a_base_pose(cfg, arm_names, arm_cfgs)
+    # ONE detection filter for the runtime's own fusion and the watcher (R18).
+    # On a base_pose rig it excludes every arm's base where it stands and
+    # counts reach from any base (spec D6); elsewhere `bases` is None and it
+    # equals the filter SkillRuntime builds from the same section.
+    workspace_filter = WorkspaceFilter.from_config(cfg.get("workspace_filter"),
+                                                   bases=_workspace_bases(cfg, arm_cfgs))
     arm_safety, payload_tracked = [], _payload_tracked(occupancy)
     for acfg in arm_cfgs:
         arm_safety.append(_arm_safety(acfg, occupancy, cfg, payload_tracked=payload_tracked))
@@ -899,9 +981,19 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
     # rig has to learn about it; a skill called with `arm="<name>"` is
     # rebound for that one call by SkillRuntime.execute().
     runtime.arm_rig = arm_rig
-    # Both fusion paths consult the same link self-mask (None = off): the
-    # runtime's get_observation / _reobserve here, the watcher below.
+    # Each other arm's own Kinematics (the one its harness uses) and resolved
+    # profile, bound by execute(arm=<name>) for that call (spec Q4 a, D3). The
+    # primary keeps the runtime's own `kin` / `cfg`.
+    from ..skills.arm_frame import arm_binding
+
+    runtime.register_arm_bindings({
+        name: arm_binding(cfg, acfg, k)
+        for name, acfg, k in zip(arm_names[1:], arm_cfgs[1:], kins[1:], strict=True)})
+    # Both fusion paths consult the same link self-mask (None = off) and the
+    # same workspace filter: the runtime's get_observation / _reobserve here,
+    # the watcher below.
     runtime._link_self_mask = link_self_mask
+    runtime._workspace = workspace_filter
 
     # Pigey (arXiv:2607.21725) closed loop: verify each primitive's physical
     # effect against a channel the actuator does not own. In sim the bridge
@@ -920,7 +1012,7 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
             classes=list(cfg.get("detect_classes") or []) or None,
             rate_hz=float(pcfg.get("rate_hz", 3.0)),
             harness=harness,
-            workspace=WorkspaceFilter.from_config(cfg.get("workspace_filter")),
+            workspace=workspace_filter,
             occupancy=occupancy,
             link_mask=link_self_mask,
             # B43: only with memory.visual_recall_detections (+ an embedder);
@@ -1894,6 +1986,23 @@ def _program_library(cfg):
                           min_tasks=int(agent_cfg.get("program_min_tasks", PROMOTION_MIN_TASKS)))
 
 
+def _agent_harness(cfg):
+    """The learned agent harness named by `agent.harness_path` or CASCADE_AGENT_HARNESS, or None.
+
+    A named file that is missing or fails validation stops the start: an operator who asked for a
+    harness must not silently run without it.
+    """
+    agent_cfg = (cfg.get("agent", {}) if cfg is not None else {}) or {}
+    path = os.environ.get("CASCADE_AGENT_HARNESS", "").strip() or agent_cfg.get("harness_path")
+    if not path:
+        return None
+    from ..harnessing import AgentHarness
+
+    harness = AgentHarness.read(Path(str(path)).expanduser())
+    print(f"[cascade] agent harness {harness.sha()[:12]} from {path}", flush=True)
+    return harness
+
+
 def _program_tier(cfg, is_mock: bool):
     """ROADMAP follow-up #8: the opt-in programs tier (docs/PROGRAMS_TIER.md).
 
@@ -2247,6 +2356,9 @@ def _run_demo(args, cfg, runtime, mobile):
         plausibility=None if mobile else _premotion_critic(cfg, llm, runtime, is_mock),
         # ROADMAP #8 programs tier: opt-in (agent.programs / CASCADE_PROGRAMS).
         programs=None if mobile else _program_tier(cfg, is_mock),
+        # Harness² agent harness (cascade.harnessing): opt-in advice text learned by
+        # scripts/harness2_improve.py (agent.harness_path / CASCADE_AGENT_HARNESS).
+        harness=_agent_harness(cfg),
     )
 
     def _run(task: str, cancel_event=None):

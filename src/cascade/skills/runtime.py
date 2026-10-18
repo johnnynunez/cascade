@@ -245,9 +245,12 @@ OBSERVED_NEAR_COPY_DEG = 15.
 CLOSE_STALL_BAND = 0.002
 #: Exclusive upper limit of a profile's band, with a margin below the
 #: smallest free-closing step (0.028 open fraction per Newton bridge
-#: iteration): every step leaves the band, so free closing never reads as
-#: stopped at loop rates above 2 it/s. A band of 0.028 or more holds a whole
-#: step and reads free closing as a stop at 2-3.5 it/s.
+#: iteration): every step leaves the band, so steady free closing (one step
+#: per bridge iteration at a steady loop rate above 2 it/s) never reads as
+#: stopped. A band of 0.028 or more holds a whole step and reads it as a stop
+#: at 2-3.5 it/s. No cap helps a gap of 0.5 s or more without a step (a
+#: late first motion after a stage command, a stalled loop): below 0.95 open
+#: every band reads it as a stop.
 CLOSE_STALL_BAND_MAX = 0.02
 
 

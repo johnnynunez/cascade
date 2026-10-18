@@ -374,7 +374,7 @@ def test_unreferenced_jaws_are_referenced_by_closing_first_as_on_main(clock, mak
 
 
 def test_a_seat_reading_lets_the_close_skip_only_the_scout_stage():
-    from cascade.control.robstride import closing_stages
+    from cascade.control.jaw_stages import closing_stages
 
     lines = []
     stages = ((SCOUT, 0.49), (SEAT, 0.7))

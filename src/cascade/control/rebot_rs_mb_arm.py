@@ -67,11 +67,11 @@ from .robstride import (
     UnsafeReading,
     clear_motor_faults,
     close_two_stage_capped,
-    closing_stages,
     contact_squeeze_cap,
     joint_reading_problem,
     plausible_position,
 )
+from .jaw_stages import closing_stages
 from .rs_gripper import RSGripperGuard
 
 MECH_POS = 0x7019
@@ -426,7 +426,7 @@ class RebotRSMotorBridgeArm(ArmBase):
 
         A close never opens the jaws, as in RebotRSArm: a stage more open
         than they read when the close starts is skipped
-        (robstride.closing_stages).
+        (jaw_stages.closing_stages).
         """
         span = self._grip_closed - self._grip_open
         stages = ((self._grip_open + span * width_frac_stage1, effort * 0.7),

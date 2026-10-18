@@ -10,7 +10,7 @@ instead of crashing the loop.
 from __future__ import annotations
 
 from ..control import motion_evidence
-from ..control.robstride import closing_stages, opens_past
+from ..control.jaw_stages import closing_stages, opens_past
 
 import contextlib
 import functools

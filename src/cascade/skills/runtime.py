@@ -10,6 +10,7 @@ instead of crashing the loop.
 from __future__ import annotations
 
 from ..control import motion_evidence
+from ..control.jaw_stages import closing_stages, opens_past
 
 import contextlib
 import functools
@@ -236,7 +237,22 @@ def _pointing_tool_points(gcfg, axis_order: str) -> np.ndarray:
     return np.vstack([np.zeros(3), centre + (signs * half) @ axes.T])
 
 
-def _belief_footprint(belief) -> tuple[np.ndarray, float]:
+#: a remembered object with no size (neither extents nor points: place_at's
+#: and push_object's records) is taken as a square column this half-wide ...
+UNSIZED_HALF_M = 0.05
+#: ... up to this above the table (the tallest prop the demos use is a 20 cm
+#: bottle), or this half-width above its remembered point if that is higher
+UNSIZED_HEIGHT_M = 0.20
+
+
+def _unsized(belief) -> bool:
+    """A remembered object with neither extents nor points: its position is
+    all point_at knows of it."""
+    pts = getattr(belief, "points", None)
+    return getattr(belief, "extent", None) is None and (pts is None or not len(pts))
+
+
+def _belief_footprint(belief, table_z: float = 0.0) -> tuple[np.ndarray, float]:
     """A remembered object's prism for point_at: (xy footprint polygon, top).
 
     The top is its remembered `top_z`, else its centre plus half its
@@ -245,9 +261,12 @@ def _belief_footprint(belief) -> tuple[np.ndarray, float]:
     two HORIZONTAL extents (any yaw fits in it). Extents are eigenvalue-
     ordered, not axis-aligned: the vertical one is the extent closest to its
     height (twice its top above its centre), so a 20 cm bottle's footprint is
-    its 6 cm girth, not its height. Raises ValueError when its position, top
-    or extents (or points) are not finite, or when it has neither extents
-    nor points: an object point_at cannot place is never skipped."""
+    its 6 cm girth, not its height. An object with neither extents nor points
+    (`_unsized`) is taken conservatively: a square UNSIZED_HALF_M half-wide
+    around its position, up to its `top_z`, else UNSIZED_HEIGHT_M above the
+    table (`table_z`) or UNSIZED_HALF_M above its position if higher. Raises
+    ValueError when its position, top or extents (or points) are not finite:
+    an object point_at cannot place is never skipped."""
     name = f"the {belief.color + ' ' if getattr(belief, 'color', None) else ''}{belief.label}"
     position = np.asarray(belief.position, dtype=float).reshape(-1)
     ext = getattr(belief, "extent", None)
@@ -255,6 +274,9 @@ def _belief_footprint(belief) -> tuple[np.ndarray, float]:
     pts = getattr(belief, "points", None)
     pts = None if pts is None or not len(pts) else np.asarray(pts, dtype=float).reshape(-1, 3)
     top = getattr(belief, "top_z", None)
+    unsized = ext is None and pts is None
+    if top is None and unsized and position.size == 3:
+        top = max(float(table_z) + UNSIZED_HEIGHT_M, float(position[2]) + UNSIZED_HALF_M)
     if top is None and ext is not None and ext.size:
         top = float(position[2] + np.max(ext) / 2.0) if position.size == 3 else math.nan
     if top is None and pts is not None:
@@ -262,14 +284,17 @@ def _belief_footprint(belief) -> tuple[np.ndarray, float]:
     top = math.nan if top is None else float(top)
     if not (position.size == 3 and np.isfinite(position).all() and math.isfinite(top)
             and (ext is None or (ext.size == 3 and np.isfinite(ext).all()))
-            and (pts is None or np.isfinite(pts).all()) and (ext is not None or pts is not None)):
+            and (pts is None or np.isfinite(pts).all())):
         raise ValueError(f"{name}'s remembered box is not finite")
+    square = np.array([[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]])
+    if unsized:
+        return position[:2] + UNSIZED_HALF_M * square, top
     xy = [] if pts is None else [pts[:, :2]]
     if ext is not None:
         height = 2.0 * max(top - float(position[2]), 0.0)
         horizontal = np.delete(np.abs(ext), int(np.argmin(np.abs(np.abs(ext) - height))))
         half = float(np.hypot(*horizontal)) / 2.0
-        xy.append(position[:2] + half * np.array([[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]]))
+        xy.append(position[:2] + half * square)
     return np.vstack(xy), top
 
 
@@ -442,7 +467,15 @@ _JAWS_NOT_JUDGED = "the jaw reading could not be judged"
 #: Why a persistence loop stops after a failed attempt that left an
 #: interrupted grasp's provisional hold (`_grasp_retry_verdict`): the next
 #: grasp would refuse it (`_possible_hold_refusal`); the ask names the way out.
-_POSSIBLE_HOLD_STOP = "the jaws may still hold an object; not retrying"
+#: In #366/#377's words, so the envelope files the stop `state:jaws_unreadable`
+#: whatever the attempt's own text ("jaws" alone matched `object_too_wide`).
+_POSSIBLE_HOLD_STOP = _JAWS_NOT_READ + " and the jaws may still hold an object; not retrying"
+#: The human's way out of a hold the jaws cannot confirm: the ask of a
+#: persistence loop that stopped on it (`_stuck_ask`) and of every skill entry
+#: that refuses it (`_raise_on_a_possible_hold`). The agent relays it; it never
+#: opens the jaws itself.
+_POSSIBLE_HOLD_ASK = ("My jaws may still hold an object, and I cannot read whether they do. If one is in them, "
+                      "take it out by hand, then say 'open the gripper' (open_gripper), and ask again.")
 
 
 def _error_text(exc: BaseException) -> str:
@@ -3317,10 +3350,11 @@ class SkillRuntime:
         them would drop it, from about 0.44 m at home on the reBot (#373
         review A). move_home's `holding_unknown` asks for the gripper to be
         checked first; this enforces it, on every arm type, in reset_scene's
-        words (`_unread_hold_refusal`), fitted for execute()'s "SkillError: "
-        in front. Its move_home-first form needs an approach column that still
-        applies: execute() forfeits a kept one before every motion skill but
-        move_home and reset_scene, so only a direct caller can meet it.
+        words (`_unread_hold_refusal`), fitted for execute()'s "SkillStuck: "
+        in front (`_raise_on_a_possible_hold`). Its move_home-first form needs
+        an approach column that still applies: execute() forfeits a kept one
+        before every motion skill but move_home and reset_scene, so only a
+        direct caller can meet it.
         None with a held flag (its own "already holding" refusal) and during
         an unfinished contact episode: the reconcile never reads those jaws,
         and the harness refuses every command until reset_scene's recovery.
@@ -3335,13 +3369,32 @@ class SkillRuntime:
                 self, provisional[0], SkillRuntime._arm_name_of(self, provisional.arm), provisional=True,
                 then="try again", keep=len("SkillError: "))
         return _unread_hold_refusal(provisional[0], column_kept=stop_retrace.live(self) is not None,
-                                    then="try again", prefix="SkillError: ")
+                                    then="try again", prefix="SkillStuck: ")
 
     def _raise_on_a_possible_hold(self) -> None:
-        """`_possible_hold_refusal` as the SkillError a skill's entry raises."""
-        refusal = SkillRuntime._possible_hold_refusal(self)
+        """`_possible_hold_refusal` as the SkillStuck a skill's entry raises:
+        execute() reports it STUCK with the persistence loops' own way-out
+        ask, so the agent relays it to the human instead of opening the jaws
+        itself (#379 review minor 3). A persistence loop catches it like any
+        refused attempt and stops on the hold (`_grasp_retry_verdict`)."""
+        refusal = self._possible_hold_refusal()
         if refusal is not None:
-            raise SkillError(refusal)
+            raise SkillStuck(refusal, _POSSIBLE_HOLD_ASK)
+
+    def _refuse_a_possible_hold_before_grasping(self) -> None:
+        """The guard of a composite whose motion starts with a grasp
+        (sort_by_color, restore_scene, search_for_object), placed right
+        before its FIRST grasp: an interrupted grasp's provisional hold is
+        judged as that grasp's entry would judge it (`_reconcile_held`) and
+        refused while it survives. Nothing before that point moves the arm
+        or the jaws (perception and planning only), so refusing there is as
+        safe as at the entry, and a call that grasps nothing (nothing to
+        sort, nothing displaced, the object already in view) runs as on main
+        (#379 review minor 4). A hold that a later object's failed attempt
+        leaves is the persistence loops' (`_grasp_retry_verdict`)."""
+        if getattr(self, "_held_provisional", None) is not None and not self.held_object:
+            self._reconcile_held()
+            self._raise_on_a_possible_hold()
 
     def _grasp_retry_verdict(self, object: str, attempt: int, last_err: str) -> str | None:
         """Why persistence should STOP retrying a grasp, or None to keep going.
@@ -4924,7 +4977,7 @@ class SkillRuntime:
         if self.held_object:
             raise SkillError(self._already_holding_refusal("grasp_object"))
         # Before any command: the pre-grasp opening would drop a possible hold.
-        SkillRuntime._raise_on_a_possible_hold(self)
+        self._raise_on_a_possible_hold()
         self._held_support_offset_m = None
         gcfg = self.cfg.grasp
         if _fix is not None and _frame is not None:
@@ -6422,23 +6475,49 @@ class SkillRuntime:
             return None
         return self._hold_after_contact(profile, squeeze, 1.0 - profile.close_frac_stage2, **close_kw)
 
-    def _close_two_stage(self, profile, *, _halt_generation=None, _before_close=None) -> None:
+    def _close_two_stage(self, profile, *, _halt_generation=None, _before_close=None,
+                         _never_past=None) -> int | None:
+        """The two-stage close (scout stage, then seat). A close never opens
+        the jaws: a stage more open than `_never_past` (the jaw position the
+        caller read before the close; None = not read) or than the stage
+        before it is skipped (`closing_stages`), and so is the backend's own
+        two-stage close when every stage would be (that driver skips by its
+        own reading too). Returns how many stages were skipped when the
+        caller passed a reading, else None as before. The grasp's and the
+        screw stroke's closes start from jaws they just opened and pass no
+        reading: every stage goes, exactly as before."""
+        skipped = self._close_stages(profile, _halt_generation=_halt_generation,
+                                     _before_close=_before_close, _never_past=_never_past)
+        return None if _never_past is None else skipped
+
+    def _close_stages(self, profile, *, _halt_generation, _before_close, _never_past) -> int:
         # Some hardware drivers expose a raw two-stage escape hatch. It may
         # not bypass a retained model-backed empty-tool withdrawal either.
         check = getattr(self.arm.harness, "check_model_withdrawal", None)
         if check is not None:
             check(command=True, gripper=True)
         if self._force_contact_close_enabled():
+            if opens_past(self._grip_closed, _never_past, self._grip_open, self._grip_closed):
+                return 1
             if _before_close is not None:
                 _before_close()
             self._set_gripper(self._grip_closed, effort=profile.effort,
                               **({"_halt_generation": _halt_generation} if _halt_generation is not None else {}))
             self._gripper_closes_commanded += 1
-            return
+            return 0
         raw = self.arm.raw
-        if hasattr(raw, "close_gripper_two_stage"):
-            if _before_close is not None:
-                raise SafetyViolation("observed-finger closing requires individually guarded stages")
+        bulk = hasattr(raw, "close_gripper_two_stage")
+        if bulk and _before_close is not None:
+            raise SafetyViolation("observed-finger closing requires individually guarded stages")
+        span = self._grip_closed - self._grip_open
+        stages = tuple((self._grip_open + span * frac, eff, frac) for frac, eff in (
+            (profile.close_frac_stage1, profile.effort * 0.7),
+            (profile.close_frac_stage2, profile.effort),
+        ))
+        kept = closing_stages(stages, _never_past, self._grip_open, self._grip_closed)
+        if bulk:
+            if not kept:
+                return len(stages)
             # The backend's own close bypasses SafeArm.set_gripper: a halt
             # since the running skill started keeps the jaws open (A3 review).
             check_halt = getattr(self.arm.harness, "_check_halt_generation", None)
@@ -6451,7 +6530,7 @@ class SkillRuntime:
                 effort=profile.effort,
             )
             self._gripper_closes_commanded += 1
-            return
+            return len(stages) - len(kept)
         timeout = self.cfg.grasp.get("close_feedback_timeout_s")
         band = CLOSE_STALL_BAND
         if timeout is not None:
@@ -6459,16 +6538,12 @@ class SkillRuntime:
             if not np.isfinite(timeout) or timeout <= 0:
                 raise SkillError("close_feedback_timeout_s must be finite and positive")
             band = close_stall_band(self.cfg.arm.get("gripper"))
-        span = self._grip_closed - self._grip_open
-        for frac, eff in (
-            (profile.close_frac_stage1, profile.effort * 0.7),
-            (profile.close_frac_stage2, profile.effort),
-        ):
+        for target, eff, frac in kept:
             if _before_close is not None:
                 _before_close()
             grasp_evidence.event("close_stage", closed_frac=frac, effort=eff,
-                                 target_pos=self._grip_open + span * frac)
-            self._set_gripper(self._grip_open + span * frac, effort=eff,
+                                 target_pos=target)
+            self._set_gripper(target, effort=eff,
                                  **({"_halt_generation": _halt_generation} if _halt_generation is not None else {}))
             # Counted once the command is accepted: the verifier may then say
             # "the jaw closed" (a refused stage leaves the count unchanged).
@@ -6476,6 +6551,7 @@ class SkillRuntime:
             time.sleep(float(self.cfg.grasp.get("close_settle_s", 0.0)))
             if timeout is not None:
                 self._wait_gripper_closed(1.0 - frac, timeout, band)
+        return len(stages) - len(kept)
 
     def _hold_squeeze_frac(self) -> float | None:
         """`gripper.hold_squeeze_frac` of the arm profile, validated (None = off).
@@ -7721,20 +7797,38 @@ class SkillRuntime:
         when one clears the object's top; otherwise a lean-in pose that aims
         the tilted gripper at the centre of the top from the arm's side
         (`skills/pointing.py`: tilt 15-45 deg, 4-10 cm from the top, the
-        jaws sampled at <= 5 mm, the joints too), keeping the same margin
-        from every other known object. The route there is checked as well:
-        the straight joint segment from where the arm is, else one rise-first
-        waypoint (which also keeps every known object's margin, and on which
-        the jaws never come closer to the target). The jaws close only where
+        jaws sampled at <= 5 mm, the joints too). Either pose keeps the same
+        margin from every other known object. The route there is checked as
+        well: the straight joint segment from where the arm is, else one
+        rise-first waypoint (both keep every known object's margin; on the
+        rise the jaws never come closer to the target). Jaws that start
+        touching an object (within 5 mm, on their real geometry) first back
+        straight out along their approach. The jaws close only where
         everything a close sweeps (the profile's `gripper.jaw_volume`) keeps
         the margin from the target, every known object and the table: where
-        the arm starts, else at the waypoint or the pointing pose. While
-        holding an object it never leans in and never closes the jaws. No
-        clear pose, route or close refuses before any arm or jaw command. The
-        object top is the observed top raised to the occupancy map's column
-        top (capped as the pregrasp reads it) and to the top of an object
-        standing over it (a cup over the cube)."""
+        the arm starts (or backed out), else at the waypoint or the pointing
+        pose. While holding an object it never leans in and never closes the
+        jaws. No clear pose, route or close, or planning past its 3 s budget,
+        refuses before any arm or jaw command; an e-stop latched in the last
+        close or the hold is reported. The object top is the observed top
+        raised to the occupancy map's column top (capped as the pregrasp
+        reads it) and to the top of an object standing over it (a cup over
+        the cube)."""
         _, fix = self._localize(label)
+        from . import pointing
+
+        budget = pointing.Budget()
+        try:
+            return self._point_at(label, fix, budget)
+        except pointing.PlanningTimeout as exc:
+            # an e-stop latched while planning vetoes every vet, so the search
+            # runs long: it is reported as the e-stop, never as the clock
+            _raise_if_estopped(getattr(self.arm, "harness", None))
+            raise SkillError(f"cannot point at {label!r}: {exc} (the pose and its route are planned before any "
+                             f"command); nothing was moved") from None
+
+    def _point_at(self, label: str, fix, budget) -> dict:
+        """skill_point_at after the fix: plan within `budget`, then move."""
         gcfg = self.cfg.grasp
         harness = getattr(self.arm, "harness", None)
         margin = float(self.cfg.safety.get("min_clearance_m", 0.03))
@@ -7747,11 +7841,34 @@ class SkillRuntime:
         from ..grasping.obb_grasp import _yaw_rotation
         from . import pointing
 
+        table_z = float(getattr(getattr(harness, "limits", None), "table_z",
+                                self.cfg.safety.get("table_z", 0.0)))
+        from .relative_motion import _TOOL_COLUMNS
+
+        approach_col = _TOOL_COLUMNS[self._tool_axis_order][0]
+        sweep = (gcfg.get("graspgenx") or {}).get("sweep")
+        held = self.held_object
+        state = self.arm.get_state()
+        q_now = state.q
+        try:
+            column = pointing.object_column(fix, table_z, top, occluders)
+            near = tuple(pointing.neighbour_column(poly, n_top, table_z, name) for poly, n_top, name in neighbours)
+            opening = state.gripper_pos if getattr(state, "gripper_valid", True) else None
+            jaws = pointing.jaw_samples(sweep, self.cfg.arm.get("gripper"), self._tool_axis_order, opening)
+        except ValueError as exc:
+            raise SkillError(f"cannot point at {label!r}: {exc}; nothing was moved") from None
+        # what the jaws are at the pointing pose: closed there, or as they are
+        # while holding (no jaw command)
+        posed = jaws.now if held else jaws.closed
+
         # Top-down first: the lowest tool point (TCP or jaws) keeps the
-        # margin above the top. `need` is the TCP height that gives that for
-        # a strict top-down pose; a lower hover rises to it within the
+        # margin above the top, and the jaws and the joints keep it from every
+        # other known object. `need` is the TCP height that gives the first
+        # for a strict top-down pose; a lower hover rises to it within the
         # ceiling, a rung below it is never tried.
-        tool = _pointing_tool_points(gcfg, self._tool_axis_order)
+        # the box corners and the jaws as they are at the pose (a hinged jaw's
+        # measured geometry, `gripper.jaw_volume`, counts too)
+        tool = np.vstack([_pointing_tool_points(gcfg, self._tool_axis_order), *posed])
         clear_z = top + margin
         reach = max(0.0, -_lowest_tool_z(make_transform(_yaw_rotation(0.0, axis_order=self._tool_axis_order),
                                                         [0.0, 0.0, 0.0]), tool))
@@ -7760,12 +7877,12 @@ class SkillRuntime:
             hover[2] = min(need + POINT_AT_IK_SLACK_M, z_max)
         rungs = [z for z in (hover[2], z_max - 0.02) if z >= need]
 
-        state = self.arm.get_state()
-        q_now = state.q
         ik = None
         too_low = None     # the highest lowest-tool-point among rejected solutions
+        crowded = None     # (distance, name): the farthest a rejected solution kept from a neighbour
         for z in rungs:
             for yaw in (float(np.arctan2(hover[1], hover[0])), 0.0, np.pi / 4, -np.pi / 4):
+                budget.check()
                 cand = self.kin.ik(
                     make_transform(_yaw_rotation(yaw, axis_order=self._tool_axis_order),
                                    [hover[0], hover[1], z]), q_now
@@ -7776,25 +7893,15 @@ class SkillRuntime:
                 if not low >= clear_z:     # NaN refuses too
                     too_low = low if too_low is None or low > too_low else too_low
                     continue
+                gap = pointing.neighbour_clearance(self.kin, cand.q, posed, near)
+                if not gap[0] >= margin:   # NaN refuses too
+                    crowded = gap if crowded is None or gap[0] > crowded[0] else crowded
+                    continue
                 ik = cand
                 break
             if ik is not None:
                 break
 
-        table_z = float(getattr(getattr(harness, "limits", None), "table_z",
-                                self.cfg.safety.get("table_z", 0.0)))
-        from .relative_motion import _TOOL_COLUMNS
-
-        approach_col = _TOOL_COLUMNS[self._tool_axis_order][0]
-        sweep = (gcfg.get("graspgenx") or {}).get("sweep")
-        held = self.held_object
-        try:
-            column = pointing.object_column(fix, table_z, top, occluders)
-            near = tuple(pointing.neighbour_column(poly, n_top, table_z, name) for poly, n_top, name in neighbours)
-            opening = state.gripper_pos if getattr(state, "gripper_valid", True) else None
-            jaws = pointing.jaw_samples(sweep, self.cfg.arm.get("gripper"), self._tool_axis_order, opening)
-        except ValueError as exc:
-            raise SkillError(f"cannot point at {label!r}: {exc}; nothing was moved") from None
         vet = getattr(harness, "vet_pose", None)
         lean = None
         # Agent text quotes TABLE-frame heights (Q1 a); the checks above and
@@ -7805,6 +7912,9 @@ class SkillRuntime:
                 from_above = (f"from above, its top-down ceiling is {world_z(z_max):.3f} m, below the object top + "
                               f"margin ({world_z(need):.3f} m: top {world_z(top):.3f} m + clearance {margin:.3f} m + "
                               f"{reach:.3f} m of jaw below the TCP)")
+            elif crowded is not None:
+                from_above = (f"from above, the best solved pose kept the arm {crowded[0]:.3f} m from "
+                              f"{crowded[1]}, less than {margin:.3f} m")
             elif too_low is not None:
                 from_above = (f"from above, the best solved pose put the closed jaws at {world_z(too_low):.3f} m, "
                               f"less than {margin:.3f} m above its top ({world_z(top):.3f} m)")
@@ -7815,7 +7925,7 @@ class SkillRuntime:
                 raise SkillError(f"cannot point at {label!r} while holding {held!r}: {from_above}; it leans in "
                                  f"only with empty jaws; nothing was moved")
             lean = pointing.lean_in(self.kin, column, jaws.closed, approach_col, q_now, margin=margin,
-                                    table_z=table_z, vet=vet, neighbours=near)
+                                    table_z=table_z, vet=vet, neighbours=near, budget=budget)
             if lean.q is None:
                 best = "" if lean.clearance is None else f" (the best solved pose had {lean.clearance.worst(margin)})"
                 raise SkillError(
@@ -7838,15 +7948,25 @@ class SkillRuntime:
             except SkillError as exc:
                 return str(exc)
 
+        # a jaw touching an object first backs straight out: one dense joint
+        # path, streamed as one harness-gated motion (never a planner-bound arm's)
+        can_withdraw = (callable(getattr(self.arm, "move_joint_path", None))
+                        and getattr(self.arm, "motion_planner", None) is None)
         try:
             route = pointing.plan_route(self.kin, q_now, target, column, jaws, approach_col, margin=margin,
-                                        table_z=table_z, neighbours=near, direct_neighbours=lean is not None,
-                                        close=not held, vet=vet,
-                                        preflight=preflight, preflight_direct=lean is not None)
+                                        table_z=table_z, neighbours=near, close=not held, vet=vet,
+                                        preflight=preflight, preflight_direct=lean is not None,
+                                        withdraw=can_withdraw, budget=budget)
+        except pointing.PlanningTimeout:
+            raise
         except pointing.RouteRefused as exc:
             _raise_if_estopped(harness)
             raise SkillError(f"cannot reach the pointing pose over {label!r} keeping {margin:.3f} m from it: "
                              f"{exc}; nothing was moved") from None
+        if route.withdraw:
+            self._mark_motion_started()
+            if not self.arm.move_joint_path(route.withdraw, duration_s=2.0):
+                raise SkillError("did not settle after backing the jaws straight out")
         legs = ("did not settle at the rise-first waypoint", "did not settle at the pointing pose")
         for i, q in enumerate(route.targets):
             if route.close_at == i:
@@ -7856,12 +7976,17 @@ class SkillRuntime:
         if route.close_at == len(route.targets):
             self._set_gripper(self._grip_closed, effort=0.6)
         time.sleep(float(self.cfg.get("gesture", {}).get("point_hold_s", 1.2)))
+        # the close can be the last command: an e-stop latched in it (or in
+        # the hold) is no success (main closed first, and its next move refused)
+        _raise_if_estopped(harness)
         self.memory.add("action", f"pointed at {label!r}")
         out = {"pointed_at": label, "position": [round(float(x), 3) for x in self._to_world(fix.position)]}
         if lean is not None:
             out["lean_deg"] = int(round(lean.tilt_deg))
         if len(route.targets) > 1:
             out["rose_first"] = True
+        if route.withdraw:
+            out["backed_out_m"] = round(float(route.withdraw_m), 3)
         return out
 
     def _pointing_top(self, label: str, fix, harness) -> tuple[float, list, list]:
@@ -7876,9 +8001,13 @@ class SkillRuntime:
         the booth's "point at where it was" points at the cup that now hides
         the cube, and the cup is part of what the jaws must clear. The target's
         own belief and the object in the jaws are neither. A remembered object
-        whose box is not finite refuses (nothing was moved): point_at cannot
-        tell whether it stands over the target or in the way."""
-        from .pointing import _footprint_distance, _hull_xy
+        with no size (`_unsized`) is a neighbour taken conservatively (named so
+        in a refusal), never an occluder; one with the target's name whose
+        place lies inside the target's column is the target's own stale record
+        and is skipped. A remembered object whose box is not finite refuses
+        (nothing was moved): point_at cannot tell whether it stands over the
+        target or in the way."""
+        from .pointing import _footprint_distance, _hull_xy, object_column
 
         pts = np.asarray(fix.points, dtype=float).reshape(-1, 3)
         observed = float(pts[:, 2].max()) if len(pts) else float("nan")
@@ -7886,6 +8015,7 @@ class SkillRuntime:
             raise SkillError(f"cannot point at {label!r}: its observed top is not a finite height "
                              f"({observed} m over {len(pts)} points); nothing was moved")
         top = observed + _map_top_lift(self.cfg.grasp, harness, fix, observed)
+        table_z = float(getattr(getattr(harness, "limits", None), "table_z", self.cfg.safety.get("table_z", 0.0)))
         target = self.beliefs.find(label)
         in_jaws = self.beliefs.find(self.held_object) if self.held_object else None
         centre = np.asarray(fix.position, dtype=float)[:2]
@@ -7893,11 +8023,24 @@ class SkillRuntime:
         for b in self.beliefs.all():
             if b is target or b is in_jaws:
                 continue
+            name = f"the {b.color + ' ' if b.color else ''}{b.label}"
             try:
                 # beliefs are table-frame memory; the fix and the checks are in
                 # the running arm's frame (spec D4; level mounts: point_at is
                 # refused on a tilted one)
-                poly, b_top = _belief_footprint(self._belief_to_arm(b))
+                arm_b = self._belief_to_arm(b)
+                poly, b_top = _belief_footprint(arm_b, table_z)
+                if _unsized(b):
+                    # the target's own stale record (push_object / place_at
+                    # write the place only) is no other object
+                    if target is not None and (b.label, b.color) == (target.label, target.color) and \
+                            not float(object_column(fix, table_z, top).distance(arm_b.position)[0]) > 0.0:
+                        continue
+                    # never an occluder: a guess must not move the target's top
+                    neighbours.append((_hull_xy(poly), b_top, f"{name} (no remembered size: taken as a "
+                                       f"{200 * UNSIZED_HALF_M:.0f} x {200 * UNSIZED_HALF_M:.0f} cm column up to "
+                                       f"{self._height_to_world(b_top):.2f} m)"))
+                    continue
             except ValueError as exc:
                 raise SkillError(f"cannot point at {label!r}: {exc}; nothing was moved") from None
             hull = _hull_xy(poly)
@@ -7905,7 +8048,7 @@ class SkillRuntime:
             if covers and b_top > top:
                 occluders.append((hull, b_top))
             else:
-                neighbours.append((hull, b_top, f"the {b.color + ' ' if b.color else ''}{b.label}"))
+                neighbours.append((hull, b_top, name))
         if occluders:
             top = max(top, max(t for _, t in occluders))
         return top, occluders, neighbours
@@ -7946,11 +8089,22 @@ class SkillRuntime:
         if not self.held_object:
             if not label:
                 raise SkillError("not holding anything; say which object to hand over")
+            if getattr(self, "_held_provisional", None) is not None:
+                # An interrupted grasp's hold, judged as the grasp would judge
+                # it and refused here while it survives (unread jaws): the
+                # refusal itself is the error, whole within the agent's 240
+                # characters, never wrapped in this skill's prefix (#379
+                # review minor 2).
+                self._reconcile_held()
+                self._raise_on_a_possible_hold()
             res = self._grasp_with_persistence(label)
             if not res.get("ok", True) or not res.get("held"):
+                why = str(res.get("error"))
                 out = {
                     "ok": False,
-                    "error": f"could not grasp {label!r} for handover: {res.get('error')}",
+                    # A long label is cut so the loop's error (its stop last)
+                    # stays whole in the agent's failure line.
+                    "error": _fit_label("could not grasp {} for handover: ", repr(label), keep=len(why)) + why,
                     "grasp_attempts": res.get("grasp_attempts"),
                 }
                 if _left_in_place(res):
@@ -8254,15 +8408,10 @@ class SkillRuntime:
         # (verified against the RS URDF); stay within +-0.20.
         zones_y = (-0.20, -0.10, 0.0, 0.10, 0.20)
         zone_x = float(self.cfg.grasp.get("drop_zone", [0.30, -0.20])[0])
-        if getattr(self, "_held_provisional", None) is not None and not self.held_object:
-            # An interrupted grasp's provisional hold: judged here, as the first
-            # object's grasp entry would, and refused before anything moves
-            # while it survives (every grasp would open the jaws on it).
-            self._reconcile_held()
-            self._raise_on_a_possible_hold()
         colors: dict[str, tuple[float, float]] = {}
         moved, failed = [], []
         left_in_place, left_by = False, None  # the last grasp attempt left the arm where it stopped
+        grasping = False  # a grasp was started (the possible-hold guard ran)
         for b in list(self.beliefs.all())[: int(max_objects)]:
             color = b.color or "unknown"
             if color not in colors:
@@ -8274,6 +8423,9 @@ class SkillRuntime:
             if np.linalg.norm(b.position[:2] - np.array([zx, zy])) < 0.07:
                 continue  # already sorted
             query = f"{b.color} {b.label}" if b.color else b.label
+            if not grasping:
+                grasping = True
+                self._refuse_a_possible_hold_before_grasping()   # every grasp would open the jaws on it
             try:
                 # a per-object slice of the budget: one stubborn object must
                 # not eat the whole sort
@@ -8670,7 +8822,6 @@ class SkillRuntime:
         self._reconcile_held()
         if self.held_object:
             raise SkillError(self._already_holding_refusal("restore_scene"))
-        self._raise_on_a_possible_hold()   # every move starts with a grasp
         tolerance_m = float(np.clip(float(tolerance_m), 0.02, 0.15))
         max_moves = int(np.clip(int(max_moves), 1, 8))
         budget_s = float(self.cfg.grasp.get("restore_object_persist_seconds", 40.0))
@@ -8710,6 +8861,8 @@ class SkillRuntime:
                 skip.add(step["label"])
                 plan = self._restore_plan(snap, tolerance_m, skip, seen_after)
                 continue
+            if not moves:
+                self._refuse_a_possible_hold_before_grasping()   # every move starts with a grasp
             try:
                 rec = self._move_object_to(step["query"], step["to"], budget_s=budget_s, kind=step["kind"])
             except MotionHalted as halted:
@@ -8813,7 +8966,6 @@ class SkillRuntime:
         self._reconcile_held()
         if self.held_object:
             raise SkillError(self._already_holding_refusal("search_for_object"))
-        self._raise_on_a_possible_hold()   # lifting an occluder starts with a grasp
         max_occluders = int(np.clip(int(max_occluders), 1, 4))
         gcfg = self.cfg.grasp
         budget_s = float(gcfg.get("search_occluder_persist_seconds", 40.0))
@@ -8878,6 +9030,8 @@ class SkillRuntime:
             if spot is None:
                 failed.append({"label": str(occ.label), "error": "no free, reachable spot to park it"})
                 continue
+            if not moved:
+                self._refuse_a_possible_hold_before_grasping()   # lifting an occluder starts with a grasp
             attempts += 1
             self.memory.add("note", f"lifting {occ.label!r} (likely occluder {attempts}/{max_occluders}) "
                                     f"and parking it at {np.round(spot, 3).tolist()}")
@@ -9091,9 +9245,35 @@ class SkillRuntime:
             time.sleep(.05)
 
     def skill_close_gripper(self) -> dict:
-        self._close_two_stage(select_profile("", "rigid"))
+        """Close the jaws (the rigid two-stage close). A close never opens
+        them: a stage more open than the jaws read is skipped, so a close
+        from the stage-2 seat (0.93 rad on the reBot) no longer reopens them
+        to the 3.1 rad scout stage first, which could drop a thin object
+        seated there (#379 review A). Jaws that give no reading (no valid
+        feedback, or one that is no number) while an object may be in them
+        -- an interrupted grasp's provisional hold, or a held object --
+        refuse before any command: no stage can be shown not to open them.
+        With nothing held, unread jaws close as before."""
+        state = self._jaw_state()
+        reading = float(state.gripper_pos) if getattr(state, "gripper_valid", True) else None
+        if reading is not None and not math.isfinite(reading):
+            reading = None
+        if reading is None:
+            self._raise_on_a_possible_hold()
+            if self.held_object:
+                raise SkillError(_fit_label(_JAWS_NOT_READ + " while holding {}: a close stage could open the "
+                                            "jaws on it; place it first (place_at)", repr(self.held_object),
+                                            keep=len("SkillError: ")))
+        closes = self._gripper_closes_commanded
+        skipped = self._close_two_stage(select_profile("", "rigid"), _never_past=reading)
         wf = self._gripper_width_frac()
-        return {"gripper": "closed", "open_frac": round(wf, 2) if wf is not None else "unknown"}
+        out = {"gripper": "closed", "open_frac": round(wf, 2) if wf is not None else "unknown"}
+        if skipped:
+            out["stages_skipped"] = skipped
+            if self._gripper_closes_commanded == closes:
+                out["note"] = ("the jaws already read at least as closed as every close stage, so none was "
+                               "sent: a close never opens them")
+        return out
 
     def _reset_camera_frames(self, *, require_geometry=False, scene_changed=True):
         """Reopen reset's capture barrier, retaining failed attempts for retry."""
@@ -10578,8 +10758,7 @@ def _stuck_ask(object: str, last_err: str, attempts: int, *, stage: str = "grasp
     obj = f"{object!r}" if object else "the object"
     n = max(int(attempts), 1)
     if _POSSIBLE_HOLD_STOP in err:
-        return ("My jaws may still hold an object, and I cannot read whether they do. If one is in them, "
-                "take it out by hand, then say 'open the gripper' (open_gripper), and ask again.")
+        return _POSSIBLE_HOLD_ASK
     if _is_gripper_fault(err):
         return (f"My gripper stopped itself while handling {obj}: "
                 + ("something is between the jaws, so I cannot find their closed position. "

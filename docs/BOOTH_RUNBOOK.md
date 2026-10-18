@@ -210,7 +210,8 @@ to the morning baseline after a bad streak (restart the server to load the resto
    reset refuses and says so), then `place_at`, then `reset the scene`. If `move_home` reports
    `holding_unknown` (the jaws could not be read), check the gripper by hand where the arm
    stopped (home is about 0.44 m up) and take the object out before `open the gripper` (opening
-   drops it from that height; every grasp refuses until then), then `reset the scene`. A
+   drops it from that height; until then every grasp, and a `close the gripper` that cannot read
+   the jaws, refuses as stuck and asks for exactly this), then `reset the scene`. A
    refusal that said `move_home` first, followed by a `move_home` after the 5 min or after the
    arm was jogged out of the column, gets the old home move: frozen while the gripper is still
    at the object (jog it by hand). The launcher registers the server with a

@@ -14,6 +14,8 @@ import math
 import numbers
 import time
 
+from .jaw_stages import closing_stages
+
 #: bounded retries for a late clear_error ACK (see clear_motor_faults)
 CLEAR_ERROR_ATTEMPTS = 3
 CLEAR_ERROR_RETRY_S = 0.1
@@ -263,14 +265,17 @@ def close_two_stage_capped(driver, stages, cap: float, timeout_s: float) -> floa
       check still sees the jaws closed.
 
     Every command goes through `driver.set_gripper`, which keeps the travel
-    clamp and refuses everything after `stop()`. Returns the final jaw angle
+    clamp and refuses everything after `stop()`. As in that close, a stage
+    more open than the jaws already are is skipped (`closing_stages`).
+    Returns the final jaw angle
     (None when feedback failed); `driver._grip_contact_pos` keeps the contact.
     """
     open_pos, closed_pos = driver._grip_open, driver._grip_closed
     start_pos = driver._gripper_pos()
     contact = None
     driver._grip_contact_pos = None
-    for stage_target, effort in stages:
+    for stage_target, effort in closing_stages(stages, start_pos, open_pos, closed_pos,
+                                               log=lambda line: print(f"[rebot] {line}")):
         target = capped_squeeze_target(stage_target, contact, cap, open_pos, closed_pos)
         driver.set_gripper(target, effort=effort)
         time.sleep(GRIP_GRACE_S)  # spin-up grace: a still-moving jaw is not a stall

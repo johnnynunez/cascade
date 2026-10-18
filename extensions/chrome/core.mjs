@@ -18,9 +18,15 @@ export function cameraNames(state) {
   return Object.keys(state.cameras || {}).filter(n => /^[A-Za-z0-9_.-]+$/.test(n) && n !== '..').slice(0, 32);
 }
 // The real server sends Content-Length for every wrcframe part. Bound both headers and frames.
+// The Spark camera viewer (scripts/spark_cameras.py) also writes X-Frame-Age on
+// each part: seconds since that viewer first served the image, which it keeps
+// serving for up to 5 s while the simulator skips frames. `age` is the
+// X-Frame-Age of the last frame `push` returned, or null when its part had none.
 export class MJPEGParser {
   buffer = new Uint8Array(0);
   length = null;
+  age = null;
+  partAge = null;
   push(chunk) {
     if (this.buffer.length + chunk.length > 10 * 1024 * 1024) throw new Error('Frame too large.');
     const joined = new Uint8Array(this.buffer.length + chunk.length);
@@ -37,13 +43,15 @@ export class MJPEGParser {
         const size = header.match(/content-length:\s*(\d+)/i);
         if (!size || !/content-type:\s*image\/jpeg/i.test(header)) throw new Error('Expected MJPEG with Content-Length.');
         this.length = Number(size[1]);
+        const age = header.match(/(?:^|\n)x-frame-age:[ \t]*(\d{1,6}(?:\.\d{1,6})?)[ \t]*(?:\r|$)/i);
+        this.partAge = age ? Number(age[1]) : null;
         if (this.length < 4 || this.length > 8 * 1024 * 1024) throw new Error('Invalid JPEG size.');
         this.buffer = this.buffer.slice(end + 4);
       }
       if (this.buffer.length < this.length) break;
       const frame = this.buffer.slice(0, this.length);
       if (frame[0] !== 255 || frame[1] !== 216) throw new Error('The server did not send a JPEG.');
-      frames.push(frame); this.buffer = this.buffer.slice(this.length); this.length = null;
+      frames.push(frame); this.buffer = this.buffer.slice(this.length); this.length = null; this.age = this.partAge;
     }
     return frames;
   }
@@ -52,4 +60,19 @@ export function freshness({now, lastFrame, lastState, lastAdvance, hasAdvanced, 
   if (!lastFrame) return 'connecting';
   if (now - lastFrame > 5000 || now - lastState > 4000 || error || (lastAdvance > 0 && now - lastAdvance > 5000)) return 'stale';
   return hasAdvanced ? 'live' : 'unverified';
+}
+// Over 1 s old, the frame on screen is a held one: say how old instead of Live.
+export function frameAgeNote(ageS) {
+  return typeof ageS === 'number' && Number.isFinite(ageS) && ageS > 1 ? `Last frame · ${Math.floor(ageS)} s old` : '';
+}
+// The age of the frame on screen now: its part's X-Frame-Age, plus the time it
+// has been shown (`shownMs`) once no part arrived for over 1 s (a stopped
+// stream). The server writes a part every 0.5 s, so until then the part's own
+// age stands: counting screen time sooner flashed "Last frame" for 50-180 ms
+// before each next part of a slowly changing image. The cost: a frame can read
+// Live up to ~2 s old. null when the part had no age (any other server).
+const STOPPED_STREAM_MS = 1000;
+export function frameAgeNow(ageS, shownMs) {
+  if (typeof ageS !== 'number' || !Number.isFinite(ageS)) return null;
+  return shownMs > STOPPED_STREAM_MS ? ageS + shownMs / 1000 : ageS;
 }

@@ -124,6 +124,23 @@ def test_a_failure_before_the_skill_runs_carries_the_instruction(runtime):
     assert result["next_action"].startswith("This attempt FAILED: unknown skill 'no_such_skill'.")
 
 
+@pytest.mark.parametrize("text, error", [
+    ("CAN feedback lost", "unexpected TimeoutError: CAN feedback lost"),
+    ("", "unexpected TimeoutError"),
+    ("  ", "unexpected TimeoutError"),
+], ids=["text", "empty", "blank"])
+def test_an_unexpected_exception_without_text_is_named_by_its_type_alone(runtime, text, error):
+    """execute()'s last-resort handler: an exception with text keeps it;
+    one without (a driver's bare TimeoutError) is named by its type, with no
+    dangling \": \" (#367 review M7)."""
+    def boom(cycles=2):
+        raise TimeoutError(text)
+    runtime.skill_wave = boom
+    result = runtime.execute("wave", {})
+    assert result["ok"] is False and result["error"] == error, result
+    assert result["next_action"].startswith(f"This attempt FAILED: {error}. Tell the user it failed;"), result
+
+
 def test_a_long_error_is_shortened_in_the_instruction_only(runtime):
     long_error = "x" * 1000
     runtime.skill_wave = lambda cycles=2: {"ok": False, "error": long_error}
@@ -131,6 +148,19 @@ def test_a_long_error_is_shortened_in_the_instruction_only(runtime):
     assert result["error"] == long_error
     assert len(result["next_action"]) < 500
     assert "x" * 200 in result["next_action"]
+
+
+def test_an_error_that_ends_in_a_cut_marker_keeps_it_in_the_instruction(runtime):
+    """A skill that shortened its own error marks the cut with "..." (the
+    driver text of reset_scene's refusals): the instruction keeps the marker
+    instead of stripping it to one full stop. Any other error still ends
+    with exactly one."""
+    runtime.skill_wave = lambda cycles=2: {"ok": False, "error": "gripper motor 7 did not ans..."}
+    assert runtime.execute("wave", {})["next_action"].startswith(
+        "This attempt FAILED: gripper motor 7 did not ans... Tell the user it failed;")
+    runtime.skill_wave = lambda cycles=2: {"ok": False, "error": "out of reach.."}
+    assert runtime.execute("wave", {})["next_action"].startswith(
+        "This attempt FAILED: out of reach. Tell the user it failed;")
 
 
 def test_a_stuck_result_still_relays_the_ask_first(runtime):

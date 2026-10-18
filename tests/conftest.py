@@ -256,6 +256,22 @@ def _no_ambient_judge(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_ambient_observed_finger_gate(monkeypatch):
+    """A Spark shell that sourced the installer's env.sh exports
+    CASCADE_OBSERVED_FINGER_GATE=1 (install_support.SPARK_RUNTIME_DEFAULTS).
+    It must not switch every grasp in the suite to the observed-finger path:
+    tests written for the shipped default (gate unset, as on CI) then fail on
+    the Spark for an environment reason -- on the mock stack the gate refuses
+    the grasp ("observed-finger gate currently requires calibrated Isaac
+    reBot"). The suite certifies the gate-off default; gate-on tests set the
+    gate themselves with monkeypatch.setenv (which overrides this scrub), so
+    they run gate-on in every shell. pytest_configure below scrubs it for the
+    whole session too (import-time code, module and session fixtures); this
+    per-test scrub also undoes a test's direct os.environ write."""
+    monkeypatch.delenv("CASCADE_OBSERVED_FINGER_GATE", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _no_ambient_occupancy(monkeypatch):
     """occupancy is ON by default in configs/demo.yaml (2026-09-03), and this
     venv has the `grasping` extra, so every build_runtime in the suite would
@@ -292,20 +308,27 @@ def _no_live_graspgenx(monkeypatch):
 
 
 _GRASPGENX_ENV = ("CASCADE_GRASPGENX_PORT", "CASCADE_GRASPGENX_HOST")
+#: Spark defaults the suite certifies OFF for the whole session
+#: (`_no_ambient_observed_finger_gate` per test).
+_SCRUBBED_ENV = ("CASCADE_OBSERVED_FINGER_GATE",)
 
 
 def pytest_configure(config):
     """Session-wide B6 pin, set before collection: test modules' import-time
     code and module/session-scoped fixtures run before the per-test
     `_no_live_graspgenx`, so they get a held dead port of their own (held
-    until the session ends) and no ambient host. The ambient values come back
-    in pytest_unconfigure."""
+    until the session ends) and no ambient host. The same holds for an
+    ambient observed-finger gate (_SCRUBBED_ENV): scrubbed for the session.
+    The ambient values come back in pytest_unconfigure."""
     from owned_server import held_dead_port
 
     hold = held_dead_port()
     port = hold.__enter__()
-    config._cascade_graspgenx_pin = (hold, {name: os.environ.get(name) for name in _GRASPGENX_ENV})
+    config._cascade_graspgenx_pin = (hold, {name: os.environ.get(name)
+                                            for name in _GRASPGENX_ENV + _SCRUBBED_ENV})
     os.environ.pop("CASCADE_GRASPGENX_HOST", None)
+    for name in _SCRUBBED_ENV:
+        os.environ.pop(name, None)
     os.environ["CASCADE_GRASPGENX_PORT"] = str(port)
 
 

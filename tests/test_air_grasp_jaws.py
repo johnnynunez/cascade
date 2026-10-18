@@ -400,6 +400,22 @@ def test_a_grasp_whose_pre_reopen_read_fails_keeps_the_air_grasp_result(monkeypa
     assert at and commands(r.calls[at[0]:]) == [], "a command after the failed read"
 
 
+def test_a_fault_in_the_reopening_check_says_the_jaws_could_not_be_read(monkeypatch):
+    """The gate's own check of the measured jaws (`require_reopening`) runs
+    before the command too: a fault in it that is not a SafetyViolation sent
+    nothing, so it is never reported as a failed jaw command."""
+    r = rig(monkeypatch)
+    gate = _gate_at(r, TARGET, HOVER)
+
+    def faulty_check(state, *, check=None):
+        raise RuntimeError("finger snapshot unreadable")
+    monkeypatch.setattr(gate, "require_reopening", faulty_check)
+    n0 = len(r.calls)
+    out = r.rt._air_grasp_reopen(1., gate, halt_generation=0)
+    assert out == "refused: jaw state could not be read: finger snapshot unreadable", out
+    assert commands(r.calls[n0:]) == [] and fingers(r) == pytest.approx(.15 * UPPER)
+
+
 # ── a halt or an e-stop: 0 further commands, the jaws included ──────────────
 
 

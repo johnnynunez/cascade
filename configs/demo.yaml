@@ -202,6 +202,10 @@ grasp:
                             # profile key gripper.hold_squeeze_frac, keyed by
                             # the bridge's physics engine (configs/arms/
                             # isaac.yaml: {physx: 0.05}; unset/null = off)
+                            # Close-feedback stall band (the wait after each
+                            # stage when close_feedback_timeout_s is set): the
+                            # arm-profile key gripper.close_stall_band, default
+                            # 0.002 of jaw travel (Isaac profiles: 0.01)
   # open_gripper: wait up to this long for the jaws to open (or stall) before
   # the skill returns, so its postcondition reads the jaws after they moved.
   # null = return as soon as the target is sent (sims that open instantly).

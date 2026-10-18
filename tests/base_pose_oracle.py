@@ -38,6 +38,8 @@ ORACLE_SKILLS: frozenset[str] = frozenset({
     # Task 3: perception into the arm frame, reports back out
     "localize_object", "point_at", "preview_grasp", "get_observation", "list_objects", "describe_scene",
     "count_objects",
+    # Task 4: the grasp path
+    "grasp_object", "grasp_at_pixel",
 })
 
 #: Result keys whose numeric 3-vector is a POINT: rig B's is T a.
@@ -51,7 +53,8 @@ FRAME_FREE_KEYS: frozenset[str] = frozenset({"extent_m", "q_deg"})
 #: Clock- or capture-counter-dependent keys: never compared (frame counters,
 #: ages, the visible/remembered state derived from an age, timings).
 VOLATILE_KEYS: frozenset[str] = frozenset({
-    "age_s", "frame_age_s", "frame_id", "state", "perception_timing", "observation_retry"})
+    "age_s", "frame_age_s", "frame_id", "state", "perception_timing", "observation_retry",
+    "selection_s"})   # the observed-finger choice time (wall clock)
 #: Prose that quotes xy positions as "[x, y]": the numbers map like XY_KEYS,
 #: the rest of the text stays equal.
 TEXT_XY_KEYS: frozenset[str] = frozenset({"description"})
@@ -182,6 +185,22 @@ def moved_cfg(arm, pose, *, camera="mock_small", shift_xy=(0.0, 0.0), move_camer
         M[0, 3] += float(shift_xy[0])
         M[1, 3] += float(shift_xy[1])
         ext["T"] = M.tolist()
+    return cfg
+
+
+def raised_table(cfg, *, table_z=-0.03, workspace_min_z=-0.05):
+    """The arm's `safety.table_z` and workspace floor for a base 3 cm above the
+    table (RAISED): every arm entry's resolved `safety` and the top level."""
+    sections = [cfg._data.get("safety")]
+    for entry in _arm_entries(cfg._data):
+        resolved = entry.get("resolved")
+        if resolved is not None:
+            sections.append(_data(resolved).get("safety"))
+    for safety in filter(None, (None if s is None else _data(s) for s in sections)):
+        safety["table_z"] = float(table_z)
+        workspace = _data(safety.get("workspace") or {})
+        if "min" in workspace:
+            workspace["min"] = [*list(workspace["min"])[:2], float(workspace_min_z)]
     return cfg
 
 

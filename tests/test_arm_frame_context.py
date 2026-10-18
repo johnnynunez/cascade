@@ -576,6 +576,28 @@ def test_the_verifier_table_height_is_the_bound_arms_world_table(make_runtime, m
     assert rt.effects.table_z == pytest.approx(left_table_b, abs=1e-12)      # unbound: the primary
 
 
+def test_the_verifier_air_grasp_threshold_is_the_bound_arms(make_runtime):   # T1 review Minor 3
+    """`air_grasp_frac` is read per check inside the bind, like the table
+    height: so101_right's own `grasp.air_grasp_frac` (0.6 here) judges its
+    jaws, the primary's (0.04) judges the left's."""
+    cfg = _cfg(["so101_left", "so101_right"])
+    right_entry = next(e for e in cfg._data["arms"] if e.get("name") == "so101_right")
+    resolved = right_entry["resolved"]
+    resolved = getattr(resolved, "_data", resolved)
+    grasp = resolved["grasp"]
+    getattr(grasp, "_data", grasp)["air_grasp_frac"] = 0.6
+    rt = make_runtime(["so101_left", "so101_right"], cfg=cfg)
+    for name in ("so101_left", "so101_right"):
+        _raw(rt.arm_rig.get(name)).object_stop_frac = 0.5      # each jaw stalls half open
+    right = rt.execute("close_gripper", {"arm": "so101_right"})
+    left = rt.execute("close_gripper", {"arm": "so101_left"})
+    frac = right["postcondition"]["measured"]["gripper_frac"]
+    assert 0.04 < frac <= 0.6, right["postcondition"]
+    assert right["postcondition"]["evidence"].endswith("closed on empty air"), right["postcondition"]
+    assert left["postcondition"]["evidence"].endswith("closed on something"), left["postcondition"]
+    assert rt.effects.air_grasp_frac == pytest.approx(0.04)                    # unbound: the primary
+
+
 # ── 5. #357's running-arm profile agrees with the bound profile (R7) ──────
 
 

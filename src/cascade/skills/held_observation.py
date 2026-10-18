@@ -194,9 +194,10 @@ def measure(runtime, localize) -> HeldOffset:
     elif callable(channel) and tcp is not None:
         # Old vector APIs have no timestamp, robot pose, epoch or body identity.
         # Retain compensation compatibility without authorizing an opening.
+        # Their poses are table-frame; the offset is the running arm's.
         try:
             positions = [channel(label) for label in labels]
-            positions = [_vector(p, 3) for p in positions if p is not None]
+            positions = [runtime._to_arm(_vector(p, 3)) for p in positions if p is not None]
             if positions and all(np.array_equal(p, positions[0]) for p in positions):
                 return HeldOffset(_offset(positions[0], tcp), "legacy_pose")
         except Exception as exc:
@@ -209,7 +210,9 @@ def measure(runtime, localize) -> HeldOffset:
         # their own evidence/authority; native jaw feedback tracks possession.
         return HeldOffset(None, "wrist_unobserved", evidence={"rejected": rejected})
     try:
-        frame = runtime.observe()
+        # Measured in the running arm's frame (its camera pose T^-1 T_table_cam),
+        # where the captured TCP is.
+        frame = runtime._frame_in_arm(runtime.observe())
         if getattr(runtime, "_held_observation_floor", None) is not None:
             endpoint, robot, floor, now = _clock_binding(runtime, current)
             capture = getattr(frame, "capture", None)

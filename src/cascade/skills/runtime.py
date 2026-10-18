@@ -161,7 +161,7 @@ def _pregrasp_min_z(gcfg, harness, fix) -> float | tuple[float, float] | None:
     column = _column_geometry(gcfg, harness, fix.position[:2], fix.points)
     if column is None:
         return hover
-    found = column_top(*column)
+    found = _map_column_top(harness, column_top, column)
     if found is None:
         return hover
     map_top, voxel = found
@@ -170,6 +170,29 @@ def _pregrasp_min_z(gcfg, harness, fix) -> float | tuple[float, float] | None:
     if not lift > 0.0:   # also NaN: a non-finite map answer keeps today's hover
         return hover
     return (hover + lift, hover)
+
+
+def _map_column_top(harness, column_top, column) -> tuple[float, float] | None:
+    """`column_top` of the target's column, read in the occupancy map's frame.
+
+    The column (`_column_geometry`) is in the arm's base frame; the map is the
+    table frame. On an arm with a `base_pose` the centre and the floor are
+    lifted as ONE point through the harness's own `_to_map_frame` and the
+    map's top is taken back with `_to_base_frame` (level mounts: the grasp is
+    refused on a tilted one). Without a base_pose (instance dict, so a harness
+    double without one is the same) the query is today's, byte for byte.
+    """
+    center, radius, z_min = column
+    if (getattr(harness, "__dict__", None) or {}).get("base_pose") is None:
+        return column_top(center, radius, z_min)
+    c = np.asarray(harness._to_map_frame(np.array([[center[0], center[1], z_min]], dtype=float)),
+                   dtype=float).reshape(3)
+    found = column_top(c[:2], radius, float(c[2]))
+    if found is None:
+        return None
+    top, voxel = found
+    back = harness._to_base_frame(np.array([[c[0], c[1], float(top)]], dtype=float))
+    return float(np.asarray(back, dtype=float).reshape(3)[2]), voxel
 
 
 def _column_kw(column) -> dict:
@@ -486,10 +509,11 @@ _FOREGROUND_PERCEPTION_SKILLS = _MOTION_SKILLS | {"preview_grasp", "localize_obj
 #: offset away from the object until their path converts (spec 2026-10-17
 #: base_pose runtime frame). execute() refuses them on such an arm
 #: (`_mounted_off_table_origin`); a skill leaves this set in the task whose
-#: tests prove it reaches the world point (point_at, preview_grasp: Task 3).
+#: tests prove it reaches the world point (point_at, preview_grasp: Task 3;
+#: grasp_object, grasp_at_pixel: Task 4).
 #: Pinned against the call graph by tests/test_base_pose_world_target_guard.py.
 _WORLD_TARGET_SKILLS = frozenset({
-    "grasp_object", "pick_and_place", "grasp_at_pixel", "place_at",
+    "pick_and_place", "place_at",
     "place_on_object", "push_object", "move_near_object", "sort_by_color",
     "search_for_object", "restore_scene", "turn_screw", "throw", "handover",
 })
@@ -1157,6 +1181,10 @@ class SkillRuntime:
                 arm_frame.to_arm(T, [position[0], position[1], float(belief.top_z)])[2]),
         )
 
+    def _air_grasp_frac(self) -> float:
+        """The running arm's `grasp.air_grasp_frac` (the verifier's threshold)."""
+        return float(self.cfg.grasp.get("air_grasp_frac", 0.04))
+
     def _table_z_world(self) -> float:
         """The running arm's `safety.table_z` (its base frame) as a table-frame
         height. Without a base_pose: `table_z` itself."""
@@ -1303,7 +1331,8 @@ class SkillRuntime:
             # Read per check, inside execute()'s bind (R4): the RUNNING arm's
             # table height, in the frame the verified poses are in.
             table_z_fn=self._table_z_world,
-            air_grasp_frac=float(self.cfg.grasp.get("air_grasp_frac", 0.04)),
+            # Likewise per check: the RUNNING arm's air-grasp threshold.
+            air_grasp_frac_fn=self._air_grasp_frac,
             placement_check=self._verify_configured_placement,
             actuation=self._actuation_counts,
             holding=self._jaws_may_hold,
@@ -2558,6 +2587,14 @@ class SkillRuntime:
         extents = proj.max(axis=0) - proj.min(axis=0)
         return float(np.min(extents))
 
+    def _provisional_on_another_arm(self, prov) -> bool:
+        """The provisional hold `prov` was recorded by a close of an arm other
+        than the one running now (spec D9 / R5). A provisional without a
+        recorded owner (set elsewhere, e.g. the VLA executor) counts as this
+        arm's, as before. Identity checks only: no arm attribute is read."""
+        owner = getattr(self, "_held_provisional_owner", None)
+        return owner is not None and owner[0] is prov and owner[1] is not self.arm
+
     def _reconcile_held(self) -> None:
         """Reconcile the held flag with the jaws, in BOTH directions.
 
@@ -2581,6 +2618,10 @@ class SkillRuntime:
             return  # only explicit contact recovery may finish this failed close
         air = float(self.cfg.grasp.get("air_grasp_frac", 0.04))
         prov = getattr(self, "_held_provisional", None)
+        if prov is not None and self._provisional_on_another_arm(prov):
+            # R5: only the jaws that closed on it can promote or refute a
+            # provisional hold; another arm's jaws say nothing about it.
+            prov = None
         if prov is not None and not self.held_object:
             wf = self._gripper_width_frac()
             if wf is not None:
@@ -4810,9 +4851,11 @@ class SkillRuntime:
                     if episode is None:
                         episode = contact_episode.begin(self, q_pre)
                     self._held_provisional = provisional
+                    self._held_provisional_owner = (provisional, self.arm)
             else:
                 episode = contact_episode.begin(self, q_pre)
                 self._held_provisional = provisional
+                self._held_provisional_owner = (provisional, self.arm)
             try:
                 close_hold_open = SkillRuntime._grasp_close(
                     self, profile, hold_squeeze,
@@ -5466,7 +5509,8 @@ class SkillRuntime:
         except Exception as exc:
             if carry_attachment.active(self) is not None:
                 carry_attachment.active(self).reject("post-lift feedback unavailable: " + str(exc))
-        self.beliefs.mark_removed(self._held_det_label or label, near=fix.position)
+        # The fix is in the arm frame; the world model is the table frame.
+        self.beliefs.mark_removed(self._held_det_label or label, near=self._to_world(fix.position))
 
     def _vla_grasp(self, label, frame, fix, profile, halt_generation) -> dict:
         """`grasp.executor: vla` (B49, opt-in; grasping/vla_executor.py).
@@ -8784,7 +8828,9 @@ class SkillRuntime:
         if self.held_object:
             raise SkillError(f"already holding {self.held_object!r}; place it first")
 
-        frame = self.observe()
+        # The frame is analysed in the running arm's frame (its camera pose
+        # T^-1 T_table_cam), so the fix and the grasp are arm targets.
+        frame = self._frame_in_arm(self.observe())
         h, w = frame.rgb.shape[:2]
         uu, vv = float(u), float(v)
         if normalized or (0.0 <= uu <= 1.0 and 0.0 <= vv <= 1.0 and max(w, h) > 4):
@@ -8798,8 +8844,9 @@ class SkillRuntime:
                            segmenter=self._segmenter)
 
         mask = fix.detection.mask
+        # The workspace filter is in the table frame (every arm's base, D6).
         why = self._workspace.reject(
-            fix.position, fix.extent,
+            self._to_world(fix.position), fix.extent,
             mask_frac=(float(mask.sum()) / float(w * h)) if mask is not None else 0.0,
         )
         if why:

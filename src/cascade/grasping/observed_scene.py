@@ -100,6 +100,30 @@ def tracked_objects(beliefs, target_position=None, target_label=None) -> list[Tr
     return out
 
 
+def _beliefs_in_arm(beliefs, T, arm_frame):
+    """World-model beliefs (table frame) in the running arm's base frame, for
+    `tracked_objects`: shims with the label, the centre and the remembered
+    cloud taken there, and the size kept. T None (no base_pose): the beliefs
+    themselves. A belief that cannot be converted is left out, as
+    `tracked_objects` leaves out a malformed one (it only names a refusal)."""
+    if T is None:
+        return beliefs
+    from types import SimpleNamespace
+
+    out = []
+    for b in beliefs:
+        try:
+            cloud = getattr(b, "points", None)
+            out.append(SimpleNamespace(
+                label=b.label,
+                position=arm_frame.to_arm(T, np.asarray(b.position, dtype=float)[:3]),
+                points=None if cloud is None else arm_frame.to_arm(T, np.asarray(cloud, dtype=float).reshape(-1, 3)),
+                diameter_m=getattr(b, "diameter_m", None), extent=getattr(b, "extent", None)))
+        except (AttributeError, TypeError, ValueError):
+            continue
+    return out
+
+
 def precommand_refusal(message, conflict):
     """The gate's veto of a step BEFORE that step's command was sent.
 
@@ -830,6 +854,14 @@ def for_runtime(runtime, frame, fix, state):
     # Capture decoder validates q, robot, endpoint and capture timestamp without
     # transport IO. The producer epoch is then matched to current physics.
     raw.state_from_frame(frame)
+    from ..skills import arm_frame
+
+    # The gate checks the running arm's FK finger hulls, so the scene and the
+    # named objects are read in that arm's base frame: `frame` (from
+    # `_localize`) and `fix` already are; a static calibration and the world
+    # model (table frame) are taken there. None: no base_pose (or a runtime
+    # double without one), and nothing below changes.
+    T_arm = getattr(runtime, "T_world_base", None)
     T = frame.T_base_cam
     if T is None:
         # Only the identified primary camera may borrow its static calibration.
@@ -838,9 +870,10 @@ def for_runtime(runtime, frame, fix, state):
         primary = runtime.cfg.camera.get("sim_camera")
         ext = runtime.extrinsics
         if (capture.get("camera") == primary and getattr(ext, "mode", None) == "eye_to_hand"):
-            T = ext.T
+            T = arm_frame.cam_to_arm(T_arm, ext.T)
     try:  # names for refusal texts only; a world-model fault never blocks the gate
         beliefs = runtime.beliefs.all() if getattr(runtime, "beliefs", None) is not None else ()
+        beliefs = _beliefs_in_arm(beliefs, T_arm, arm_frame)
         target_label = getattr(fix, "label", None) or getattr(getattr(fix, "detection", None), "label", None)
         tracked = tracked_objects(beliefs, getattr(fix, "position", None), target_label)
     except Exception:  # noqa: BLE001

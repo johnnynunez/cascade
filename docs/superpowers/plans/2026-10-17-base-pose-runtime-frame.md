@@ -413,7 +413,9 @@ def test_grasp_evidence_records_the_arm_pose(make_runtime):
   - remove `"grasp_object"` and `"grasp_at_pixel"` from `_WORLD_TARGET_SKILLS`.
 - Modify: `src/cascade/grasping/observed_scene.py` `for_runtime` 789-806. The static-T fallback goes through
   `runtime._cam_to_arm(ext.T)`. `tracked_objects` receives beliefs whose positions went through
-  `runtime._to_arm`; use a list of `(label, to_arm(position), extent)` shims, so `tracked_objects` is unchanged.
+  `runtime._to_arm`; use a list of `(label, to_arm(position), to_arm(remembered cloud), size)` shims, so
+  `tracked_objects` is unchanged (a cloud left in the table frame would name the wrong surface). `for_runtime`
+  reads `runtime.T_world_base` (None on runtime doubles without it: unchanged).
 - Modify: `src/cascade/skills/held_observation.py` `measure`:
   - the legacy channel (198-201): `runtime._to_arm(p)`;
   - the image path (212): `frame = runtime._frame_in_arm(runtime.observe())`.

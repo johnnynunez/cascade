@@ -68,7 +68,7 @@ GAINS = {
     # SimReady DJ.004 asks a mimic joint to have zero gains, and on a revolute
     # joint that is right: PhysX enforces the constraint and the follower is
     # carried by the leader. On a PRISMATIC joint PhysX does not enforce it --
-    # measured in Isaac Sim 6.1, removing PhysxMimicJointAPI entirely changes
+    # measured in Isaac Sim, removing PhysxMimicJointAPI entirely changes
     # nothing (identical deviation to 4 decimal places), and with zero gains the
     # fingers drift 51.5 mm, far worse than the 2.3 mm bug this asset fixes.
     # Newton and MuJoCo do honour the coupling, so the constraint stays for

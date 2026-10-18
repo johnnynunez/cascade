@@ -152,7 +152,7 @@ def test_down_stops_only_registered_verified_pids_in_selected_profile(tmp_path, 
                     process.stdout.close()
 
 
-@pytest.mark.parametrize("version", ["6.1.0", "6.2.0", "6.0.0", "6.3.0"])
+@pytest.mark.parametrize("version", ["6.2.0", "6.1.0", "6.0.0", "6.3.0"])
 def test_discovered_source_python_exports_its_release_to_real_check(tmp_path, version):
     from test_spark_install import host_env
     repo = launcher_copy(tmp_path)
@@ -179,7 +179,7 @@ def test_discovered_source_python_exports_its_release_to_real_check(tmp_path, ve
     p = subprocess.run(["bash", str(repo / "scripts/launch.sh"), "--check", "--sim", "isaac", "--brain", "cosmos"],
                        env=env, text=True, capture_output=True, timeout=60)
     assert env_log.read_text() == str(release), p.stdout + p.stderr
-    if version in ("6.1.0", "6.2.0"):
+    if version == "6.2.0":
         assert '[ok]      Isaac Sim:' in p.stdout
         assert '"layout": "source"' in p.stdout
         assert f'"version": "{version}"' in p.stdout

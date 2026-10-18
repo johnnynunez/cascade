@@ -17,7 +17,7 @@ def test_newton_experience_is_found_in_a_wheel_layout(tmp_path):
     package = tmp_path / "site-packages/isaacsim"
     kit = package / "apps/isaacsim.exp.full.newton.kit"
     kit.parent.mkdir(parents=True)
-    kit.write_text("[package]\nversion='6.1.0'\n")
+    kit.write_text("[package]\nversion='6.2.0'\n")
     assert isaac_runtime.find_experience("newton", package_roots=[package]) == kit
     with pytest.raises(FileNotFoundError, match="newton"):
         isaac_runtime.find_experience("newton", package_roots=[tmp_path / "missing"])
@@ -50,7 +50,7 @@ def test_source_experience_keeps_release_path_for_relative_extensions(tmp_path, 
     assert selected.parent.parent.joinpath(extension.relative_to(release)).is_file()
 
 
-@pytest.mark.parametrize('version', ['6.0.0.1', '6.2.0.0', '6.3.0.0'])
+@pytest.mark.parametrize('version', ['6.0.0.1', '6.1.0.0', '6.3.0.0'])
 def test_managed_runtime_requires_the_requested_release(monkeypatch, version):
     import isaac_runtime
 
@@ -58,11 +58,11 @@ def test_managed_runtime_requires_the_requested_release(monkeypatch, version):
     assert callable(check), "An existing python executable does not prove Isaac is installed"
     monkeypatch.delenv('ISAACSIM_PATH', raising=False)
     monkeypatch.setattr(isaac_runtime.importlib.metadata, "version", lambda _: version)
-    with pytest.raises(RuntimeError, match="6.1.0.0"):
+    with pytest.raises(RuntimeError, match="6.2.0.0"):
         check()
 
 
-def _kit(root, version="6.1.0"):
+def _kit(root, version="6.2.0"):
     path = root / "apps/isaacsim.exp.full.newton.kit"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(f'[package]\nversion="{version}"\n')
@@ -70,7 +70,7 @@ def _kit(root, version="6.1.0"):
     return path
 
 
-@pytest.mark.parametrize("version", ["6.1.0", "6.2.0"])
+@pytest.mark.parametrize("version", ["6.2.0"])
 def test_source_release_is_checked_without_requiring_pip_metadata(tmp_path, monkeypatch, version):
     import isaac_runtime
 
@@ -89,12 +89,12 @@ def test_source_release_is_checked_without_requiring_pip_metadata(tmp_path, monk
     assert info["physx_experience"] == str(kit.parent / "isaacsim.exp.full.kit")
 
 
-@pytest.mark.parametrize("version", ["6.0.0", "6.1.0.0", "6.2.0.0", "6.3.0", "6.2.1"])
+@pytest.mark.parametrize("version", ["6.0.0", "6.1.0", "6.2.0.0", "6.3.0", "6.2.1"])
 def test_experience_refuses_wrong_package_version_even_if_file_exists(tmp_path, version):
     import isaac_runtime
 
     _kit(tmp_path, version)
-    with pytest.raises(RuntimeError, match="6.1.0"):
+    with pytest.raises(RuntimeError, match="6.2.0"):
         isaac_runtime.find_experience("newton", release=tmp_path, package_roots=[])
 
 
@@ -112,7 +112,7 @@ def test_source_does_not_certify_an_unrelated_python(tmp_path, monkeypatch):
 
     _kit(tmp_path)
     monkeypatch.setenv("ISAACSIM_PATH", str(tmp_path))
-    monkeypatch.setattr(isaac_runtime.importlib.metadata, "version", lambda _: "6.1.0.0")
+    monkeypatch.setattr(isaac_runtime.importlib.metadata, "version", lambda _: "6.2.0.0")
     with pytest.raises(RuntimeError, match="Python|python"):
         isaac_runtime.installation_info()
 
@@ -124,18 +124,18 @@ def test_wheel_checks_its_own_kit_and_exact_metadata(tmp_path, monkeypatch, kit_
     monkeypatch.delenv("ISAACSIM_PATH", raising=False)
     package = tmp_path / "site-packages/isaacsim"
     kit = _kit(package, kit_version)
-    monkeypatch.setattr(isaac_runtime.importlib.metadata, "version", lambda _: "6.1.0.0")
+    monkeypatch.setattr(isaac_runtime.importlib.metadata, "version", lambda _: "6.2.0.0")
     class Distribution:
         def locate_file(self, name):
             assert name == "isaacsim"
             return package
     monkeypatch.setattr(isaac_runtime.importlib.metadata, "distribution", lambda _: Distribution())
-    if kit_version != "6.1.0":
-        with pytest.raises(RuntimeError, match="6.1.0"):
+    if kit_version != "6.2.0":
+        with pytest.raises(RuntimeError, match="6.2.0"):
             isaac_runtime.installation_info()
     else:
         info = isaac_runtime.installation_info()
-        assert info["version"] == "6.1.0.0"
+        assert info["version"] == "6.2.0.0"
         assert info["newton_experience"] == str(kit)
 
 
@@ -154,8 +154,8 @@ def test_source_62_keeps_complete_installation_and_identity_gates(tmp_path, monk
     if fault == 'missing_physx': physx.unlink()
     if fault == 'mixed_apps': physx.write_text('[package]\nversion="6.1.0"\n')
     if fault == 'python': monkeypatch.setattr(sys, 'version_info', (3, 13))
-    expected = {'missing_physx': 'isaacsim.exp.full.kit', 'mixed_apps': 'experiences disagree',
-                'mixed_package': 'metadata .* does not match', 'python': 'Python 3.12'}[fault]
+    expected = {'missing_physx': 'isaacsim.exp.full.kit', 'mixed_apps': 'package.version must be one of',
+                'mixed_package': 'package must be one of', 'python': 'Python 3.12'}[fault]
     with pytest.raises((RuntimeError, FileNotFoundError), match=expected):
         isaac_runtime.installation_info()
 

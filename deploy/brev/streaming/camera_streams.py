@@ -1,4 +1,4 @@
-"""Optional Isaac 6.1 NVENC camera outputs, activated by the simulator owner."""
+"""Optional Isaac NVENC camera outputs, activated by the simulator owner."""
 
 from __future__ import annotations
 

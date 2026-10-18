@@ -4,7 +4,7 @@
 steps take about 25 min with warm download caches and 30–90 min on an uncached machine,
 plus cold CUDA builds.
 
-PAAI (Physical Agentic AI) installs the Build a Claw kitchen demo: Isaac Sim 6.1 with PhysX
+PAAI (Physical Agentic AI) installs the Build a Claw kitchen demo: Isaac Sim 6.2 with PhysX
 CUDA, real GraspGen-X inference, local Qwen Q4, OpenClaw and the PAAI camera extension in
 Chromium. No model API key is needed. The kitchen is Cocina_Asier_01 (owner-authorized
 geometry, CC0 wood, an original orange and fruit platter); the installer checks the archive
@@ -67,7 +67,7 @@ Success: `PREREQUISITES_OK`.
 ### 2. Install
 
 Before your first installation, review the [NVIDIA Isaac Sim / Omniverse
-licenses](https://docs.isaacsim.omniverse.nvidia.com/6.1.0/common/legal.html).
+licenses](https://docs.isaacsim.omniverse.nvidia.com/6.2.0/common/legal.html).
 **`--accept-eula` records your explicit acceptance for this checkout.**
 An agent must have the operator's explicit consent for this Isaac version.
 Previous explicit acceptance in the current task remains valid. If that consent is
@@ -203,7 +203,7 @@ Paths are relative to `$HOME/paai-spark`.
 | Component | Location |
 | --- | --- |
 | App, Python 3.12 and CUDA perception packages | `.venv/` |
-| Isaac Sim `isaacsim[all,extscache]==6.1.0.0`, Python 3.12 | `.isaacsim/` |
+| Isaac Sim `isaacsim[all,extscache]==6.2.0.0`, Python 3.12 | `.isaacsim/` |
 | GraspGen-X CUDA model, pinned source and full checkpoints | `.graspgenx/`, `.graspgenx-src/` |
 | OpenClaw 2026.9.3 and private Node.js | `.openclaw-cli/` |
 | Pinned Qwen Q4 model and BF16 vision projector | `models/qwen3.8-27b/` |

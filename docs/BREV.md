@@ -14,9 +14,10 @@ source-level health checks are shared. Upstream's Cosmos3-Edge profile is separa
 uncertified here.
 
 Tested machine: AWS `g7e.2xlarge`, one RTX PRO 6000 Blackwell Server Edition (97,887 MiB VRAM),
-8 vCPUs, 62.27 GiB RAM, a separate 1.7 TB NVMe volume. Isaac Sim 6.1 runs CUDA PhysX; the brain
-is Qwen3.8-27B Q8_0 with its BF16 vision projector, fully on the GPU (one Qwen/Isaac run used
-36,590 MiB with video off).
+8 vCPUs, 62.27 GiB RAM, a separate 1.7 TB NVMe volume. Isaac Sim 6.2 (`nvcr.io/nvidia/isaac-sim:6.2.0`)
+runs CUDA PhysX; the brain is Qwen3.8-27B Q8_0 with its BF16 vision projector, fully on the GPU (one
+Qwen/Isaac run on the earlier image used 36,590 MiB with video off). No Brev deployment check has
+run on the 6.2 image yet.
 
 ## Choose and connect a machine
 

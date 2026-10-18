@@ -1560,7 +1560,7 @@ class SkillRuntime:
         before any perception or command; names that arm and the way out on it
         (`then`: the call to make after it)."""
         prov = getattr(self, "_held_provisional", None)
-        if prov is not None and self._provisional_on_another_arm(prov):
+        if prov is not None and SkillRuntime._provisional_on_another_arm(self, prov):
             raise SkillError(self._held_elsewhere_refusal(prov[0], self._arm_name_of(prov.arm), provisional=True,
                                                           then=then, keep=len("SkillError: ")))
 
@@ -3203,7 +3203,7 @@ class SkillRuntime:
             return  # only explicit contact recovery may finish this failed close
         air = float(self.cfg.grasp.get("air_grasp_frac", 0.04))
         prov = getattr(self, "_held_provisional", None)
-        if prov is not None and self._provisional_on_another_arm(prov):
+        if prov is not None and SkillRuntime._provisional_on_another_arm(self, prov):
             # R5: only the jaws that closed on it can promote or refute a
             # provisional hold; another arm's jaws say nothing about it.
             prov = None
@@ -4890,7 +4890,7 @@ class SkillRuntime:
         scene_enabled = os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1"
         # R5: another arm's provisional hold keeps its slot: refused before
         # any work, the VLA route included.
-        self._refuse_on_another_arms_provisional("grasp_object")
+        SkillRuntime._refuse_on_another_arms_provisional(self, "grasp_object")  # runtime doubles too
         # A new grasp forfeits an approach column kept after a STOP below an
         # earlier grasp's pregrasp (stop_retrace.py), whoever calls it.
         stop_retrace.forget(self)

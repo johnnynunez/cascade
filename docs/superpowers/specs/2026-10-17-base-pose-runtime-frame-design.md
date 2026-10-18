@@ -267,12 +267,14 @@ Each converted site gets a RED test on a base 3 cm above the table plane (`base_
 
 ### 3.8 WorkspaceFilter (D6)
 
-- The filter stays in W. It takes `bases`: each arm's base origin in W, with that arm's resolved `base_radius_m`
-  and `reach_m`.
+- The filter stays in W. It takes `bases`: each arm's base origin in W, with that arm's resolved `base_radius_m`,
+  `base_height_m` and `reach_m`. An arm without a base_pose on such a rig sits at the origin.
 - It rejects as "robot" any point inside any base's cylinder, and as "out_of_reach" only a point beyond every
   base's reach.
-- `bases=None` (no arm declares a base_pose) keeps today's origin checks.
-- The watcher and the runtime share one filter. Arm-frame callers (grasp_at_pixel) pass `to_world(center)`.
+- `bases=None` (no arm declares a non-identity base_pose; the identity counts as none, §4) keeps today's origin
+  checks.
+- The watcher and the runtime share one filter object, built in the build pre-pass (R18). Arm-frame callers
+  (grasp_at_pixel) pass `to_world(center)`.
 
 ### 3.9 PR-A review M6 (lands on this branch)
 

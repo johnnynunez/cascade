@@ -43,7 +43,7 @@ from ..perception.depth_provider import DepthProvider
 from ..perception.grounding import Extrinsics
 from ..perception.stream import CameraRig, CameraStream
 from ..perception.world import LockedDetector, WatchedCamera, WorldWatcher
-from ..perception.workspace import WorkspaceFilter
+from ..perception.workspace import WorkspaceBase, WorkspaceFilter
 from ..safety.harness import SafeArm, SafetyHarness, SafetyLimits
 from ..safety.tool_volume import build_tool_volume
 from ..skills.runtime import SkillRuntime
@@ -543,6 +543,40 @@ def _refuse_eye_in_hand_beside_a_base_pose(cfg, arm_names, arm_cfgs) -> None:
                 "FK, a base frame, not the table frame the rig shares")
 
 
+def _workspace_bases(cfg, arm_cfgs) -> tuple[WorkspaceBase, ...] | None:
+    """Spec D6: every arm's base in the TABLE frame, for the one detection
+    filter the watcher and the runtime share.
+
+    None when no arm declares a non-identity `base_pose` (the identity counts
+    as none, spec §4): the filter keeps its origin checks, exactly as before.
+    Otherwise one entry per arm: at its base_pose translation (an arm without
+    one sits at the origin), with that arm's own resolved
+    `workspace_filter.base_radius_m` / `base_height_m` / `reach_m` (the
+    top-level section for an arm without a resolved view).
+    """
+    transforms = [_base_transform(a) for a in arm_cfgs]
+    if not any(T is not None and not np.array_equal(T, np.eye(4)) for T in transforms):
+        return None
+    defaults = WorkspaceFilter()
+
+    def value(section, key: str, default: float) -> float:    # WorkspaceFilter.from_config's rule
+        v = section.get(key, default)
+        return default if v is None else float(v)
+
+    bases = []
+    for acfg, T in zip(arm_cfgs, transforms, strict=True):
+        view = acfg.get("resolved")
+        own = (view.get("workspace_filter") if view else cfg.get("workspace_filter")) or _empty_cfg()
+        x, y, z = (0.0, 0.0, 0.0) if T is None else (float(v) for v in T[:3, 3])
+        bases.append(WorkspaceBase(
+            x=x, y=y, z=z,
+            radius_m=value(own, "base_radius_m", defaults.base_radius_m),
+            height_m=value(own, "base_height_m", defaults.base_height_m),
+            reach_m=value(own, "reach_m", defaults.reach_m),
+        ))
+    return tuple(bases)
+
+
 def _shared_map_region(cfg, arm_cfgs):
     """Default region of the ONE occupancy map every arm shares: the union of
     the arms' workspaces, in the map's frame (the TABLE frame).
@@ -720,6 +754,12 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
     if len(set(arm_names)) != len(arm_names):
         raise ValueError(f"duplicate arm names in rig: {arm_names}")    # ArmRig's rule
     _refuse_eye_in_hand_beside_a_base_pose(cfg, arm_names, arm_cfgs)
+    # ONE detection filter for the runtime's own fusion and the watcher (R18).
+    # On a base_pose rig it excludes every arm's base where it stands and
+    # counts reach from any base (spec D6); elsewhere `bases` is None and it
+    # equals the filter SkillRuntime builds from the same section.
+    workspace_filter = WorkspaceFilter.from_config(cfg.get("workspace_filter"),
+                                                   bases=_workspace_bases(cfg, arm_cfgs))
     arm_safety, payload_tracked = [], _payload_tracked(occupancy)
     for acfg in arm_cfgs:
         arm_safety.append(_arm_safety(acfg, occupancy, cfg, payload_tracked=payload_tracked))
@@ -928,9 +968,11 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
     runtime.register_arm_bindings({
         name: arm_binding(cfg, acfg, k)
         for name, acfg, k in zip(arm_names[1:], arm_cfgs[1:], kins[1:], strict=True)})
-    # Both fusion paths consult the same link self-mask (None = off): the
-    # runtime's get_observation / _reobserve here, the watcher below.
+    # Both fusion paths consult the same link self-mask (None = off) and the
+    # same workspace filter: the runtime's get_observation / _reobserve here,
+    # the watcher below.
     runtime._link_self_mask = link_self_mask
+    runtime._workspace = workspace_filter
 
     # Pigey (arXiv:2607.21725) closed loop: verify each primitive's physical
     # effect against a channel the actuator does not own. In sim the bridge
@@ -949,7 +991,7 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
             classes=list(cfg.get("detect_classes") or []) or None,
             rate_hz=float(pcfg.get("rate_hz", 3.0)),
             harness=harness,
-            workspace=WorkspaceFilter.from_config(cfg.get("workspace_filter")),
+            workspace=workspace_filter,
             occupancy=occupancy,
             link_mask=link_self_mask,
             # B43: only with memory.visual_recall_detections (+ an embedder);

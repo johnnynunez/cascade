@@ -28,6 +28,12 @@ an object nobody enumerated.
 Every threshold is a property of the RIG (where the arm is bolted, how far it
 reaches, how big its jaws are), not of the objects, so they stay valid for
 objects never seen before.
+
+Frame: the TABLE frame (camera extrinsics, beliefs, the map). Without a
+`base_pose` the arm's base IS its origin. On a rig whose arms declare one, the
+filter takes `bases` (spec 2026-10-17 base_pose runtime frame, D6): each arm's
+base cylinder is excluded where that arm stands, and a point is out of reach
+only beyond every arm's reach.
 """
 
 from __future__ import annotations
@@ -35,6 +41,29 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+
+
+@dataclass(frozen=True)
+class WorkspaceBase:
+    """One arm's base in the TABLE frame, for a rig whose arms declare a
+    `base_pose` (spec D6).
+
+    Args:
+        x, y, z: the base origin (the base_pose translation; an arm without a
+            base_pose on such a rig sits at the origin).
+        radius_m, height_m, reach_m: that arm's own resolved
+            `workspace_filter.base_radius_m` / `base_height_m` / `reach_m`.
+    """
+
+    x: float
+    y: float
+    z: float
+    radius_m: float
+    height_m: float
+    reach_m: float
+
+    def distance_xy(self, c: np.ndarray) -> float:
+        return float(np.hypot(c[0] - self.x, c[1] - self.y))
 
 
 @dataclass(frozen=True)
@@ -71,6 +100,10 @@ class WorkspaceFilter:
             Isaac (both demo cameras, 24 rounds): robot detections 0.885 to
             0.995, props at most 0.046. Below it, the robot's pixels are
             removed before the mask is lifted to 3D.
+        bases: every arm's base (`WorkspaceBase`), on a rig whose arms
+            declare a base_pose. None (no base_pose): the base cylinder and
+            the reach count from the origin, with `base_radius_m`,
+            `base_height_m` and `reach_m` above.
     """
 
     base_radius_m: float = 0.12
@@ -84,10 +117,13 @@ class WorkspaceFilter:
     min_height_m: float = 0.010
     self_mask: bool = True
     self_mask_max_frac: float = 0.5
+    bases: tuple[WorkspaceBase, ...] | None = None
 
     def __post_init__(self) -> None:
         if not 0.0 < float(self.self_mask_max_frac) <= 1.0:
             raise ValueError("self_mask_max_frac must be in (0, 1]")
+        if self.bases is not None and len(self.bases) == 0:
+            raise ValueError("bases must name at least one arm base (or be None)")
 
     def self_pixels(self, frame) -> np.ndarray | None:
         """The robot's own pixels in ``frame``: its render self-mask minus a
@@ -168,8 +204,11 @@ class WorkspaceFilter:
 
         # The arm's own base, as a cylinder: the links rise above the table
         # near the origin, so a sphere would either miss them or eat the
-        # workspace.
-        if float(np.hypot(c[0], c[1])) < self.base_radius_m and c[2] < self.base_height_m:
+        # workspace. With `bases`, every arm's own cylinder where it stands.
+        if self.bases is None:
+            if float(np.hypot(c[0], c[1])) < self.base_radius_m and c[2] < self.base_height_m:
+                return "robot"
+        elif any(b.distance_xy(c) < b.radius_m and c[2] < b.z + b.height_m for b in self.bases):
             return "robot"
 
         if c[2] < self.table_z_m:
@@ -178,15 +217,20 @@ class WorkspaceFilter:
             return "flat"  # shadow or surface marking, not an object
         if c[2] > self.max_z_m:
             return "too_high"
-        if float(np.hypot(c[0], c[1])) > self.reach_m:
-            return "out_of_reach"
+        if self.bases is None:
+            if float(np.hypot(c[0], c[1])) > self.reach_m:
+                return "out_of_reach"
+        elif all(b.distance_xy(c) > b.reach_m for b in self.bases):
+            return "out_of_reach"          # no arm reaches it
         return None
 
     @classmethod
-    def from_config(cls, cfg) -> "WorkspaceFilter":
+    def from_config(cls, cfg, bases=None) -> "WorkspaceFilter":
         """Build from a `workspace_filter:` config block, falling back to the
-        defaults above for anything unset."""
-        base = cls()
+        defaults above for anything unset. `bases`: every arm's base on a
+        base_pose rig (`apps.demo._workspace_bases`), or None."""
+        bases = None if bases is None else tuple(bases)
+        base = cls(bases=bases)
         if cfg is None or not hasattr(cfg, "get"):
             return base
 
@@ -214,4 +258,5 @@ class WorkspaceFilter:
             min_height_m=f("min_height_m", base.min_height_m),
             self_mask=flag("self_mask", base.self_mask),
             self_mask_max_frac=f("self_mask_max_frac", base.self_mask_max_frac),
+            bases=bases,
         )

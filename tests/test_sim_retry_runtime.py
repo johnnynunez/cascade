@@ -1128,10 +1128,10 @@ def test_the_exception_that_ended_the_skill_classifies_it(ledger_stack, monkeypa
     runtime.skill_grasp_object = _grasp_double(runtime, arm, move=False)
     real = runtime._end_on_halt
 
-    def ended(generation):
+    def ended(generation, failure=None):  # main #377: the halt carries the decided failure
         if runtime_mod._sim_retry_state(runtime).refusal_exc_type is not None:
             raise runtime_mod.SkillError("carry check failed after the refused grasp")
-        return real(generation)
+        return real(generation, failure=failure)
     monkeypatch.setattr(runtime, "_end_on_halt", ended)
     res = runtime.execute("pick_and_place", ARGS["pick_and_place"])
     assert res["ok"] is False and "carry check failed" in res["error"], res

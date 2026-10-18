@@ -21,7 +21,7 @@ from pathlib import Path
 
 import pytest
 
-from cascade.memory.envelope import _FAILURE_PATTERNS, normalize_failure
+from cascade.memory.envelope import _FAILURE_PATTERNS, HALT_SIGNATURE, normalize_failure
 from cascade.skills import notes
 from cascade.skills.notes import Note, lint_advice, lint_note, load_snapshot
 
@@ -324,6 +324,9 @@ ACCEPTED_OVER_BLOCKS = [
 STOP_ERRORS = ["MotionHalted: motion halted: operator; not retrying", "halted: operator stop",
                "halt received during route planning or execution", "e-stop latched", "stopped by operator",
                "SafetyViolation: e-stop latched; reset required", "motion halted: STOP button"]
+#: what the taxonomy before main #366 (f5ad8ab) made of the halt errors above: notes harvested then carry them
+LEGACY_STOP_SIGNATURES = ("other:motionhalted_motion_halted", "other:halted_operator_stop",
+                          "other:halt_received_during", "other:motion_halted_stop")
 LIBRARY_SKILLS = ["pick_and_place", "grasp_object", "place_at", "move_home", "handover"]
 
 
@@ -415,8 +418,12 @@ def test_library_shaped_halt_notes_are_refused_and_other_signatures_served(tmp_p
     """The notes a distiller would write for each failure signature (title "<skill> <signature>" and
     "After <signature>, retry <skill> once from home with a different grasp."): head edf3c4f served the
     advice of 20 of the 25 halt and e-stop ones; every one is refused now, the other signatures' advice
-    stays served."""
+    stays served. Main's taxonomy (#366/#377) files every halt as `safety:halt` (and adds the `state:*`
+    reset signatures); a library harvested before it can still carry the old halt signatures
+    (`LEGACY_STOP_SIGNATURES`), so both are refused: 5 skills x (safety:halt, safety:estop, 4 legacy)."""
     stops = {normalize_failure(error) for error in STOP_ERRORS}
+    assert stops == {HALT_SIGNATURE, "safety:estop"}  # the merged taxonomy
+    stops |= set(LEGACY_STOP_SIGNATURES)
     signatures = sorted({s for _, s in _FAILURE_PATTERNS} | stops)
     expect = {}
     for skill in LIBRARY_SKILLS:
@@ -428,7 +435,7 @@ def test_library_shaped_halt_notes_are_refused_and_other_signatures_served(tmp_p
             expect[note_id] = sig not in stops
     served = _served(tmp_path)
     assert {note_id for note_id, keep in expect.items() if keep} == served
-    assert sum(not keep for keep in expect.values()) == 25
+    assert sum(not keep for keep in expect.values()) == 30
 
 
 @pytest.mark.parametrize("text", [

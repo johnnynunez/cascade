@@ -422,15 +422,29 @@ def _error_text(exc: BaseException) -> str:
 
 def _cut_text(text: str, limit: int) -> str:
     """`text` within `limit` characters; a cut ends in "..." (the failure
-    line keeps that marker, `_with_failure_instruction`)."""
-    return text if len(text) <= limit else text[:max(limit - 3, 0)].rstrip() + "..."
+    line keeps that marker, `_with_failure_instruction`). A limit too small
+    for the marker keeps that many of its dots (none below 1): never more
+    than `limit` characters."""
+    limit = max(int(limit), 0)
+    if len(text) <= limit:
+        return text
+    return text[:limit - 3].rstrip() + "..." if limit >= 3 else "." * limit
+
+
+#: The fewest characters a refusal leaves a label: 18 of its own plus "...".
+#: Every shipped template leaves at least this; a longer template keeps the
+#: label readable and runs past the 240 characters instead.
+_MIN_LABEL_ROOM = 21
 
 
 def _fit_label(template: str, label, *, keep: int = 0) -> str:
     """`template` with `label` in its `{}`, the label shortened so the text
     plus `keep` more characters fits the error the agent's failure line quotes
-    (_FAILED_ERROR_CHARS): a long name is cut, never the sentence."""
-    return template.format(_cut_text(str(label), _FAILED_ERROR_CHARS - keep - len(template.format(""))))
+    (_FAILED_ERROR_CHARS): a long name is cut, never the sentence. A template
+    that leaves less than _MIN_LABEL_ROOM still gets that much of the label
+    (the failure line then marks the text truncated), never a bare "..."."""
+    room = _FAILED_ERROR_CHARS - keep - len(template.format(""))
+    return template.format(_cut_text(str(label), max(room, _MIN_LABEL_ROOM)))
 
 
 def _air_grasp_stop(harness, generation) -> str | None:
@@ -2021,7 +2035,8 @@ class SkillRuntime:
 
             result = {
                 "ok": False,
-                "error": f"unexpected {type(e).__name__}: {e}",
+                # An exception without text is named by its type alone.
+                "error": f"unexpected {type(e).__name__}" + (f": {e}" if str(e).strip() else ""),
                 "hint": "hardware/runtime fault; consider task_done(success=false)",
             }
             _with_retrace_result(result, e)
@@ -2552,9 +2567,9 @@ class SkillRuntime:
         (c) Thin objects: the held width MEASURED when the object was taken
         (jaw stall after the lift) decides whether a closed-jaw reading can
         mean a slip at all; see below.
-        A provisional hold's reading that is no number (a NaN the driver
-        reports as valid) is unknown feedback, never a width that reads empty
-        (`_finite_width_frac`); a held flag already keeps such a reading.
+        A reading that is no number (NaN or +-inf the driver reports as
+        valid) is unknown feedback, never a width that reads empty or open
+        (`_finite_width_frac`): a provisional hold and a held flag stay.
         """
         if getattr(self, "_contact_episode", None) is not None:
             return  # only explicit contact recovery may finish this failed close
@@ -2602,8 +2617,8 @@ class SkillRuntime:
                 self._held_provisional = None  # either promoted or refuted
         if not self.held_object:
             return
-        wf = self._gripper_width_frac()
-        if wf is None:  # unknown feedback: keep the cautious assumption
+        wf = self._finite_width_frac()
+        if wf is None:  # unknown feedback, or no number: keep the cautious assumption
             return
         thin = float((self.cfg.arm.get("gripper") or {}).get("min_object_m", 0.0) or 0.0)
         # #2.5: a legitimately held VERY thin object (a card, a cable) stalls
@@ -2865,9 +2880,10 @@ class SkillRuntime:
         wf = self._gripper_width_frac()
         return None if wf is None else float(wf) * float(self._max_width)
 
-    def _gripper_width_frac(self) -> float | None:
-        """0 = fully closed, 1 = fully open (from motor angle, linear map).
-        None when the gripper position is unknown (feedback failure)."""
+    def _jaw_state(self):
+        """One read of the arm state for its jaw reading; an active carry
+        attachment observes it, and a failed read rejects that attachment
+        before it raises."""
         try:
             state = self.arm.get_state()
             carry_attachment.observe(self, state)
@@ -2875,16 +2891,27 @@ class SkillRuntime:
             if carry_attachment.active(self) is not None:
                 carry_attachment.active(self).reject("jaw feedback unavailable: " + str(exc))
             raise
+        return state
+
+    def _gripper_width_frac(self) -> float | None:
+        """0 = fully closed, 1 = fully open (from motor angle, linear map).
+        None when the gripper position is unknown (feedback failure)."""
+        state = self._jaw_state()
         if not getattr(state, "gripper_valid", True):
             return None
         return self._open_frac_of(state.gripper_pos)
 
     def _finite_width_frac(self) -> float | None:
-        """`_gripper_width_frac` for the held-state reconcile: a reading that
-        is no number (a NaN the driver reports as valid) is unknown (None),
-        never a width that reads empty."""
-        wf = self._gripper_width_frac()
-        return wf if wf is not None and math.isfinite(wf) else None
+        """`_gripper_width_frac` for the held-state reconcile, from one read:
+        a reading that is no number (NaN or +-inf the driver reports as
+        valid) is unknown (None), never a width. It is judged on the raw
+        position, before the travel map clips +inf to open and -inf to
+        closed (air) and the reconcile drops a hold the jaws may still have."""
+        state = self._jaw_state()
+        if not getattr(state, "gripper_valid", True):
+            return None
+        pos = float(state.gripper_pos)
+        return self._open_frac_of(pos) if math.isfinite(pos) else None
 
     # ── language -> world resolution ─────────────────────────────────────
 
@@ -8548,12 +8575,14 @@ class SkillRuntime:
         longer raise the gripper. (A contact episode is never such a column.)
         Each refusal's sentence comes first and fits the 240 characters the
         agent's failure line quotes: a long label is shortened, never the
-        sentence, and the driver's text after it is cut to the room left. A
-        held flag is never reconciled here: it refuses as it is."""
-        provisional = getattr(self, "_held_provisional", None)
+        sentence, and the driver's text after it is cut to the room left; the
+        label gives way to that text only as far as it needs (at most
+        _REFUSAL_ERROR_ROOM characters). A held flag is never reconciled
+        here: it refuses as it is."""
         contact = getattr(self, "_contact_episode", None) is not None
         read_error = judge_error = None
-        if not self.held_object and provisional is not None:
+        if not self.held_object:
+            # Judges a provisional hold; without one it reads nothing.
             try:
                 self._reconcile_held(seat_aware=True)
             except _HoldNotJudged as exc:
@@ -8576,10 +8605,10 @@ class SkillRuntime:
                 + (": call move_home first (it raises the gripper up its approach column), then, if {} is in "
                    "the jaws, take it out by hand, open_gripper, reset_scene." if column_kept else
                    ": if {} is in the jaws, take it out by hand, then open_gripper, then reset_scene."))
-        way_out = _fit_label(head, provisional[0], keep=_REFUSAL_ERROR_ROOM)
         exc = judge_error if judge_error is not None else read_error
-        why = "no valid jaw feedback" if exc is None else _error_text(exc)
-        return way_out + _cut_text(f" Error: {why}", _FAILED_ERROR_CHARS - len(way_out))
+        tail = " Error: " + ("no valid jaw feedback" if exc is None else _error_text(exc))
+        way_out = _fit_label(head, provisional[0], keep=min(_REFUSAL_ERROR_ROOM, len(tail)))
+        return way_out + _cut_text(tail, _FAILED_ERROR_CHARS - len(way_out))
 
     def _forget_held_object(self) -> None:
         """The jaws let the held object go: clear every held-object field."""
@@ -9238,8 +9267,9 @@ def _normalize_outcome(result: dict, name: str) -> dict:
 FAILED_INSTRUCTION = "This attempt FAILED"
 #: Error text quoted in that instruction; the full text stays in `error`.
 _FAILED_ERROR_CHARS = 240
-#: Room a reset hold refusal keeps after its sentence for " Error: <driver
-#: text>" (`_reset_real_hold_refusal`): a longer label is shortened instead.
+#: Most room a reset hold refusal keeps after its sentence for " Error:
+#: <driver text>" (`_reset_real_hold_refusal`; a shorter text keeps only its
+#: own length): a longer label is shortened instead.
 _REFUSAL_ERROR_ROOM = 40
 #: pick_and_place's next_action for a completed routine. A failure (including a
 #: refuted placement) gets the failure instructions instead, never this.

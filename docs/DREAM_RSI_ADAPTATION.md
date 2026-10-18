@@ -49,7 +49,13 @@ a failed call (`REPAIR_WINDOW`). A candidate must pass all of these:
 4. A call that an operator stop ended (a halt, an e-stop or both) is never the failure a retry is
    credited to, even when it is filed under a failure the skill decided before the stop
    (`skill_error`): a stop is not how a primitive broke, and learning across one risks notes that
-   work around stops. An earlier real failure in the same run is still eligible.
+   work around stops. An earlier real failure in the same run is still eligible. ASPIRE sees the
+   stop in the row's signature, in an error that names a halt or the e-stop, or, with a sim retry
+   ledger, in the ledger's mark `context.sim_retry.ended_in_stop` (a failed call that ended
+   latched, with a halt since the skill started, or with another stop token than at its start: a
+   stop cleared again counts). Remaining gap: without a ledger (gate 0, every hardware profile)
+   nothing marks a stop the error does not name (the skill's own refusal after the stop), so such
+   a call stays unseen; harvesting only runs on the gate-1 kitchen sim, which has the ledger.
 
 ## Trace context and generated notes
 
@@ -116,8 +122,11 @@ evidence that a note causes success.
    visitor asks for that reset. A hold or a pending episode spends it: the next call runs
    as without the ledger, with no automatic home. Only a granted retry's result carries the
    "SIMULATION ONLY ... one more attempt" wording; every other result has it withheld, an
-   operator's halt reason included. No result carries the kitchen rules' reply-line wording
-   ("end your reply with ... exact line"): it is withheld from every result. A call the ledger
+   operator's halt reason included, and so do `halt_motion`'s memory note, the status line, the
+   memory events and the recalled step that show the agent's own halt reason. No result carries
+   reply-line wording ("end your reply with ... exact line"): it is withheld from every result.
+   These are listed words, defence in depth only (paraphrases pass), so the kitchen rules ask
+   for no reply line until a tool result actually grants one. A call the ledger
    refused ran nothing: like an operator halt (`safety:halt`), it is no loss in the operating
    envelope (live or replayed from the trace) and never the failure ASPIRE credits a retry to
    (`refused_before_motion`).

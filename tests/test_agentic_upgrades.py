@@ -74,6 +74,49 @@ def test_failure_taxonomy_normalizes_real_harness_errors():
     assert normalize_failure("") == "unknown"
 
 
+#: The errors an operator halt leaves (runtime / harness texts): the halt of a
+#: skill, and a failed skill's error with the halt of its final park or of its
+#: view-home return in front (the stop comes first, so the agent's 240-char
+#: FAILED line keeps it).
+OPERATOR_HALT_ERRORS = [
+    "MotionHalted: halted: operator: stop",
+    "MotionHalted: halt received during route planning or execution",
+    "MotionHalted: motion halted: operator: stop; not retrying",
+    "final park halted: operator: stop; grasp failed after 1 attempts (0.0s): grasp missed: closed on air",
+    # the skill's own failure matches a breakage pattern (jaw, air grasp, timed out)
+    "final park halted: halt received during route planning or execution; grasp failed after 1 attempts "
+    "(0.0s): air grasp: gripper closed fully, object not held; the jaws were not confirmed open: jaw state "
+    "could not be read: gripper feedback timed out",
+    "return to saved home halted: operator: stop; could not grasp 'red cube' for handover: grasp missed: "
+    "closed on air",
+    "return to saved home skipped: motion halted: operator: stop; grasp failed after 1 attempts (0.0s): "
+    "grasp missed: closed on air",
+]
+
+
+@pytest.mark.parametrize("error", OPERATOR_HALT_ERRORS)
+def test_failure_taxonomy_files_an_operator_halt_as_a_halt(error):
+    """An operator halt is not how a primitive breaks: its signature is the
+    halt's (`failure_digest` in the agent's context, aspire's (skill,
+    signature) entries), never the stop's first words
+    (`other:final_park_halted`) or a breakage the rest of the text names."""
+    assert normalize_failure(error) == "safety:halt"
+
+
+@pytest.mark.parametrize("error, signature", [
+    # a failed skill with no halt in its error: the fallback, as before
+    ("grasp failed after 1 attempts (0.0s): grasp missed: closed on air", "other:grasp_failed_after"),
+    ("could not grasp 'red cube' for handover: grasp missed: closed on air", "other:could_not_grasp"),
+    # an e-stop is not the operator's halt
+    ("SafetyViolation: e-stop latched", "safety:estop"),
+    # a skill NAMED halt_motion: a bad call, not a halt
+    ("bad arguments for halt_motion: SkillRuntime.skill_halt_motion() got an unexpected keyword "
+     "argument 'speed'", "agent:bad_call"),
+])
+def test_failure_taxonomy_keeps_the_signature_of_an_error_without_a_halt(error, signature):
+    assert normalize_failure(error) == signature
+
+
 def test_envelope_failure_digest_ranks_by_frequency():
     env = OperatingEnvelope()
     for _ in range(3):

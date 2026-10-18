@@ -100,6 +100,11 @@ DERIVED_FEATURES: dict[str, tuple[str, ...]] = {
 #: what the harness / skills actually emit (see safety/harness.py, skills/
 #: runtime.py) -- a signature nobody produces is dead weight.
 _FAILURE_PATTERNS: tuple[tuple[str, str], ...] = (
+    # The operator's halt is not how a primitive breaks: it matches first, so
+    # neither its free-text reason nor the failure a halted park or view-home
+    # return follows ("final park halted: ...; grasp failed ...") files it as
+    # one. "halt" / "halted" as words: the skill halt_motion is not a halt.
+    (r"\bhalt(ed)?\b", "safety:halt"),
     (r"would hit the table|below the table|link/joint \d+", "geometry:link_below_table"),
     (r"outside .*workspace|workspace aabb|out of workspace", "geometry:outside_workspace"),
     (r"keep-?out|keepout", "geometry:keep_out"),

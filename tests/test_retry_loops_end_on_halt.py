@@ -27,7 +27,9 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+from cascade.agent.aspire import diagnose
 from cascade.control.mock_arm import MockArm
+from cascade.memory.envelope import normalize_failure
 from cascade.types import MotionHalted, SkillError
 
 HALT = "halted: operator: stop"
@@ -368,6 +370,13 @@ def _scrub_time(error):
     return re.sub(r"\(\d+(\.\d+)?s\)", "(<t>s)", error)
 
 
+def _filed_as(r, skill):
+    """How this call's failure was filed: its envelope signatures (the
+    agent's `failure_digest`) and aspire's diagnosis of the run's trace."""
+    return (r.runtime.envelope.stats()[skill]["failures"],
+            diagnose(r.runtime.trace.run_dir).signature)
+
+
 def _one_marked_miss(r, monkeypatch):
     """One grasp attempt that moves the arm through the runtime (so execute()
     counts it as this skill's motion) and misses."""
@@ -387,9 +396,10 @@ def _one_marked_miss(r, monkeypatch):
 def test_a_failed_pick_and_place_park_error_names_a_halt_but_not_an_estop(rig, monkeypatch, profile, kind):
     """After its last missed attempt pick_and_place parks the arm (rigs
     without the view-home return). A halt that stops that park is named
-    first in the error, before the grasp failure it keeps. An e-stop there
-    (the harness's, or `SafeArm.stop()`) is not the operator's halt: the
-    error stays the grasp failure and the e-stop stays latched."""
+    first in the error, before the grasp failure it keeps, and the failure
+    is filed as the halt. An e-stop there (the harness's, or
+    `SafeArm.stop()`) is not the operator's halt: the error stays the grasp
+    failure, filed as one, and the e-stop stays latched."""
     r = rig(profile)
     _one_marked_miss(r, monkeypatch)
     _stop_in_rehome(r, monkeypatch, kind=kind)      # the 1st home move: the final park
@@ -400,9 +410,11 @@ def test_a_failed_pick_and_place_park_error_names_a_halt_but_not_an_estop(rig, m
     assert out["ok"] is False and out["stage"] == "grasp", out
     if kind == "halt":
         assert _scrub_time(out["error"]) == f"final park {HALT}; {PICK_MISSED}", out["error"]
+        assert _filed_as(r, "pick_and_place") == ({"safety:halt": 1}, "safety:halt")
         assert not r.runtime.arm.harness.estopped
     else:
         assert _scrub_time(out["error"]) == PICK_MISSED, out["error"]
+        assert _filed_as(r, "pick_and_place") == ({"other:grasp_failed_after": 1}, "other:grasp_failed_after")
         assert r.runtime.arm.harness.estopped
 
 
@@ -461,6 +473,7 @@ def test_a_halt_in_fr3_view_home_return_after_a_failed_skill_is_named_in_its_err
     assert out["ok"] is False, out
     assert out["return_home"]["status"] == ("halted" if where == "route" else "skipped"), out["return_home"]
     assert _scrub_time(out["error"]) == f"{VIEW_HOME_HALTED[where]}; {missed}", out["error"]
+    assert _filed_as(r, skill) == ({"safety:halt": 1}, "safety:halt")
     assert not r.runtime.arm.harness.estopped
 
 
@@ -477,6 +490,7 @@ def test_fr3_view_home_return_after_a_failed_skill_without_a_halt_keeps_its_erro
 
     assert out["return_home"]["status"] == ("returned" if stop == "none" else "skipped"), out["return_home"]
     assert _scrub_time(out["error"]) == PICK_MISSED, out["error"]
+    assert _filed_as(r, "pick_and_place") == ({"other:grasp_failed_after": 1}, "other:grasp_failed_after")
 
 
 def test_a_halt_inside_an_fr3_skill_is_not_named_again_by_its_return(rig, monkeypatch):
@@ -499,6 +513,7 @@ def test_a_halt_inside_an_fr3_skill_is_not_named_again_by_its_return(rig, monkey
     assert r.sends == r.at_stop, "an arm command went out after the halt"
     assert out["return_home"]["reason"] == "motion halted: operator: stop", out["return_home"]
     assert out["error"] == f"MotionHalted: {HALT}", out["error"]
+    assert normalize_failure(out["error"]) == "safety:halt"
 
 
 # ── the stop leads a long error: the agent's FAILED line keeps 240 characters ──
@@ -562,6 +577,7 @@ def test_the_stop_leads_a_long_failed_skill_error(rig, monkeypatch, profile, ski
     assert len(out["error"]) > 240, out["error"]
     kept = out["next_action"].split(" (truncated; see error)")
     assert len(kept) == 2 and f"This attempt FAILED: {stop}; " in kept[0], out["next_action"]
+    assert normalize_failure(out["error"]) == "safety:halt", out["error"]
     assert not r.runtime.arm.harness.estopped
 
 
@@ -581,3 +597,4 @@ def test_a_failed_skill_with_no_error_of_its_own_gets_the_stop_alone(rig, monkey
 
     assert r.at_stop is not None and r.sends == r.at_stop, "an arm command went out after the halt"
     assert out["ok"] is False and out["error"] == VIEW_HOME_HALTED["entry"], out
+    assert normalize_failure(out["error"]) == "safety:halt"

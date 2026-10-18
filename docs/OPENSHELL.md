@@ -66,8 +66,8 @@ TLS from a private CA).
 # 0. the brain on 127.0.0.1:8081 with a bearer key read from a 0600 file (default
 #    ~/.cascade/nemoclaw/llama.key, or --brain-key-file / $CASCADE_BRAIN_KEY_FILE)
 #    and the bare served id nemotron-3.5-bolt: Nemotron 3.5 Bolt 74B-A9B 24GB in the
-#    model card's vLLM container (Docker CDI GPU, LiLiCorr DFlash drafter, ~53 GiB at
-#    GPU_UTIL 0.45); the key goes to VLLM_API_KEY, passed to docker by name, never argv.
+#    model card's vLLM container (Docker CDI GPU, no drafter: SPEC=dflash adds LiLiCorr;
+#    ~53 GiB at GPU_UTIL 0.45); the key goes to VLLM_API_KEY, passed to docker by name, never argv.
 #    Once per host: scripts/serve_nemotron_bolt_vllm.sh --setup-only (pinned image + b12x,
 #    pinned weights, 24 GB). Restart this unit after pulling a new revision.
 systemd-run --user --unit=cascade-brain-vllm --collect -p MemoryMax=infinity \

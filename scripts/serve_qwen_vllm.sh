@@ -20,8 +20,7 @@
 #
 # Knobs: HOST (127.0.0.1), PORT (8080), API_KEY_FILE, GPU_UTIL (0.55; 0.40 next
 # to a second model), CTX (65536), SPEC=dflash|mtp|none, NSPEC (7),
-# SERVED_NAME, VENV (~/.venvs/vllm-0.32.0, shared with serve_nemotron_bolt_vllm.sh),
-# MAX_JOBS (4), EXTRA_ARGS.
+# SERVED_NAME, VENV (~/.venvs/vllm-0.32.0-cu130), MAX_JOBS (4), EXTRA_ARGS.
 #
 # Security: the key is read from a 0600 file into VLLM_API_KEY, never argv
 # (argv is world-readable in /proc). A bind beyond loopback without a key is
@@ -45,10 +44,14 @@ CTX="${CTX:-65536}"
 SPEC="${SPEC:-dflash}"
 NSPEC="${NSPEC:-7}"
 SERVED_NAME="${SERVED_NAME:-qwen3.8-27b}"
-VLLM_VERSION="0.32.0"   # DFlash2 landed in vLLM PR #52816; KEEP IN SYNC with serve_nemotron_bolt_vllm.sh
-# A venv per vLLM version, shared with the Bolt brain (hence the b12x extra):
-# an upgrade builds a fresh one beside the old instead of mutating it.
-VENV="${VENV:-$HOME/.venvs/vllm-$VLLM_VERSION}"
+VLLM_VERSION="0.32.0"   # DFlash2 landed in vLLM PR #52816
+# torch cu130 (the build 0.31.0 ran on here, and FlashInfer's prebuilt kernels'
+# CUDA), not uv's `--torch-backend=auto` pick (cu132 on this driver). A venv per
+# vLLM version and torch build: an upgrade builds a fresh one beside the old
+# instead of mutating it. (The Bolt brain does not use it: it runs in the model
+# card's container, see serve_nemotron_bolt_vllm.sh.)
+TORCH_BACKEND="cu130"
+VENV="${VENV:-$HOME/.venvs/vllm-$VLLM_VERSION-$TORCH_BACKEND}"
 # The target keeps BF16 lm_head/embeddings (the drafter reuses them) and vision.
 TARGET_REPO="Inferact/Qwen3.8-27B-NVFP4"
 TARGET_REV="6128240ebaf4eaa7bad2b3d1c72c37d677c5f462"
@@ -90,8 +93,8 @@ if [ ! -x "$VENV/bin/vllm" ]; then
     command -v uv >/dev/null || die "uv is required to create $VENV"
     echo "[+] creating vLLM $VLLM_VERSION venv at $VENV" >&2
     uv venv "$VENV" --python 3.12
-    # vLLM 0.32.0 ships CUDA 13 arm64 wheels; uv picks the matching torch.
-    uv pip install --python "$VENV/bin/python" --torch-backend=auto "vllm[b12x]==$VLLM_VERSION" \
+    # vLLM 0.32.0 ships CUDA 13 arm64 wheels (b12x extra: its SM12x kernels).
+    uv pip install --python "$VENV/bin/python" --torch-backend="$TORCH_BACKEND" "vllm[b12x]==$VLLM_VERSION" \
         "transformers>=5.16.1,<5.20.0" "huggingface_hub[hf_xet]"
     # Prebuilt FlashInfer kernels (sm121a included) instead of a JIT next to the model.
     "$VENV/bin/vllm" download-kernels \

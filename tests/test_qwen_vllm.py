@@ -207,7 +207,7 @@ if a[:1] == ["venv"]:
     assert r.returncode == 0, r.stdout + r.stderr
     uv = [json.loads(line) for line in log.read_text().splitlines()]
     assert uv[0][:2] == ["venv", str(fresh)]
-    assert "--torch-backend=auto" in uv[1] and "vllm[b12x]==0.32.0" in uv[1]
+    assert "--torch-backend=cu130" in uv[1] and "vllm[b12x]==0.32.0" in uv[1], "torch cu130, never auto (cu132 faulted)"
     assert any(json.loads(line).get("vllm_args") == ["download-kernels"]
                for line in r.stdout.splitlines() if '"vllm_args"' in line)
     assert '"serve"' not in r.stdout, "setup never serves"
@@ -216,4 +216,5 @@ if a[:1] == ["venv"]:
 
 def test_the_default_venv_is_per_vllm_version():
     text = SCRIPT.read_text()
-    assert 'VLLM_VERSION="0.32.0"' in text and 'VENV="${VENV:-$HOME/.venvs/vllm-$VLLM_VERSION}"' in text
+    assert 'VLLM_VERSION="0.32.0"' in text and 'TORCH_BACKEND="cu130"' in text
+    assert 'VENV="${VENV:-$HOME/.venvs/vllm-$VLLM_VERSION-$TORCH_BACKEND}"' in text

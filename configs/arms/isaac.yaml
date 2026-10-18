@@ -61,8 +61,13 @@ gripper:
   # closure did not settle"). At 0.01 (0.5 mm per finger per 0.5 s) all 20
   # settled in 1.0 s; live, 24 of 24 trials settled in 0.92-1.38 s and held
   # the cube in the lift. Free closing moves >= 0.028 per bridge iteration,
-  # so it never reads as stopped. The post-contact hold above keeps its own
-  # 0.002 band.
+  # so it never reads as stopped (the build refuses a band of 0.02 or more).
+  # The trade: the post-lift check only catches empty jaws, so a cube that
+  # slips slowly (up to ~0.008 per 0.5 s now reads as stopped) and is still
+  # between the jaws at the post-lift read counts as held; 0.002 would have
+  # waited. Measured live: 24 of 24 held. The band is per profile, not per
+  # engine: a PhysX run of these profiles gets 0.01 too. The post-contact
+  # hold above keeps its own 0.002 band.
   close_stall_band: 0.01
 
 overrides:

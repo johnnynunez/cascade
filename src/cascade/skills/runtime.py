@@ -243,10 +243,12 @@ OBSERVED_NEAR_COPY_DEG = 15.
 #: reads as moving until the 8 s timeout refuses the lift
 #: (configs/arms/isaac.yaml).
 CLOSE_STALL_BAND = 0.002
-#: Exclusive upper limit of a profile's band, a sanity bound. Keep a band
-#: well under the free-closing step (>= 0.028 per Newton bridge iteration),
-#: or a closing jaw reads as stopped.
-CLOSE_STALL_BAND_MAX = 0.05
+#: Exclusive upper limit of a profile's band, with a margin below the
+#: smallest free-closing step (0.028 open fraction per Newton bridge
+#: iteration): every step leaves the band, so free closing never reads as
+#: stopped at loop rates above 2 it/s. A band of 0.028 or more holds a whole
+#: step and reads free closing as a stop at 2-3.5 it/s.
+CLOSE_STALL_BAND_MAX = 0.02
 
 
 def close_stall_band(gripper_cfg) -> float:
@@ -5525,7 +5527,12 @@ class SkillRuntime:
 
         A fixed dwell expires while rate-limited sim jaws are still closing
         when physics runs slower than wall time. A stall is only a completion
-        signal here; the existing post-lift check still adjudicates the grip.
+        signal here; the existing post-lift check still adjudicates the grip,
+        but it only catches empty jaws (an air grasp). An object slipping
+        slowly out of the jaws, still between them at the post-lift read,
+        counts as held. The wider Isaac band (0.01) reads such a slip as
+        stopped and lifts where 0.002 waited: the measured trade, 24 of 24
+        live Newton trials held the cube.
         `band` is the profile's `gripper.close_stall_band` (close_stall_band).
         """
         deadline = time.monotonic() + timeout_s

@@ -112,7 +112,7 @@ def host_boundary(tmp_path, monkeypatch):
     state = tmp_path / "state"
     owner = owners.load_owner(state, repo, "", create=True)
     info = {"repo": repo, "state": state, "owner": owner, "calls": [], "binding": "new", "children": [], "drop_world_state": False,
-            "reply": "OK"}
+            "reply": "OK", "model": "openai/test"}
     original_run = subprocess.run
 
     def spawn(record_owner=owner, dead=False):
@@ -147,7 +147,7 @@ def host_boundary(tmp_path, monkeypatch):
         if cmd[0] != "openclaw":
             return original_run(cmd, **kwargs)
         if "status" in cmd:
-            return subprocess.CompletedProcess(cmd, 0, json.dumps({"defaultModel": "openai/test"}), "")
+            return subprocess.CompletedProcess(cmd, 0, json.dumps({"defaultModel": info["model"]}), "")
         info["calls"].append(cmd)
         message = cmd[cmd.index("--message") + 1]
         tools = []
@@ -171,7 +171,8 @@ def host_boundary(tmp_path, monkeypatch):
                 foreign = owners.load_owner(tmp_path / "foreign", repo, "foreign", create=True)
                 spawn(foreign)
         data = {"status": "ok", "result": {"payloads": [{"text": text}], "meta": {
-            "agentMeta": {"provider": "openai", "model": "test", "sessionId": cmd[cmd.index("--session-id") + 1]},
+            "agentMeta": {"provider": info["model"].partition("/")[0], "model": info["model"].partition("/")[2],
+                          "sessionId": cmd[cmd.index("--session-id") + 1]},
             "toolSummary": {"calls": len(tools), "tools": tools, "failures": 0},
         }}}
         return subprocess.CompletedProcess(cmd, 0, json.dumps(data), "")
@@ -552,6 +553,145 @@ def test_public_generic_proof_uses_natural_robot_requests(host_boundary):
         "Please put the red cube in the drop zone.",
         "Let's start over, then show the session status.",
     ]
+
+
+# ── Nemotron 3.5 Bolt, the default brain ─────────────────────────────────────
+# OpenClaw's agent prompt tells the model "Nothing to say: entire reply exactly
+# NO_REPLY" and then drops that token. Bolt read "Reply with exactly OK and
+# nothing else" as nothing to say (trial proxy seq 5): an empty payload, NOT
+# READY. Its readiness question states a reply is required; the judge
+# (brain_said_ok) is the same for every brain, and Qwen keeps main's wording.
+
+MAIN_READINESS = "Reply with exactly OK and nothing else. Do not call tools."
+
+
+def test_readiness_question_is_mains_for_every_brain_but_bolt():
+    for model in ("openai/test", "cascade/qwen3.8-27b", "cascade/cosmos3-edge", "nemotron-3.5-bolt", ""):
+        assert demo_proof.readiness_prompt(model) == MAIN_READINESS
+
+
+def test_bolts_readiness_question_says_a_silent_reply_fails():
+    prompt = demo_proof.readiness_prompt("cascade/nemotron-3.5-bolt")
+    assert prompt != MAIN_READINESS and prompt.endswith(MAIN_READINESS)
+    assert "NO_REPLY" in prompt and "visible reply is required" in prompt
+
+
+@pytest.mark.parametrize("reply", ["NO_REPLY", "", "  "])
+def test_a_silent_reply_is_never_ready(reply):
+    assert demo_proof.brain_said_ok(reply) is False
+
+
+def test_the_proof_asks_bolt_its_own_readiness_question(host_boundary):
+    h = host_boundary
+    h["model"] = "cascade/nemotron-3.5-bolt"
+    demo_proof.run_proof(h["repo"], h["state"], "mujoco", False)
+    first = h["calls"][0]
+    assert first[first.index("--model") + 1] == "cascade/nemotron-3.5-bolt"
+    assert first[first.index("--message") + 1] == demo_proof.READINESS_PROMPTS["nemotron-3.5-bolt"]
+
+
+def test_the_proof_asks_every_other_brain_mains_question(host_boundary):
+    h = host_boundary
+    demo_proof.run_proof(h["repo"], h["state"], "mujoco", False)
+    first = h["calls"][0]
+    assert first[first.index("--message") + 1] == MAIN_READINESS
+
+
+def test_bolt_answering_no_reply_is_still_not_ready(host_boundary):
+    h = host_boundary
+    h["model"], h["reply"] = "cascade/nemotron-3.5-bolt", "NO_REPLY"
+    with pytest.raises(demo_proof.ProofError, match="did not answer OK"):
+        demo_proof.run_proof(h["repo"], h["state"], "mujoco", False)
+
+
+def test_auto_brain_resolves_bolt_on_the_local_brain_endpoint(model_http_boundary, monkeypatch):
+    h = model_http_boundary
+    h["model"] = "nemotron-3.5-bolt"
+    monkeypatch.setenv("CASCADE_COSMOS_BASE_URL", "http://127.0.0.1:0/v1")
+    monkeypatch.setenv("CASCADE_QWEN_BASE_URL", h["base_url"])
+    monkeypatch.delenv("CASCADE_NEMOTRON_BOLT_BASE_URL", raising=False)
+    monkeypatch.delenv("CASCADE_INSTALL_PROFILE", raising=False)
+    info = demo_proof.check_brain("auto")
+    assert info == {"base_url": h["base_url"], "model": "nemotron-3.5-bolt", "brain": "nemotron-bolt",
+                    "context_window": 65536}
+
+
+def test_auto_brain_with_qwen_served_resolves_qwen_exactly_as_before(model_http_boundary, monkeypatch):
+    h = model_http_boundary
+    h["model"] = "qwen3.8-27b"
+    monkeypatch.setenv("CASCADE_COSMOS_BASE_URL", "http://127.0.0.1:0/v1")
+    monkeypatch.setenv("CASCADE_QWEN_BASE_URL", h["base_url"])
+    monkeypatch.delenv("CASCADE_NEMOTRON_BOLT_BASE_URL", raising=False)
+    monkeypatch.delenv("CASCADE_INSTALL_PROFILE", raising=False)
+    assert demo_proof.check_brain("auto") == {"base_url": h["base_url"], "model": "qwen3.8-27b", "brain": "qwen",
+                                              "context_window": 65536}
+
+
+def test_an_explicit_bolt_brain_refuses_another_served_model(model_http_boundary, monkeypatch):
+    h = model_http_boundary
+    h["model"] = "qwen3.8-27b"
+    monkeypatch.setenv("CASCADE_NEMOTRON_BOLT_BASE_URL", h["base_url"])
+    with pytest.raises(demo_proof.ModelNotServed, match="nemotron-3.5-bolt not served"):
+        demo_proof.check_brain("nemotron-bolt")
+
+
+def test_the_bolt_endpoint_is_its_own_variable_first(model_http_boundary, monkeypatch):
+    h = model_http_boundary
+    h["model"] = "nemotron-3.5-bolt"
+    monkeypatch.setenv("CASCADE_QWEN_BASE_URL", "http://127.0.0.1:0/v1")
+    monkeypatch.setenv("CASCADE_NEMOTRON_BOLT_BASE_URL", h["base_url"])
+    assert demo_proof.check_brain("nemotron-bolt")["base_url"] == h["base_url"]
+
+
+def test_the_brain_check_reads_its_bearer_from_a_key_file(monkeypatch, tmp_path):
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    seen = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_GET(self):
+            seen.append(self.headers.get("Authorization"))
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(json.dumps({"data": [{"id": "nemotron-3.5-bolt"}]}).encode())
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        key = tmp_path / "brain.key"
+        key.write_text("bolt-key-7c1\n")
+        monkeypatch.delenv("CASCADE_MODEL_API_KEY", raising=False)
+        monkeypatch.setenv("CASCADE_MODEL_API_KEY_FILE", str(key))
+        monkeypatch.setenv("CASCADE_NEMOTRON_BOLT_BASE_URL", f"http://127.0.0.1:{server.server_port}/v1")
+        demo_proof.check_brain("nemotron-bolt")
+        assert seen == ["Bearer bolt-key-7c1"]
+        monkeypatch.setenv("CASCADE_MODEL_API_KEY", "explicit-key")
+        demo_proof.check_brain("nemotron-bolt")
+        assert seen[-1] == "Bearer explicit-key"
+        monkeypatch.delenv("CASCADE_MODEL_API_KEY")
+        monkeypatch.setenv("CASCADE_MODEL_API_KEY_FILE", str(tmp_path / "missing.key"))
+        with pytest.raises(demo_proof.ProofError, match="cannot read CASCADE_MODEL_API_KEY_FILE") as raised:
+            demo_proof.check_brain("nemotron-bolt")
+        assert "missing.key" not in str(raised.value)
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_check_brain_cli_accepts_nemotron_bolt(model_http_boundary, monkeypatch, capsys):
+    h = model_http_boundary
+    h["model"] = "nemotron-3.5-bolt"
+    monkeypatch.setenv("CASCADE_NEMOTRON_BOLT_BASE_URL", h["base_url"])
+    monkeypatch.delenv("CASCADE_INSTALL_PROFILE", raising=False)
+    monkeypatch.setattr(sys, "argv", ["demo_proof.py", "--check-brain", "nemotron-bolt"])
+    assert demo_proof.main() in (0, None)
+    assert json.loads(capsys.readouterr().out)["model"] == "nemotron-3.5-bolt"
 
 
 # ── the OpenShell route: OpenClaw lives in the sandbox, the world is long-lived ──

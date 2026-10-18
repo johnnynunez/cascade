@@ -43,6 +43,13 @@ pending, or ends halted or latched; every open slot is touched when any motion
 call starts latched or ends halted or latched. A retry the operator halts keeps
 its used slot, so nothing moves again on the ledger's behalf.
 
+Never after a stop (R7): the runtime hands `begin` and `finish` the rig's stop
+token (every arm harness's halt / e-stop count, which a Resume or a reset never
+lowers). A call during which it changed ends halted, and an open slot whose
+token is not the current one at a `begin` is spent: a halt or an e-stop between
+the refusal and the next call, even one cleared again, grants no retry and no
+automatic home.
+
 A slot ends only when its goal succeeds, `reset_scene` succeeds (`clear`) or its
 window (one native turn, R9) ends; a used slot ends on success only when the call
 that used it succeeds. A call with another goal never touches a slot, so per goal
@@ -258,6 +265,7 @@ class _Slot:
     refused_grasps: tuple = ()
     arm_left_in_place: bool = False
     late: bool = False  # used because the retry would have started too late (R10)
+    stop_token: object = None  # the rig's stop token when the slot opened (R7)
 
 
 @dataclass
@@ -268,6 +276,7 @@ class _Call:
     started_at: float
     blocked: bool
     retry: RetryCall | None = None
+    stop_token: object = None  # the rig's stop token at `begin`
 
 
 def _seconds(label: str, value, *, minimum: float, inclusive: bool) -> float:
@@ -282,11 +291,12 @@ def _seconds(label: str, value, *, minimum: float, inclusive: bool) -> float:
 class SimRetryLedger:
     """Per-runtime retry slots (spec §4.5). Thread-safe; never touches the arm.
 
-    The runtime calls, around each outermost motion call: `precheck` (a refusal to
-    return before any motion), `begin` (the RetryCall when the call is the retry,
-    the same refusal as `precheck` when the goal's retry is used, else None),
-    `finish` (sets `sim_retry` on the result), `note_motion` (a counted home), and
-    `clear` (reset_scene). `last_event` describes the last finished retry,
+    The runtime calls, around each outermost motion call: `begin` (the RetryCall
+    when the call is the retry, the used-slot refusal to return before any motion
+    when the goal's retry is used, else None), `finish` (sets `sim_retry` on the
+    result), `note_motion` (a counted home), and `clear` (reset_scene); both
+    `begin` and `finish` get the rig's stop token (R7). `precheck` is the
+    read-only form of `begin`'s refusal. `last_event` describes the last finished retry,
     `{t, kind: "retry", goal, outcome: "succeeded"|"failed"|"halted", refusal}`,
     or the switch-off, `{t, kind: "off", where}` (then `off` is True).
     """
@@ -329,7 +339,7 @@ class SimRetryLedger:
                 return None
 
     def begin(self, name, args, *, held: bool, latched: bool, episode_pending: bool,
-              motion_blocked: bool) -> RetryCall | dict | None:
+              motion_blocked: bool, stop_token=None) -> RetryCall | dict | None:
         """Start a motion call. Returns the refusal dict (as `precheck`) when this
         goal's retry is used, or when this call would be the retry but starts too
         late for the turn (R10: the slot is used): the caller returns it before
@@ -337,7 +347,9 @@ class SimRetryLedger:
         slot (the slot is used from here on), else None (the call runs as without
         the ledger). Under a hold, a latch, a pending episode or a blocked arm the
         goal is spent instead, and a latch spends every open slot. A call that
-        matches two or more open slots is no retry: all of them are used."""
+        matches two or more open slots is no retry: all of them are used.
+        `stop_token`: the rig's stop token now (R7); every open slot that opened
+        under another one (a halt or e-stop since, even cleared again) is spent."""
         with self._lock:
             self._call = None
             try:
@@ -345,6 +357,9 @@ class SimRetryLedger:
                 self._expire(now)
                 if latched:
                     self._spend_open()  # a halt or e-stop pending at any motion call
+                for slot in self._slots:
+                    if slot.state == _OPEN and slot.stop_token != stop_token:
+                        slot.state = _SPENT  # a halt or e-stop since the refusal, even one cleared again
                 goal = goal_of(name, args)
                 if goal is None:
                     return None
@@ -352,12 +367,13 @@ class SimRetryLedger:
                 if slot is not None and slot.state == _USED:
                     return self._used_refusal(slot)
                 blocked = bool(held or latched or episode_pending or motion_blocked)
+                call = _Call(goal, now, blocked, stop_token=stop_token)
                 if blocked:
-                    self._call = _Call(goal, now, blocked)
+                    self._call = call
                     self._spend(goal, now)
                     return None
                 if slot is None or slot.state != _OPEN:
-                    self._call = _Call(goal, now, blocked)
+                    self._call = call
                     return None
                 matched = [other for other in self._slots if same_goal(other.goal, goal)]
                 if len(matched) > 1:
@@ -365,13 +381,13 @@ class SimRetryLedger:
                     # be a guess, so none is retried and none is retried later
                     for other in matched:
                         other.state = _USED
-                    self._call = _Call(goal, now, blocked)
+                    self._call = call
                     return None
                 slot.state = _USED
                 if now - slot.first_started_at + self.reserve_s > TURN_BUDGET_S:
                     slot.late = True  # R10: the retry would overrun the agent's turn
                     return self._used_refusal(slot)
-                call = self._call = _Call(goal, now, blocked)
+                self._call = call
                 call.retry = RetryCall(str(slot.goal), slot.refused_grasps, slot.arm_left_in_place, slot.refusal)
                 return call.retry
             except Exception:  # noqa: BLE001
@@ -379,12 +395,13 @@ class SimRetryLedger:
                 return None
 
     def finish(self, name, args, result, *, exc_type, held: bool, latched: bool, halted: bool,
-               episode_pending: bool, refused_grasps, retry: RetryCall | None):
+               episode_pending: bool, refused_grasps, retry: RetryCall | None, stop_token=None):
         """End a call: returns `result`, with `sim_retry` set when a slot opened
         (`{allowed: true, goal, refusal}`) or a retry failed (`{allowed: false,
         used: true}`). `halted`: a halt arrived during the call; `latched`: an
         e-stop or halt is latched now; `refused_grasps`: the attempted candidates
-        of the refused grasp (exclusions for the retry)."""
+        of the refused grasp (exclusions for the retry); `stop_token`: the rig's
+        stop token now (one that differs from `begin`'s ends the call halted)."""
         with self._lock:
             call, self._call = self._call, None
             if self._off:
@@ -392,7 +409,7 @@ class SimRetryLedger:
             try:
                 return self._finish(name, args, result, call, exc_type=exc_type, held=held, latched=latched,
                                     halted=halted, episode_pending=episode_pending,
-                                    refused_grasps=refused_grasps, retry=retry)
+                                    refused_grasps=refused_grasps, retry=retry, stop_token=stop_token)
             except Exception:  # noqa: BLE001
                 self._fail_closed("finish")
                 return result
@@ -416,14 +433,15 @@ class SimRetryLedger:
     # ── internals ────────────────────────────────────────────────────────
 
     def _finish(self, name, args, result, call: _Call | None, *, exc_type, held, latched, halted,
-                episode_pending, refused_grasps, retry):
+                episode_pending, refused_grasps, retry, stop_token):
         now = self._clock()
         goal = goal_of(name, args)
         if call is not None and call.goal != goal:
             call = None
         if retry is None and call is not None:
             retry = call.retry
-        stopped = bool(halted or latched)
+        # a halt or an e-stop during the call, even one cleared again before its end (R7)
+        stopped = bool(halted or latched or (call is not None and call.stop_token != stop_token))
         if stopped:
             # a halt or e-stop at any point, whatever the result: every open slot and
             # this call's goal are spent (a used slot stays used: the halted order
@@ -460,7 +478,7 @@ class SimRetryLedger:
             return result  # the retry would overrun the agent's turn (R10, A6-fix2 Minor 3)
         grasps = () if refused_grasps is None else tuple(refused_grasps)
         self._slots.append(_Slot(goal, now, call.started_at, _OPEN, refusal, grasps,
-                                 bool(result.get("arm_left_in_place"))))
+                                 bool(result.get("arm_left_in_place")), stop_token=stop_token))
         result["sim_retry"] = {"allowed": True, "goal": str(goal), "refusal": refusal}
         return result
 

@@ -539,8 +539,9 @@ def test_success_and_other_skills_are_untouched(): out = L.finish("pick_and_plac
   see A6 "Produces"); `sim_retry_enabled` (A1).
 - Produces: `runtime.sim_retry: SimRetryLedger | None`; `_ObservedSelection.refused_grasps() -> tuple` (attempted
   candidates whose outcome is not `"grasped"`); module function `_without_refused(grasps: list, excluded: tuple) ->
-  list` (drops `_same_grasp` / `_near_copy` matches); runtime attributes `_retry_exclude: tuple = ()`,
-  `_last_refused_grasps: tuple = ()`; module constant `_PICK_FAILED_GUIDANCE` = the exact "If the user said 'then
+  list` (drops `_same_grasp` / `_near_copy` matches); per-call state `_SimRetryState(exclude, refused_grasps,
+  refusal_exc_type)` on the calling thread's motion scope (`_sim_retry_state(runtime)`; as built after A7 fix
+  1: no runtime attributes); `SkillRuntime._stop_token()`; module constant `_PICK_FAILED_GUIDANCE` = the exact "If the user said 'then
   stop', ... manual coordinates." text now inlined at `runtime.py:1653-1656` (moved, unchanged); module function
   `_with_retry_text(result: dict, skill: str) -> dict` (spec §4.5 composition: FAILED line and move_home hint stay in
   front; for `pick_and_place` `_PICK_FAILED_GUIDANCE` is replaced by `RETRY_ALLOWED`, for `grasp_object`
@@ -586,35 +587,38 @@ def test_gates_are_identical_with_the_retry_on_and_off():
   unknown profile, gate off or bad config). A7 moves the R8 gate check (`CASCADE_OBSERVED_FINGER_GATE == "1"`) into
   `sim_retry_enabled` (it owns `test_sim_profile` under R22) or reports `ledger is not None` in run.json, so run.json's
   `sim_retry` (`demo.py:1126`) never says true while no ledger exists. In `execute` (only when `self.sim_retry` is set
-  and this is the outermost call): `pre = ledger.precheck(name, args)` -> return `_with_failure_instruction(pre)`
-  before any keyframe (its own trace row, `context.sim_retry.refused`, R28); then `step = ledger.begin(name, args,
-  held=self._held_or_provisional(), latched=self._stop_latched(arm), episode_pending=<the selected arm's harness
-  `_pending_contact_episode` or `_pending_release_episode`>, motion_blocked=<...>)` (R7: all four are required
-  keywords): a dict is the same used-slot refusal (another caller used the slot after the precheck) -> return it
-  exactly like `pre`; a `RetryCall` makes this call THE retry; None runs the call as without the ledger (no auto-home,
+  and this is the outermost call) the runtime calls `begin` ONLY, never `precheck` (A7 ruling: `begin` returns the same
+  used-slot dict at the same point and also spends other open slots under a pending stop): `step =
+  ledger.begin(name, args, held=self._held_or_provisional(), latched=self._stop_latched(arm), episode_pending=<the
+  selected arm's harness `_pending_contact_episode` or `_pending_release_episode`>, motion_blocked=<...>,
+  stop_token=self._stop_token())` (R7: the four flags are required keywords; the stop token, every arm harness's
+  `_observation_cancel_generation`, spends a slot after any halt or e-stop since it opened, even one cleared again,
+  A7 fix 1): a dict is the used-slot refusal -> return `_with_failure_instruction(...)` of it before any keyframe (its
+  own trace row, `context.sim_retry.refused`, R28); a `RetryCall` makes this call THE retry; None runs the call as without the ledger (no auto-home,
   no exclusions). `g0` is taken inside `_execute_skill` after the arm override, from the harness `skill_move_home`
   will use (R7c), at the retry's start. The auto-home runs
   inside `_execute_skill`'s dispatch, immediately before `result = fn(**args)` (`runtime.py:1482`): when
-  `self._retry_call.arm_left_in_place`, `self.skill_move_home(_halt_generation=g0)` then
+  `retry.arm_left_in_place`, `self.skill_move_home(_halt_generation=g0)` then
   `self.arm.harness._check_halt_generation(g0)`; a refusal or MotionHalted there flows through the existing
   `except (SkillError, SafetyViolation)` handler into the call's traced failed result (slot already used, no pick).
-  Set `self._retry_exclude = retry.refused_grasps` around the dispatch and
-  restore it in `finally`; also keep `self._retry_call = retry` for the dispatch (None otherwise; cleared in
-  `finally`). In `_execute_skill`, just before `self.trace.record(...)` (`runtime.py:1742`, after the existing
+  Bind a fresh `_SimRetryState(exclude=retry.refused_grasps)` (empty for a call that is no retry) on the thread-local
+  motion scope (`scope.sim_retry`) around the dispatch and restore it in `finally`. In `_execute_skill`, just before `self.trace.record(...)` (`runtime.py:1742`, after the existing
   `_with_failure_instruction`), so the trace row carries the verdict: `result = ledger.finish(name, args, result,
   exc_type=<the refusing exception's exact class name, R6>, held=bool(self._held_or_provisional()),
   latched=self._stop_latched(arm), halted=self._halted_since_skill_start(...), episode_pending=<as at begin>,
-  refused_grasps=self._last_refused_grasps, retry=self._retry_call)` (`_last_refused_grasps` reset at each call start,
-  R28), then `_with_retry_text(result, name)`; `trace_context["sim_retry"] = {"retry": True,
+  refused_grasps=<the call's state>.refused_grasps, retry=retry, stop_token=self._stop_token())` (a fresh state per
+  call, R28), then `_with_retry_text(result, name)`; `trace_context["sim_retry"] = {"retry": True,
   "auto_home": <bool>}` on the retry's row;
   `ledger.note_motion(name, ok)` for every `_MOTION_SKILLS` call; `skill_reset_scene` ok ->
-  `ledger.clear("reset_scene")`. In `skill_grasp_object`: `grasps = _without_refused(grasps, self._retry_exclude)`
-  before each `selection.add_batch(grasps)` and before `select_grasp(` when the gate is off; an empty list after
-  filtering raises `SkillError("no different grasp candidate: every planned grasp repeats the refused one")`. The
-  `_observed_selection_on_failure` wrapper stores `self._last_refused_grasps = selection.refused_grasps()`.
+  `ledger.clear("reset_scene")`. In `skill_grasp_object`: every planned batch passes `_OtherThanRefused` (the state's
+  `exclude`); a batch it empties falls through to the next feasibility batch, and only when no batch kept a grasp
+  does the search raise `SkillError("no different grasp candidate: every planned grasp repeats the refused one")`,
+  never recorded as a planning failure in grasp memory (A7 fix 1). The `_observed_selection_on_failure` wrapper stores
+  `selection.refused_grasps()` on the call's state.
 - [ ] **Step 4: Run** the file + `tests/test_agent_results_compose.py tests/test_agent_honest_results.py
   tests/test_observed_neighbour_selection.py tests/test_reset_scene.py tests/test_persistence_leftovers.py` with
-  `CASCADE_OBSERVED_FINGER_GATE` off and on -> PASS.
+  `CASCADE_OBSERVED_FINGER_GATE` off and on -> PASS (gate on: 12 of main's tests in test_reset_scene /
+  test_persistence_leftovers fail on f5ad8ab too, they assume the gate off without pinning it: follow-up for main).
 - [ ] **Mutations** (each KILLED, read which test killed it): build the ledger without `ledger_for` in
   `build_runtime` (`runtime.sim_retry = SimRetryLedger()`) -> real-profile test; run a call whose `begin` returned the
   used-slot dict (`if isinstance(step, dict)` -> `if False`) -> third-call test; skip the auto-home -> home test; `_halt_generation=g0` ->

@@ -110,11 +110,11 @@ def _finish(L, name="pick_and_place", args=A, result=None, *, exc="SafetyViolati
                     refused_grasps=grasps, retry=retry, **{**CLEAR, **state})
 
 
-def _refused_first(L, clock, name="pick_and_place", args=A, took=60.0, **kw):
+def _refused_first(L, clock, name="pick_and_place", args=A, took=60.0, stop_token=None, **kw):
     """One first attempt: begin (not a retry), `took` seconds, then finish."""
-    assert _begin(L, name, args) is None
+    assert _begin(L, name, args, stop_token=stop_token) is None
     clock.advance(took)
-    return _finish(L, name, args, **kw)
+    return _finish(L, name, args, stop_token=stop_token, **kw)
 
 
 def _agent(L, clock, orders, *, calls=30, step=10.0):
@@ -923,6 +923,62 @@ def _p2(L, clock, event, calls=8):
 @pytest.mark.parametrize("event", sorted(P2))
 def test_no_halt_hold_or_latch_ever_grants_a_second_retry(ledger, clock, event):  # probe P2
     assert _p2(ledger, clock, event) == P2[event]
+
+
+# ── never after a stop: the rig's stop token (R7, A7 review Important 1) ───
+
+def test_a_stop_cleared_between_the_calls_spends_the_slot(ledger, clock):
+    """The stop token moved since the slot opened (a halt or e-stop, cleared again
+    before the next call): that call is no retry; it runs as without the ledger
+    and opens nothing; the goal is spent, never refused."""
+    _refused_first(ledger, clock, stop_token=(0,))
+    assert _begin(ledger, stop_token=(1,)) is None
+    assert [slot.state for slot in ledger._slots] == ["spent"]
+    clock.advance(10)
+    assert "sim_retry" not in _finish(ledger, stop_token=(1,))
+    assert _begin(ledger, stop_token=(1,)) is None and ledger.precheck("pick_and_place", A) is None
+    assert [slot.state for slot in ledger._slots] == ["spent"]
+
+
+def test_the_same_stop_token_keeps_the_retry(ledger, clock):  # control
+    _refused_first(ledger, clock, stop_token=(3, 7))
+    assert isinstance(_begin(ledger, stop_token=(3, 7)), RetryCall)
+
+
+def test_a_stop_spends_every_open_slot_at_the_next_begin(ledger, clock):
+    """Any motion call's begin under a new token spends every open slot, also of
+    other goals and also from a goal-less call (the rig was stopped)."""
+    _refused_first(ledger, clock, stop_token=(0,))
+    _refused_first(ledger, clock, "pick_and_place", LEMON, stop_token=(0,))
+    assert sorted(slot.state for slot in ledger._slots) == ["open", "open"]
+    assert _begin(ledger, "move_home", {}, stop_token=(1,)) is None
+    assert sorted(slot.state for slot in ledger._slots) == ["spent", "spent"]
+
+
+def test_a_used_slot_stays_refused_after_a_stop(ledger, clock):
+    _refused_first(ledger, clock, stop_token=(0,))
+    r = _begin(ledger, stop_token=(0,))
+    clock.advance(10)
+    _finish(ledger, retry=r, stop_token=(0,))
+    assert _begin(ledger, stop_token=(1,)) == USED  # never moves again on the ledger's behalf
+
+
+def test_a_stop_cleared_during_the_call_opens_no_slot(ledger, clock):
+    """begin and finish saw different tokens: an e-stop (or halt) came and was
+    cleared during the call; its refusal opens nothing and the goal is spent."""
+    assert _begin(ledger, stop_token=(0,)) is None
+    clock.advance(10)
+    assert "sim_retry" not in _finish(ledger, stop_token=(1,))
+    assert [slot.state for slot in ledger._slots] == ["spent"]
+
+
+def test_a_stop_cleared_during_the_retry_ends_it_halted(ledger, clock):
+    _refused_first(ledger, clock, stop_token=(0,))
+    r = _begin(ledger, stop_token=(0,))
+    clock.advance(10)
+    out = _finish(ledger, retry=r, stop_token=(1,))
+    assert ledger.last_event["outcome"] == "halted" and "sim_retry" not in out
+    assert _begin(ledger, stop_token=(1,)) == USED
 
 
 # ── window (R9) and turn budget (R10) ────────────────────────────────────

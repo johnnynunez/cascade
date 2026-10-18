@@ -104,8 +104,13 @@ evidence that a note causes success.
    all its gates; a halt ends the call before any pick), looks again and never tries a grasp the
    refused attempt tried. A third call for the same order is refused before any motion.
 4. **Never after a stop:** a halt, an e-stop, a hold or a pending contact episode grants no retry.
+   A halt or an e-stop on any arm after the refused call started, even one cleared again
+   (Resume, `reset_estop`), spends it: the next call runs as without the ledger, with no
+   automatic home.
 5. **Off:** `CASCADE_SIM_RETRY=0`. Code: `agent/sim_retry.py` (ledger), `SkillRuntime._execute_skill`
-   (wiring); tests: `tests/test_sim_retry_ledger.py tests/test_sim_retry_runtime.py`.
+   (wiring); tests: `tests/test_sim_retry_ledger.py tests/test_sim_retry_runtime.py`. `run.json`'s
+   `sim_retry` is written once at build: if the ledger later switches itself off after an internal
+   fault, only the trace rows (`context.sim_retry = {"off": true}`) and its `last_event` show it.
 
 ## Verify the contract
 

@@ -437,8 +437,9 @@ def _observed_selection_on_failure(function):
     """Every exception leaving `skill_grasp_object` once its observed-finger
     choice record exists carries that record (`exc.observed_selection`), so
     the grasp_object / pick_and_place failure results can report it, and
-    leaves the attempted candidates that did not grasp on the runtime
-    (`_last_refused_grasps`: the sim retry excludes them, spec §4.5)."""
+    leaves the attempted candidates that did not grasp on the call's sim
+    retry state (`_SimRetryState.refused_grasps`: the retry excludes them,
+    spec §4.5; nothing without a ledger)."""
     @functools.wraps(function)
     def wrapped(self, *args, **kwargs):
         record = kwargs.get("_observed_record")
@@ -450,9 +451,37 @@ def _observed_selection_on_failure(function):
             selection = record.get("selection")
             if selection is not None:
                 selection.annotate(exc)
-                self._last_refused_grasps = selection.refused_grasps()
+                state = _sim_retry_state(self)
+                if state is not None:
+                    state.refused_grasps = selection.refused_grasps()
             raise
     return wrapped
+
+
+class _SimRetryState:
+    """THE sim retry's per-call state (spec §4.5) for one outermost motion call
+    of a runtime with a ledger. It lives on the calling thread's motion scope
+    (`_sim_retry_state`), so another thread (the MCP read-only lane, a stop
+    frame) never reads or writes it, whatever lock it holds.
+    `exclude`: the grasps THE retry must not repeat (empty unless the call is
+    the retry); `refused_grasps`: the attempted candidates of the call's last
+    refused observed-finger grasp; `refusal_exc_type`: the class NAME of the
+    exception that refused pick_and_place's grasp stage (pick_and_place folds
+    that refusal into a result, R6)."""
+
+    __slots__ = ("exclude", "refused_grasps", "refusal_exc_type")
+
+    def __init__(self, exclude=()):
+        self.exclude = tuple(exclude)
+        self.refused_grasps: tuple = ()
+        self.refusal_exc_type: str | None = None
+
+
+def _sim_retry_state(runtime) -> _SimRetryState | None:
+    """This thread's sim retry state, bound by `_execute_skill` on the runtime's
+    thread-local motion scope for an outermost motion call of a runtime with a
+    ledger; None anywhere else (also for a runtime double without a scope)."""
+    return getattr(getattr(runtime, "_motion_scope", None), "sim_retry", None)
 
 
 def _without_refused(grasps, excluded):
@@ -470,13 +499,27 @@ def _without_refused(grasps, excluded):
 _NO_DIFFERENT_GRASP = "no different grasp candidate: every planned grasp repeats the refused one"
 
 
-def _other_than_refused(grasps, excluded):
-    """THE sim retry's candidates (spec §4.5): `_without_refused`; a plan left
-    empty by the exclusion fails here, before any motion of the grasp."""
-    kept = _without_refused(grasps, excluded)
-    if grasps and not kept:
-        raise SkillError(_NO_DIFFERENT_GRASP)
-    return kept
+class _OtherThanRefused:
+    """THE sim retry's planned batches (spec §4.5), each one `_without_refused`.
+    A batch the exclusion empties is an empty batch: the feasibility search
+    goes on to its next batch (A7 review Minor 1). `only_repeats`: a batch was
+    emptied and none kept a grasp, so the plan is "no different grasp
+    candidate", not a planning failure of the object. Nothing excluded: every
+    batch as planned, `only_repeats` never true."""
+
+    def __init__(self, excluded):
+        self.excluded = tuple(excluded)
+        self.emptied = self.kept = False
+
+    def __call__(self, grasps):
+        kept = _without_refused(grasps, self.excluded)
+        self.emptied = self.emptied or (bool(grasps) and not kept)
+        self.kept = self.kept or bool(kept)
+        return kept
+
+    @property
+    def only_repeats(self) -> bool:
+        return self.emptied and not self.kept
 
 
 def _episode_pending(harness) -> bool:
@@ -1000,17 +1043,9 @@ class SkillRuntime:
     #: ASPIRE sim retry ledger (`agent.sim_retry.SimRetryLedger`): built by
     #: `apps.demo.build_runtime` only for a sim profile with every switch on
     #: (`ledger_for`); None everywhere else (preflight R29). With None nothing
-    #: below is ever set and every call runs exactly as before.
+    #: of the sim retry runs and every call runs exactly as before. Its per-call
+    #: state is `_SimRetryState`, on the calling thread's motion scope.
     sim_retry = None
-    #: THE retry call's RetryCall and the grasps it must not repeat, bound for
-    #: the outermost motion call only (`_execute_skill`)
-    _retry_call = None
-    _retry_exclude: tuple = ()
-    #: per outermost motion call: the attempted grasps of the last refused
-    #: observed-finger grasp, and the class NAME of the exception that refused
-    #: pick_and_place's grasp stage (it folds the refusal into a result)
-    _last_refused_grasps: tuple = ()
-    _refusal_exc_type = None
 
     @property
     def arm(self):
@@ -1144,6 +1179,14 @@ class SkillRuntime:
             return None
         return ledger
 
+    def _stop_token(self) -> tuple:
+        """The rig's stop token (R7): every arm harness's halt / e-stop count
+        (`_observation_cancel_generation`: `halt()` and `estop()` raise it, a
+        Resume or `reset_estop` never lowers it). Registry reads only (the
+        harnesses `_arm_harnesses` lists), never a backend."""
+        return tuple(getattr(harness, "_observation_cancel_generation", None)
+                     for harness in self._arm_harnesses())
+
     def _sim_retry_refusal(self, name, args, refusal: dict, trace_context: dict) -> dict:
         """The used-retry refusal `begin` returned (the dict `precheck` returns): the FAILED
         line, RETRY_USED and its own trace row (R28: acceptance, admission and
@@ -1161,16 +1204,16 @@ class SkillRuntime:
         self.skill_move_home(_halt_generation=generation)
         self.arm.harness._check_halt_generation(generation)
 
-    def _sim_retry_finish(self, ledger, name, args, result, trace_context, *, retry, retry_home, exc_type, arm,
-                          harness, baselines) -> dict:
+    def _sim_retry_finish(self, ledger, name, args, result, trace_context, *, retry, retry_home, exc_type, state,
+                          arm, harness, baselines) -> dict:
         """Hand the finished call to the ledger, read at the END of the call (the
-        hold, a latch, a halt since the skill started, a pending episode), then
-        compose the agent text and mark the trace row (the retry, its home, a
-        ledger that switched itself off)."""
+        hold, a latch, a halt since the skill started, a pending episode, the
+        rig's stop token), then compose the agent text and mark the trace row
+        (the retry, its home, a ledger that switched itself off)."""
         result = ledger.finish(name, args, result, exc_type=exc_type, held=bool(self._jaws_may_hold()),
                                latched=self._stop_latched(arm), halted=self._halted_since_skill_start(baselines),
                                episode_pending=_episode_pending(harness),
-                               refused_grasps=self._last_refused_grasps, retry=retry)
+                               refused_grasps=state.refused_grasps, retry=retry, stop_token=self._stop_token())
         ok = isinstance(result, dict) and result.get("ok") is True
         ledger.note_motion(name, ok)
         if name == "reset_scene" and ok:
@@ -1735,21 +1778,24 @@ class SkillRuntime:
         # `begin` alone: it returns the refusal `precheck` would, and under a
         # pending stop it also spends every other open slot (A7 ruling).
         ledger = self._sim_retry_ledger(name)
-        retry = retry_g0 = ledger_args = effective_harness = None
+        retry = retry_g0 = ledger_args = effective_harness = retry_state = None
         if ledger is not None:
             ledger_args = (dict(requested_args) if resolved_arm is None
                            else {**requested_args, "arm": resolved_arm})
-            self._last_refused_grasps = ()
-            self._refusal_exc_type = None
             effective_harness = (getattr(effective_arm, "__dict__", None) or {}).get("harness")
             raw = getattr(selected if selected is not None else self.arm, "raw", None)
+            # R7: the rig's stop token too: a halt or e-stop since the refusal, even
+            # one cleared again, spends the slot (no retry, no automatic home)
             step = ledger.begin(name, ledger_args, held=self._jaws_may_hold(),
                                 latched=self._stop_latched(effective_arm),
                                 episode_pending=_episode_pending(effective_harness),
-                                motion_blocked=getattr(raw, "_stopped", False) is True)
+                                motion_blocked=getattr(raw, "_stopped", False) is True,
+                                stop_token=self._stop_token())
             if isinstance(step, dict):
                 return self._sim_retry_refusal(name, args, step, trace_context)
             retry = step
+            # this call's own state, on this thread's motion scope (bound below)
+            retry_state = _SimRetryState(() if retry is None else retry.refused_grasps)
             if retry is not None:
                 # R7c: the halt baseline of the harness the retry's home will use,
                 # taken when this skill started (execute()'s skill baseline)
@@ -1873,13 +1919,14 @@ class SkillRuntime:
             # second arm can never leave every later skill pointed at it.
             prev_arm = getattr(self._arm_override, "arm", None)
             self._arm_override.arm = selected
-            prev_retry = (self._retry_call, self._retry_exclude)
-            if ledger is not None:
-                self._retry_call = retry
-                self._retry_exclude = () if retry is None else tuple(retry.refused_grasps)
             if self._motion_scope is None:
                 self._motion_scope = threading.local()
             scope = self._motion_scope
+            # THE sim retry's per-call state rides on this thread's motion scope
+            # (never a runtime attribute: another thread never sees it)
+            prev_retry_state = getattr(scope, "sim_retry", None)
+            if ledger is not None:
+                scope.sim_retry = retry_state
             previous_context = getattr(scope, "context", None)
             owns_motion_scope = name in _MOTION_SKILLS and previous_context is None
             if owns_motion_scope:
@@ -1944,7 +1991,7 @@ class SkillRuntime:
                     scope.context = previous_context
                 self._arm_override.arm = prev_arm
                 if ledger is not None:
-                    self._retry_call, self._retry_exclude = prev_retry
+                    scope.sim_retry = prev_retry_state
                 if owns_epoch:
                     self._motion_t0 = None
                     self._last_reobserve_t = None
@@ -2205,7 +2252,7 @@ class SkillRuntime:
             # carries the ledger's verdict)
             result = self._sim_retry_finish(
                 ledger, name, ledger_args, result, trace_context, retry=retry, retry_home=retry_home,
-                exc_type=refused_by if refused_by is not None else self._refusal_exc_type,
+                exc_type=refused_by if refused_by is not None else retry_state.refusal_exc_type, state=retry_state,
                 arm=effective_arm, harness=effective_harness, baselines=skill_halt)
         self.trace.record(name, args, result, dur, before, after,
                           tier=self.current_tier, context=trace_context,
@@ -4219,11 +4266,12 @@ class SkillRuntime:
             _observed_record["selection"] = selection
         # THE sim retry (spec §4.5) plans without the grasps its refused attempt
         # tried; outside it nothing is excluded and every plan stays as it was.
-        excluded = getattr(self, "_retry_exclude", ())
+        retry_state = _sim_retry_state(self)
+        others = _OtherThanRefused(() if retry_state is None else retry_state.exclude)
         if _next_candidate is not None:
             grasps = list(_next_candidate.remaining)  # no new plan: the next vetted candidate
         else:
-            grasps = _other_than_refused(generate_batch(0), excluded)
+            grasps = others(generate_batch(0))
             if selection is not None:
                 selection.add_batch(grasps)
 
@@ -4510,7 +4558,7 @@ class SkillRuntime:
                         conflict = _scene_path(state.q, _seed, 1.5)
                         if conflict:
                             raise SafetyViolation(f"home finger trajectory intersects observed surface: {conflict}")
-                    grasps = _other_than_refused(generate_batch(batch), excluded)
+                    grasps = others(generate_batch(batch))
                     if selection is not None:
                         selection.add_batch(grasps)
                 selecting, exhausted = time.monotonic(), False
@@ -4553,6 +4601,11 @@ class SkillRuntime:
                         # of the batch failed.
                         selection.end_select(time.monotonic() - selecting, exhausted=exhausted)
         except (SkillError, SafetyViolation) as e:
+            if isinstance(e, NoExecutableGrasp) and others.only_repeats:
+                # THE sim retry planned nothing but repeats of its refused
+                # attempt: no different grasp, and no planning failure of this
+                # object for the grasp memory to learn
+                raise SkillError(_NO_DIFFERENT_GRASP) from e
             # No candidate survived IK + harness vetting. Log it against the
             # object profile so the fake-RL memory learns to bias future
             # candidates (raise z, prefer top-down) for this object.
@@ -6397,7 +6450,9 @@ class SkillRuntime:
                 except (SkillError, SafetyViolation) as e:
                     # the sim retry classifies a refusal by its exact class (R6):
                     # this result keeps only the text (a perception stop has no prefix)
-                    self._refusal_exc_type = type(e).__name__
+                    retry_state = _sim_retry_state(self)
+                    if retry_state is not None:
+                        retry_state.refusal_exc_type = type(e).__name__
                     if isinstance(e, carry_attachment.AttachmentInvalid):
                         return carry_attachment.failure_result(self, e,
                             **failure_destination, grasp_attempts=attempt, place_attempts=0)

@@ -130,8 +130,10 @@ def _grasp_double(runtime, arm, why="refused", *, move=True, exc=SafetyViolation
             harness.halt("operator")
             if why == "halt withdrawn":
                 harness.clear_halt()   # the operator's Resume
-        elif why == "e-stop":
+        elif why in ("e-stop", "e-stop reset"):
             harness.estop("test e-stop")
+            if why == "e-stop reset":
+                harness.reset_estop()  # the operator's reset
         elif why == "provisional hold":
             runtime._held_provisional = ("red cube", "red cube", None)  # (label, detector label, colour)
         raise exc("finger trajectory intersects observed surface: test")
@@ -221,8 +223,10 @@ def _finish_calls(runtime, monkeypatch):
 def test_the_runtime_class_carries_no_ledger():  # R29
     assert SkillRuntime.sim_retry is None
     bare = SkillRuntime.__new__(SkillRuntime)
-    assert bare.sim_retry is None and bare._retry_exclude == () and bare._last_refused_grasps == ()
-    assert bare._retry_call is None
+    assert bare.sim_retry is None and runtime_mod._sim_retry_state(bare) is None
+    assert runtime_mod._sim_retry_state(object()) is None  # a runtime double without a motion scope
+    for gone in ("_retry_call", "_retry_exclude", "_last_refused_grasps", "_refusal_exc_type"):
+        assert not hasattr(SkillRuntime, gone), gone  # per call, on the thread-local motion scope
 
 
 def test_a_sim_stack_with_everything_on_builds_a_ledger_and_says_so(ledger_stack, tmp_path):
@@ -442,40 +446,99 @@ def _turned(grasp, deg):
     return out
 
 
-@pytest.mark.parametrize("only_copies", [False, True])
-def test_every_feasibility_batch_of_the_retry_drops_the_refused_grasps(monkeypatch, only_copies):
+#: per GraspGen-X feasibility batch (3 on the kitchen GPU profile): "copies" = the refused
+#: grasp and a near copy, "new" = a different grasp, "copies+new" = a copy first, then a
+#: different one; "*" = the vet blocks that batch. Outcome: the batch the grasp comes from,
+#: "no different" (no batch kept a different grasp) or "vet" (the vet refused the only one).
+FEASIBILITY = {
+    "a copy before a new grasp": (("new*", "copies+new", "new"), 2),
+    "a later batch of copies falls through": (("new*", "copies", "new"), 3),
+    "a first batch of copies falls through": (("copies", "new", "new"), 2),
+    "only copies": (("copies", "copies", "copies"), "no different"),
+    "the vet's refusal stands": (("new*", "copies", "copies"), "vet"),
+}
+
+
+def _bind_exclusions(runtime, excluded):
+    """THE retry's exclusions on this thread's motion scope, as `_execute_skill` binds them."""
+    import threading
+
+    if runtime._motion_scope is None:
+        runtime._motion_scope = threading.local()
+    runtime._motion_scope.sim_retry = runtime_mod._SimRetryState(exclude=tuple(excluded))
+
+
+@pytest.mark.parametrize("case", FEASIBILITY)
+def test_every_feasibility_batch_of_the_retry_drops_the_refused_grasps(monkeypatch, case):
     """GraspGen-X's feasibility search (the kitchen GPU profile) plans up to 3 batches: each
-    one is filtered, never only the first; a plan of copies fails before any actuation."""
+    one drops the refused grasps, never only the first, and a batch left empty falls through
+    to the next (A7 review Minor 1). Only a plan in which no batch kept a different grasp is
+    "no different grasp candidate": before any actuation, and never a planning failure in
+    grasp memory. The vet's refusal of a different grasp stays the search's NoExecutableGrasp."""
     from test_grasp_planning_search import planning_fixture
 
-    rt, calls, fix, frame, h, batches, _, _, _, _, _ = planning_fixture(monkeypatch)
+    from cascade.grasping.selector import NoExecutableGrasp
+
+    plan, outcome = FEASIBILITY[case]
+    rt, calls, fix, frame, h, batches, _, _, _, records, _ = planning_fixture(monkeypatch)
     generate = rt._plan_grasps
     refused = generate(fix, label="orange")[0]  # the refused attempt's grasp
     del batches[:]
-    rt._retry_exclude = (refused,)
+    _bind_exclusions(rt, (refused,))
 
     def planned(*a, **k):
         grasps = generate(*a, **k)
-        if only_copies:
-            return [grasps[0], _turned(grasps[0], 5)]  # the refused grasp and a near-copy
-        if len(batches) == 1:
-            return [_turned(grasps[0], 90)]  # a different grasp, which the vet blocks
-        return [grasps[0], _turned(grasps[0], 60)]  # a copy of the refused grasp first
+        copies = [grasps[0], _turned(grasps[0], 5)]
+        new = [_turned(grasps[0], 90 if len(batches) == 1 else 60)]
+        return {"copies": copies, "new": new, "copies+new": copies + new}[plan[len(batches) - 1].rstrip("*")]
     rt._plan_grasps = planned
-    h.vet_pose = lambda *a, **kw: "blocked original proposal" if len(batches) == 1 else None
+    blocked = {i + 1 for i, kind in enumerate(plan) if kind.endswith("*")}
+    h.vet_pose = lambda *a, **kw: "blocked original proposal" if len(batches) in blocked else None
     added, real_add = [], runtime_mod._ObservedSelection.add_batch
     monkeypatch.setattr(runtime_mod._ObservedSelection, "add_batch",
                         lambda self, grasps: (added.append(list(grasps)), real_add(self, grasps))[1])
-    if only_copies:
-        with pytest.raises(runtime_mod.SkillError, match="^no different grasp candidate"):
+    attempted = _attempted(monkeypatch)
+    if outcome in ("no different", "vet"):
+        expected = (runtime_mod.SkillError, "^no different grasp candidate") if outcome == "no different" \
+            else (NoExecutableGrasp, "^no executable grasp")
+        with pytest.raises(expected[0], match=expected[1]) as info:
             rt.skill_grasp_object("orange", _fix=fix, _frame=frame)
-        assert all(c[0] == "read" for c in calls), "no actuation"
-        assert added == []
+        assert (type(info.value) is runtime_mod.SkillError) is (outcome == "no different")
+        assert batches == [1, 2, 3] and all(c[0] == "read" for c in calls), "every batch, no actuation"
+        assert attempted == []
+        # the empty plan is the retry's, not this object's planning failure
+        assert len([r for r in records if not r["success"]]) == (1 if outcome == "vet" else 0)
         return
     with contextlib.suppress(Exception):
         rt.skill_grasp_object("orange", _fix=fix, _frame=frame)
-    assert batches[:2] == [1, 2] and len(added) >= 2
+    assert batches == list(range(1, outcome + 1))
     assert not any(_same_grasp(refused, g) or _near_copy(refused, g) for batch in added for g in batch)
+    assert attempted and _same_grasp(added[outcome - 1][0], attempted[0]), f"batch {outcome}'s grasp"
+    assert [r for r in records if not r["success"]] == []
+
+
+def test_a_halt_after_a_batch_of_copies_stays_the_halt(monkeypatch):
+    """Only the selector's own exhaustion becomes "no different grasp candidate":
+    an operator halt that ends the search after a batch of copies stays MotionHalted."""
+    from test_grasp_planning_search import planning_fixture
+
+    from cascade.types import MotionHalted
+
+    rt, calls, fix, frame, h, batches, _, _, _, _, _ = planning_fixture(monkeypatch)
+    generate = rt._plan_grasps
+    refused = generate(fix, label="orange")[0]
+    del batches[:]
+    _bind_exclusions(rt, (refused,))
+
+    def planned(*a, **k):
+        grasps = generate(*a, **k)
+        if len(batches) == 2:
+            h.halt("operator")  # the search's own cancel check ends it after this batch
+        return [grasps[0], _turned(grasps[0], 5)]
+    rt._plan_grasps = planned
+    with pytest.raises(MotionHalted):
+        rt.skill_grasp_object("orange", _fix=fix, _frame=frame)
+    assert batches == [1, 2] and all(c[0] == "read" for c in calls)
 
 
 @pytest.mark.parametrize("skill", SKILLS)
@@ -571,21 +634,38 @@ def test_a_halt_at_the_retry_home_ends_the_call_before_any_pick(sim, monkeypatch
     assert third["error"] == USED_ERROR and len(arm.commands) == home["at_halt"][0]
 
 
-@pytest.mark.parametrize("stop", ["halt", "e-stop"])
-@pytest.mark.parametrize("skill", SKILLS)
-def test_a_stop_between_the_calls_means_no_auto_home(sim, monkeypatch, skill, stop):  # R7a
-    runtime, arm, gate = sim(refuse=3)
-    assert runtime.execute(skill, ARGS[skill])["sim_retry"]["allowed"] is True
-    harness = runtime.arm.harness
-    if stop == "halt":
+STOPS = ("halt", "e-stop", "halt withdrawn", "e-stop reset")
+
+
+def _stop(harness, kind):
+    """The operator stops the rig between two calls: a halt or an e-stop, still
+    pending, or cleared again (Resume: `clear_halt`; `reset_estop`)."""
+    if kind.startswith("halt"):
         harness.halt("operator")
+        if kind == "halt withdrawn":
+            harness.clear_halt()
     else:
         harness.estop("test e-stop")
+        if kind == "e-stop reset":
+            harness.reset_estop()
+
+
+@pytest.mark.parametrize("stop", STOPS)
+@pytest.mark.parametrize("skill", SKILLS)
+def test_a_stop_between_the_calls_means_no_auto_home(sim, monkeypatch, skill, stop):  # R7a
+    """Never after a stop: a halt or an e-stop between the refusal and the next
+    call spends the slot, also when the operator cleared it again (the harness's
+    stop count never goes back): that call runs as on main, without the
+    automatic home, the exclusions or any retry text."""
+    runtime, arm, gate = sim(refuse=3)
+    assert runtime.execute(skill, ARGS[skill])["sim_retry"]["allowed"] is True
+    _stop(runtime.arm.harness, stop)
     homes = _auto_homes(runtime, monkeypatch)
     n0, rows0 = len(arm.commands), len(_rows(runtime))
     res = runtime.execute(skill, ARGS[skill])
     assert homes == [], "the ledger never homes the arm after a stop"
-    assert "SIMULATION ONLY" not in json.dumps(res, default=str)
+    text = json.dumps(res, default=str)
+    assert "SIMULATION ONLY" not in text and "simulation retry" not in text and "sim_retry" not in res
     (row,) = [r for r in _rows(runtime, rows0) if r["skill"] == skill]
     assert "retry" not in (row["context"].get("sim_retry") or {})
     if stop == "e-stop":
@@ -653,7 +733,7 @@ def test_an_episode_pending_at_the_end_of_the_call_opens_no_slot(ledger_stack, s
     assert [slot.state for slot in runtime.sim_retry._slots] == ["spent"]
 
 
-NO_SLOT_AFTER = ("operator halt", "halt withdrawn", "e-stop", "provisional hold")
+NO_SLOT_AFTER = ("operator halt", "halt withdrawn", "e-stop", "e-stop reset", "provisional hold")
 
 
 @pytest.mark.parametrize("why", NO_SLOT_AFTER)
@@ -690,11 +770,32 @@ def test_the_exclusions_never_outlive_the_retry(sim, monkeypatch):
     runtime.execute("grasp_object", ARGS["grasp_object"])
     first = list(attempted)
     runtime.execute("grasp_object", ARGS["grasp_object"])  # THE retry: 3, 4, 5, refused
-    assert runtime._retry_exclude == () and runtime._retry_call is None
+    assert runtime_mod._sim_retry_state(runtime) is None
     assert runtime.execute("reset_scene", {})["ok"] is True
     del attempted[:]
     runtime.execute("grasp_object", ARGS["grasp_object"])  # a new first attempt: every candidate again
     assert attempted and _same_grasp(first[0], attempted[0])
+
+
+def test_the_retry_state_belongs_to_the_retry_thread(sim):  # A7 review Minor 2
+    """The retry's per-call state (the grasps to exclude; the refused grasps and
+    refusal class it leaves for finish) is on the calling thread's motion scope:
+    another thread (the MCP read-only lane, a stop frame) never sees it."""
+    import threading
+
+    runtime, arm, gate = sim(refuse=3)
+    runtime.execute("grasp_object", ARGS["grasp_object"])
+    seen, real = {}, runtime.skill_grasp_object
+
+    def grasp(*a, **k):
+        seen["own"] = runtime_mod._sim_retry_state(runtime)
+        other = threading.Thread(target=lambda: seen.__setitem__("other", runtime_mod._sim_retry_state(runtime)))
+        other.start()
+        other.join()
+        return real(*a, **k)
+    runtime.skill_grasp_object = grasp
+    assert runtime.execute("grasp_object", ARGS["grasp_object"])["ok"] is True
+    assert len(seen["own"].exclude) == 3 and seen["other"] is None
 
 
 def test_a_used_goals_call_under_a_pending_stop_still_spends_every_open_slot(ledger_stack):
@@ -744,7 +845,7 @@ def test_the_exception_that_ended_the_skill_classifies_it(ledger_stack, monkeypa
     real = runtime._end_on_halt
 
     def ended(generation):
-        if runtime._refusal_exc_type is not None:
+        if runtime_mod._sim_retry_state(runtime).refusal_exc_type is not None:
             raise runtime_mod.SkillError("carry check failed after the refused grasp")
         return real(generation)
     monkeypatch.setattr(runtime, "_end_on_halt", ended)
@@ -865,6 +966,32 @@ def test_the_retry_home_carries_the_selected_arms_halt_baseline(two_arms, monkey
     assert first["sim_retry"]["allowed"] is True
     runtime.execute("grasp_object", {**ARGS["grasp_object"], "arm": "mock_reach"})
     assert seen == [({"_halt_generation": reach_harness._halt_generation}, True)]
+
+
+@pytest.mark.parametrize("stop", ["no stop", "halt withdrawn", "e-stop reset"])
+@pytest.mark.parametrize("on", ["the arm that moves", "the idle arm"])
+def test_a_stop_on_either_arm_between_the_calls_spends_the_slot(two_arms, monkeypatch, on, stop):  # R7a
+    """Two arms (controller ruling, conservative): a halt or an e-stop between the
+    calls, cleared again, on the arm the retry would move OR on the idle other arm
+    spends the slot: no automatic home, no retry. Control: no stop -> THE retry."""
+    runtime, arm = two_arms
+    runtime.skill_grasp_object = _grasp_double(runtime, arm, move=False)
+    assert runtime.execute("grasp_object", ARGS["grasp_object"])["sim_retry"]["allowed"] is True
+    runtime.sim_retry._slots[0].arm_left_in_place = True  # as a refused grasp that moved the arm leaves it
+    stopped = runtime._arm if on == "the arm that moves" else runtime.arm_rig.get("mock_reach")
+    assert stopped.harness is not runtime.arm_rig.get("mock_reach" if stopped is runtime._arm else "mock").harness
+    if stop != "no stop":
+        _stop(stopped.harness, stop)
+    homes = _auto_homes(runtime, monkeypatch)
+    rows0 = len(_rows(runtime))
+    res = runtime.execute("grasp_object", ARGS["grasp_object"])
+    (row,) = [r for r in _rows(runtime, rows0) if r["skill"] == "grasp_object"]
+    if stop == "no stop":
+        assert len(homes) == 1 and row["context"]["sim_retry"] == {"retry": True, "auto_home": True}
+        assert res["sim_retry"] == {"allowed": False, "used": True}
+        return
+    assert homes == [] and "retry" not in (row["context"].get("sim_retry") or {})
+    assert "sim_retry" not in res and [slot.state for slot in runtime.sim_retry._slots] == ["spent"]
 
 
 # ── hardware profiles never get a ledger ─────────────────────────────────

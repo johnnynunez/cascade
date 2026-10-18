@@ -60,8 +60,13 @@ def _agent_flag(cfg, key: str):
 
 def sim_retry_enabled(cfg) -> bool:
     """One bounded retry after a refusal: only on a sim profile with
-    `agent.sim_retry: true` and the kill switch CASCADE_SIM_RETRY not set to off."""
+    `agent.sim_retry: true`, the kill switch CASCADE_SIM_RETRY not set to off and
+    the observed-finger gate on (CASCADE_OBSERVED_FINGER_GATE=1, the Spark
+    default; preflight R8: without it a retry has no refused grasp to exclude and
+    the persistence loop already retries inside each call)."""
     if profile_class(cfg) != "sim" or _agent_flag(cfg, "sim_retry") is not True:
+        return False
+    if os.environ.get("CASCADE_OBSERVED_FINGER_GATE") != "1":
         return False
     return os.environ.get("CASCADE_SIM_RETRY", "").strip().lower() in _RETRY_ON_VALUES
 

@@ -388,6 +388,12 @@ class _ObservedSelection:
     def refused(self):
         return sum(1 for a in self.attempts if a["outcome"].startswith("refused before contact"))
 
+    def refused_grasps(self) -> tuple:
+        """The candidates this grasp attempted that did not end grasped: what
+        the sim retry must not try again (`_without_refused`)."""
+        return tuple(self.candidates[a["candidate"]] for a in self.attempts
+                     if a["candidate"] is not None and a["outcome"] != "grasped")
+
     def note(self, why_not=None):
         """Suffix of a failure after candidates of this plan were refused
         before contact and withdrew (empty when none was: the message then
@@ -430,7 +436,9 @@ class _ObservedSelection:
 def _observed_selection_on_failure(function):
     """Every exception leaving `skill_grasp_object` once its observed-finger
     choice record exists carries that record (`exc.observed_selection`), so
-    the grasp_object / pick_and_place failure results can report it."""
+    the grasp_object / pick_and_place failure results can report it, and
+    leaves the attempted candidates that did not grasp on the runtime
+    (`_last_refused_grasps`: the sim retry excludes them, spec §4.5)."""
     @functools.wraps(function)
     def wrapped(self, *args, **kwargs):
         record = kwargs.get("_observed_record")
@@ -442,8 +450,40 @@ def _observed_selection_on_failure(function):
             selection = record.get("selection")
             if selection is not None:
                 selection.annotate(exc)
+                self._last_refused_grasps = selection.refused_grasps()
             raise
     return wrapped
+
+
+def _without_refused(grasps, excluded):
+    """`grasps` without every candidate that repeats one of `excluded` (the
+    refused attempt's grasps): the same candidate or its jaws-swapped twin
+    (`_same_grasp`), or a near-copy (`_near_copy`). Nothing excluded: `grasps`
+    itself."""
+    if not excluded:
+        return grasps
+    return [grasp for grasp in grasps
+            if not any(_same_grasp(refused, grasp) or _near_copy(refused, grasp) for refused in excluded)]
+
+
+#: The sim retry's plan holds only grasps the refused attempt already tried.
+_NO_DIFFERENT_GRASP = "no different grasp candidate: every planned grasp repeats the refused one"
+
+
+def _other_than_refused(grasps, excluded):
+    """THE sim retry's candidates (spec §4.5): `_without_refused`; a plan left
+    empty by the exclusion fails here, before any motion of the grasp."""
+    kept = _without_refused(grasps, excluded)
+    if grasps and not kept:
+        raise SkillError(_NO_DIFFERENT_GRASP)
+    return kept
+
+
+def _episode_pending(harness) -> bool:
+    """A contact or a release episode this harness still holds open (its
+    explicit recovery is pending). Registry read only: never a backend."""
+    return (getattr(harness, "_pending_contact_episode", None) is not None
+            or getattr(harness, "_pending_release_episode", None) is not None)
 
 
 class _ObservedNextCandidate:
@@ -957,6 +997,20 @@ class SkillRuntime:
     #: by `apps.demo.build_runtime`; None for runtimes built any other way (bare
     #: `__new__` fixtures, MCP fakes), which serve no note (preflight R29).
     learned = None
+    #: ASPIRE sim retry ledger (`agent.sim_retry.SimRetryLedger`): built by
+    #: `apps.demo.build_runtime` only for a sim profile with every switch on
+    #: (`ledger_for`); None everywhere else (preflight R29). With None nothing
+    #: below is ever set and every call runs exactly as before.
+    sim_retry = None
+    #: THE retry call's RetryCall and the grasps it must not repeat, bound for
+    #: the outermost motion call only (`_execute_skill`)
+    _retry_call = None
+    _retry_exclude: tuple = ()
+    #: per outermost motion call: the attempted grasps of the last refused
+    #: observed-finger grasp, and the class NAME of the exception that refused
+    #: pick_and_place's grasp stage (it folds the refusal into a result)
+    _last_refused_grasps: tuple = ()
+    _refusal_exc_type = None
 
     @property
     def arm(self):
@@ -1075,6 +1129,59 @@ class SkillRuntime:
             return self.arm_rig.get(str(name))
         except KeyError as e:
             raise SkillError(str(e)) from e
+
+    # ── ASPIRE sim retry (spec §4.5) ─────────────────────────────────────
+
+    def _sim_retry_ledger(self, name):
+        """This call's retry ledger: the runtime's (None on any profile that
+        built none), for a motion skill only, and only for the outermost motion
+        call of this thread (a nested call runs inside the outer one's)."""
+        ledger = self.sim_retry
+        if ledger is None or name not in _MOTION_SKILLS:
+            return None
+        scope = getattr(self, "_motion_scope", None)
+        if getattr(scope, "context", None) is not None:
+            return None
+        return ledger
+
+    def _sim_retry_refusal(self, name, args, refusal: dict, trace_context: dict) -> dict:
+        """The used-retry refusal `begin` returned (the dict `precheck` returns): the FAILED
+        line, RETRY_USED and its own trace row (R28: acceptance, admission and
+        grading count it), returned before any status line, keyframe or motion."""
+        result = _with_retry_text(_with_failure_instruction(_normalize_outcome(dict(refusal), name)), name)
+        self.trace.record(name, args, result, 0.0, tier=self.current_tier,
+                          context={**trace_context, "sim_retry": {"refused": True}})
+        return result
+
+    def _home_before_retry(self, generation) -> None:
+        """THE retry's first step when the refused attempt left the arm in
+        place: the agent-callable move_home with all its gates, carrying the
+        skill's halt baseline `generation`; a halt since then (during or right
+        after the home) ends the call as MotionHalted before any pick."""
+        self.skill_move_home(_halt_generation=generation)
+        self.arm.harness._check_halt_generation(generation)
+
+    def _sim_retry_finish(self, ledger, name, args, result, trace_context, *, retry, retry_home, exc_type, arm,
+                          harness, baselines) -> dict:
+        """Hand the finished call to the ledger, read at the END of the call (the
+        hold, a latch, a halt since the skill started, a pending episode), then
+        compose the agent text and mark the trace row (the retry, its home, a
+        ledger that switched itself off)."""
+        result = ledger.finish(name, args, result, exc_type=exc_type, held=bool(self._jaws_may_hold()),
+                               latched=self._stop_latched(arm), halted=self._halted_since_skill_start(baselines),
+                               episode_pending=_episode_pending(harness),
+                               refused_grasps=self._last_refused_grasps, retry=retry)
+        ok = isinstance(result, dict) and result.get("ok") is True
+        ledger.note_motion(name, ok)
+        if name == "reset_scene" and ok:
+            ledger.clear("reset_scene")
+        result = _with_retry_text(result, name)
+        mark = {"retry": True, "auto_home": retry_home} if retry is not None else {}
+        if ledger.off:
+            mark["off"] = True
+        if mark:
+            trace_context["sim_retry"] = mark
+        return result
 
     def attach_verifier(self, object_pose=None) -> None:
         """Enable postcondition checking (Pigey closed loop).
@@ -1548,6 +1655,7 @@ class SkillRuntime:
         # to change. Resolved before anything else -- an unknown name must
         # fail before a keyframe, a pre-state snapshot or a watcher pause
         # implies the motion is under way.
+        requested_args = args  # as the caller sent them, `arm` included (the sim retry's goal)
         args = dict(args)
         arm_name = args.pop("arm", None)
         try:
@@ -1619,6 +1727,36 @@ class SkillRuntime:
                     raise ValueError("home_q must contain one finite value per arm joint")
             except (TypeError, ValueError) as exc:
                 return {"ok": False, "error": f"cannot start {name}: {exc}"}
+        # ASPIRE sim retry (spec §4.5; preflight R7, R28; A6-fix rulings): only
+        # a runtime that built a ledger (a sim profile with every switch on), only
+        # for the outermost motion call, before the status line, any keyframe or
+        # motion. The ledger sees the caller's arguments with the RESOLVED arm, at
+        # begin and at finish alike. A used retry is refused right here, by
+        # `begin` alone: it returns the refusal `precheck` would, and under a
+        # pending stop it also spends every other open slot (A7 ruling).
+        ledger = self._sim_retry_ledger(name)
+        retry = retry_g0 = ledger_args = effective_harness = None
+        if ledger is not None:
+            ledger_args = (dict(requested_args) if resolved_arm is None
+                           else {**requested_args, "arm": resolved_arm})
+            self._last_refused_grasps = ()
+            self._refusal_exc_type = None
+            effective_harness = (getattr(effective_arm, "__dict__", None) or {}).get("harness")
+            raw = getattr(selected if selected is not None else self.arm, "raw", None)
+            step = ledger.begin(name, ledger_args, held=self._jaws_may_hold(),
+                                latched=self._stop_latched(effective_arm),
+                                episode_pending=_episode_pending(effective_harness),
+                                motion_blocked=getattr(raw, "_stopped", False) is True)
+            if isinstance(step, dict):
+                return self._sim_retry_refusal(name, args, step, trace_context)
+            retry = step
+            if retry is not None:
+                # R7c: the halt baseline of the harness the retry's home will use,
+                # taken when this skill started (execute()'s skill baseline)
+                retry_g0 = next((generation for harness, generation in skill_halt if harness is effective_harness),
+                                getattr(effective_harness, "_halt_generation", None))
+        retry_home = False
+        refused_by = None  # the exact class name of the exception that ended the skill (R6)
         self._show_status(f"{name}({_short(args)})")
         # BEFORE keyframe. `last_frame` is only set by observe(), so the first
         # skill of a run used to record `keyframe_before: null` -- exactly the
@@ -1735,6 +1873,10 @@ class SkillRuntime:
             # second arm can never leave every later skill pointed at it.
             prev_arm = getattr(self._arm_override, "arm", None)
             self._arm_override.arm = selected
+            prev_retry = (self._retry_call, self._retry_exclude)
+            if ledger is not None:
+                self._retry_call = retry
+                self._retry_exclude = () if retry is None else tuple(retry.refused_grasps)
             if self._motion_scope is None:
                 self._motion_scope = threading.local()
             scope = self._motion_scope
@@ -1762,6 +1904,14 @@ class SkillRuntime:
                         with selection, self._skill_halt_scope(skill_halt):
                             if name in _MOTION_SKILLS:
                                 carry_attachment.check(self)
+                            if retry is not None and retry.arm_left_in_place:
+                                # THE retry starts where the refused attempt
+                                # left the arm: home first (spec §4.5)
+                                retry_home = True
+                                self._home_before_retry(retry_g0)
+                                if arm_motions_before is not None:
+                                    # the grasp's move_home step counts its own motions only
+                                    arm_motions_before = self._arm_motions_counted()
                             result = fn(**args)
                             halted_in_skill = self._skill_halt_reason(skill_halt)
                     except BaseException as exc:
@@ -1793,6 +1943,8 @@ class SkillRuntime:
                 if owns_motion_scope:
                     scope.context = previous_context
                 self._arm_override.arm = prev_arm
+                if ledger is not None:
+                    self._retry_call, self._retry_exclude = prev_retry
                 if owns_epoch:
                     self._motion_t0 = None
                     self._last_reobserve_t = None
@@ -1808,6 +1960,7 @@ class SkillRuntime:
                 if self.held_object:
                     result.setdefault("holding", self.held_object)
         except (SkillError, SafetyViolation) as e:
+            refused_by = type(e).__name__
             if isinstance(e, SkillStuck):
                 # The skill ran out of what it can do on its own and names
                 # what the human should change. Normalised below (ok=false).
@@ -1824,10 +1977,13 @@ class SkillRuntime:
                     # candidates of the failed choice (grasp_object).
                     result["observed_selection"] = e.observed_selection
         except TypeError as e:
+            refused_by = type(e).__name__
             result = {"ok": False, "error": f"bad arguments for {name}: {e}"}
         except Exception as e:  # camera dropouts, CAN loss, ... : the agent
             # loop must survive and report, not crash mid-task.
             import traceback
+
+            refused_by = type(e).__name__
 
             result = {
                 "ok": False,
@@ -1950,12 +2106,7 @@ class SkillRuntime:
             own = str(result.get("next_action") or "").strip()
             if own == _PICK_REPORT_NEXT_ACTION:
                 own = ""
-            result["next_action"] = (
-                (f"{own} " if own else "")
-                + "If the user said 'then stop', report this failure and end the turn. "
-                "Do not start another pick, rename the requested object or destination, "
-                "or invent a placement using manual coordinates."
-            )
+            result["next_action"] = (f"{own} " if own else "") + _PICK_FAILED_GUIDANCE
         elif name == "pick_and_place" and result.get("verified") is False:
             result["next_action"] = (
                 "Start the reply with 'Placement unverified.' Explain the verification_note. "
@@ -2049,6 +2200,13 @@ class SkillRuntime:
                 mine = [t for t in perception_timings if t.get("query") == first]
             result["perception_timing"] = dict(mine[-1])
             trace_context["perception_timings"] = [dict(t) for t in perception_timings]
+        if ledger is not None:
+            # after every verdict and the FAILED line, before the trace row (which
+            # carries the ledger's verdict)
+            result = self._sim_retry_finish(
+                ledger, name, ledger_args, result, trace_context, retry=retry, retry_home=retry_home,
+                exc_type=refused_by if refused_by is not None else self._refusal_exc_type,
+                arm=effective_arm, harness=effective_harness, baselines=skill_halt)
         self.trace.record(name, args, result, dur, before, after,
                           tier=self.current_tier, context=trace_context,
                           keyframe_before_wrists=before_wrists, keyframe_after_wrists=after_wrists)
@@ -4059,10 +4217,13 @@ class SkillRuntime:
                      else _ObservedSelection() if scene_enabled else None)
         if selection is not None and _observed_record is not None:
             _observed_record["selection"] = selection
+        # THE sim retry (spec §4.5) plans without the grasps its refused attempt
+        # tried; outside it nothing is excluded and every plan stays as it was.
+        excluded = getattr(self, "_retry_exclude", ())
         if _next_candidate is not None:
             grasps = list(_next_candidate.remaining)  # no new plan: the next vetted candidate
         else:
-            grasps = generate_batch(0)
+            grasps = _other_than_refused(generate_batch(0), excluded)
             if selection is not None:
                 selection.add_batch(grasps)
 
@@ -4349,7 +4510,7 @@ class SkillRuntime:
                         conflict = _scene_path(state.q, _seed, 1.5)
                         if conflict:
                             raise SafetyViolation(f"home finger trajectory intersects observed surface: {conflict}")
-                    grasps = generate_batch(batch)
+                    grasps = _other_than_refused(generate_batch(batch), excluded)
                     if selection is not None:
                         selection.add_batch(grasps)
                 selecting, exhausted = time.monotonic(), False
@@ -6234,6 +6395,9 @@ class SkillRuntime:
                 except MotionHalted:
                     raise  # the operator's halt ends this skill: no re-home, no retry
                 except (SkillError, SafetyViolation) as e:
+                    # the sim retry classifies a refusal by its exact class (R6):
+                    # this result keeps only the text (a perception stop has no prefix)
+                    self._refusal_exc_type = type(e).__name__
                     if isinstance(e, carry_attachment.AttachmentInvalid):
                         return carry_attachment.failure_result(self, e,
                             **failure_destination, grasp_attempts=attempt, place_attempts=0)
@@ -8633,6 +8797,11 @@ _FAILED_ERROR_CHARS = 240
 #: refuted placement) gets the failure instructions instead, never this.
 _PICK_REPORT_NEXT_ACTION = ("Report this result, including any return_home failure, and await the next "
                             "user order. Do not add another movement to this request.")
+#: pick_and_place's guidance on a failed or refuted pick. On a result that grants
+#: the sim retry (`_with_retry_text`) RETRY_ALLOWED stands in its place.
+_PICK_FAILED_GUIDANCE = ("If the user said 'then stop', report this failure and end the turn. "
+                         "Do not start another pick, rename the requested object or destination, "
+                         "or invent a placement using manual coordinates.")
 #: A failed grasp that did not withdraw (an observed-finger refusal returns
 #: without the automatic home, which is not geometrically checked; a refused
 #: grasp_object never goes home on a rig without return_home_after_motion)
@@ -8740,6 +8909,36 @@ def _with_failure_instruction(result: dict) -> dict:
     line = (f"{FAILED_INSTRUCTION}: {error.rstrip('.')}. Tell the user it failed; never report a "
             "failed or refuted result as success.")
     result["next_action"] = line + (f" {own}" if own else "")
+    return result
+
+
+def _with_retry_text(result: dict, skill: str) -> dict:
+    """Spec §4.5's agent text on a result the sim retry ledger marked
+    (`sim_retry`): a granted retry puts RETRY_ALLOWED where the failure
+    guidance stood (only pick_and_place's results carry it; else appended), a used one appends
+    RETRY_USED. The FAILED line and any move_home step stay in front. A result
+    without the mark is untouched; idempotent."""
+    from ..agent.sim_retry import RETRY_ALLOWED, RETRY_USED
+
+    state = result.get("sim_retry") if isinstance(result, dict) else None
+    if not isinstance(state, dict):
+        return result
+    own = str(result.get("next_action") or "").strip()
+    if state.get("allowed") is True:
+        text = RETRY_ALLOWED.format(skill=skill)
+        if text in own:
+            return result
+        if _PICK_FAILED_GUIDANCE in own:
+            own = own.replace(_PICK_FAILED_GUIDANCE, text)
+        else:
+            own = f"{own} {text}" if own else text
+    elif state.get("used") is True:
+        if RETRY_USED in own:
+            return result
+        own = f"{own} {RETRY_USED}" if own else RETRY_USED
+    else:
+        return result
+    result["next_action"] = own
     return result
 
 

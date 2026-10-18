@@ -91,6 +91,22 @@ occurrences in any task, and v1.0 promotes on a blind verifier's verdict.
 Promotion counts distinct task strings, not distinct scenes, objects or calibrations, and is not
 evidence that a note causes success.
 
+## Simulation-only retry (`agent.sim_retry`)
+
+1. **What:** after a refused `pick_and_place` / `grasp_object` (a safety gate, slow or changed
+   perception, no plannable grasp) the agent may call it ONCE more; the result says so in
+   `sim_retry` and in `next_action`, after the FAILED line.
+2. **Where:** only a sim profile (every arm type `isaac` / `mujoco` / `mock`, booth off) with
+   `agent.sim_retry: true` (the kitchen profile), `CASCADE_SIM_RETRY` not `0` and
+   `CASCADE_OBSERVED_FINGER_GATE=1`. A hardware profile never builds the ledger; `run.json`
+   `sim_retry` says whether this runtime has one.
+3. **The retry:** homes the arm first when the refused attempt left it in place (`move_home` with
+   all its gates; a halt ends the call before any pick), looks again and never tries a grasp the
+   refused attempt tried. A third call for the same order is refused before any motion.
+4. **Never after a stop:** a halt, an e-stop, a hold or a pending contact episode grants no retry.
+5. **Off:** `CASCADE_SIM_RETRY=0`. Code: `agent/sim_retry.py` (ledger), `SkillRuntime._execute_skill`
+   (wiring); tests: `tests/test_sim_retry_ledger.py tests/test_sim_retry_runtime.py`.
+
 ## Verify the contract
 
 ```bash

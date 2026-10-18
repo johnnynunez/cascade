@@ -61,14 +61,13 @@ call runs as without it) and leaves the result untouched; `off` then reads True
 and `last_event` is `{t, kind: "off", where}`.
 
 A real or unknown profile never gets a ledger: `ledger_for` returns one only for
-`profile_class(cfg) == "sim"` with `sim_retry_enabled(cfg)` and the
-observed-finger gate on (R8), and None for anything it cannot read.
+`profile_class(cfg) == "sim"` with `sim_retry_enabled(cfg)` (which also requires
+the observed-finger gate, R8), and None for anything it cannot read.
 """
 from __future__ import annotations
 
 import logging
 import math
-import os
 import re
 import threading
 import time
@@ -512,15 +511,14 @@ class SimRetryLedger:
 
 
 def ledger_for(cfg) -> SimRetryLedger | None:
-    """The runtime's ledger: only for a sim profile with `agent.sim_retry: true`,
-    the kill switch off and the observed-finger gate on; None otherwise, and None
-    for any config it cannot read or a bad `agent.sim_retry_window_s` /
-    `agent.sim_retry_reserve_s`. A real or unknown profile never gets one."""
+    """The runtime's ledger: only for a sim profile whose `sim_retry_enabled`
+    (`agent.sim_retry: true`, the kill switch off, the observed-finger gate on);
+    None otherwise, and None for any config it cannot read or a bad
+    `agent.sim_retry_window_s` / `agent.sim_retry_reserve_s`. A real or unknown
+    profile never gets one."""
     try:
         if profile_class(cfg) != "sim" or not sim_retry_enabled(cfg):
             return None
-        if os.environ.get("CASCADE_OBSERVED_FINGER_GATE") != "1":
-            return None  # R8: with the gate off a retry has no refused grasps to exclude
         agent = cfg.get("agent")
         return SimRetryLedger(window_s=agent.get("sim_retry_window_s", DEFAULT_WINDOW_S),
                               reserve_s=agent.get("sim_retry_reserve_s", DEFAULT_RESERVE_S))

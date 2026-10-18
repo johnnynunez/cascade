@@ -874,6 +874,12 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
         kin, safe_arm, memory, beliefs, trace, cfg,
     )
     runtime.rig = rig
+    # ASPIRE (spec §4.5): the sim-only retry ledger. None on every real or unknown
+    # profile and whenever a switch is off or its config is bad (`ledger_for`
+    # fails closed). Config only: no arm is touched.
+    from ..agent.sim_retry import ledger_for
+
+    runtime.sim_retry = ledger_for(cfg)
     # ASPIRE (spec §4.2): the note library is read ONCE, here; run.json records
     # it and every trace row carries its sha. Config only: no arm is touched.
     _stamp_run(runtime, trace, cfg)
@@ -1103,8 +1109,10 @@ def _run_purpose() -> str:
 def _stamp_run(runtime, trace, cfg) -> None:
     """Take the runtime's one note-library snapshot (`runtime.learned`) and
     record the run in `run.json` (spec §4.2, preflight R18/R23); later trace rows
-    carry its `library_sha`. `library_root` is the resolved path (symlinks and
-    `..` resolved); `skipped` counts the skipped note files and lists the first
+    carry its `library_sha`. `sim_retry` says whether the runtime built a retry
+    ledger (`runtime.sim_retry`, set before this call). `library_root` is the
+    resolved path (symlinks and `..` resolved); `skipped` counts the skipped
+    note files and lists the first
     `notes.SKIPPED_RECORDED` by id and reason. Never fails the build: a library
     that cannot be read is served as empty (`notes.config_snapshot`;
     `library_error` says why), and a run.json that cannot be written leaves the
@@ -1123,7 +1131,8 @@ def _stamp_run(runtime, trace, cfg) -> None:
                 "skipped": {"count": len(snapshot.skipped),
                             "first": [dict(entry) for entry in snapshot.skipped[:notes.SKIPPED_RECORDED]]},
                 "arm_types": sim_profile.arm_types(cfg),
-                "sim_retry": sim_profile.sim_retry_enabled(cfg), "purpose": _run_purpose(),
+                # the ledger this runtime HAS (A7): never true while none exists
+                "sim_retry": getattr(runtime, "sim_retry", None) is not None, "purpose": _run_purpose(),
                 "started": datetime.now(timezone.utc).isoformat(timespec="seconds")}
         trace.stamp(meta)
     except Exception as e:  # noqa: BLE001 -- the run record never stops a robot

@@ -24,8 +24,11 @@ from cascade.sim_profile import (
 
 @pytest.fixture(autouse=True)
 def _no_ambient_kill_switch(monkeypatch):
-    # A shell that exported the kill switch must not decide these tests.
+    # A shell that exported the kill switch must not decide these tests; the
+    # observed-finger gate is on (the Spark default) unless a test says otherwise:
+    # the retry needs it (preflight R8, A7).
     monkeypatch.delenv("CASCADE_SIM_RETRY", raising=False)
+    monkeypatch.setenv("CASCADE_OBSERVED_FINGER_GATE", "1")
 
 
 def test_sim_arm_types_are_exactly_the_simulated_backends():
@@ -133,10 +136,11 @@ def test_booth_negatives_keep_sim(monkeypatch):
 
 
 def test_sim_retry_needs_sim_class_flag_and_no_kill_switch(monkeypatch):
-    cfg = load_demo_config(arm="isaac_kitchen_gpu")
-    assert sim_retry_enabled(cfg) is False  # the profile flag lands in A7
+    cfg = load_demo_config(arm="isaac")
+    assert sim_retry_enabled(cfg) is False  # configs/demo.yaml: agent.sim_retry false
     cfg._data.setdefault("agent", {})["sim_retry"] = True
     assert sim_retry_enabled(cfg) is True
+    assert sim_retry_enabled(load_demo_config(arm="isaac_kitchen_gpu")) is True  # the kitchen turns it on (A7)
     monkeypatch.setenv("CASCADE_SIM_RETRY", "0")
     assert sim_retry_enabled(cfg) is False
     real = load_demo_config(arm="rebot_rs")
@@ -184,6 +188,17 @@ def test_sim_retry_on_a_booth_config_is_off(monkeypatch):
 
 def test_sim_retry_of_an_unreadable_config_is_off():
     assert sim_retry_enabled(None) is False
+
+
+@pytest.mark.parametrize("gate", [None, "0", "", "true", " 1", "yes"])
+def test_sim_retry_needs_the_observed_finger_gate(monkeypatch, gate):  # preflight R8 (A7)
+    if gate is None:
+        monkeypatch.delenv("CASCADE_OBSERVED_FINGER_GATE")
+    else:
+        monkeypatch.setenv("CASCADE_OBSERVED_FINGER_GATE", gate)
+    assert sim_retry_enabled(load_demo_config(arm="isaac_kitchen_gpu")) is False
+    monkeypatch.setenv("CASCADE_OBSERVED_FINGER_GATE", "1")
+    assert sim_retry_enabled(load_demo_config(arm="isaac_kitchen_gpu")) is True
 
 
 def test_learning_surface_reads_its_own_switch_on_any_profile():

@@ -145,7 +145,11 @@ def _guard(runtime, episode):
             or _streams(runtime) != episode["streams"]):
         raise SafetyViolation("release recovery arm, scene or camera identity changed")
     harness._check_halt_generation(episode["halt_generation"])
-    if harness.estopped or harness._halt is not None:
+    # Name which stop it was: an e-stop is not the operator's halt (its
+    # failure signature is safety:estop, a loss; a halt's is not).
+    if harness.estopped:
+        raise SafetyViolation("release recovery stopped: e-stop latched")
+    if harness._halt is not None:
         raise SafetyViolation("release recovery halted")
 
 

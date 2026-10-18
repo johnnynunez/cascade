@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 
 from cascade.config import Cfg
+from cascade.memory.envelope import normalize_failure
 from cascade.safety.harness import SafetyHarness, SafetyLimits, SafeArm
 from cascade.skills import release_episode as release
 from cascade.skills.runtime import SkillRuntime
@@ -134,6 +135,18 @@ def test_changed_state_refuses_recovery_without_any_actuator(change):
     else:rt.camera.get_fresh_frame=lambda **kw:capture('cam0',10.,attached=True)
     with pytest.raises((SkillError,SafetyViolation)):release.recover(rt)
     assert not events and rt._release_episode is ep and h._grasp_exempt is None
+
+
+@pytest.mark.parametrize('stop,signature',[('estop','safety:estop'),('halt','safety:halt')])
+def test_a_stopped_recovery_names_which_stop_it_was(stop,signature):
+    """An e-stop is not the operator's halt: the refusal names which stop it
+    was, so an e-stop is never filed as (or dropped like) a halt."""
+    rt,ep,events=retained();h=rt.arm.harness
+    if stop=='estop':h.estop('operator e-stop')
+    else:h.halt('late stop');ep['halt_generation']=h._halt_generation  # pending, no newer generation
+    with pytest.raises(SafetyViolation) as refused:release.recover(rt)
+    assert normalize_failure(f'SafetyViolation: {refused.value}')==signature,str(refused.value)
+    assert not events and rt._release_episode is ep
 
 
 def test_scope_blocks_concurrent_commands_wrong_endpoint_duration_and_jaws():

@@ -36,7 +36,14 @@ from test_agent_results_compose import (
     _turned_candidates,
 )
 
-from cascade.agent.sim_retry import RETRY_ALLOWED, RETRY_STOPPED_NEXT, RETRY_TOO_LATE, RETRY_USED, SimRetryLedger
+from cascade.agent.sim_retry import (
+    RETRY_ALLOWED,
+    RETRY_STOPPED,
+    RETRY_STOPPED_NEXT,
+    RETRY_TOO_LATE,
+    RETRY_USED,
+    SimRetryLedger,
+)
 from cascade.config import load_demo_config
 from cascade.skills import runtime as runtime_mod
 from cascade.skills.runtime import SkillRuntime, SlowPerceptionError, _near_copy, _same_grasp
@@ -48,8 +55,13 @@ ARGS = {"grasp_object": {"label": "red cube"}, "pick_and_place": {"object": "red
 SKILLS = sorted(ARGS)
 SKILL_HALT = "MotionHalted: halt received during route planning or execution"
 USED_ERROR = "The one simulation retry for red cube is used"
-#: the repeat refused because the operator stopped the rig after the refusal (A8 fix, Critical 1)
+#: the repeat refused because the operator stopped the rig after the refusal (A8 fix, Critical 1), and every
+#: later same-goal call until the window ends or reset_scene succeeds (A8 fix 2): the seconds left vary
 STOPPED_ERROR = "No retry for red cube: the operator stopped the arm after the refusal"
+
+
+def _stopped_error(goal: str = "red cube") -> re.Pattern:
+    return re.compile(re.escape(RETRY_STOPPED).replace(r"\{goal\}", re.escape(goal)).replace(r"\{seconds\}", r"\d+"))
 #: every profile that loads configs/arms/isaac_kitchen.yaml (directly or by `extends:`)
 KITCHEN = ("isaac_kitchen", "isaac_kitchen_gpu", "isaac_kitchen_cumotion", "isaac_kitchen_hug")
 #: hardware profiles (R22: so101_ros2 stands in for the model-less ros2_generic template)
@@ -770,14 +782,13 @@ def _stop(harness, kind):
             harness.reset_estop()
 
 
-def _assert_refused_after_the_stop(res, skill):
-    """The repeat after a stop: refused before any motion with the stop text, which
-    grants nothing (A8 fix, Critical 1)."""
-    from cascade.agent.sim_retry import RETRY_STOPPED_NEXT
-
-    assert res["ok"] is False and res["error"] == STOPPED_ERROR, res
+def _assert_refused_after_the_stop(res, skill, goal="red cube"):
+    """The repeat after a stop (and every later same-goal call, A8 fix 2): refused before
+    any motion with the stop text, which grants nothing (A8 fix, Critical 1)."""
+    assert res["ok"] is False and _stopped_error(goal).fullmatch(res["error"]), res
+    assert res["error"].startswith(STOPPED_ERROR.replace("red cube", goal))
     assert res["sim_retry"] == {"allowed": False, "stopped": True}
-    assert res["next_action"].startswith("This attempt FAILED: " + STOPPED_ERROR)
+    assert res["next_action"].startswith(f"This attempt FAILED: {res['error']}.")
     assert res["next_action"].endswith(RETRY_STOPPED_NEXT)
     text = json.dumps(res, default=str)
     assert "SIMULATION ONLY" not in text.upper() and "MORE ATTEMPT" not in text.upper()
@@ -787,12 +798,13 @@ def _assert_refused_after_the_stop(res, skill):
 @pytest.mark.parametrize("stop", STOPS)
 @pytest.mark.parametrize("skill", SKILLS)
 def test_a_stop_between_the_grant_and_the_repeat_refuses_it_before_motion(sim, monkeypatch, skill, stop):  # R7a
-    """Never after a stop (A8 fix, Critical 1): the kitchen rules let the agent repeat
-    the call on the permission the refusal gave; a halt or an e-stop between that
+    """Never after a stop (A8 fix, Critical 1; A8 fix 2): the kitchen rules let the agent
+    repeat the call on the permission the refusal gave; a halt or an e-stop between that
     refusal and the repeat, pending or cleared again (the harness's stop count never
     goes back), refuses the repeat before any motion -- no automatic home, no
-    exclusions, no retry text, 0 arm commands. The next call (a new order) runs as on
-    main, never refused by the ledger."""
+    exclusions, no retry text, 0 arm commands -- and every later same-goal call, the
+    stop cleared or not, whatever a note or the agent makes of it. Only `reset_scene`
+    succeeding (or the window's end) ends that: then the same order runs as on main."""
     runtime, arm, gate = sim(refuse=3)
     assert runtime.execute(skill, ARGS[skill])["sim_retry"]["allowed"] is True
     _stop(runtime.arm.harness, stop)
@@ -804,12 +816,23 @@ def test_a_stop_between_the_grant_and_the_repeat_refuses_it_before_motion(sim, m
     _assert_refused_after_the_stop(res, skill)
     (row,) = [r for r in _rows(runtime, rows0) if r["skill"] == skill]
     assert row["context"]["sim_retry"] == {"refused": True, "stopped": True}
-    assert [slot.state for slot in runtime.sim_retry._slots] == ["spent"]
-    if stop.startswith("e-stop") and stop != "e-stop reset":
-        runtime.arm.harness.reset_estop()
-    later = runtime.execute(skill, ARGS[skill])  # a new order: as on main, the ledger neither refuses nor grants
-    assert homes == [] and "sim_retry" not in later
-    assert "simulation retry" not in json.dumps(later, default=str) and "SIMULATION ONLY" not in json.dumps(later)
+    assert [slot.state for slot in runtime.sim_retry._slots] == ["stopped"]
+    harness = runtime.arm.harness
+    if stop == "halt":
+        harness.clear_halt()  # the operator's Resume
+    elif stop == "e-stop":
+        harness.reset_estop()  # the operator's reset
+    for name, args in ((skill, ARGS[skill]), ("grasp_object", {"label": "the red cube."}), (skill, ARGS[skill])):
+        later = runtime.execute(name, args)  # the third call and later: still refused, 0 commands
+        assert len(arm.commands) == n0, (name, later)
+        _assert_refused_after_the_stop(later, name)
+    assert homes == []
+    assert runtime.execute("reset_scene", {})["ok"] is True
+    assert runtime.sim_retry._slots == []
+    n1 = len(arm.commands)
+    fresh = runtime.execute(skill, ARGS[skill])  # the same order after the reset: as on main
+    assert len(arm.commands) > n1 and fresh["ok"] is True and homes == [], fresh
+    assert "sim_retry" not in fresh and "SIMULATION ONLY" not in json.dumps(fresh, default=str)
 
 
 @pytest.mark.parametrize("stop", ["halt", "halt withdrawn", "e-stop", "e-stop reset", "none"])
@@ -818,8 +841,10 @@ def test_the_review_seam_probe_sends_no_command_after_a_stop(monkeypatch, tmp_pa
     """The A8 review's seam probe (keep/probe_a8_stop_seam.py, gate 1), as it ran: call 1
     is refused and granted, the operator stops the arm, the agent repeats as the rules
     allow. Before the fix the repeat moved the arm (443 / 918 commands after a halt, a
-    withdrawn halt or a reset e-stop); now every stop -> 0 commands. Control: no stop ->
-    THE retry runs."""
+    withdrawn halt or a reset e-stop); now every stop -> 0 commands. The re-review's rows
+    (a8-rereview-keep/probe_rr_seam.py "third call", "latched->reset"): the call after the
+    refused repeat, the e-stop reset in between or not, sent 443 / 918 commands; A8 fix 2:
+    the third and every later call -> 0. Control: no stop -> THE retry runs."""
     with _stack(monkeypatch, tmp_path, gate=True) as (runtime, arm):
         _seen(runtime)
         arm.object_stop_frac = 0.5
@@ -834,8 +859,16 @@ def test_the_review_seam_probe_sends_no_command_after_a_stop(monkeypatch, tmp_pa
         if stop == "none":
             assert len(arm.commands) > n0 and second["ok"] is True
             return
-        assert len(arm.commands) == n0
-        _assert_refused_after_the_stop(second, skill)
+        sent, results = [len(arm.commands) - n0], [second]
+        if stop == "e-stop":
+            runtime.arm.harness.reset_estop()  # the re-review's "latched->reset" row
+        for _ in range(3):  # the third call and later
+            n = len(arm.commands)
+            results.append(runtime.execute(skill, ARGS[skill]))
+            sent.append(len(arm.commands) - n)
+        assert sent == [0, 0, 0, 0], f"commands sent by calls 2-5 after the stop: {sent}"
+        for res in results:
+            _assert_refused_after_the_stop(res, skill)
 
 
 NOT_READY = ("provisional hold", "contact episode", "release episode", "arm stop latched")
@@ -923,6 +956,25 @@ def test_a_stop_or_a_hold_during_the_call_opens_no_slot(ledger_stack, monkeypatc
 # ── clear events ─────────────────────────────────────────────────────────
 
 
+def test_a_stopped_slot_ends_with_its_window(sim, monkeypatch):  # A8 fix 2
+    """The stopped refusal says how long it lasts; at the window's end the same order
+    is a fresh first attempt (no automatic home, no exclusions), never refused."""
+    runtime, arm, gate = sim(refuse=3)
+    clock = [1000.0]
+    runtime.sim_retry._clock = lambda: clock[0]
+    runtime.execute("grasp_object", ARGS["grasp_object"])
+    _stop(runtime.arm.harness, "halt withdrawn")
+    clock[0] += 100.0
+    res = runtime.execute("grasp_object", ARGS["grasp_object"])
+    _assert_refused_after_the_stop(res, "grasp_object")
+    assert res["error"].endswith("the retry window ends in 260 s")
+    homes = _auto_homes(runtime, monkeypatch)
+    clock[0] += 260.0
+    n0 = len(arm.commands)
+    fresh = runtime.execute("grasp_object", ARGS["grasp_object"])
+    assert len(arm.commands) > n0 and fresh["ok"] is True and homes == [] and "sim_retry" not in fresh, fresh
+
+
 def test_reset_scene_clears_the_slot(sim, monkeypatch):
     runtime, arm, gate = sim(refuse=3)
     runtime.execute("pick_and_place", ARGS["pick_and_place"])
@@ -989,7 +1041,8 @@ def test_a_used_goals_call_under_a_pending_stop_still_stops_every_open_slot(ledg
     assert res["error"] == USED_ERROR
     assert sorted(slot.state for slot in runtime.sim_retry._slots) == ["stopped", "used"]
     n0 = len(arm.commands)
-    assert runtime.execute("grasp_object", green)["error"] == STOPPED_ERROR.replace("red", "green")
+    for _ in range(2):
+        _assert_refused_after_the_stop(runtime.execute("grasp_object", green), "grasp_object", goal="green cube")
     assert len(arm.commands) == n0
 
 
@@ -1169,7 +1222,9 @@ def test_a_stop_on_either_arm_between_the_calls_refuses_the_repeat(two_arms, mon
         return
     assert homes == [] and row["context"]["sim_retry"] == {"refused": True, "stopped": True}
     _assert_refused_after_the_stop(res, "grasp_object")
-    assert [slot.state for slot in runtime.sim_retry._slots] == ["spent"]
+    assert [slot.state for slot in runtime.sim_retry._slots] == ["stopped"]
+    _assert_refused_after_the_stop(runtime.execute("grasp_object", ARGS["grasp_object"]), "grasp_object")
+    assert homes == []
 
 
 # ── hardware profiles never get a ledger ─────────────────────────────────

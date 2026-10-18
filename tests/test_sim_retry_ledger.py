@@ -8,9 +8,10 @@ by `precheck` and by `begin`, until the goal succeeds, `reset_scene`, or the
 slot's window ends. A call with another goal never touches a slot. A halt, latch,
 hold or pending episode SPENDS the goal: its calls run as without the ledger (no
 retry, no refusal, nothing opens) -- except that a halt or an e-stop after a
-refusal, before its retry (A8 fix, Critical 1), STOPS the open slot: the next
-same-goal call is refused once before any motion ("the operator stopped the arm
-after the refusal"), then the goal is spent. Only a sim profile with the switch on ever gets
+refusal, before its retry (A8 fix, Critical 1), STOPS the open slot: like a used
+one, every later same-goal call is refused before any motion ("the operator
+stopped the arm after the refusal"), by `precheck` and by `begin`, until the goal
+succeeds, `reset_scene`, or the slot's window ends (A8 fix 2). Only a sim profile with the switch on ever gets
 a ledger (`ledger_for`); real and unknown profiles get None. The ledger never
 edits agent text (A7 composes `next_action`): it only adds the `sim_retry` field
 and returns the used-slot refusal.
@@ -18,6 +19,7 @@ and returns the used-slot refusal.
 from __future__ import annotations
 
 import math
+import re
 import runpy
 import threading
 import time
@@ -61,9 +63,31 @@ USED = {"ok": False, "error": "The one simulation retry for green cube is used",
         "sim_retry": {"allowed": False, "used": True}}
 #: ... and once the retry would start too late for the agent's turn (A6-fix2 Minor 3)
 LATE = {**USED, "error": "The one simulation retry for green cube is used: the retry window for this turn has passed"}
+
+
+class _Stopped:
+    """The refusal of a stopped slot (A8 fix, Critical 1; A8 fix 2): the operator stopped the rig
+    after `goal`'s refusal, before its retry. Equal to the dict `precheck` and `begin` return,
+    whatever whole number of seconds the error says is left in the slot's window (`seconds`
+    pins it)."""
+
+    def __init__(self, goal: str = "green cube", seconds: int | None = None):
+        self.goal, self.seconds = goal, seconds
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, dict) or set(other) != {"ok", "error", "sim_retry"}:
+            return False
+        left = r"\d+" if self.seconds is None else str(self.seconds)
+        error = re.escape(RETRY_STOPPED).replace(r"\{goal\}", re.escape(self.goal)).replace(r"\{seconds\}", left)
+        return (other["ok"] is False and other["sim_retry"] == {"allowed": False, "stopped": True}
+                and re.fullmatch(error, str(other["error"])) is not None)
+
+    def __repr__(self) -> str:
+        return f"<stopped refusal for {self.goal!r}, {self.seconds or 'any'} s left>"
+
+
 #: ... and once the operator stopped the rig after green cube's refusal, before its retry (A8 fix, Critical 1)
-STOPPED = {"ok": False, "error": "No retry for green cube: the operator stopped the arm after the refusal",
-           "sim_retry": {"allowed": False, "stopped": True}}
+STOPPED = _Stopped()
 #: finish(): nothing held, no latch, no halt during the call, no pending episode
 CLEAR = {"held": False, "latched": False, "halted": False, "episode_pending": False}
 #: begin(): the rig may start a retry
@@ -751,15 +775,17 @@ def _runs_as_without_the_ledger(L, clock, args=A, calls=3):
     return True
 
 
-def _refused_once_after_the_stop(L, clock, args=A, **ready):
-    """A stopped slot (A8 fix, Critical 1): the next same-goal call -- the repeat the
-    agent's rules allow on the permission given before the stop -- is refused before any
-    motion (`precheck` says so read-only, `begin` refuses and spends); every later call
-    runs as without the ledger."""
-    assert L.precheck("pick_and_place", args) == STOPPED
-    assert L.precheck("pick_and_place", args) == STOPPED  # read-only
-    assert _begin(L, args=args, **ready) == STOPPED
-    return _runs_as_without_the_ledger(L, clock, args=args)
+def _refused_after_the_stop(L, clock, args=A, calls=4, **ready):
+    """A stopped slot (A8 fix, Critical 1; A8 fix 2): the next same-goal call -- the repeat
+    the agent's rules allow on the permission given before the stop -- and every later one
+    are refused before any motion, by `precheck` (read-only) and by `begin` alike, as for a
+    used slot; the slot stays stopped (nothing opens, nothing is granted)."""
+    for _ in range(calls):
+        assert L.precheck("pick_and_place", args) == STOPPED
+        assert _begin(L, args=args, **ready) == STOPPED
+        clock.advance(10)
+    assert any(slot.state == "stopped" for slot in L._slots)
+    return True
 
 
 @pytest.mark.parametrize("state", [{"halted": True}, {"latched": True}])
@@ -776,8 +802,8 @@ def test_a_halt_during_any_motion_stops_an_open_slot(ledger, clock, state):
     ledger.finish("move_home", {}, dict(HALT), exc_type="MotionHalted", refused_grasps=(), retry=None,
                   **{**CLEAR, **state})
     assert [slot.state for slot in ledger._slots] == ["stopped"]
-    # no retry, no auto-home after the operator's halt: the repeat is refused, then main's behaviour
-    assert _refused_once_after_the_stop(ledger, clock)
+    # no retry, no auto-home after the operator's halt: the repeat and every later call are refused
+    assert _refused_after_the_stop(ledger, clock)
 
 
 @pytest.mark.parametrize("name,args", [("move_home", {}), ("pick_and_place", LEMON)])
@@ -786,7 +812,7 @@ def test_a_halt_whose_result_is_not_a_dict_still_stops_open_slots(ledger, clock,
     _begin(ledger, name, args)
     assert ledger.finish(name, args, None, exc_type="MotionHalted", refused_grasps=(), retry=None,
                          **{**CLEAR, "halted": True}) is None
-    assert _refused_once_after_the_stop(ledger, clock)
+    assert _refused_after_the_stop(ledger, clock)
     if args:  # the halted call's own goal is spent, never refused: it had no permission to repeat
         assert _runs_as_without_the_ledger(ledger, clock, args=args)
 
@@ -806,10 +832,12 @@ def test_a_retry_cannot_start_unless_the_rig_is_ready(ledger, clock, flag):  # R
 
 def test_a_retry_that_starts_latched_is_refused_before_any_motion(ledger, clock):  # A8 fix, Critical 1
     """A halt or an e-stop still pending at the repeat's start: refused with the stop
-    text (not run as on main on a permission given before the stop), then spent."""
+    text (not run as on main on a permission given before the stop), and so is every
+    later same-goal call, the stop cleared or not (A8 fix 2)."""
     _refused_first(ledger, clock)
     assert _begin(ledger, latched=True) == STOPPED
-    assert _runs_as_without_the_ledger(ledger, clock)
+    assert _refused_after_the_stop(ledger, clock, latched=True)
+    assert _refused_after_the_stop(ledger, clock)
 
 
 @pytest.mark.parametrize("flag", ["held", "latched", "episode_pending", "motion_blocked"])
@@ -838,7 +866,7 @@ def test_a_latch_at_the_start_of_any_motion_stops_an_open_slot(ledger, clock):
     _refused_first(ledger, clock)
     # e.g. the operator halted between the calls; the agent's next motion is a move_home
     assert _begin(ledger, "move_home", {}, latched=True) is None
-    assert _refused_once_after_the_stop(ledger, clock)
+    assert _refused_after_the_stop(ledger, clock)
 
 
 def test_a_hold_at_the_start_of_a_goal_less_motion_keeps_the_slot(ledger, clock):
@@ -911,17 +939,18 @@ P2 = {
     "halt during the first attempt": (8, 0, 0),
     "latched at the end of the first attempt": (8, 0, 0),
     "halt during the retry": (2, 1, 6),
-    "latched at the retry's begin": (7, 0, 1),  # A8 fix: refused once (begin), then spent
+    # A8 fix 2: an operator stop after the refusal stops the open slot, and a stopped slot
+    # refuses every later same-goal call (like a used one), whether the agent asks
+    # `precheck` first or calls `begin` alone (the two read the same rule)
+    "latched at the retry's begin": (1, 0, 7),
     "held at the retry's begin": (8, 0, 0),
     "episode pending at the retry's begin": (8, 0, 0),
-    # A8 fix, Critical 1: the stop stops the open slot. This agent asks `precheck` first, which
-    # reports the stopped slot read-only and never spends it: every later call is refused
     "halt on a goal-less move between": (1, 0, 7),
     "latched at a goal-less move's begin between": (1, 0, 7),
 }
 
 
-def _p2(L, clock, event, calls=8):
+def _p2(L, clock, event, calls=8, *, ask_first=True):
     motions = grants = refused = 0
     for i in range(calls):
         if i == 1 and event.endswith("between"):
@@ -930,7 +959,7 @@ def _p2(L, clock, event, calls=8):
             clock.advance(5)
             L.finish("move_home", {}, dict(HALT), exc_type="MotionHalted", refused_grasps=(), retry=None,
                      **{**CLEAR, "halted": not latched, "latched": latched})
-        if L.precheck("pick_and_place", A) is not None:
+        if ask_first and L.precheck("pick_and_place", A) is not None:
             refused += 1
             continue
         at_begin = {}
@@ -954,40 +983,86 @@ def _p2(L, clock, event, calls=8):
     return motions, grants, refused
 
 
+@pytest.mark.parametrize("ask_first", [True, False], ids=["precheck first", "begin alone"])
 @pytest.mark.parametrize("event", sorted(P2))
-def test_no_halt_hold_or_latch_ever_grants_a_second_retry(ledger, clock, event):  # probe P2
-    assert _p2(ledger, clock, event) == P2[event]
+def test_no_halt_hold_or_latch_ever_grants_a_second_retry(ledger, clock, event, ask_first):  # probe P2
+    assert _p2(ledger, clock, event, ask_first=ask_first) == P2[event]
 
 
 # ── never after a stop: the rig's stop token (R7, A7 review Important 1) ───
 
-def test_a_stop_cleared_between_the_calls_refuses_the_repeat_once(ledger, clock):  # A8 fix, Critical 1
+def test_a_stop_cleared_between_the_calls_refuses_every_repeat(ledger, clock):  # A8 fix, Critical 1; fix 2
     """The stop token moved since the slot opened (a halt or e-stop, cleared again
     before the next call): that call is no retry and does not run -- it is refused
-    before any motion with the stop text, which grants nothing -- and the goal is
-    spent from then on: later calls run as without the ledger and open nothing."""
+    before any motion with the stop text, which grants nothing -- and so is every later
+    same-goal call (A8 fix 2: the stopped slot refuses like a used one, whatever a note
+    or the agent makes of the earlier permission); nothing opens again."""
+    _refused_first(ledger, clock, stop_token=(0,))
+    for _ in range(5):
+        assert _begin(ledger, stop_token=(1,)) == STOPPED
+        assert ledger.precheck("pick_and_place", A) == STOPPED  # read-only, the same rule
+        clock.advance(30)
+    assert [slot.state for slot in ledger._slots] == ["stopped"]
+
+
+@pytest.mark.parametrize("end", ["window", "reset_scene", "success"])
+def test_a_stopped_slot_refuses_until_its_window_a_reset_or_the_goals_success(ledger, clock, end):  # A8 fix 2
+    """A stopped slot ends like a used one: its window ends, `reset_scene` succeeds
+    (`clear`), or the goal succeeds (only a call that began before the stop can still
+    report it: no same-goal call starts while the slot refuses). Then the goal is fresh:
+    a first attempt runs, and its refusal may open a slot and get its one retry."""
     _refused_first(ledger, clock, stop_token=(0,))
     assert _begin(ledger, stop_token=(1,)) == STOPPED
-    assert [slot.state for slot in ledger._slots] == ["spent"]
-    assert _begin(ledger, stop_token=(1,)) is None
+    if end == "window":
+        clock.advance(DEFAULT_WINDOW_S - 1.0)  # 1 s before the window ends: still refused
+        assert _begin(ledger, stop_token=(1,)) == _Stopped(seconds=1)
+        clock.advance(1.0)
+    elif end == "reset_scene":
+        ledger.clear("reset_scene")
+    else:
+        ledger.finish("pick_and_place", A, {"ok": True}, exc_type=None, refused_grasps=(), retry=None,
+                      stop_token=(1,), **CLEAR)
+    assert ledger.precheck("pick_and_place", A) is None and ledger._slots == []
+    assert _begin(ledger, stop_token=(1,)) is None  # a fresh first attempt
     clock.advance(10)
-    assert "sim_retry" not in _finish(ledger, stop_token=(1,))
-    assert _begin(ledger, stop_token=(1,)) is None and ledger.precheck("pick_and_place", A) is None
-    assert [slot.state for slot in ledger._slots] == ["spent"]
+    assert _finish(ledger, stop_token=(1,))["sim_retry"]["allowed"] is True
+    assert isinstance(_begin(ledger, stop_token=(1,)), RetryCall)
 
 
-def test_the_stop_texts_grant_nothing():  # A8 fix, Critical 1
-    texts = (RETRY_STOPPED.format(goal="green cube"), RETRY_STOPPED_NEXT)
-    for text in texts:
+def test_the_stopped_refusal_names_the_window_end(ledger, clock):  # A8 fix 2 (re-review Minor 7)
+    """The refusal says how long until the same object can be ordered again without a
+    reset: the whole seconds left in the slot's window (the slot opened when the
+    refused call finished), the same from `precheck` and `begin`."""
+    _refused_first(ledger, clock, stop_token=(0,))  # the slot opens now
+    clock.advance(59.5)
+    assert _begin(ledger, stop_token=(1,)) == ledger.precheck("pick_and_place", A) == _Stopped(seconds=301)
+    assert _begin(ledger, stop_token=(1,))["error"] == (
+        "No retry for green cube: the operator stopped the arm after the refusal, so this repeat is refused "
+        "until reset_scene succeeds or the retry window ends in 301 s")
+
+
+def test_the_stop_texts_grant_nothing():  # A8 fix, Critical 1; A8 fix 2
+    """Neither text carries the rules' trigger in any spelling the runtime withholds; the
+    error says who stopped the arm, that the repeat is refused and until when; the
+    instruction says to report and wait, and how to act on the object again."""
+    from cascade.skills.runtime import _without_retry_trigger
+
+    error = RETRY_STOPPED.format(goal="green cube", seconds=300)
+    for text in (error, RETRY_STOPPED_NEXT):
         assert "SIMULATION ONLY" not in text.upper() and "MORE ATTEMPT" not in text.upper()
-        assert "operator stopped the arm after the refusal" in text
-    assert RETRY_STOPPED_NEXT.endswith("report it and wait for a new order.")
+        assert _without_retry_trigger(text) is text
+        assert "operator stopped the arm" in text and "repeat is refused" in text
+    assert error.endswith("until reset_scene succeeds or the retry window ends in 300 s")
+    assert RETRY_STOPPED_NEXT == ("The operator stopped the arm, so this repeat is refused: report it and wait for "
+                                  "a new order. To act on the same object again, run reset_scene first (or wait "
+                                  "until the retry window ends).")
 
 
 def test_a_renamed_repeat_after_a_stop_is_refused_too(ledger, clock):  # same goal, other words
     _refused_first(ledger, clock, stop_token=(0,))
     assert _begin(ledger, "grasp_object", {"label": "cube"}, stop_token=(1,)) == STOPPED
-    assert _begin(ledger, stop_token=(1,)) is None  # spent: one refusal per stopped slot
+    assert _begin(ledger, stop_token=(1,)) == STOPPED  # A8 fix 2: every later call, any spelling
+    assert _begin(ledger, "grasp_object", {"label": "the green cube."}, stop_token=(1,)) == STOPPED
 
 
 def test_a_halt_during_another_goals_call_stops_the_open_slot(ledger, clock):  # A8 fix, Critical 1
@@ -999,6 +1074,7 @@ def test_a_halt_during_another_goals_call_stops_the_open_slot(ledger, clock):  #
     _finish(ledger, args=LEMON, result=HALT, exc="MotionHalted", halted=True, stop_token=(1,))
     assert _begin(ledger, stop_token=(1,)) == STOPPED
     assert _runs_as_without_the_ledger(ledger, clock, args=LEMON)  # lemon: spent by its own halt
+    assert _refused_after_the_stop(ledger, clock)  # green cube: still refused (A8 fix 2)
 
 
 def test_a_hold_between_the_calls_spends_without_refusing(ledger, clock):  # A8 fix: judged, pinned
@@ -1015,16 +1091,16 @@ def test_the_same_stop_token_keeps_the_retry(ledger, clock):  # control
 def test_a_stop_stops_every_open_slot_at_the_next_begin(ledger, clock):
     """Any motion call's begin under a new token stops every open slot, also of
     other goals and also from a goal-less call (the rig was stopped); each goal's
-    next call is refused once."""
+    later calls are refused."""
     _refused_first(ledger, clock, stop_token=(0,))
     _refused_first(ledger, clock, "pick_and_place", LEMON, stop_token=(0,))
     assert sorted(slot.state for slot in ledger._slots) == ["open", "open"]
     assert _begin(ledger, "move_home", {}, stop_token=(1,)) is None
     assert sorted(slot.state for slot in ledger._slots) == ["stopped", "stopped"]
-    assert _begin(ledger, args=LEMON, stop_token=(1,)) == {
-        **STOPPED, "error": "No retry for lemon: the operator stopped the arm after the refusal"}
-    assert _begin(ledger, stop_token=(1,)) == STOPPED
-    assert sorted(slot.state for slot in ledger._slots) == ["spent", "spent"]
+    for _ in range(2):  # A8 fix 2: every later call of either goal
+        assert _begin(ledger, args=LEMON, stop_token=(1,)) == _Stopped("lemon")
+        assert _begin(ledger, stop_token=(1,)) == STOPPED
+    assert sorted(slot.state for slot in ledger._slots) == ["stopped", "stopped"]
 
 
 def test_a_used_slot_stays_refused_after_a_stop(ledger, clock):
@@ -1202,7 +1278,8 @@ def test_texts_are_the_spec_texts_verbatim():
     assert RETRY_ALLOWED.replace("{skill}", "<skill>") in spec
     assert RETRY_USED in spec
     assert f'error "{RETRY_EXHAUSTED.replace("{goal}", "<goal>")}"' in spec
-    assert f'error "{RETRY_STOPPED.replace("{goal}", "<goal>")}"' in spec and f'"{RETRY_STOPPED_NEXT}"' in spec
+    stopped = RETRY_STOPPED.replace("{goal}", "<goal>").replace("{seconds}", "<seconds>")
+    assert f'error "{stopped}"' in spec and f'"{RETRY_STOPPED_NEXT}"' in spec
     assert RETRY_ALLOWED.format(skill="pick_and_place").startswith(
         "SIMULATION ONLY: you may make ONE more attempt for this order: call pick_and_place again")
 

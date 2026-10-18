@@ -105,9 +105,10 @@ evidence that a note causes success.
    refused attempt tried. A third call for the same order is refused before any motion.
 4. **Never after a stop:** a halt, an e-stop, a hold or a pending contact episode grants no retry.
    A halt or an e-stop on any arm after the refused call started, even one cleared again
-   (Resume, `reset_estop`), stops it: the agent's repeat is refused before any motion ("the
-   operator stopped the arm after the refusal: report it and wait for a new order"), and later
-   calls run as without the ledger. A hold or a pending episode spends it: the next call runs
+   (Resume, `reset_estop`), stops it: the agent's repeat and every later call for the same
+   object are refused before any motion ("the operator stopped the arm, so this repeat is
+   refused: report it and wait for a new order"), until `reset_scene` succeeds or the retry
+   window ends (the refusal says when). A hold or a pending episode spends it: the next call runs
    as without the ledger, with no automatic home. Only a granted retry's result carries the
    "SIMULATION ONLY ... one more attempt" wording; every other result has it withheld, an
    operator's halt reason included.

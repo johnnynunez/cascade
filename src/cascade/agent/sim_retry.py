@@ -34,11 +34,13 @@ The ledger keeps one slot per goal, in one of four states:
   and again by `begin` itself (under the same lock as the slot's state, so the
   bound never depends on the caller's locking);
 - stopped: the operator stopped the rig (a halt or an e-stop, pending or
-  cleared again) after the refusal, before the retry: the next same-goal call
-  -- the one the agent's rules would make on the earlier permission -- is
-  refused before any motion with a text that grants nothing ("the operator
-  stopped the arm after the refusal: report it and wait for a new order"),
-  and the slot is spent from then on (A8 fix, Critical 1);
+  cleared again) after the refusal, before the retry: like a used slot, every
+  later same-goal call -- the one the agent's rules would make on the earlier
+  permission, and any after it, whatever a note or the agent makes of that
+  permission -- is refused before any motion, by `precheck` and by `begin`,
+  with a text that grants nothing and says how long the refusal lasts ("the
+  operator stopped the arm, so this repeat is refused: report it and wait for
+  a new order"; A8 fix, Critical 1; A8 fix 2);
 - spent: a halt, an e-stop latch, a hold, a pending contact or release episode
   or a blocked arm touched the goal: its calls run exactly as without the
   ledger -- no retry, no refusal, and nothing opens.
@@ -55,13 +57,14 @@ lowers). A call during which it changed ends halted and spends its own goal. An
 open slot whose token is not the current one at a `begin`, or that was open when
 any call started latched or ended halted or latched, is stopped: a halt or an
 e-stop between the refusal and the next call, even one cleared again, grants no
-retry and no automatic home, and that next same-goal call does not run at all.
+retry and no automatic home, and no same-goal call runs again until the slot ends.
 A hold or a pending episode spends a slot without stopping it: that call runs as
 on main (no operator stop came between the permission and the call).
 
 A slot ends only when its goal succeeds, `reset_scene` succeeds (`clear`) or its
 window (one native turn, R9) ends; a used slot ends on success only when the call
-that used it succeeds. A call with another goal never touches a slot, so per goal
+that used it succeeds, and a stopped one only when a call that began before the
+stop reports its goal's success (no same-goal call starts while it refuses). A call with another goal never touches a slot, so per goal
 at most one retry is granted within the window, however the agent interleaves
 goals, and an order that is not spent gets at most two motion calls: the first
 attempt and its retry. Halts and e-stops never open, use or re-arm a slot.
@@ -147,11 +150,14 @@ RETRY_USED = "The one simulation retry for this order is used: report the failur
 RETRY_EXHAUSTED = "The one simulation retry for {goal} is used"
 #: appended to RETRY_EXHAUSTED when the retry would have started too late (R10)
 RETRY_TOO_LATE = "the retry window for this turn has passed"
-#: the error of the same-goal call refused because the operator stopped the rig after
-#: the refusal (A8 fix, Critical 1), and the instruction the runtime puts in
+#: the error of every same-goal call refused because the operator stopped the rig after
+#: the refusal (A8 fix, Critical 1; A8 fix 2: until reset_scene or the window's end,
+#: `{seconds}` = the whole seconds left in it), and the instruction the runtime puts in
 #: `next_action`; neither carries the kitchen rules' retry trigger
-RETRY_STOPPED = "No retry for {goal}: the operator stopped the arm after the refusal"
-RETRY_STOPPED_NEXT = "The operator stopped the arm after the refusal: report it and wait for a new order."
+RETRY_STOPPED = ("No retry for {goal}: the operator stopped the arm after the refusal, so this repeat is refused "
+                 "until reset_scene succeeds or the retry window ends in {seconds} s")
+RETRY_STOPPED_NEXT = ("The operator stopped the arm, so this repeat is refused: report it and wait for a new order. "
+                      "To act on the same object again, run reset_scene first (or wait until the retry window ends).")
 
 #: words a goal never compares (A6-fix I1)
 _DETERMINERS = frozenset({"a", "an", "the", "this", "that", "these", "those"})
@@ -337,20 +343,17 @@ class SimRetryLedger:
     # ── entry points ─────────────────────────────────────────────────────
 
     def precheck(self, name, args) -> dict | None:
-        """A refusal to return before any motion when this goal's retry is used or
-        stopped, else None (read-only: a stopped slot stays stopped)."""
+        """The refusal `begin` would return before any motion for this goal's used
+        or stopped slot (the same persistent rule), else None. Read-only: it sees no
+        stop token, so a stop that `begin` has not yet seen is not reported."""
         with self._lock:
             try:
                 goal = goal_of(name, args)
                 if goal is None:
                     return None
-                self._expire(self._clock())
-                slot = self._slot_for(goal)
-                if slot is not None and slot.state == _STOPPED:
-                    return self._stopped_refusal(slot)
-                if slot is None or slot.state != _USED:
-                    return None
-                return self._used_refusal(slot)
+                now = self._clock()
+                self._expire(now)
+                return self._refusal(self._slot_for(goal), now)
             except Exception:  # noqa: BLE001 -- bookkeeping never fails a call
                 self._fail_closed("precheck")
                 return None
@@ -367,10 +370,10 @@ class SimRetryLedger:
         retry: all of them are used.
         `stop_token`: the rig's stop token now (R7); every open slot that opened
         under another one (a halt or e-stop since, even cleared again) is
-        stopped, and so is every open slot when this call starts latched. The
-        first same-goal call of a stopped slot is refused before any motion with
-        the stop text (it would run on a permission given before the stop); the
-        slot is spent from then on."""
+        stopped, and so is every open slot when this call starts latched. Every
+        same-goal call of a stopped slot is refused before any motion with the
+        stop text (the first would run on a permission given before the stop),
+        until the slot ends (A8 fix 2)."""
         with self._lock:
             self._call = None
             try:
@@ -385,13 +388,8 @@ class SimRetryLedger:
                 if goal is None:
                     return None
                 slot = self._slot_for(goal)
-                if slot is not None and slot.state == _USED:
-                    return self._used_refusal(slot)
-                if slot is not None and slot.state == _STOPPED:
-                    refusal = self._stopped_refusal(slot)
-                    for other in self._slots:
-                        if other.state == _STOPPED and same_goal(other.goal, goal):
-                            other.state = _SPENT  # refused once: later calls run as on main
+                refusal = self._refusal(slot, now)
+                if refusal is not None:
                     return refusal
                 blocked = bool(held or latched or episode_pending or motion_blocked)
                 call = _Call(goal, now, blocked, stop_token=stop_token)
@@ -525,8 +523,8 @@ class SimRetryLedger:
             self._slots.append(_Slot(goal, now, now, _SPENT))
 
     def _stop_open(self) -> None:
-        """The operator stopped the rig: every open slot is stopped (its next
-        same-goal call is refused once, `begin`)."""
+        """The operator stopped the rig: every open slot is stopped (its same-goal
+        calls are refused until the slot ends, `begin`)."""
         for slot in self._slots:
             if slot.state == _OPEN:
                 slot.state = _STOPPED
@@ -538,14 +536,26 @@ class SimRetryLedger:
         self._slots = [slot for slot in self._slots
                        if slot is not own and (slot.state == _USED or not same_goal(slot.goal, goal))]
 
+    def _refusal(self, slot: _Slot | None, now: float) -> dict | None:
+        """The refusal a goal's deciding slot gives before any motion: used or
+        stopped (both until the slot ends), else None."""
+        if slot is None:
+            return None
+        if slot.state == _USED:
+            return self._used_refusal(slot)
+        if slot.state == _STOPPED:
+            return self._stopped_refusal(slot, now)
+        return None
+
     def _used_refusal(self, slot: _Slot) -> dict:
         error = RETRY_EXHAUSTED.format(goal=slot.goal)
         if slot.late:
             error = f"{error}: {RETRY_TOO_LATE}"
         return {"ok": False, "error": error, "sim_retry": {"allowed": False, "used": True}}
 
-    def _stopped_refusal(self, slot: _Slot) -> dict:
-        return {"ok": False, "error": RETRY_STOPPED.format(goal=slot.goal),
+    def _stopped_refusal(self, slot: _Slot, now: float) -> dict:
+        left = math.ceil(slot.opened_at + self.window_s - now)  # > 0: an expired slot is gone
+        return {"ok": False, "error": RETRY_STOPPED.format(goal=slot.goal, seconds=left),
                 "sim_retry": {"allowed": False, "stopped": True}}
 
     def _expire(self, now: float) -> None:

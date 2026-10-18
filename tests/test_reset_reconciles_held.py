@@ -12,17 +12,22 @@ the object from home height, the case #357 refuses. Now the real-gripper path
 classifies the jaws first, exactly like the grasp's own verify (`_air_grasp`
 against the opening the close commanded, which the marker carries):
 
-- jaws stalled short of the commanded seat: the hold is promoted and the
-  reset refuses with #357's text ("holding X: place it first"), before any
-  command;
-- jaws at or through the commanded seat (the reBot's rigid close on air
-  stops at 85 % of travel, 0.93 rad), closed, or open: nothing is held, the
-  marker is dropped and the reset runs as with empty jaws (closed ones get
-  their one opening at home);
-- jaws that cannot be read: the reset refuses too, before any command, and
-  says how to get out (take the object out by hand, open_gripper,
-  reset_scene); a marker without its close's opening (a VLA close) is
-  judged by the old rule: anything short of closed is a hold.
+- jaws stalled on something: the hold is promoted and the reset refuses
+  with #357's text ("holding X: place it first"), before any command;
+- jaws nearly shut, open, or within 3 % of travel of the commanded seat
+  while the plan sized the object at least 7 % wider (the reBot's rigid
+  close on air stops at its seat, 85 % of travel, 0.93 rad): nothing is
+  held, the marker is dropped and the reset runs as with empty jaws (closed
+  ones get their one opening at home). The price, as in the grasp's verify:
+  an object about 13.5-16.2 mm thick that the plan sized at 19.8 mm or more
+  stalls the jaws in that band and is opened at home;
+- jaws that cannot be read (a failed read, unknown feedback, a reading
+  that is no number): the reset refuses too, before any command, and says
+  how to get out (take the object out by hand, open_gripper, reset_scene);
+  a marker it cannot judge against the reading, or an unfinished contact
+  episode (the jaws are never read), refuses with its own text. A marker
+  without its close's opening (a VLA close) is judged by the old rule:
+  anything short of closed is a hold.
 
 A held flag is not reconciled: it refuses as before (#357). A grasp's entry
 keeps its own reconcile (fail closed at the seat).
@@ -37,16 +42,26 @@ command, and the real grasp on the mock camera; no driver, no bus.
 from __future__ import annotations
 
 import dataclasses
+import math
 from types import SimpleNamespace
 
 import pytest
 
 from cascade.control.mock_arm import MockArm
+from cascade.skills.runtime import ProvisionalHold
 from cascade.types import MotionHalted
 
 REFUSAL = "holding red cube: place it first (place_at), then reset"
 UNREAD = ("the jaw state could not be read: if red cube is in the jaws, take it out by hand, then "
           "open_gripper, then reset_scene. Error: ")
+#: the jaws were read, but the marker could not be judged against them
+UNJUDGED = ("the interrupted grasp's hold marker could not be judged against the jaws: if red cube is in "
+            "the jaws, take it out by hand, then open_gripper, then reset_scene. Error: ")
+#: an unfinished contact episode: the reconcile never reads the jaws
+CONTACT = ("the grasp of red cube ended in an unfinished contact episode, so the jaws were not read and it "
+           "may be in them: a person must check the gripper.")
+#: the way-out sentence a refusal for an unread or unjudged hold must keep whole
+WAY_OUT = " is in the jaws, take it out by hand, then open_gripper, then reset_scene."
 #: the halt lands on this streamed command of the grasp lift (~100 commands
 #: on rebot_rs): late in the lift, the jaws long stalled on the object
 LATE_IN_LIFT = 90
@@ -83,6 +98,8 @@ class _RecArm(MockArm):
         if self.jaws == "error":
             raise TimeoutError(self.error)
         state = super().get_state()
+        if self.jaws == "nan":                     # a "valid" reading that is no number
+            return dataclasses.replace(state, gripper_valid=True, gripper_pos=float("nan"))
         return dataclasses.replace(state, gripper_valid=False) if self.jaws == "unknown" else state
 
 
@@ -356,6 +373,177 @@ def test_an_estop_latched_after_the_stop_still_names_the_hold(rig):
     out = r.runtime.execute("reset_scene", {})
     _refused(out, REFUSAL)
     assert out["error"] == REFUSAL and r.log == [], (out, r.log)
+
+
+@pytest.mark.parametrize("stall", [0.5, None])
+@pytest.mark.parametrize("call", ["execute", "direct"])
+def test_a_non_finite_jaw_reading_after_a_stop_is_unreadable_never_empty(rig, call, stall):
+    """A reading the driver reports valid that is no number (NaN) is no jaw
+    width. It fell through every branch of the reconcile and CLEARED the
+    hold, so the reset homed with whatever the jaws held (stalled on the cube
+    or at the seat alike). It is unreadable: refused before any command, the
+    hold kept, and the next real reading decides."""
+    r = rig("rebot_rs")
+    assert r.cfg.arm.type == "rebot_rs" and r.runtime._drives_real_gripper()
+    _stop_in_the_grasp(r, stall=stall)
+    r.arms[0].jaws = "nan"
+    state = r.runtime.arm.get_state()
+    assert state.gripper_valid is True and math.isnan(state.gripper_pos)
+    out = _reset(r, call)
+    _refused(out, UNREAD)
+    assert out["error"] == UNREAD + "no valid jaw feedback"
+    assert r.log == [], r.log
+    assert r.runtime.held_object is None and r.runtime._held_provisional is not None
+    r.arms[0].jaws = "ok"                          # the next reading is a number again
+    out = _reset(r, call)
+    if stall is None:
+        _ran_as_for_empty_jaws(r, out, opened=True)
+    else:
+        _refused(out, REFUSAL)
+        assert r.log == [] and r.runtime.held_object == "red cube", r.log
+
+
+def test_a_grasp_entry_keeps_the_hold_on_a_non_finite_jaw_reading(rig):
+    """The entry's own reconcile (fail closed at the seat) reads NaN as
+    unknown too: the hold stays, nothing is promoted or cleared."""
+    r = rig("rebot_rs")
+    _stop_in_the_grasp(r, stall=0.5)
+    r.arms[0].jaws = "nan"
+    r.runtime._reconcile_held()
+    assert r.runtime.held_object is None and r.runtime._held_provisional is not None
+
+
+#: malformed markers, the jaw reading each is judged against, and why judging fails
+MALFORMED = {
+    # its close's opening and no expected one, the jaws at that seat: `_air_grasp` raises
+    "no_expected_open": (None, "'>=' not supported between instances of 'NoneType' and 'float'"),
+    # a bare label, the jaws stalled on the cube: promoting it cannot unpack it
+    "label_only": (0.5, "not enough values to unpack (expected 3, got 1)"),
+}
+
+
+def _malform(rt, kind):
+    prov = rt._held_provisional
+    rt._held_provisional = (ProvisionalHold(tuple(prov), prov.commanded_open) if kind == "no_expected_open"
+                            else ProvisionalHold(prov[:1]))
+
+
+@pytest.mark.parametrize("kind", sorted(MALFORMED))
+@pytest.mark.parametrize("call", ["execute", "direct"])
+def test_a_marker_that_cannot_be_judged_is_refused_as_such_not_as_unread_jaws(rig, call, kind):
+    """The jaws read fine, but the marker cannot be judged against them. No
+    jaw read failed, so the refusal says the marker could not be judged;
+    nothing moves, and the same way out works."""
+    stall, why = MALFORMED[kind]
+    r = rig("rebot_rs")
+    _stop_in_the_grasp(r, stall=stall)
+    _malform(r.runtime, kind)
+    out = _reset(r, call)
+    _refused(out, UNJUDGED)
+    assert out["error"] == UNJUDGED + why, out
+    assert r.log == [], r.log
+    assert r.runtime.held_object is None and r.runtime._held_provisional is not None
+    r.runtime.execute("open_gripper", {})
+    assert [e[0] for e in r.log] == ["jaw"] and r.runtime._held_provisional is None, r.log
+    r.log.clear()
+    _ran_as_for_empty_jaws(r, r.runtime.execute("reset_scene", {}), opened=False)
+
+
+def test_only_the_reset_reconcile_names_a_marker_it_cannot_judge(rig):
+    """Every other caller of the reconcile (a grasp's entry, the retry's
+    check) gets the original error, as before."""
+    r = rig("rebot_rs")
+    _stop_in_the_grasp(r, stall=0.5)
+    _malform(r.runtime, "label_only")
+    with pytest.raises(ValueError, match="not enough values to unpack"):
+        r.runtime._reconcile_held()
+    assert r.log == [] and r.runtime._held_provisional is not None
+
+
+@pytest.mark.parametrize("call", ["execute", "direct"])
+def test_an_unfinished_contact_episode_is_refused_as_such_not_as_unread_jaws(rig, monkeypatch, call):
+    """The reconcile never reads the jaws during an unfinished contact episode
+    (only its explicit recovery may finish that close), so the refusal cannot
+    say the jaws were unreadable: it names the episode. Nothing moves."""
+    r = rig("rebot_rs")
+    _stop_in_the_grasp(r, stall=0.5)
+    rt, reads = r.runtime, []
+    read = rt._gripper_width_frac
+    monkeypatch.setattr(rt, "_gripper_width_frac", lambda: reads.append(1) or read())
+    rt._contact_episode = {"unfinished": True}
+    out = _reset(r, call)
+    _refused(out, CONTACT)
+    assert out["error"] == CONTACT and reads == [], (out, reads)
+    assert r.log == [], r.log
+    assert rt.held_object is None and rt._held_provisional is not None
+
+
+#: a label longer than the 240 characters the agent's failure line quotes leave
+#: for it (the grasp tool accepts names this long)
+LONG_LABEL = "the " + "very " * 40 + "long blue mug"
+
+
+def _long_label_case(r, case):
+    """Put LONG_LABEL in a hold of kind `case`; return the sentence the
+    refusal must keep whole after the (shortened) label."""
+    rt = r.runtime
+    if case == "held":
+        rt.arm.get_state()
+        rt.held_object, rt._held_det_label = LONG_LABEL, "mug"
+        return ": place it first (place_at), then reset"
+    _stop_in_the_grasp(r, stall=None if case == "unjudged" else 0.5)
+    prov = rt._held_provisional
+    rt._held_provisional = ProvisionalHold((LONG_LABEL, *prov[1:]), prov.commanded_open,
+                                           None if case == "unjudged" else prov.expected_open)
+    if case == "contact":
+        rt._contact_episode = {"unfinished": True}
+        return (" ended in an unfinished contact episode, so the jaws were not read and it may be in them: "
+                "a person must check the gripper.")
+    if case in ("unknown", "error"):
+        r.arms[0].jaws = case
+        r.arms[0].error = "CAN bus: gripper motor 7 did not answer the position request " * 5
+    return WAY_OUT
+
+
+@pytest.mark.parametrize("case", ["held", "unknown", "error", "unjudged", "contact"])
+def test_a_long_label_is_shortened_never_the_refusal_sentence(rig, case):
+    """The agent's failure line quotes the first 240 characters of the error:
+    a label too long for them is cut ("..."), so the refusal's sentence stays
+    whole in that line and nothing is marked truncated."""
+    r = rig("rebot_rs")
+    sentence = _long_label_case(r, case)
+    out = r.runtime.execute("reset_scene", {})
+    error = out["error"]
+    assert out["ok"] is False and r.log == [], (out, r.log)
+    assert len(error) <= 240 and "... " not in LONG_LABEL, (len(error), error)
+    assert sentence in error and LONG_LABEL not in error, error
+    cut = error[:error.index(sentence)]
+    assert cut.endswith("...") and LONG_LABEL[:40] in cut, error
+    assert sentence in out["next_action"] and "(truncated; see error)" not in out["next_action"], out
+
+
+def test_an_empty_driver_error_names_its_type_not_a_bare_error_tag(rig):
+    """A driver exception without text leaves no dangling \"Error: \"."""
+    r = rig("rebot_rs")
+    _stop_in_the_grasp(r, stall=0.5)
+    r.arms[0].jaws, r.arms[0].error = "error", ""
+    out = r.runtime.execute("reset_scene", {})
+    _refused(out, UNREAD)
+    assert out["error"] == UNREAD + "TimeoutError", out
+    assert r.log == [], r.log
+
+
+def test_the_failure_line_keeps_the_cut_marker_of_a_shortened_driver_error(rig):
+    """The driver's text is shortened with \"...\": the failure line quotes
+    the error with that marker, it does not turn it into a full stop."""
+    r = rig("rebot_rs")
+    _stop_in_the_grasp(r, stall=0.5)
+    r.arms[0].jaws = "error"
+    r.arms[0].error = "CAN bus: gripper motor 7 did not answer the position request " * 5
+    out = r.runtime.execute("reset_scene", {})
+    error = out["error"]
+    assert error.startswith(UNREAD + "CAN bus") and error.endswith("...") and len(error) <= 240, error
+    assert out["next_action"].startswith(f"This attempt FAILED: {error} Tell the user it failed"), out
 
 
 @pytest.mark.parametrize("call", ["execute", "direct"])

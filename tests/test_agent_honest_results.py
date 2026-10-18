@@ -133,6 +133,19 @@ def test_a_long_error_is_shortened_in_the_instruction_only(runtime):
     assert "x" * 200 in result["next_action"]
 
 
+def test_an_error_that_ends_in_a_cut_marker_keeps_it_in_the_instruction(runtime):
+    """A skill that shortened its own error marks the cut with "..." (the
+    driver text of reset_scene's refusals): the instruction keeps the marker
+    instead of stripping it to one full stop. Any other error still ends
+    with exactly one."""
+    runtime.skill_wave = lambda cycles=2: {"ok": False, "error": "gripper motor 7 did not ans..."}
+    assert runtime.execute("wave", {})["next_action"].startswith(
+        "This attempt FAILED: gripper motor 7 did not ans... Tell the user it failed;")
+    runtime.skill_wave = lambda cycles=2: {"ok": False, "error": "out of reach.."}
+    assert runtime.execute("wave", {})["next_action"].startswith(
+        "This attempt FAILED: out of reach. Tell the user it failed;")
+
+
 def test_a_stuck_result_still_relays_the_ask_first(runtime):
     runtime.skill_wave = lambda cycles=2: {"ok": False, "outcome": "stuck", "ask": "Move the cube closer.",
                                            "error": "out of reach"}

@@ -79,7 +79,8 @@ def fixture(monkeypatch, failure):
     # Keep the real composed motion hooks in this deliberately small runtime double.
     from types import MethodType
     for method in ("_home_policy_enabled", "_joint_segment_rejection", "_move_joints",
-                   "_set_gripper", "_move_planned", "_move_carry", "_mark_motion_started"):
+                   "_set_gripper", "_move_planned", "_move_carry", "_mark_motion_started",
+                   "_force_contact_close_enabled"):
         setattr(rt, method, MethodType(getattr(module.SkillRuntime, method), rt))
     def run():
         return module.SkillRuntime.skill_grasp_object(

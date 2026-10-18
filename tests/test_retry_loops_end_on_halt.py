@@ -384,7 +384,7 @@ def _one_marked_miss(r, monkeypatch):
 
 @pytest.mark.parametrize("kind", ["halt", "estop_harness", "estop_safearm"])
 @pytest.mark.parametrize("profile", ["rebot_rs", "mock"])
-def test_a_halt_in_a_failed_pick_and_place_park_is_named_in_its_error(rig, monkeypatch, profile, kind):
+def test_a_failed_pick_and_place_park_error_names_a_halt_but_not_an_estop(rig, monkeypatch, profile, kind):
     """After its last missed attempt pick_and_place parks the arm (rigs
     without the view-home return). A halt that stops that park is named
     first in the error, before the grasp failure it keeps. An e-stop there

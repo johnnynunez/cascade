@@ -8770,7 +8770,8 @@ def _halted_text(move: str, halt: str) -> str:
 def _stop_first(stop: str, error) -> str:
     """The operator's stop that also ended a failed skill, then the skill's
     own `error`: outcome first, as `_reset_release_failed` does, because the
-    agent's FAILED line keeps only the first 240 characters of the error."""
+    agent's FAILED line keeps only the first `_FAILED_ERROR_CHARS` characters
+    of the error."""
     return f"{stop}; {error}" if error else stop
 
 

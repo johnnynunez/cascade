@@ -544,18 +544,28 @@ def _world_target_refusal(name: str, arm_name) -> dict:
     }
 
 
+def _tilt_angle_text(deg: float) -> str:
+    """One angle of the tilt refusal: 2 decimals, but an axis that tilts
+    beyond the level tolerance and rounds to 0.00 keeps 2 significant digits
+    ("1.1e-07"), so the refusal never calls a mount tilted at 0.00 deg. A
+    level axis (within the tolerance) and a rounded -0.0 print as 0.00."""
+    shown = round(float(deg), 2) + 0.0          # + 0.0: a rounded -0.0 is 0.00
+    if shown == 0.0 and abs(np.sin(np.radians(float(deg)))) > arm_frame._RIGID_ATOL:
+        return f"{float(deg):.2g}"
+    return f"{shown:.2f}"
+
+
 def _tilted_mount_refusal(name: str, arm_name, roll_deg: float, pitch_deg: float) -> dict:
     """The result of a `_TILT_REFUSED_SKILLS` skill on an arm whose base_pose
     is tilted (spec D4, §5): nothing was perceived, commanded or moved, so
     there is no move_home step."""
     who = "this arm" if arm_name in (None, "default") else f"arm {arm_name!r}"
-    # + 0.0 turns a rounded -0.0 (a level axis, arcsin(-0.0)) into 0.00
-    roll, pitch = (round(float(a), 2) + 0.0 for a in (roll_deg, pitch_deg))
+    roll, pitch = (_tilt_angle_text(a) for a in (roll_deg, pitch_deg))
     return {
         "ok": False,
         "outcome": OUTCOME_FAILED,
-        "error": (f"{name} refused on {who}: its base_pose is tilted (roll {roll:.2f} deg, pitch "
-                  f"{pitch:.2f} deg); table-frame targets need a level mount; no motion was sent"),
+        "error": (f"{name} refused on {who}: its base_pose is tilted (roll {roll} deg, pitch "
+                  f"{pitch} deg); table-frame targets need a level mount; no motion was sent"),
         "next_action": ("Do not retry this skill on this arm. Level its base_pose in the profile, or use "
                         "move_home, move_to_rest, rotate_joint, open_gripper or close_gripper on it."),
     }

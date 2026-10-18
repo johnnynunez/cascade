@@ -382,6 +382,51 @@ def test_the_tilt_scope_is_the_frozen_fifteen():
     assert not runtime_mod._TILT_REFUSED_SKILLS & runtime_mod._FRAME_FREE_ALWAYS   # those may run with no frame
 
 
+#: Near the level tolerance (1e-9, #349's): base_pose -> the angles the
+#: refusal quotes, or None when the mount counts as level and the skill runs.
+#: A tilt below the 0.01 deg print step is quoted with its own digits, never
+#: as "0.00" (a refusal that says "tilted (roll 0.00 deg, pitch 0.00 deg)"
+#: contradicts itself).
+NEAR_LEVEL = {
+    "roll 2e-9": ([0.0, -0.22, 0.0, 2e-9, 0.0, 0.0], "(roll 1.1e-07 deg, pitch 0.00 deg)"),
+    "pitch -2e-9": ([0.0, -0.22, 0.0, 0.0, -2e-9, 0.0], "(roll 0.00 deg, pitch -1.1e-07 deg)"),
+    "roll 5e-10": ([0.0, -0.22, 0.0, 5e-10, 0.0, 0.0], None),
+    "pitch 5e-10": ([0.0, -0.22, 0.0, 0.0, 5e-10, 0.0], None),
+}
+
+
+@pytest.mark.parametrize("rig", sorted(NEAR_LEVEL))
+def test_the_tilt_refusal_starts_at_the_level_tolerance(make_runtime, monkeypatch, rig):
+    """2e-9 rad of roll or pitch is tilted and refused before any work, with
+    honest digits; 5e-10 is level within 1e-9 and the converted skill runs."""
+    pose, angles = NEAR_LEVEL[rig]
+    rt = make_runtime(["so101_right"], {"so101_right": pose})
+    spy = Spy(rt, monkeypatch)
+    result = rt.execute("point_at", dict(CONVERTED_CALLS["point_at"]))
+    if angles is not None:
+        _assert_tilt_refused(result, "point_at", angles)
+        assert spy.arm_commands() == 0 and spy.jaw == [] and spy.perception == []
+        return
+    assert TILT not in str(result.get("error")), result
+    assert "_localize" in spy.perception
+
+
+def test_the_tilt_text_quotes_a_sub_print_step_angle_with_its_digits():
+    """Unit: angles that round to 0.00 but tilt beyond the level tolerance keep
+    two significant digits; level axes (within 1e-9) and visible angles keep
+    the 2-decimal form (a rounded -0.0 prints as 0.00)."""
+    from cascade.skills.runtime import _tilted_mount_refusal
+
+    def quoted(roll, pitch):
+        text = _tilted_mount_refusal("grasp_object", None, roll, pitch)["error"]
+        return text[text.index("(roll"):text.index(")") + 1]
+
+    assert quoted(5.729577951308232, 0.0) == "(roll 5.73 deg, pitch 0.00 deg)"
+    assert quoted(-0.0, -0.004) == "(roll 0.00 deg, pitch -0.004 deg)"
+    assert quoted(np.degrees(2e-9), np.degrees(-3e-11)) == "(roll 1.1e-07 deg, pitch 0.00 deg)"
+    assert quoted(-0.006, 0.0) == "(roll -0.01 deg, pitch 0.00 deg)"
+
+
 # ── 3. the RUNNING arm decides (execute(arm=...) included) ────────────────
 
 

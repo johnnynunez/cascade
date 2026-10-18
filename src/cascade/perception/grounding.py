@@ -502,7 +502,8 @@ def _checked_workspace(workspace_bounds) -> tuple[np.ndarray, np.ndarray] | None
 def _measure_detection(frame: Frame, det: Detection, T_cam2base: np.ndarray, *, label: str, what: str,
                        color: str | None, min_points: int,
                        workspace: tuple[np.ndarray, np.ndarray] | None,
-                       report_point=None) -> tuple[ObjectFix, str | None]:
+                       report_point: Callable[[np.ndarray], np.ndarray] | None = None,
+                       ) -> tuple[ObjectFix, str | None]:
     """One detection -> (base-frame fix, its colour name or None when no
     colour was asked). Raises DetectionRejected with localize_object's reason.
     `report_point` maps a measured point to the frame the reason quotes (the
@@ -570,7 +571,7 @@ def fix_from_detection(
     color: str | None = None,
     min_points: int = 10,
     workspace_bounds: tuple[np.ndarray, np.ndarray] | None = None,
-    report_point=None,
+    report_point: Callable[[np.ndarray], np.ndarray] | None = None,
 ) -> ObjectFix:
     """The base-frame 3D fix of ONE detection in `frame`, under
     localize_object's per-detection rules: strict colour match on its mask,
@@ -602,7 +603,7 @@ def localize_object(
     prefer_label: str | None = None,
     workspace_bounds: tuple[np.ndarray, np.ndarray] | None = None,
     require_unique: bool = False,
-    report_point=None,
+    report_point: Callable[[np.ndarray], np.ndarray] | None = None,
 ) -> ObjectFix:
     """Find `label` in the frame and return its base-frame 3D fix.
 

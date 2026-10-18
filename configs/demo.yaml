@@ -486,6 +486,10 @@ agent:
   # keyword overlap. false = the pre-tier CLI and MCP server exactly.
   programs: false
   program_min_tasks: 2
+  # Harness² agent harness (docs/AGENT_HARNESSING.md): advice text (rules, tool guidance,
+  # triggered skills) learned by scripts/harness2_improve.py and validated before use. null = the
+  # built-in agent's prompt and tool specs exactly. CASCADE_AGENT_HARNESS overrides.
+  harness_path: null
 
 # Always-on perception: every rig camera feeds the belief store continuously
 # so commands resolve against an already-warm world model.

@@ -138,6 +138,7 @@ NOT_FORWARDED: dict[str, tuple[str, str]] = {
                      "set it explicitly (setup_agents --env) for such a server"),
     "CASCADE_RUN_DIR": ("internal", "per-process trace directory: the server derives a fresh one (mcp_<pid>, "
                         "or a new one per launch-owned process); an inherited one would merge sessions"),
+    "CASCADE_AGENT_HARNESS": ("cli", "the learned agent harness (cascade.harnessing) is installed on the demo CLI's built-in orchestrator; the MCP host is the brain and reads no harness"),
     "CASCADE_LLM": ("cli", "brain profile of the demo CLI / dashboard runner; the MCP server hardcodes "
                     "llm=mock because its host is the brain"),
     "CASCADE_CODEX_BIN": ("cli", "codex executable for the demo CLI's codex_astra brain; the MCP server runs "

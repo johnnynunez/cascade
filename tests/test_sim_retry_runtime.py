@@ -417,7 +417,7 @@ def test_only_the_granted_result_keeps_the_trigger():  # A8 fix, Important 3
     for ok in ("someone more attempts", "the simulation is only a model", "attempts: 2", "0.05 m left, 0 moves",
                "simulation of only one cube", "the simulation runs only on the GPU", "\u041f\u0440\u0438\u0432\u0435\u0442",
                "lim\u00f3n near the m\u00e9tro", "x" * 5000, "attempt 2 of 3: one more grasp"):
-        assert runtime_mod._without_retry_trigger(ok) is ok  # no trigger: the same string
+        assert runtime_mod._without_rule_triggers(ok) is ok  # no trigger: the same string
 
 
 def test_a_plain_ascii_string_skips_the_unicode_reading(monkeypatch):  # A8 fix 2 (re-review Minor 6)
@@ -427,7 +427,7 @@ def test_a_plain_ascii_string_skips_the_unicode_reading(monkeypatch):  # A8 fix 
     seen = []
     real_reading = runtime_mod._trigger_reading
     monkeypatch.setattr(runtime_mod, "_trigger_reading", lambda text: seen.append(text) or real_reading(text))
-    scrub = runtime_mod._without_retry_trigger
+    scrub = runtime_mod._without_rule_triggers
     assert scrub("SafetyViolation: second grasp candidate refused") == "SafetyViolation: second grasp candidate refused"
     assert scrub("SIMULATI0N ONLY") == runtime_mod._RETRY_TRIGGER_WITHHELD and seen == []
     assert scrub("caf\u00e9") == "caf\u00e9" and seen == ["caf\u00e9"]
@@ -440,7 +440,7 @@ def test_a_plain_ascii_string_skips_the_unicode_reading(monkeypatch):  # A8 fix 
 def test_withholding_the_trigger_keeps_the_rest_of_the_text():  # A8 fix 2 (re-review Minor 2)
     """Only the span that reads as the trigger is withheld: accents, other scripts and
     numbers around it stay as written."""
-    scrub = runtime_mod._without_retry_trigger
+    scrub = runtime_mod._without_rule_triggers
     withheld = runtime_mod._RETRY_TRIGGER_WITHHELD
     assert scrub("lim\u00f3n 0.05 m: SIMULATI0N ONLY; \u041f\u0440\u0438\u0432\u0435\u0442") == (
         f"lim\u00f3n 0.05 m: {withheld}; \u041f\u0440\u0438\u0432\u0435\u0442")
@@ -529,7 +529,7 @@ def test_a_granted_result_keeps_r1_and_withholds_the_reply_line_at_every_depth()
 def test_the_reply_line_scrub_keeps_everyday_text():  # A8 follow-ups 5
     """Only R5's words are withheld: everyday text with \"exact\", \"line\" or \"your reply\"
     comes back as it was, the same object, and R1's placeholder is not R5's."""
-    scrub = runtime_mod._without_retry_trigger
+    scrub = runtime_mod._without_rule_triggers
     for ok in ("send your reply", "Waiting, pending your reply.", "an exact position", "line the jaws up",
                "exactly one arm", "release requires an exact lease_id", "exactly one line of text", "end of line",
                "extend your reply", "the line ends here", "exactness: 2 mm",

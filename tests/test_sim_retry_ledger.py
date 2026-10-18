@@ -1047,12 +1047,12 @@ def test_the_stop_texts_grant_nothing():  # A8 fix, Critical 1; A8 fix 2; A8 fix
     instruction says to report and wait, never to reset the scene on its own: a new
     order on the object needs a reset only the operator or the visitor can ask for
     (the visitor rules: reset only on request), or the window's end."""
-    from cascade.skills.runtime import _without_retry_trigger
+    from cascade.skills.runtime import _without_rule_triggers
 
     error = RETRY_STOPPED.format(goal="green cube", seconds=300)
     for text in (error, RETRY_STOPPED_NEXT):
         assert "SIMULATION ONLY" not in text.upper() and "MORE ATTEMPT" not in text.upper()
-        assert _without_retry_trigger(text) is text
+        assert _without_rule_triggers(text) is text
         assert "operator stopped the arm" in text and "repeat is refused" in text
         assert "reset_scene" not in text  # names no tool to call
     assert error.endswith("until the scene is reset or the retry window ends in 300 s")

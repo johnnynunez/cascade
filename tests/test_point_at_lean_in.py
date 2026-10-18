@@ -406,6 +406,23 @@ def test_the_column_extrudes_the_box_to_the_table_and_covers_the_points():
     np.testing.assert_allclose(column.aim, [0.3, 0.0, 0.11])
 
 
+def test_an_object_over_the_target_is_part_of_the_column():
+    """A cup (6 cm square, top 0.09 m) standing over a 4 cm cube (top 0.05):
+    its own prism counts, wider and taller than the cube, and the aim is
+    the centre of its top."""
+    from cascade.skills import pointing
+
+    fix = SimpleNamespace(position=np.array([0.3, 0.0, 0.025]), extent=np.array([0.04, 0.04, 0.05]),
+                          axes=np.eye(3), points=np.array([[0.3, 0.0, 0.05]]))
+    cup = np.array([[0.27, -0.03], [0.33, -0.03], [0.33, 0.03], [0.27, 0.03]])
+    column = pointing.object_column(fix, table_z=0.0, top=0.09, occluders=[(cup, 0.09)])
+    # beside the cube but inside the cup's wall: inside
+    assert column.distance(np.array([[0.325, 0.0, 0.07]]))[0] <= 0.0
+    # 1 cm outside the cup's wall, at the cube's height
+    assert column.distance(np.array([[0.34, 0.0, 0.04]]))[0] == pytest.approx(0.01)
+    np.testing.assert_allclose(column.aim, [0.3, 0.0, 0.09])
+
+
 # ── the route: rise first, or refuse before any command ────────────────────
 
 

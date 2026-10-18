@@ -8193,13 +8193,16 @@ class SkillRuntime:
         if provisional is None:
             return None
         way_out = ("the jaw state could not be read: "
-                   + ("call move_home first (it raises the gripper up its approach column); then, "
-                      if column_kept else "")
-                   + f"if {provisional[0]} is in the jaws, take it out by hand, then open_gripper, then "
-                   "reset_scene.")
+                   + (f"call move_home first (it raises the gripper up its approach column), then, if "
+                      f"{provisional[0]} is in the jaws, take it out by hand, open_gripper, reset_scene."
+                      if column_kept else
+                      f"if {provisional[0]} is in the jaws, take it out by hand, then open_gripper, then "
+                      "reset_scene."))
         why = read_error if read_error is not None else "no valid jaw feedback"
         error, room = f" Error: {why}", _FAILED_ERROR_CHARS - len(way_out)
-        return way_out + (error if len(error) <= room else error[:max(room - 3, 0)].rstrip() + "...")
+        if len(error) > room:
+            error = error[:room - 3].rstrip() + "..." if room >= 3 else ""
+        return way_out + error
 
     def _forget_held_object(self) -> None:
         """The jaws let the held object go: clear every held-object field."""

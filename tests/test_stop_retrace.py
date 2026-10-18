@@ -439,10 +439,50 @@ def test_on_a_real_gripper_unreadable_jaws_while_the_column_is_kept_send_the_age
     n0 = commands(rt)
     res = rt.execute("reset_scene", {})
     assert res["ok"] is False and res["error"] == (
-        "the jaw state could not be read: call move_home first (it raises the gripper up its approach column); "
-        "then, if red cube is in the jaws, take it out by hand, then open_gripper, then reset_scene. "
+        "the jaw state could not be read: call move_home first (it raises the gripper up its approach column), "
+        "then, if red cube is in the jaws, take it out by hand, open_gripper, reset_scene. "
         "Error: no valid jaw feedback"), res
     assert len(res["error"]) <= 240 and commands(rt) == n0 and stop_retrace.kept(rt) is kept
+
+
+@pytest.mark.parametrize("jaws", ["stalled", "unreadable"])
+def test_on_a_real_gripper_a_long_label_keeps_the_move_home_step_inside_240_characters(rebot_real, monkeypatch, jaws):
+    """The kept-column refusals with a 62-character label and a long driver
+    error: the hold sentence comes first and stays whole (move_home first,
+    then the rest), the driver's text is shortened or dropped, and the whole
+    refusal fits the agent's 240-character failure line."""
+    rt = rebot_real
+    mock_of(rt).object_stop_frac = 0.5
+    stopped_at_the_object(rt, monkeypatch, skill=("grasp_object", {"label": "red cube"}))
+    label = "the tall blue ceramic coffee mug with the chipped handle, left"
+    rt._held_provisional = (label, *tuple(rt._held_provisional)[1:])
+    if jaws == "unreadable":
+        def fail():
+            raise RuntimeError("CAN bus: gripper motor 7 did not answer the position request " * 5)
+
+        monkeypatch.setattr(mock_of(rt), "get_state", fail)
+    n0 = commands(rt)
+    res = rt.execute("reset_scene", {})
+    head = (f"holding {label}: call move_home first (it raises the gripper up its approach column, with the "
+            "object), then place_at, then reset_scene" if jaws == "stalled" else
+            "the jaw state could not be read: call move_home first (it raises the gripper up its approach "
+            f"column), then, if {label} is in the jaws, take it out by hand, open_gripper, reset_scene.")
+    assert res["ok"] is False and res["error"].startswith(head), res
+    assert len(res["error"]) <= 240 and commands(rt) == n0, (len(res["error"]), res["error"])
+
+
+def test_on_a_real_gripper_jaws_at_the_seat_let_the_reset_retrace_home_and_open_them(rebot_real, monkeypatch):
+    """A STOP right after a close on AIR: the jaws sit at the stage-2 seat
+    (0.93 rad). The reset judges them empty (#363), retraces up the kept
+    column, goes home and opens the closed empty jaws there, once."""
+    rt = rebot_real
+    stopped_at_the_object(rt, monkeypatch, skill=("grasp_object", {"label": "red cube"}))
+    assert mock_of(rt)._gripper == pytest.approx(6.2 * 0.15) and rt._held_provisional is not None
+    jaws = jaw_commands(rt, monkeypatch)
+    res = rt.execute("reset_scene", {})
+    assert res["ok"] is True and res["stop_retrace"].startswith("completed") and at_home(rt), res
+    assert res["jaws_open_commanded"] is True and jaws == [pytest.approx(rt._grip_open)], (res, jaws)
+    assert rt.held_object is None and rt._held_provisional is None
 
 
 def arm_after_the_retrace(rt, monkeypatch, arm):

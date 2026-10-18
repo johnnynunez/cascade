@@ -25,6 +25,7 @@ import time
 import traceback
 from typing import Any, Callable, Protocol
 
+from .checks import CheckProbe, TaskCheck
 from .surface import AgentHarness
 
 #: per-step text caps in TRAJECTORY.md
@@ -38,17 +39,22 @@ class TaskSpec:
     task: str
     domain: str
     max_steps: int = 20
+    #: the hidden success check (`checks.TaskCheck`); None: CASCADE's own verifier decides
+    check: TaskCheck | None = None
 
     @classmethod
     def from_dict(cls, data: dict, *, domain: str | None = None) -> "TaskSpec":
         if not data.get("id") or not data.get("task"):
             raise ValueError(f"task needs id and task: {data!r}")
         return cls(str(data["id"]), str(data["task"]), str(data.get("domain") or domain or "default"),
-                   int(data.get("max_steps", 20)))
+                   int(data.get("max_steps", 20)), TaskCheck.from_dict(data.get("check")))
 
 
 @dataclass
 class Rollout:
+    """`measured_success`: the task's hidden check when it has one (`check`), else CASCADE's
+    verifier (`verifier_success`, i.e. `TaskReport.success`). Neither reaches an improver."""
+
     label: str
     task_id: str
     harness_sha: str
@@ -61,6 +67,8 @@ class Rollout:
     verification: str = ""
     error: str | None = None
     trajectory: str = ""
+    verifier_success: bool | None = None
+    check: dict | None = None
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -212,6 +220,7 @@ class CascadeExecutor:
             runtime, arm = build_runtime(cfg, out_dir / "run")
             if self.runtime_hook is not None:
                 self.runtime_hook(runtime, arm)
+            probe = CheckProbe(spec.check, runtime, arm) if spec.check is not None else None
             inner = self.llm_factory(cfg, label) if self.llm_factory else make_llm(cfg.llm)
             llm = RecordingLLM(inner)
             orch = AgentOrchestrator(llm, runtime, advisor=None, max_steps=spec.max_steps,
@@ -227,9 +236,15 @@ class CascadeExecutor:
             traj = render_trajectory(label, spec, harness, llm.turns, report.tool_log,
                                      ended_by=ended_by, agent_summary=summary, claimed=claimed)
             verification = "; ".join(report.unverified) if report.unverified else ""
-            rollout = Rollout(label, spec.id, harness.sha(), bool(report.success), claimed, report.steps,
+            verifier = bool(report.success)
+            check = None
+            measured = verifier
+            if probe is not None:
+                measured, rows = probe.evaluate(runtime, arm)
+                check = {"passed": measured, "criteria": rows}
+            rollout = Rollout(label, spec.id, harness.sha(), measured, claimed, report.steps,
                               round(time.monotonic() - t0, 1), ended_by, summary, verification,
-                              trajectory=str(out_dir / "TRAJECTORY.md"))
+                              trajectory=str(out_dir / "TRAJECTORY.md"), verifier_success=verifier, check=check)
         except Exception as exc:  # noqa: BLE001 -- a broken rollout is recorded, never fatal
             traj = (f"# Execution {label}\n\nTask: {spec.task}\nHarness: {harness.sha()[:12]}\n\n"
                     f"The execution failed before finishing: {_clip(repr(exc), 500)}\n")

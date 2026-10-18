@@ -150,7 +150,7 @@ class Harnessing:
 
     def __init__(self, executor: Executor, improver: Improver, *, work_dir: Path, tool_specs: list[dict],
                  library: Library | None = None, workers: int = 2, gate: str = "verified",
-                 rng: random.Random | None = None, log: Callable[[str], None] = print):
+                 rng: random.Random | None = None, log: Callable[[str], None] | None = None):
         if gate not in ("verified", "none"):
             raise ValueError("gate must be 'verified' or 'none'")
         self.executor = executor
@@ -162,7 +162,7 @@ class Harnessing:
         self.workers = max(1, int(workers))
         self.gate = gate
         self.rng = rng or random.Random(0)
-        self.log = log
+        self.log = log or (lambda message: print(message, flush=True))
 
     # -- plumbing ----------------------------------------------------------------------------
     def _roll(self, ledger: Ledger, harness: AgentHarness, spec: TaskSpec, label: str, root: Path,
@@ -411,11 +411,11 @@ class Harnessing:
 
 def render_report(spec: TaskSpec, result: StepResult) -> str:
     lines = [f"# Harness² step: `{spec.id}`", "", f"Task: {spec.task}", f"Mode: {result.mode}, k={result.k}; "
-             f"{result.duration_s:.0f} s", "", "| execution | harness | measured (CASCADE verifier) | agent claim | "
-             "steps | ended by |", "|---|---|---|---|---|---|"]
+             f"{result.duration_s:.0f} s", "", "| execution | harness | measured (hidden check) | CASCADE verifier | "
+             "agent claim | steps | ended by |", "|---|---|---|---|---|---|---|"]
     for label, r in result.rollouts.items():
-        lines.append(f"| {label} | `{r['harness_sha'][:12]}` | {r['measured_success']} | {r['claimed_success']} | "
-                     f"{r['steps']} | {r['ended_by']} |")
+        lines.append(f"| {label} | `{r['harness_sha'][:12]}` | {r['measured_success']} | {r.get('verifier_success')} | "
+                     f"{r['claimed_success']} | {r['steps']} | {r['ended_by']} |")
     lines += ["", "## Stages", ""]
     for s in result.stages:
         state = "KEEP_BASE" if s["kept_base"] else ("fell back" if s["fell_back"] else f"`{s['harness_sha'][:12]}`")

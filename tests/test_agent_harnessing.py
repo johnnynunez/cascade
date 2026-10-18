@@ -331,3 +331,84 @@ def test_cli_dry_run(tmp_path):
                        capture_output=True, text=True, timeout=120)
     assert p.returncode == 0, p.stderr
     assert "4 rollouts and 3 improver sessions per task" in p.stdout
+
+
+# -- hidden task checks (simulator ground truth, never shown to an improver) --------------------------
+class _Cfg(dict):
+    pass
+
+
+def _truth_rt(poses, *, held=None, q=(0.0, -0.24, 0.38, 1.43, -0.96)):
+    from types import SimpleNamespace
+
+    state = {"pose": poses[0]}
+    arm_cfg = _Cfg(mj_delivery_area={"bounds_xy_m": [[0.13, -0.18], [0.27, -0.06]]},
+                   home_q=[0.0, -0.24, 0.38, 1.43, -0.96])
+    rt = SimpleNamespace(_object_pose=lambda label: state["pose"] if label == "red cube" else None,
+                         cfg=SimpleNamespace(arm=arm_cfg), held_object=held, _held_provisional=None,
+                         arm=SimpleNamespace(get_state=lambda: SimpleNamespace(q=list(q))))
+    return rt, state
+
+
+def test_check_passes_only_when_the_physics_says_so():
+    from cascade.harnessing.checks import CheckProbe, TaskCheck
+
+    check = TaskCheck.from_dict({"object": "red cube", "in_region": "delivery_area", "released": True,
+                                 "arm_home_tol_rad": 0.1})
+    rt, state = _truth_rt([[0.20, 0.10, 0.025]])
+    probe = CheckProbe(check, rt)
+    passed, rows = probe.evaluate(rt)
+    assert passed is False and rows["in_region"]["ok"] is False      # never moved
+    state["pose"] = [0.197, -0.118, 0.025]
+    passed, rows = probe.evaluate(rt)
+    assert passed is True and rows["on_table"]["dz_m"] == 0.0
+    state["pose"] = [0.197, -0.118, 0.08]                             # still in the jaws over the zone
+    assert probe.evaluate(rt)[0] is False
+    rt.held_object, state["pose"] = "red cube", [0.197, -0.118, 0.025]
+    assert probe.evaluate(rt)[0] is False
+    rt.held_object, rt.arm = None, __import__("types").SimpleNamespace(
+        get_state=lambda: __import__("types").SimpleNamespace(q=[0.0, -1.2, 1.4, 0.9, 0.0]))  # move_to_rest
+    passed, rows = probe.evaluate(rt)
+    assert passed is False and rows["arm_home"]["ok"] is False
+
+
+def test_check_displacement_is_measured_from_the_start_pose():
+    from cascade.harnessing.checks import CheckProbe, TaskCheck
+
+    check = TaskCheck.from_dict({"object": "red cube", "displaced_xy_m": [0.0, 0.05], "tol_m": 0.02})
+    rt, state = _truth_rt([[0.20, 0.10, 0.025]])
+    probe = CheckProbe(check, rt)
+    state["pose"] = [0.205, 0.145, 0.025]
+    assert probe.evaluate(rt)[0] is True
+    state["pose"] = [0.20, 0.05, 0.025]                                # 5 cm to the RIGHT
+    passed, rows = probe.evaluate(rt)
+    assert passed is False and rows["displaced"]["err_m"] == pytest.approx(0.1)
+
+
+def test_check_without_a_truth_channel_is_unknown_never_a_pass():
+    from cascade.harnessing.checks import CheckProbe, TaskCheck
+
+    rt, state = _truth_rt([None])
+    passed, rows = CheckProbe(TaskCheck.from_dict({"object": "red cube", "in_region": "delivery_area"}), rt).evaluate(rt)
+    assert passed is None and rows["in_region"]["ok"] is None
+
+
+@pytest.mark.parametrize("bad", [{"objekt": "x"}, {"in_region": "delivery_area"}, {"displaced_xy_m": [0, 1]}])
+def test_bad_checks_are_refused(bad):
+    from cascade.harnessing.checks import TaskCheck
+
+    with pytest.raises(ValueError):
+        TaskCheck.from_dict(bad)
+
+
+def test_the_shipped_tasks_have_hidden_checks_the_improver_never_reads(tmp_path):
+    tasks = json.loads((REPO / "benchmark/harness2/so101_mujoco_tasks.json").read_text())
+    specs = [TaskSpec.from_dict(t) for t in tasks]
+    assert all(s.check is not None and s.check.object == "red cube" for s in specs)
+    from cascade.harnessing.recursion import _task_md
+
+    for s in specs:
+        text = _task_md(s, TOOL_SPECS)
+        for key in ("in_region", "delivery_area", "displaced_xy_m", "arm_home_tol_rad", "on_table_tol_m"):
+            assert key not in text, (s.id, key)
+

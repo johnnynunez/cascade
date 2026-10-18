@@ -19,12 +19,14 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import functools
 import json
 import os
 from pathlib import Path
 import sys
 
 REPO = Path(__file__).resolve().parents[1]
+print = functools.partial(print, flush=True)  # noqa: A001 -- progress lines reach a log under systemd
 sys.path.insert(0, str(REPO / "src"))
 
 from cascade.config import load_demo_config  # noqa: E402
@@ -120,12 +122,14 @@ def main(argv=None) -> int:
     final = Library(args.library, scope, last).latest_adopted() or AgentHarness()
     final.write(promoted)
     lines = ["# Harness² run", "", f"Scope `{scope}`, mode {args.mode}, k={args.k}, gate {args.gate}", "",
-             "| task | base | adopted | from | measured base | measured adopted |", "|---|---|---|---|---|---|"]
+             "Measured = the task's hidden check (simulator ground truth) when it has one, else CASCADE's verifier.", "",
+             "| task | base | adopted | from | measured: base | measured: every execution |", "|---|---|---|---|---|---|"]
     for r in summary:
         meas = {lbl: ro["measured_success"] for lbl, ro in r["rollouts"].items()}
         base_m = [v for lbl, v in meas.items() if lbl.startswith("base")]
+        every = ", ".join(f"{lbl} {v}" for lbl, v in meas.items())
         lines.append(f"| {r['task_id']} | `{r['base_sha'][:12]}` | `{r['adopted_sha'][:12]}` | {r['adopted_from']} | "
-                     f"{base_m} | {meas.get(r['adopted_from'])} |")
+                     f"{base_m} | {every} |")
     lines += ["", f"Promoted harness: `{promoted / 'harness.json'}` (`{final.sha()[:12]}`)", ""]
     (out / "SUMMARY.md").write_text("\n".join(lines))
     print("\n".join(lines))

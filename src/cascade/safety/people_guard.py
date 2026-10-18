@@ -450,7 +450,7 @@ def check_call(rt, name: str, args: dict, arm) -> Refusal | None:
         T = arm_frame.world_from_base(arm)
     except arm_frame.ArmFrameError as exc:
         # execute() refuses such an arm before this guard; fail closed anyway
-        return Refusal(f"cannot tell where this arm stands ({exc}), so where its motion goes near people",
+        return Refusal(f"cannot tell where this arm stands ({exc}), so not where its motion goes relative to people",
                        {"rule": "unknown_arm_frame"})
     people = _settings(rt, harness)
     if name == "throw":

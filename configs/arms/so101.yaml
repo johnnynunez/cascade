@@ -148,29 +148,41 @@ gripper:
   # and its body reaches 65 mm out, 25 mm behind the TCP. TOOL frame in the
   # sweep's convention (+X this arm's col0, the jaw opening axis; +Y the
   # hinge axis; +Z approach; origin at the TCP), boxes {extents, offset}:
-  #   fixed:  the fixed jaw and the gripper body, tips to the wrist;
+  #   fixed:  the fixed jaw and the gripper body, tips to the wrist (first
+  #           six), then the wrist camera mount (last three: the MJCF
+  #           `camera_mount` plate reaches 81 mm along +Y, 45-80 mm behind
+  #           the TCP; kept even if a rig runs without the camera);
   #   moving: the moving jaw at the gripper's closed stop `stop_rad`,
   #           turned about `hinge` (right-hand rule, larger angle opens) to
   #           any gripper angle.
-  # MEASURED on the Menagerie collision geometry (assets/mjcf/so101, every
-  # collision geom of `gripper` and `moving_jaw_so101_v1`, surface-sampled
-  # at 1 mm), the hinge from the MuJoCo joint (turning the stop pose about it
-  # reproduces every angle exactly), every face rounded OUT to 5 mm.
-  # tests/test_point_at_lean_in.py re-measures it against MuJoCo and fails if
-  # the jaws outgrow a box at any angle from the stop to 1.0 rad.
+  # MEASURED on the real parts AND the simulator's: the URDF's STL meshes
+  # (gripper_link: sts3215_03a_v1 + wrist_roll_follower_so101_v1;
+  # moving_jaw_so101_v1_link: moving_jaw_so101_v1) placed by the URDF, and
+  # every MJCF geom, collision and visual, of `gripper`, `camera_mount` and
+  # `moving_jaw_so101_v1`, surface-sampled at 1 mm; the hinge from the MuJoCo
+  # joint (turning the stop pose about it reproduces every angle to 0.03 mm).
+  # Each box is the bounds of one z slab, every face rounded OUT to the next
+  # 5 mm. tests/test_point_at_lean_in.py re-measures both (the STL files with
+  # pinocchio, and MuJoCo) and fails if any part outgrows a box at any angle
+  # from the stop to 1.0 rad.
   jaw_volume:
     stop_rad: -0.1745
     hinge: {point: [-0.0281, 0.0190, -0.0747], axis: [0.0, -1.0, 0.0]}
     fixed:
-      - {extents: [0.020, 0.020, 0.020], offset: [0.005, 0.0, 0.0]}
-      - {extents: [0.020, 0.020, 0.015], offset: [0.010, 0.0, -0.0175]}
-      - {extents: [0.030, 0.030, 0.025], offset: [0.015, 0.0, -0.0375]}
-      - {extents: [0.070, 0.040, 0.070], offset: [-0.005, 0.0, -0.085]}
+      - {extents: [0.020, 0.020, 0.020], offset: [0.0050, 0.0, 0.0]}         # z -10..10
+      - {extents: [0.020, 0.020, 0.015], offset: [0.0100, 0.0, -0.0175]}     # z -25..-10
+      - {extents: [0.030, 0.030, 0.025], offset: [0.0150, 0.0, -0.0375]}     # z -50..-25
+      - {extents: [0.025, 0.040, 0.010], offset: [0.0175, 0.0, -0.0550]}     # z -60..-50
+      - {extents: [0.070, 0.055, 0.035], offset: [-0.0050, -0.0025, -0.0775]}  # z -95..-60
+      - {extents: [0.030, 0.040, 0.025], offset: [-0.0050, -0.0050, -0.1075]}  # z -120..-95
+      - {extents: [0.045, 0.025, 0.015], offset: [-0.0075, 0.0725, -0.0475]}   # camera, z -55..-40
+      - {extents: [0.045, 0.035, 0.010], offset: [-0.0075, 0.0575, -0.0600]}   # camera, z -65..-55
+      - {extents: [0.045, 0.045, 0.015], offset: [-0.0075, 0.0375, -0.0725]}   # camera, z -80..-65
     moving:
-      - {extents: [0.020, 0.020, 0.020], offset: [-0.010, 0.0, 0.0]}
-      - {extents: [0.025, 0.020, 0.015], offset: [-0.0175, 0.0, -0.0175]}
-      - {extents: [0.025, 0.030, 0.025], offset: [-0.0225, 0.0, -0.0375]}
-      - {extents: [0.030, 0.040, 0.025], offset: [-0.025, 0.0, -0.0625]}
+      - {extents: [0.020, 0.020, 0.015], offset: [-0.0100, 0.0, -0.0025]}    # z -10..5
+      - {extents: [0.020, 0.020, 0.015], offset: [-0.0150, 0.0, -0.0175]}    # z -25..-10
+      - {extents: [0.025, 0.030, 0.025], offset: [-0.0225, 0.0, -0.0375]}    # z -50..-25
+      - {extents: [0.030, 0.050, 0.035], offset: [-0.0250, 0.0, -0.0675]}    # z -85..-50
 
 # ── rig geometry this arm implies ────────────────────────────────────────
 # Deep-merged over demo.yaml by load_demo_config. demo.yaml describes a reBot

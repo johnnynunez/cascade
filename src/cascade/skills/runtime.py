@@ -154,21 +154,33 @@ def _pregrasp_min_z(gcfg, harness, fix) -> float | tuple[float, float] | None:
     hover = top + float(clear_top)
     if not bool(gcfg.get("pregrasp_map_top", False)):
         return hover
+    lift = _map_top_lift(gcfg, harness, fix, top)
+    if not lift > 0.0:
+        return hover
+    return (hover + lift, hover)
+
+
+def _map_top_lift(gcfg, harness, fix, top: float) -> float:
+    """How far the occupancy map's top of the target raises its observed
+    `top`: the top face of the highest occupied voxel in the target's own
+    column (`_column_geometry` around the fix XY) above `top`, at most
+    MAP_TOP_RAISE_CAP_M, plus half a voxel (at most
+    MAP_TOP_HALF_VOXEL_CAP_M). 0.0 without a map, for a stale or failed map,
+    an empty column or a non-finite answer. The pregrasp hover
+    (`_pregrasp_min_z`) and point_at's object top read it the same way."""
     column_top = getattr(getattr(harness, "occupancy", None), "column_top", None)
     if not callable(column_top):
-        return hover
+        return 0.0
     column = _column_geometry(gcfg, harness, fix.position[:2], fix.points)
     if column is None:
-        return hover
+        return 0.0
     found = column_top(*column)
     if found is None:
-        return hover
+        return 0.0
     map_top, voxel = found
     lift = (min(max(float(map_top) - top, 0.0), MAP_TOP_RAISE_CAP_M)
             + min(float(voxel) / 2.0, MAP_TOP_HALF_VOXEL_CAP_M))
-    if not lift > 0.0:   # also NaN: a non-finite map answer keeps today's hover
-        return hover
-    return (hover + lift, hover)
+    return lift if lift > 0.0 else 0.0   # also NaN: a non-finite map answer is no lift
 
 
 #: point_at aims a hover it had to RAISE to its clearance floor this much
@@ -178,32 +190,42 @@ POINT_AT_IK_SLACK_M = 0.001
 
 def _pointing_tool_points(gcfg, axis_order: str) -> np.ndarray:
     """(N, 3) TCP-frame points that bound the gripper's lower end in a
-    pointing pose: the TCP and the 8 corners of the profile's open-jaw sweep
-    box (`grasp.graspgenx.sweep`: origin at the TCP, +X closing, +Y third, +Z
-    approach), the jaws box the harness's tool volume samples. It bounds the
-    closed jaws too: the SO-101 box reaches 15 mm past the TCP, the closed
-    beak's MuJoCo collision geometry 6.6 mm; the reBot's ends at the TCP (its
-    fingertip plane). No sweep: the TCP alone. A malformed sweep raises
-    SkillError before any motion."""
-    from .relative_motion import _TOOL_COLUMNS
+    top-down pointing pose: the TCP and the 8 corners of the profile's
+    open-jaw sweep box (`safety.tool_volume.jaw_box`, the box the harness's
+    tool volume samples). It bounds the closed jaws too: the SO-101 box
+    reaches 15 mm past the TCP, the closed beak's MuJoCo collision geometry
+    6.6 mm; the reBot's ends at the TCP (its fingertip plane). No sweep: the
+    TCP alone. A malformed sweep raises SkillError before any motion."""
+    from ..safety import tool_volume
 
-    graspgenx = gcfg.get("graspgenx") or {}
-    sweep = graspgenx.get("sweep") or {}
+    sweep = (gcfg.get("graspgenx") or {}).get("sweep") or {}
+    if sweep.get("extents_open") is None:
+        sweep = {"extents_open": [0.0, 0.0, 0.0], "offset_open": sweep.get("offset_open", [0.0, 0.0, 0.0])}
     try:
-        ext = np.asarray(sweep.get("extents_open", [0.0, 0.0, 0.0]), dtype=float).reshape(3)
-        off = np.asarray(sweep.get("offset_open", [0.0, 0.0, 0.0]), dtype=float).reshape(3)
-    except (TypeError, ValueError):
-        ext = off = np.full(3, np.nan)
-    if not (np.all(np.isfinite(ext)) and np.all(ext >= 0) and np.all(np.isfinite(off))):
-        raise SkillError(f"grasp.graspgenx.sweep open jaws must be finite, got "
-                         f"{sweep.get('extents_open')!r}, {sweep.get('offset_open')!r}; nothing was moved")
-    if axis_order not in _TOOL_COLUMNS:
-        raise SkillError(f"unknown tool_axis_order {axis_order!r}; nothing was moved")
-    a_col, j_col, t_col = _TOOL_COLUMNS[axis_order]
-    axes = np.eye(3)[:, [j_col, t_col, a_col]]
-    corners = np.array([[sx, sy, sz] for sx in (-1, 1) for sy in (-1, 1) for sz in (-1, 1)],
-                       dtype=float) * (ext / 2.0) + off
-    return np.vstack([np.zeros(3), corners @ axes.T])
+        centre, axes, half = tool_volume.jaw_box(sweep, axis_order)
+    except ValueError as exc:
+        raise SkillError(f"{exc}; nothing was moved") from None
+    signs = np.array([[sx, sy, sz] for sx in (-1, 1) for sy in (-1, 1) for sz in (-1, 1)], dtype=float)
+    return np.vstack([np.zeros(3), centre + (signs * half) @ axes.T])
+
+
+def _belief_radius(belief) -> float | None:
+    """A remembered object's horizontal footprint radius around its
+    position, for point_at's occluder rule: half its largest extent (extents
+    are eigenvalue-ordered, not axis-aligned, so the largest is the safe
+    one), else its remembered points' farthest horizontal reach; None when
+    neither is finite."""
+    ext = getattr(belief, "extent", None)
+    if ext is not None:
+        ext = np.asarray(ext, dtype=float).reshape(-1)
+        if ext.size and np.isfinite(ext).all():
+            return float(np.max(np.abs(ext))) / 2.0
+    pts = getattr(belief, "points", None)
+    if pts is not None and len(pts):
+        pts = np.asarray(pts, dtype=float).reshape(-1, 3)
+        if np.isfinite(pts).all():
+            return float(np.linalg.norm(pts[:, :2] - np.asarray(belief.position, dtype=float)[:2], axis=1).max())
+    return None
 
 
 def _lowest_tool_z(T, tool_points) -> float:
@@ -6719,34 +6741,38 @@ class SkillRuntime:
         }
 
     def skill_point_at(self, label: str) -> dict:
-        """Deictic gesture: hover the closed gripper above the object for a
-        moment ("this one!"), then return. Answers 'which one is X?'.
+        """Deictic gesture: hold the closed gripper over the object for a
+        moment ("this one!") and stay there. Answers 'which one is X?'.
 
-        The TCP and the jaws stay `safety.min_clearance_m` above the object's
-        observed top on every pose it commands (checked on the solved pose).
-        A profile whose top-down ceiling is below that refuses before any arm
-        or jaw command: the SO-101's 0.04 m ceiling once put the closed jaws
-        2.5 cm into a 5 cm cube."""
+        The pointing pose keeps the TCP and the jaws `safety.min_clearance_m`
+        from the object, checked on the solved pose: today's top-down hover
+        when one clears the object's top; otherwise a lean-in pose that aims
+        the tilted gripper at the centre of the top from the arm's side
+        (`skills/pointing.py`: tilt 15-45 deg, 4-10 cm from the top, the
+        jaws sampled at <= 5 mm, the joints too). The route there is checked
+        as well: the straight joint segment from where the arm is, else one
+        rise-first waypoint. No clear pose or route refuses before any arm or
+        jaw command. The object top is the observed top raised to the
+        occupancy map's column top (capped as the pregrasp reads it) and to
+        the top of an object standing over it (a cup over the cube)."""
         _, fix = self._localize(label)
         gcfg = self.cfg.grasp
+        harness = getattr(self.arm, "harness", None)
+        margin = float(self.cfg.safety.get("min_clearance_m", 0.03))
+        top, occluders = self._pointing_top(label, fix, harness)
         hover = fix.position.copy()
-        top = float(fix.points[:, 2].max())
         # Strict top-down poses only solve below ~0.15 m on the B601-RS
         # (wrist limits); clamp the hover or tall objects become unpointable.
         z_max = float(gcfg.get("topdown_z_max", 0.15)) - 0.01
-        hover[2] = min(
-            float(fix.points[:, 2].max()) + float(gcfg.get("pregrasp_offset_m", 0.08)),
-            z_max,
-        )
+        hover[2] = min(top + float(gcfg.get("pregrasp_offset_m", 0.08)), z_max)
         from ..grasping.obb_grasp import _yaw_rotation
+        from . import pointing
 
-        # Never into the object: the lowest tool point (TCP or jaws) keeps the
-        # occupancy margin above the top. `need` is the TCP height that gives
-        # that for a strict top-down pose; a lower hover rises to it within
-        # the ceiling, a rung below it is never tried, the ceiling below it
-        # refuses before any command.
+        # Top-down first: the lowest tool point (TCP or jaws) keeps the
+        # margin above the top. `need` is the TCP height that gives that for
+        # a strict top-down pose; a lower hover rises to it within the
+        # ceiling, a rung below it is never tried.
         tool = _pointing_tool_points(gcfg, self._tool_axis_order)
-        margin = float(self.cfg.safety.get("min_clearance_m", 0.03))
         clear_z = top + margin
         reach = max(0.0, -_lowest_tool_z(make_transform(_yaw_rotation(0.0, axis_order=self._tool_axis_order),
                                                         [0.0, 0.0, 0.0]), tool))
@@ -6754,11 +6780,6 @@ class SkillRuntime:
         if not hover[2] >= need:
             hover[2] = min(need + POINT_AT_IK_SLACK_M, z_max)
         rungs = [z for z in (hover[2], z_max - 0.02) if z >= need]
-        if not rungs:
-            raise SkillError(
-                f"cannot point at {label!r} from above on this arm: its top-down ceiling is {z_max:.3f} m, "
-                f"below the object top + margin ({need:.3f} m: top {top:.3f} m + clearance {margin:.3f} m "
-                f"+ {reach:.3f} m of jaw below the TCP); nothing was moved")
 
         q_now = self.arm.get_state().q
         ik = None
@@ -6779,20 +6800,95 @@ class SkillRuntime:
                 break
             if ik is not None:
                 break
+
+        table_z = float(getattr(getattr(harness, "limits", None), "table_z",
+                                self.cfg.safety.get("table_z", 0.0)))
+        from .relative_motion import _TOOL_COLUMNS
+
+        approach_col = _TOOL_COLUMNS[self._tool_axis_order][0]
+        sweep = (gcfg.get("graspgenx") or {}).get("sweep")
+        try:
+            column = pointing.object_column(fix, table_z, top, occluders)
+            samples = pointing.tool_samples(sweep, self._tool_axis_order)
+        except ValueError as exc:
+            raise SkillError(f"cannot point at {label!r}: {exc}; nothing was moved") from None
+        vet = getattr(harness, "vet_pose", None)
+        lean = None
         if ik is None:
-            if too_low is not None:
+            if not rungs:
+                from_above = (f"from above, its top-down ceiling is {z_max:.3f} m, below the object top + "
+                              f"margin ({need:.3f} m: top {top:.3f} m + clearance {margin:.3f} m + "
+                              f"{reach:.3f} m of jaw below the TCP)")
+            elif too_low is not None:
+                from_above = (f"from above, the best solved pose put the closed jaws at {too_low:.3f} m, "
+                              f"less than {margin:.3f} m above its top ({top:.3f} m)")
+            else:
+                from_above = "from above, no pose solved"
+            lean = pointing.lean_in(self.kin, column, samples, approach_col, q_now, margin=margin,
+                                    table_z=table_z, vet=vet)
+            if lean.q is None:
+                best = "" if lean.clearance is None else f" (the best solved pose had {lean.clearance.worst(margin)})"
                 raise SkillError(
-                    f"cannot reach a pointing pose above {label!r} that keeps the closed jaws {margin:.3f} m "
-                    f"above its top ({top:.3f} m): the best solved pose put them at {too_low:.3f} m; "
+                    f"cannot point at {label!r} on this arm: {from_above}; leaning in "
+                    f"{pointing.LEAN_IN_TILTS_DEG[0]:.0f}-{pointing.LEAN_IN_TILTS_DEG[-1]:.0f} deg, no pose "
+                    f"keeps the TCP, the jaws and the arm {margin:.3f} m from it and the table{best}; "
                     f"nothing was moved")
-            raise SkillError(f"cannot reach a pointing pose above {label!r}")
+            target = lean.q
+        else:
+            target = ik.q
+        try:
+            route = pointing.plan_route(self.kin, q_now, target, column, samples, approach_col,
+                                        margin=margin, table_z=table_z, vet=vet)
+        except pointing.RouteRefused as exc:
+            raise SkillError(f"cannot reach the pointing pose over {label!r} keeping {margin:.3f} m from it: "
+                             f"{exc}; nothing was moved") from None
         if not self.held_object:
             self._set_gripper(self._grip_closed, effort=0.6)
-        if not self._move_joints(ik.q, duration_s=2.0):
+        for q in route[:-1]:
+            if not self._move_joints(q, duration_s=2.0):
+                raise SkillError("did not settle at the rise-first waypoint")
+        if not self._move_joints(route[-1], duration_s=2.0):
             raise SkillError("did not settle at the pointing pose")
         time.sleep(float(self.cfg.get("gesture", {}).get("point_hold_s", 1.2)))
         self.memory.add("action", f"pointed at {label!r}")
-        return {"pointed_at": label, "position": [round(float(x), 3) for x in fix.position]}
+        out = {"pointed_at": label, "position": [round(float(x), 3) for x in fix.position]}
+        if lean is not None:
+            out["lean_deg"] = int(round(lean.tilt_deg))
+        if len(route) > 1:
+            out["rose_first"] = True
+        return out
+
+    def _pointing_top(self, label: str, fix, harness) -> tuple[float, list]:
+        """point_at's object top, computed once, and the objects standing
+        over the target ((xy footprint, top) each).
+
+        The observed top (the fix's highest point; not finite -> refuse),
+        raised by the occupancy map's column top as the pregrasp reads it
+        (`_map_top_lift`), then to the top of any OTHER remembered object
+        whose footprint covers the target's centre and whose top is higher:
+        the booth's "point at where it was" points at the cup that now hides
+        the cube, and the cup is part of what the jaws must clear."""
+        pts = np.asarray(fix.points, dtype=float).reshape(-1, 3)
+        observed = float(pts[:, 2].max()) if len(pts) else float("nan")
+        if not math.isfinite(observed):
+            raise SkillError(f"cannot point at {label!r}: its observed top is not a finite height "
+                             f"({observed} m over {len(pts)} points); nothing was moved")
+        top = observed + _map_top_lift(self.cfg.grasp, harness, fix, observed)
+        target = self.beliefs.find(label)
+        centre = np.asarray(fix.position, dtype=float)[:2]
+        occluders = []
+        for b in self.beliefs.all():
+            if b is target or b.top_z is None or not math.isfinite(float(b.top_z)) or not float(b.top_z) > top:
+                continue
+            radius = _belief_radius(b)
+            where = np.asarray(b.position, dtype=float)[:2]
+            if radius is None or not np.isfinite(where).all() or float(np.linalg.norm(centre - where)) > radius:
+                continue
+            square = where + radius * np.array([[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]])
+            occluders.append((square, float(b.top_z)))
+        if occluders:
+            top = max(top, max(t for _, t in occluders))
+        return top, occluders
 
     def skill_wave(self, cycles: int = 2) -> dict:
         """Greeting gesture: wag the base + wrist around home. Every

@@ -20,7 +20,7 @@ REPO = Path(__file__).resolve().parents[1]
 SCRIPT = "scripts/serve_nemotron_bolt_llamacpp.sh"
 MANIFEST = "deploy/brev/profiles/nemotron-3.5-bolt-24gb.json"
 HELP = ("--mmproj --alias --chat-template-kwargs --reasoning --spec-draft-model --api-key-file "
-        "--spec-type none,draft-simple,draft-dflash")
+        "--spec-type none,draft-simple,draft-dflash --load-mode MODE")
 
 
 @pytest.fixture
@@ -53,7 +53,7 @@ else:
     server.chmod(0o755)
     env = {**os.environ, "HOME": str(tmp_path / "home"), "PY": sys.executable, "LLAMA_SERVER": str(server),
            "CASCADE_LLAMA_CUDA_ARCH": "121"}
-    for key in ("LLAMA_DIR", "MODEL_ROOT", "PORT", "CTX", "PARALLEL", "NSPEC", "ALIAS", "API_KEY_FILE",
+    for key in ("LLAMA_DIR", "MODEL_ROOT", "PORT", "CTX", "PARALLEL", "SPEC", "NSPEC", "ALIAS", "API_KEY_FILE",
                 "CASCADE_MODEL_MIRROR_URL"):
         env.pop(key, None)
     return {"repo": repo, "dir": directory, "server": server, "env": env}
@@ -87,7 +87,16 @@ def test_the_cards_recipe_on_loopback_with_two_slots_and_thinking_off(prepared):
     assert flag(args, "--reasoning") == "off"
     assert json.loads(flag(args, "--chat-template-kwargs")) == {"enable_thinking": False}
     assert "--jinja" in args and flag(args, "--flash-attn") == "on"
+    assert flag(args, "--load-mode") == "none"   # read once into GPU memory (no mmap): no page-cache copy
     assert "--api-key-file" not in args
+
+
+def test_spec_none_serves_without_the_drafter(prepared):
+    args = served(invoke(prepared, SPEC="none"))
+    assert not [a for a in args if a.startswith("--spec")]
+    assert "NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB-LiLiCorr.gguf" not in " ".join(args)
+    assert flag(args, "--model").endswith("NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf") and "--mmproj" in args
+    assert flag(args, "--load-mode") == "none" and flag(args, "--parallel") == "2"
 
 
 def test_knobs_reach_the_server(prepared):
@@ -97,7 +106,8 @@ def test_knobs_reach_the_server(prepared):
 
 
 @pytest.mark.parametrize("env, message", [({"ALIAS": "nvidia/bolt"}, "bare id"), ({"PARALLEL": "0"}, "PARALLEL"),
-                                          ({"PORT": "70000"}, "PORT"), ({"CTX": "64k"}, "CTX")])
+                                          ({"PORT": "70000"}, "PORT"), ({"CTX": "64k"}, "CTX"),
+                                          ({"SPEC": "eagle"}, "SPEC must be dflash|none")])
 def test_bad_knobs_are_refused(prepared, env, message):
     result = invoke(prepared, **env)
     assert result.returncode == 2 and message in result.stderr

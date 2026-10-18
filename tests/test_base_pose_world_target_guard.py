@@ -1,18 +1,23 @@
-"""World-target skills refuse, fail closed, on an arm mounted with a base_pose.
+"""World-target skills refuse, fail closed, on an arm mounted with a base_pose,
+until their path converts (spec 2026-10-17 base_pose runtime frame).
 
 Perception, beliefs and agent coordinates are in the shared TABLE frame; the
-skill runtime solves IK in the RUNNING arm's base frame and converts nothing
-(no `base_pose` anywhere under skills/ or grasping/). On a base_pose arm
+skill runtime solves IK in the RUNNING arm's base frame. On a base_pose arm
 (so101_left / so101_right / *_mujoco, y = +-0.22) grasp_object and place_at
-therefore landed 22 cm off and still reported ok, and the grasp exemption
-column sat where the arm really descends, so the map gate ignored whatever
-really stood there. Until the runtime works in the running arm's frame
-(design Option 2), execute() refuses every skill that turns a perceived or
-world position into an arm target on such an arm, before any work: no
-perception call, no arm or jaw command, no move_home hint. Joint-space and
-relative skills keep working there. Arms without a base_pose (the reBot, the
-kitchen arm, every single-arm profile) or with the identity pose are exactly
-main's path.
+used to land 22 cm off and still report ok, and the grasp exemption column sat
+where the arm really descends, so the map gate ignored whatever really stood
+there. execute() refuses every skill that turns a perceived or world position
+into an arm target on such an arm, before any work (no perception call, no arm
+or jaw command, no move_home hint), until the task that converts its path
+removes it from `_WORLD_TARGET_SKILLS` (`CONVERTED_CALLS` below run there).
+Joint-space and relative skills keep working there. Arms without a base_pose
+(the reBot, the kitchen arm, every single-arm profile) or with the identity
+pose are exactly main's path.
+
+A TILTED base_pose (any roll or pitch) refuses the brief's 15 world-target
+skills (`TILT_REFUSED_CALLS`, frozen: the converted ones included, spec D4 /
+§5), before any work and with one FAILED line; halts, joint-space and relative
+skills still run there.
 """
 
 from __future__ import annotations
@@ -24,6 +29,7 @@ from unittest import mock
 
 import numpy as np
 import pytest
+from base_pose_oracle import ORACLE_SKILLS, TILTED
 
 from cascade.config import load_demo_config
 
@@ -33,17 +39,10 @@ SKILLS_DIR = REPO / "src" / "cascade" / "skills"
 #: The refusal text the brief fixes (agent-facing, relayed to the user).
 GUARD = "this arm is mounted off the table origin (base_pose); world targets are not converted yet"
 
-#: One valid call per world-target skill (the brief's list, verified against
-#: the call graph in `test_the_guarded_list_is_every_skill_that_aims_at_a_world_position`).
+#: One valid call per world-target skill still refused (the brief's list,
+#: verified against the call graph in
+#: `test_the_guarded_list_is_every_skill_that_aims_at_a_world_position`).
 WORLD_TARGET_CALLS = {
-    "grasp_object": {"label": "red cube"},
-    "pick_and_place": {"object": "red cube"},
-    "preview_grasp": {"label": "red cube"},
-    "grasp_at_pixel": {"u": 0.5, "v": 0.5, "normalized": True},
-    "place_at": {"x": 0.25, "y": -0.10, "z": 0.05},
-    "place_on_object": {"label": "red cube"},
-    "push_object": {"label": "red cube", "direction": "left", "distance_m": 0.05},
-    "point_at": {"label": "red cube"},
     "move_near_object": {"label": "red cube", "relation": "above"},
     "sort_by_color": {},
     "search_for_object": {"label": "red cube"},
@@ -52,6 +51,30 @@ WORLD_TARGET_CALLS = {
     "throw": {"label": "red cube"},
     "handover": {"label": "red cube"},
 }
+#: World-target skills whose path converts (spec 2026-10-17 base_pose runtime
+#: frame): they left the guard in the task that proved they reach the world
+#: point (tests/test_base_pose_runtime_frame.py) and run on a base_pose arm.
+CONVERTED_CALLS = {
+    "point_at": {"label": "red cube"},          # Task 3
+    "preview_grasp": {"label": "red cube"},     # Task 3
+    "grasp_object": {"label": "red cube"},      # Task 4
+    "grasp_at_pixel": {"u": 0.5, "v": 0.5, "normalized": True},     # Task 4
+    "pick_and_place": {"object": "red cube"},   # Task 5
+    "place_at": {"x": 0.25, "y": -0.10, "z": 0.05},     # Task 5
+    "place_on_object": {"label": "red cube"},   # Task 5
+    "push_object": {"label": "red cube", "direction": "left", "distance_m": 0.05},     # Task 5
+}
+#: Converted release skills need no perception to start: "ran" is reaching
+#: the place stage (placed whatever the mock jaws stalled on, or refused there).
+NEEDS_A_HOLD = frozenset({"place_at", "place_on_object"})
+PLACE_STAGE = ("not holding anything", "place pose unreachable")
+
+#: The tilt refusal's scope (spec D4, §5): the brief's 15 world-target skills,
+#: FROZEN as the plan started. It never shrinks with `_WORLD_TARGET_SKILLS`:
+#: a tilted base_pose refuses all 15 even after every one has converted.
+TILT_REFUSED_CALLS = {**WORLD_TARGET_CALLS, **CONVERTED_CALLS}
+#: The refusal text of a tilted mount (agent-facing).
+TILT = "its base_pose is tilted"
 
 #: Joint-space and relative skills: never world targets, never refused.
 JOINT_AND_RELATIVE_CALLS = {
@@ -78,6 +101,15 @@ RIGS = {
     "so101_right": (["so101_right"], {}, None),
     "yawed": (["so101_right"], {"so101_right": YAWED}, None),
     "pair, arm=so101_right": (["so101_left", "so101_right"], {}, "so101_right"),
+}
+#: Tilted mounts (TILTED rolls 0.1 rad): rig id -> (arm profiles, base_pose
+#: patches, arm= selector or None, the roll/pitch the refusal quotes).
+PITCHED = [0.0, -0.22, 0.0, 0.0, 0.1, 0.0]
+TILTED_RIGS = {
+    "tilted": (["so101_right"], {"so101_right": TILTED}, None, "(roll 5.73 deg, pitch 0.00 deg)"),
+    "pitched": (["so101_right"], {"so101_right": PITCHED}, None, "(roll 0.00 deg, pitch 5.73 deg)"),
+    "pair tilted, arm=so101_right": (["so101_left", "so101_right"], {"so101_right": TILTED}, "so101_right",
+                                     "(roll 5.73 deg, pitch 0.00 deg)"),
 }
 
 
@@ -192,6 +224,24 @@ def _assert_refused(result, skill):
     assert "move_home before" not in action
 
 
+def _assert_tilt_refused(result, skill, angles):
+    from cascade.skills.runtime import _REFUSED_GRASP_LEFT_IN_PLACE, FAILED_INSTRUCTION
+
+    assert result["ok"] is False, result
+    assert f"{skill} refused on " in result["error"], result
+    assert f"{TILT} {angles}; table-frame targets need a level mount; no motion was sent" in result["error"], result
+    assert GUARD not in result["error"]
+    action = result["next_action"]
+    assert action.startswith(FAILED_INSTRUCTION), action
+    assert action.count(FAILED_INSTRUCTION) == 1, action
+    assert TILT in action  # the FAILED line quotes the whole refusal
+    assert "Level its base_pose in the profile" in action
+    assert "move_relative" not in action and "rotate_gripper" not in action
+    assert "arm_left_in_place" not in result
+    assert _REFUSED_GRASP_LEFT_IN_PLACE not in action
+    assert "move_home before" not in action
+
+
 # ── 1. every world-target skill refuses before any work ───────────────────
 
 
@@ -229,7 +279,7 @@ def test_the_mcp_server_relays_the_refusal_with_one_failed_line(make_runtime, mo
     assert spy.arm_commands() == 0 and spy.jaw == [] and spy.perception == []
 
 
-@pytest.mark.parametrize("skill", ["grasp_object", "place_at", "throw", "preview_grasp"])
+@pytest.mark.parametrize("skill", ["move_near_object", "throw", "turn_screw"])   # still guarded (Task 6)
 def test_the_refusal_never_powers_a_lazy_arm(make_runtime, skill):
     """The MCP server builds every arm lazily (standby until a motion)."""
     rt = make_runtime(["so101_left", "so101_right"], lazy=True)
@@ -260,10 +310,135 @@ def test_joint_space_and_relative_skills_still_run_on_a_base_pose_arm(make_runti
         assert spy.arm_commands() > 0 or spy.jaw
 
 
+@pytest.mark.parametrize("skill", sorted(CONVERTED_CALLS))
+@pytest.mark.parametrize("rig", sorted(RIGS) + sorted(TILTED_RIGS))
+def test_a_converted_skill_runs_on_a_base_pose_arm(make_runtime, monkeypatch, rig, skill):
+    """A level mount runs it; a TILTED one still refuses it before any work
+    (the tilt scope is the frozen 15, spec D4 / §5)."""
+    arms, poses, select, *tilt = RIGS[rig] if rig in RIGS else TILTED_RIGS[rig]
+    rt = make_runtime(arms, poses)
+    spy = Spy(rt, monkeypatch)
+    args = dict(CONVERTED_CALLS[skill])
+    if select:
+        args["arm"] = select
+    result = rt.execute(skill, args)
+    assert GUARD not in str(result.get("error")), result
+    if tilt:
+        _assert_tilt_refused(result, skill, tilt[0])
+        assert spy.arm_commands() == 0 and spy.jaw == [] and spy.perception == []
+        return
+    assert TILT not in str(result.get("error")), result
+    if skill in NEEDS_A_HOLD:
+        assert result.get("placed") or any(s in str(result.get("error")) for s in PLACE_STAGE), result
+        return
+    # it ran: perceived (the object here is W (0.198, 0), 22 cm across from
+    # so101_right's base, where a pointing pose or a grasp may honestly be
+    # refused); grasp_at_pixel reads the camera frame itself
+    assert {"_localize", "observe"} & set(spy.perception), spy.perception
+
+
+# ── 2b. a tilted mount refuses the frozen 15, and only those ──────────────
+
+
+@pytest.mark.parametrize("skill", sorted(TILT_REFUSED_CALLS))
+@pytest.mark.parametrize("rig", sorted(TILTED_RIGS) + ["tilted, every skill converted"])
+def test_a_tilted_mount_refuses_every_world_target_skill_before_any_work(make_runtime, monkeypatch, rig, skill):
+    """All 15, before any perception, status line or command, with one FAILED
+    line. \"every skill converted\" is Task 6's end state (`_WORLD_TARGET_SKILLS`
+    empty): the tilt scope does not shrink with it."""
+    import cascade.skills.runtime as runtime_mod
+
+    if rig == "tilted, every skill converted":
+        monkeypatch.setattr(runtime_mod, "_WORLD_TARGET_SKILLS", frozenset())
+        rig = "tilted"
+    arms, poses, select, angles = TILTED_RIGS[rig]
+    rt = make_runtime(arms, poses)
+    spy = Spy(rt, monkeypatch)
+    args = dict(TILT_REFUSED_CALLS[skill])
+    if select:
+        args["arm"] = select
+    _assert_tilt_refused(rt.execute(skill, args), skill, angles)
+    assert spy.arm_commands() == 0
+    assert spy.jaw == []
+    assert spy.perception == []
+    assert rt.held_object is None
+
+
+@pytest.mark.parametrize("skill", sorted({**JOINT_AND_RELATIVE_CALLS, "halt_motion": {}}))
+def test_a_tilted_mount_still_runs_halts_joint_space_and_relative_skills(make_runtime, monkeypatch, skill):
+    rt = make_runtime(["so101_right"], {"so101_right": TILTED})
+    spy = Spy(rt, monkeypatch)
+    result = rt.execute(skill, dict({**JOINT_AND_RELATIVE_CALLS, "halt_motion": {}}[skill]))
+    assert TILT not in str(result.get("error")), result
+    assert TILT not in str(result.get("next_action"))
+    if skill == "halt_motion":
+        assert result["ok"] is True, result          # a halt is never deniable
+    if skill in COMPLETES_ON_MOCK:
+        assert result["ok"] is True, result
+        assert spy.arm_commands() > 0 or spy.jaw
+
+
+def test_the_tilt_scope_is_the_frozen_fifteen():
+    """Spec D4 / §5: a tilted mount refuses the brief's 15, frozen when the
+    plan started, whatever `_WORLD_TARGET_SKILLS` still holds; never a halt."""
+    import cascade.skills.runtime as runtime_mod
+
+    assert len(TILT_REFUSED_CALLS) == 15
+    assert runtime_mod._TILT_REFUSED_SKILLS == frozenset(TILT_REFUSED_CALLS)
+    assert runtime_mod._WORLD_TARGET_SKILLS <= runtime_mod._TILT_REFUSED_SKILLS
+    assert not runtime_mod._TILT_REFUSED_SKILLS & (set(JOINT_AND_RELATIVE_CALLS) | {"halt_motion"})
+    assert not runtime_mod._TILT_REFUSED_SKILLS & runtime_mod._FRAME_FREE_ALWAYS   # those may run with no frame
+
+
+#: Near the level tolerance (1e-9, #349's): base_pose -> the angles the
+#: refusal quotes, or None when the mount counts as level and the skill runs.
+#: A tilt below the 0.01 deg print step is quoted with its own digits, never
+#: as "0.00" (a refusal that says "tilted (roll 0.00 deg, pitch 0.00 deg)"
+#: contradicts itself).
+NEAR_LEVEL = {
+    "roll 2e-9": ([0.0, -0.22, 0.0, 2e-9, 0.0, 0.0], "(roll 1.1e-07 deg, pitch 0.00 deg)"),
+    "pitch -2e-9": ([0.0, -0.22, 0.0, 0.0, -2e-9, 0.0], "(roll 0.00 deg, pitch -1.1e-07 deg)"),
+    "roll 5e-10": ([0.0, -0.22, 0.0, 5e-10, 0.0, 0.0], None),
+    "pitch 5e-10": ([0.0, -0.22, 0.0, 0.0, 5e-10, 0.0], None),
+}
+
+
+@pytest.mark.parametrize("rig", sorted(NEAR_LEVEL))
+def test_the_tilt_refusal_starts_at_the_level_tolerance(make_runtime, monkeypatch, rig):
+    """2e-9 rad of roll or pitch is tilted and refused before any work, with
+    honest digits; 5e-10 is level within 1e-9 and the converted skill runs."""
+    pose, angles = NEAR_LEVEL[rig]
+    rt = make_runtime(["so101_right"], {"so101_right": pose})
+    spy = Spy(rt, monkeypatch)
+    result = rt.execute("point_at", dict(CONVERTED_CALLS["point_at"]))
+    if angles is not None:
+        _assert_tilt_refused(result, "point_at", angles)
+        assert spy.arm_commands() == 0 and spy.jaw == [] and spy.perception == []
+        return
+    assert TILT not in str(result.get("error")), result
+    assert "_localize" in spy.perception
+
+
+def test_the_tilt_text_quotes_a_sub_print_step_angle_with_its_digits():
+    """Unit: angles that round to 0.00 but tilt beyond the level tolerance keep
+    two significant digits; level axes (within 1e-9) and visible angles keep
+    the 2-decimal form (a rounded -0.0 prints as 0.00)."""
+    from cascade.skills.runtime import _tilted_mount_refusal
+
+    def quoted(roll, pitch):
+        text = _tilted_mount_refusal("grasp_object", None, roll, pitch)["error"]
+        return text[text.index("(roll"):text.index(")") + 1]
+
+    assert quoted(5.729577951308232, 0.0) == "(roll 5.73 deg, pitch 0.00 deg)"
+    assert quoted(-0.0, -0.004) == "(roll 0.00 deg, pitch -0.004 deg)"
+    assert quoted(np.degrees(2e-9), np.degrees(-3e-11)) == "(roll 1.1e-07 deg, pitch 0.00 deg)"
+    assert quoted(-0.006, 0.0) == "(roll -0.01 deg, pitch 0.00 deg)"
+
+
 # ── 3. the RUNNING arm decides (execute(arm=...) included) ────────────────
 
 
-@pytest.mark.parametrize("skill", ["grasp_object", "place_at", "point_at"])
+@pytest.mark.parametrize("skill", ["move_near_object", "search_for_object"])   # still guarded (Task 6)
 def test_the_running_arm_decides_not_the_primary(make_runtime, monkeypatch, skill):
     """A pair whose primary has the identity pose and whose second arm has a
     real base_pose: only calls that RUN on the second arm are refused."""
@@ -277,7 +452,7 @@ def test_the_running_arm_decides_not_the_primary(make_runtime, monkeypatch, skil
     assert spy.perception, "the primary's call ran its skill"
 
 
-@pytest.mark.parametrize("skill", ["grasp_object", "place_at", "point_at"])
+@pytest.mark.parametrize("skill", ["move_near_object", "search_for_object"])   # still guarded (Task 6)
 def test_a_selected_arm_without_a_base_pose_runs_beside_a_mounted_primary(make_runtime, monkeypatch, skill):
     rt = make_runtime(["so101_left", "so101_right"], {"so101_right": IDENTITY})
     spy = Spy(rt, monkeypatch)
@@ -291,7 +466,7 @@ def test_a_grasp_on_the_identity_primary_still_moves_the_arm(make_runtime, monke
     """The identity pose is main's path: the grasp really runs (commands)."""
     rt = make_runtime(["so101_left", "so101_right"], {"so101_left": IDENTITY})
     spy = Spy(rt, monkeypatch)
-    result = rt.execute("place_at", dict(WORLD_TARGET_CALLS["place_at"]))
+    result = rt.execute("place_at", dict(CONVERTED_CALLS["place_at"]))
     assert GUARD not in str(result.get("error")), result
     assert spy.arm_commands() > 0
 
@@ -370,11 +545,17 @@ def _derive_world_target_skills():
 
 
 def test_the_guarded_list_is_every_skill_that_aims_at_a_world_position():
+    """The call graph still finds the brief's 15; each is either still refused
+    or converted (and then pinned by the equivariance oracle)."""
     import cascade.skills.runtime as runtime_mod
 
     derived = _derive_world_target_skills()
-    assert derived == set(WORLD_TARGET_CALLS)  # the brief's 15, verified by the call graph
-    assert set(getattr(runtime_mod, "_WORLD_TARGET_SKILLS", ())) == derived
+    assert derived == set(WORLD_TARGET_CALLS) | set(CONVERTED_CALLS)  # the brief's 15
+    assert not set(WORLD_TARGET_CALLS) & set(CONVERTED_CALLS)
+    guarded = set(getattr(runtime_mod, "_WORLD_TARGET_SKILLS", ()))
+    assert guarded <= derived
+    assert guarded == set(WORLD_TARGET_CALLS)
+    assert set(CONVERTED_CALLS) <= ORACLE_SKILLS      # a skill leaves the guard only with oracle rows
 
 
 def test_the_derivation_sees_a_new_world_target_skill(monkeypatch):
@@ -486,6 +667,31 @@ def test_the_guard_is_one_early_return_ahead_of_any_work_in_execute():
         assert work in after, work
 
 
+def test_the_tilt_refusal_is_one_early_return_ahead_of_any_work_in_execute():
+    """The same AST pin for the tilt refusal: one `if <frozen 15> and <the
+    bound frame is not level>: return <refusal>`, after the frame is
+    resolved and before anything that reads, shows or moves. Without a
+    base_pose `is_level(None)` is True, so nothing else changes."""
+    tree = _parse(SKILLS_DIR / "runtime.py")
+    cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "SkillRuntime")
+    fn = next(f for f in cls.body if isinstance(f, ast.FunctionDef) and f.name == "_execute_skill")
+    guards = [s for s in fn.body if isinstance(s, ast.If) and "_TILT_REFUSED_SKILLS" in ast.unparse(s.test)]
+    assert len(guards) == 1
+    guard = guards[0]
+    assert ast.unparse(guard.test) == "name in _TILT_REFUSED_SKILLS and (not arm_frame.is_level(frame.T_world_base))"
+    assert len(guard.body) == 1 and isinstance(guard.body[0], ast.Return) and not guard.orelse
+    assert ast.unparse(guard.body[0].value) == (
+        "_tilted_mount_refusal(name, resolved_arm, *arm_frame.tilt_deg(frame.T_world_base))")
+    index = fn.body.index(guard)
+    before = "\n".join(ast.unparse(s) for s in fn.body[:index])
+    after = "\n".join(ast.unparse(s) for s in fn.body[index + 1:])
+    assert "frame = self._resolve_arm_frame(effective_arm, resolved_arm)" in before
+    for work in ("drain_contact_reports", "_show_status", "observe(", "save_keyframe",
+                 "effects.snapshot", "watcher.paused", "fn(**args)", "ensure_motion_ready"):
+        assert work not in before, work
+        assert work in after, work
+
+
 def _shipped_arm_profiles():
     return sorted(p.stem for p in (REPO / "configs" / "arms").glob("*.yaml"))
 
@@ -509,7 +715,7 @@ def test_the_guard_engages_exactly_on_the_profiles_that_declare_a_base_pose():
 def test_an_arm_without_a_base_pose_runs_every_world_target_skill(make_runtime, monkeypatch, arm, skill):
     rt = make_runtime([arm])
     spy = Spy(rt, monkeypatch)
-    result = rt.execute(skill, dict(WORLD_TARGET_CALLS[skill]))
+    result = rt.execute(skill, dict({**WORLD_TARGET_CALLS, **CONVERTED_CALLS}[skill]))
     assert GUARD not in str(result.get("error")), result
     assert spy.perception or spy.arm_commands() > 0
 

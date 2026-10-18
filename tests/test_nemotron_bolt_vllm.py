@@ -1,4 +1,4 @@
-"""scripts/serve_nemotron_bolt_vllm.sh: the default brain, keyed and loopback-only.
+"""scripts/serve_nemotron_bolt_vllm.sh: the OPT-IN vLLM route for Bolt, keyed and loopback-only.
 
 Exercised hermetically: a fake `docker` records every call (argv, and whether
 VLLM_API_KEY reached its environment) and a fake `curl` answers /health.
@@ -6,17 +6,21 @@ Nothing is pulled, no container starts and no GPU is touched.
 
 What the script must keep (each line was found or measured on the Spark,
 docs/evidence/brain-nemotron-bolt-2026-10-18/):
+- It is not the default: the default Bolt server is llama.cpp v0.7.0
+  (serve_nemotron_bolt_llamacpp.sh). Every vLLM build tried for Bolt (0.32.0
+  on torch cu132 and cu130, and this container's nightly) faulted the GPU
+  (Xid 31) beside Isaac Newton under agent + perception load; the script warns
+  at every start.
 - The model card's container: the vendor vLLM nightly pinned by DIGEST, plus
   b12x by wheel hash in a locally built image; the card's ultra_v3 reasoning
-  parser by sha256. Not the vLLM 0.32.0 release from a uv venv: Bolt faulted the
-  GPU (Xid 31) on it three times beside Isaac Newton, on torch cu132 and cu130.
+  parser by sha256.
 - No drafter by default (SPEC=none): the LiLiCorr drafter's sliding-window KV
   group limits prefix hits to whole ~4.5k-token blocks (follow-up agent calls
   6.5-16 s against 1.2-2.8 s without it, beside Isaac); SPEC=dflash keeps it
   with 7 speculative tokens.
 - A bare served id `nemotron-3.5-bolt` (OpenClaw splits provider/model on
-  '/'), 64k context, one image and no video per prompt, thinking off, tool
-  calls through vLLM's qwen3_coder parser, GPU_UTIL 0.45.
+  '/'), 64k context, no video per prompt, thinking off, tool calls through
+  vLLM's qwen3_coder parser, GPU_UTIL 0.45.
 - Prefix caching that hits: attention blocks a multiple of 64 and a 64-token
   match unit (with the drafter, its sliding-window group otherwise forces
   17,984-token hits, so 13-18k agent prompts never hit).
@@ -122,7 +126,15 @@ def flag(args, name):
     return args[args.index(name) + 1]
 
 
-def test_dry_run_is_the_measured_default_brain_on_loopback(host):
+def test_every_start_warns_that_the_route_is_opt_in_and_faulted_beside_isaac(host):
+    for args in (("--dry-run",), ()):
+        r = run(host, *args)
+        assert "WARNING: opt-in route" in r.stderr and "Xid 31" in r.stderr
+        assert "serve_nemotron_bolt_llamacpp.sh" in r.stderr
+    assert "WARNING" not in run(host, "--setup-only").stderr
+
+
+def test_dry_run_is_the_measured_vllm_route_on_loopback(host):
     args = dry(host)
     assert args[:3] == ["docker", "run", "-d"]
     assert flag(args, "--device") == "nvidia.com/gpu=all"

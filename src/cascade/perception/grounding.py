@@ -501,9 +501,13 @@ def _checked_workspace(workspace_bounds) -> tuple[np.ndarray, np.ndarray] | None
 
 def _measure_detection(frame: Frame, det: Detection, T_cam2base: np.ndarray, *, label: str, what: str,
                        color: str | None, min_points: int,
-                       workspace: tuple[np.ndarray, np.ndarray] | None) -> tuple[ObjectFix, str | None]:
+                       workspace: tuple[np.ndarray, np.ndarray] | None,
+                       report_point: Callable[[np.ndarray], np.ndarray] | None = None,
+                       ) -> tuple[ObjectFix, str | None]:
     """One detection -> (base-frame fix, its colour name or None when no
-    colour was asked). Raises DetectionRejected with localize_object's reason."""
+    colour was asked). Raises DetectionRejected with localize_object's reason.
+    `report_point` maps a measured point to the frame the reason quotes (the
+    table frame for an arm with a base_pose); None quotes it as measured."""
     from .colors import color_matches, detection_color
 
     det_color = None
@@ -543,8 +547,9 @@ def _measure_detection(frame: Frame, det: Detection, T_cam2base: np.ndarray, *, 
     if workspace is not None and (
             not np.all(np.isfinite(center))
             or np.any(center < workspace[0]) or np.any(center > workspace[1])):
+        quoted = center if report_point is None else report_point(center)
         raise DetectionRejected(
-            f"detected {det.label!r} at {np.round(center, 3).tolist()} "
+            f"detected {det.label!r} at {np.round(quoted, 3).tolist()} "
             "outside the active arm workspace", "workspace")
     fix = ObjectFix(
         label=label,
@@ -566,19 +571,21 @@ def fix_from_detection(
     color: str | None = None,
     min_points: int = 10,
     workspace_bounds: tuple[np.ndarray, np.ndarray] | None = None,
+    report_point: Callable[[np.ndarray], np.ndarray] | None = None,
 ) -> ObjectFix:
     """The base-frame 3D fix of ONE detection in `frame`, under
     localize_object's per-detection rules: strict colour match on its mask,
     at least `min_points` valid depth points, OBB, re-centring and shape
     refinement, workspace bounds. `label` (default: the detection's) names
-    the fix. Raises DetectionRejected (`kind` says which rule) otherwise.
+    the fix. Raises DetectionRejected (`kind` says which rule) otherwise;
+    `report_point` maps the point a refusal quotes (see `_measure_detection`).
     Two-phase localization measures the re-anchored detection on the fresh
     frame with it; localize_object runs the same code for every candidate."""
     T_cam2base = (frame.T_base_cam if frame.T_base_cam is not None
                   else extrinsics.cam_to_base())
     fix, _ = _measure_detection(frame, det, T_cam2base, label=det.label if label is None else label,
                                 what=det.label, color=color, min_points=min_points,
-                                workspace=_checked_workspace(workspace_bounds))
+                                workspace=_checked_workspace(workspace_bounds), report_point=report_point)
     return fix
 
 
@@ -596,6 +603,7 @@ def localize_object(
     prefer_label: str | None = None,
     workspace_bounds: tuple[np.ndarray, np.ndarray] | None = None,
     require_unique: bool = False,
+    report_point: Callable[[np.ndarray], np.ndarray] | None = None,
 ) -> ObjectFix:
     """Find `label` in the frame and return its base-frame 3D fix.
 
@@ -604,7 +612,9 @@ def localize_object(
     color queries like "pink object" work on closed-set detectors).
     Candidates are then narrowed by mask color (`color`), a spatial hint word
     ("left", "front", ...), and/or proximity to a remembered position
-    (`near_xyz`). Raises SkillError with an agent-readable reason on failure.
+    (`near_xyz`). Raises SkillError with an agent-readable reason on failure;
+    `report_point` maps the point a workspace refusal quotes (the table frame
+    for an arm with a base_pose; None: as measured).
     """
     T_cam2base = (frame.T_base_cam if frame.T_base_cam is not None
                   else extrinsics.cam_to_base())
@@ -631,7 +641,8 @@ def localize_object(
         for det in sorted(dets, key=lambda d: -d.conf):
             try:
                 fix, det_color = _measure_detection(frame, det, T_cam2base, label=label, what=what, color=color,
-                                                    min_points=min_points, workspace=workspace)
+                                                    min_points=min_points, workspace=workspace,
+                                                    report_point=report_point)
             except DetectionRejected as rejected:
                 last_reason = rejected.reason
                 continue

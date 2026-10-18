@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-# Install and serve NVIDIA Nemotron 3.5 Bolt 74B-A9B 24GB (GGUF, IQ2 QAT) with the
-# LiLiCorr DFlash drafter on a project-owned CUDA llama.cpp build: the default
-# brain of the single-GPU installs (scripts/install.sh --profile spark), the
-# llama.cpp twin of serve_nemotron_bolt_vllm.sh.
+# Install and serve the DEFAULT cascade brain, NVIDIA Nemotron 3.5 Bolt
+# 74B-A9B 24GB (GGUF, IQ2 QAT), with the LiLiCorr DFlash drafter on a
+# project-owned CUDA llama.cpp build (agent + perception, served id
+# nemotron-3.5-bolt). scripts/serve_nemotron_bolt_vllm.sh is the opt-in vLLM
+# route: every vLLM build tried for Bolt faulted the GPU (Xid 31) beside Isaac
+# Sim; this server ran the e2e pick and a 30-minute soak beside Isaac Newton
+# with none (docs/evidence/brain-nemotron-bolt-2026-10-18).
 # --setup-only downloads/prepares; --check verifies without writes or downloads.
 #
 # Pinned: llama.cpp v0.7.0 (620d2225, Nemotron 3.5 Bolt #30520 and LiLiCorr
@@ -16,7 +19,15 @@
 # 2026-10-18). llama.cpp keeps each slot's prompt, so a follow-up agent call
 # reuses its whole earlier prompt (1-4 s to the first token beside Isaac).
 #
-# Knobs: PORT (8080), API_KEY_FILE, CTX (65536 per slot), PARALLEL (2), NSPEC (7),
+# The drafter is on by default (SPEC=dflash): beside Isaac it decodes 41 tok/s
+# against 18 without it, and here (unlike vLLM) it costs no prefix hits.
+#
+# The weights are read once at startup (`--load-mode none`, v0.7.0's --no-mmap)
+# instead of memory-mapped: nothing stays mapped behind the GPU copy on the
+# Spark's unified memory, and nothing is paged in while serving.
+#
+# Knobs: PORT (8080), API_KEY_FILE, CTX (65536 per slot), PARALLEL (2),
+# SPEC (dflash | none: the LiLiCorr drafter or none), NSPEC (7, drafted tokens),
 # ALIAS (nemotron-3.5-bolt), MODEL_ROOT, LLAMA_DIR / LLAMA_SERVER,
 # CASCADE_LLAMA_CUDA_ARCH, JOBS, CASCADE_MODEL_MIRROR_URL.
 set -euo pipefail
@@ -35,6 +46,7 @@ LLAMA_SERVER="${LLAMA_SERVER:-$LLAMA_DIR/build/bin/llama-server}"
 PORT="${PORT:-8080}"
 CTX="${CTX:-65536}"
 PARALLEL="${PARALLEL:-2}"
+SPEC="${SPEC:-dflash}"
 NSPEC="${NSPEC:-7}"
 ALIAS="${ALIAS:-nemotron-3.5-bolt}"
 
@@ -52,6 +64,7 @@ for knob in PORT CTX PARALLEL NSPEC; do
     [[ "${!knob}" =~ ^[1-9][0-9]*$ ]] || die "$knob must be a positive whole number (got '${!knob}')" 2
 done
 (( PORT <= 65535 )) || die "PORT must be a TCP port (got '$PORT')" 2
+case "$SPEC" in dflash|none) ;; *) die "SPEC must be dflash|none (got '$SPEC')" 2 ;; esac
 [[ "$ALIAS" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]*$ ]] || die "ALIAS must be a bare id (no '/'): $ALIAS" 2
 
 # CUDA architecture of the GPU that runs the brain (GB10 = 121, RTX PRO 6000 = 120).
@@ -116,7 +129,7 @@ check_server() {
     fi
     local help
     help="$("$LLAMA_SERVER" --help 2>&1)" || return 1
-    for flag in --alias --chat-template-kwargs --reasoning --mmproj --spec-draft-model draft-dflash --api-key-file; do
+    for flag in --alias --chat-template-kwargs --reasoning --mmproj --spec-draft-model draft-dflash --api-key-file --load-mode; do
         [[ "$help" == *"$flag"* ]] || { printf 'llama-server lacks %s; select a compatible LLAMA_SERVER (v0.7.0).\n' "$flag" >&2; return 1; }
     done
 }
@@ -170,13 +183,16 @@ if [[ -n "${API_KEY_FILE:-}" ]]; then
     [[ -n "$(tr -d '[:space:]' < "$key_file")" ]] || die "API_KEY_FILE $key_file is empty"
     set -- --api-key-file "$key_file"
 fi
-# The model card's llama.cpp recipe (DFlash with the LiLiCorr GGUF drafter, q8_0
-# KV), loopback only, thinking off, one context of CTX tokens per slot.
+if [[ "$SPEC" == dflash ]]; then
+    set -- "$@" --spec-type draft-dflash --spec-draft-model "$DRAFT_FILE" --spec-draft-n-max "$NSPEC" --spec-draft-ngl 999
+fi
+# The model card's llama.cpp recipe (q8_0 KV; DFlash with the LiLiCorr GGUF
+# drafter when SPEC=dflash), loopback only, thinking off, one context of CTX
+# tokens per slot.
 exec "$LLAMA_SERVER" \
     --model "$MODEL_FILE" --mmproj "$MMPROJ_FILE" "$@" \
     --alias "$ALIAS" --host 127.0.0.1 --port "$PORT" \
-    --ctx-size "$(( CTX * PARALLEL ))" --parallel "$PARALLEL" -ngl 999 \
+    --ctx-size "$(( CTX * PARALLEL ))" --parallel "$PARALLEL" -ngl 999 --load-mode none \
     --batch-size 2048 --ubatch-size 512 \
-    --spec-type draft-dflash --spec-draft-model "$DRAFT_FILE" --spec-draft-n-max "$NSPEC" --spec-draft-ngl 999 \
     --cache-type-k q8_0 --cache-type-v q8_0 --flash-attn on --jinja \
     --reasoning off --chat-template-kwargs '{"enable_thinking":false}'

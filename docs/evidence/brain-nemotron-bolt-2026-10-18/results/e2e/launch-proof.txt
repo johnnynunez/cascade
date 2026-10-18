@@ -1,0 +1,5 @@
+[launch] brain resolution: {"base_url": "http://127.0.0.1:18496/v1", "model": "nemotron-3.5-bolt", "brain": "nemotron-bolt", "context_window": 65536}
+[proof] brain=cascade/nemotron-3.5-bolt session=cascade-proof-3ebe34e461a44ff4914169088ed7f0be
+[proof] picking pink cube (physics confirmation required)
+[proof] resetting the SAME world
+[launch] READY   sim=isaac  arm=isaac_kitchen_gpu  cameras=isaac,isaac_side,isaac_proof

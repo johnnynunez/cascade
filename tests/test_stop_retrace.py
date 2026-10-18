@@ -471,6 +471,76 @@ def test_on_a_real_gripper_a_long_label_keeps_the_move_home_step_inside_240_char
     assert len(res["error"]) <= 240 and commands(rt) == n0, (len(res["error"]), res["error"])
 
 
+#: the unreadable-jaws refusal while the column is live / once it is gone (#363's text)
+UNREADABLE_KEPT = ("the jaw state could not be read: call move_home first (it raises the gripper up its approach "
+                   "column), then, if red cube is in the jaws, take it out by hand, open_gripper, reset_scene. "
+                   "Error: no valid jaw feedback")
+UNREADABLE_PLAIN = ("the jaw state could not be read: if red cube is in the jaws, take it out by hand, then "
+                    "open_gripper, then reset_scene. Error: no valid jaw feedback")
+
+
+def refusal_then_move_home(rt, monkeypatch, jaws, live):
+    """reset_scene (refused before any motion), then move_home. The refusal
+    sends the agent to move_home first exactly when move_home retraces:
+    otherwise #363's plain text, and move_home is main's (frozen at the
+    object, 0 commands)."""
+    from cascade.skills import stop_retrace
+
+    if jaws == "unreadable":
+        real = mock_of(rt).get_state
+        monkeypatch.setattr(mock_of(rt), "get_state", lambda: dataclasses.replace(real(), gripper_valid=False))
+    n0 = commands(rt)
+    res = rt.execute("reset_scene", {})
+    expected = {("stalled", True): REFUSAL_KEPT, ("stalled", False): REFUSAL_PLAIN,
+                ("unreadable", True): UNREADABLE_KEPT, ("unreadable", False): UNREADABLE_PLAIN}[jaws, live]
+    assert res["ok"] is False and res["error"] == expected, res
+    assert "stop_retrace" not in res and commands(rt) == n0
+    res = rt.execute("move_home", {})
+    if live:
+        assert res["ok"] is True and res["stop_retrace"].startswith("completed") and at_home(rt), res
+    else:
+        assert res["ok"] is False and "no safe joint route found" in res["error"], res
+        assert "stop_retrace" not in res and commands(rt) == n0
+    assert stop_retrace.kept(rt) is None
+
+
+@pytest.mark.parametrize("jaws", ["stalled", "unreadable"])
+@pytest.mark.parametrize("age_s, live", [(299.9, True), (300.5, False)], ids=["at-299.9s", "at-300.5s"])
+def test_on_a_real_gripper_the_move_home_first_refusal_expires_with_the_column(rebot_real, monkeypatch, jaws,
+                                                                              age_s, live):
+    """Fix round 3: the refusal's move_home-first form follows the retrace's
+    own liveness rule (`stop_retrace.live`). At +299.9 s it says move_home
+    first and move_home retraces; at +300.5 s the column has expired, so the
+    reset names #363's plain text (move_home could no longer raise the
+    gripper: it drops the column and stays frozen, as main)."""
+    rt = rebot_real
+    mock_of(rt).object_stop_frac = 0.5
+    stopped_at_the_object(rt, monkeypatch, skill=("grasp_object", {"label": "red cube"}))
+    from cascade.skills import stop_retrace
+
+    rt._stop_retraces[id(rt.arm)] = dataclasses.replace(stop_retrace.kept(rt), kept_at=1000.0)
+    monkeypatch.setattr(stop_retrace, "_clock", lambda: 1000.0 + age_s)
+    refusal_then_move_home(rt, monkeypatch, jaws, live)
+
+
+@pytest.mark.parametrize("change", ["arm", "raw", "scene"])
+def test_on_a_real_gripper_a_column_of_another_arm_backend_or_scene_never_reads_move_home_first(
+        rebot_real, monkeypatch, change):
+    """The same rule for the arm / backend identity and the scene: a kept
+    record the retrace would drop never puts move_home first in the text."""
+    rt = rebot_real
+    mock_of(rt).object_stop_frac = 0.5
+    stopped_at_the_object(rt, monkeypatch, skill=("grasp_object", {"label": "red cube"}))
+    from cascade.skills import stop_retrace
+
+    kept = stop_retrace.kept(rt)
+    if change == "scene":
+        rt.arm.harness.occupancy.scene_reset_generation += 1
+    else:
+        rt._stop_retraces[id(rt.arm)] = dataclasses.replace(kept, **{change: object()})
+    refusal_then_move_home(rt, monkeypatch, "stalled", live=False)
+
+
 def test_on_a_real_gripper_jaws_at_the_seat_let_the_reset_retrace_home_and_open_them(rebot_real, monkeypatch):
     """A STOP right after a close on AIR: the jaws sit at the stage-2 seat
     (0.93 rad). The reset judges them empty (#363), retraces up the kept

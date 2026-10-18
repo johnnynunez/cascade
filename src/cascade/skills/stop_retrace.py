@@ -29,6 +29,8 @@ the column.
   the explicit call then drops it and today's home move runs (frozen, 0
   commands). The scene changes only through reset_scene on the reBot: its
   map's `scene_reset_generation` moves only for payload-tracking maps.
+- `live` is a kept column while it still applies (the retrace's own rule):
+  reset_scene's refusal names "move_home first" only then.
 - `retrace` (skill_move_home, before its own home move) acts only when
   execute()'s ROOT motion skill is move_home or reset_scene. It moves ONE
   direct joint segment from the measured pose to `q_pre` (the reverse of the
@@ -90,9 +92,23 @@ def _records(runtime) -> dict | None:
 
 
 def kept(runtime) -> Kept | None:
-    """The column kept for the runtime's current arm, or None."""
+    """The column kept for the runtime's current arm, or None. It may no
+    longer apply: decide with `live`."""
     records = _records(runtime)
     return None if not records else records.get(id(runtime.arm))
+
+
+def live(runtime) -> Kept | None:
+    """The kept column while it still applies, or None: the ONE rule both the
+    retrace's motion and any text that promises it (reset_scene's
+    "move_home first") read, so they never disagree. None when nothing is
+    kept, or for another arm or backend, after MAX_AGE_S, a scene reset, a
+    contact episode, a carry attachment or a motion planner. Reads only:
+    the retrace drops what no longer applies."""
+    record = kept(runtime)
+    if record is None or _no_longer_applies(runtime, record) is not None:
+        return None
+    return record
 
 
 def forget(runtime) -> int:
@@ -226,7 +242,7 @@ def retrace(runtime, *, halt_generation=None) -> str | None:
     context = getattr(getattr(runtime, "_motion_scope", None), "context", None)
     if context is None or context.get("root_skill") not in EXPLICIT_SKILLS:
         return None                      # never automatic, never inside another skill
-    if _no_longer_applies(runtime, record) is not None:
+    if live(runtime) is None:            # the rule reset_scene's refusal text reads too
         records.pop(id(arm), None)
         return None
     harness = arm.harness

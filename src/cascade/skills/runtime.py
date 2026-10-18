@@ -8183,14 +8183,17 @@ class SkillRuntime:
         (stop_retrace.py), both refusals send the agent to move_home FIRST:
         it raises the gripper up that column, with the object; place_at or
         open_gripper first would forfeit the column and freeze the arm at the
-        object (#359 review, Important #1)."""
+        object (#359 review, Important #1). "Kept" is `stop_retrace.live`,
+        the rule move_home's retrace acts on: a column that expired, or was
+        kept for another arm or backend or before a scene reset, names #363's
+        texts, never a move_home that could no longer raise the gripper."""
         read_error = None
         if not self.held_object and getattr(self, "_held_provisional", None) is not None:
             try:
                 self._reconcile_held(seat_aware=True)
             except Exception as exc:  # noqa: BLE001 -- unknown jaws: refused below
                 read_error = exc
-        column_kept = stop_retrace.kept(self) is not None
+        column_kept = stop_retrace.live(self) is not None
         if self.held_object:
             if column_kept:
                 return (f"holding {self.held_object}: call move_home first (it raises the gripper up its "

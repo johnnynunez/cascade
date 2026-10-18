@@ -198,9 +198,9 @@ to the morning baseline after a bad streak (restart the server to load the resto
    (reBot):** the first motion call after the stop must be `move_home` or `reset the scene`, within
    5 min: it raises the gripper straight up its approach column first. `open the gripper` or a
    relative move first gives that column up and the arm stays frozen (jog it by hand). Object
-   still in the jaws: `move_home` (the reset refuses and says so), then `place_at`, then
-   `reset the scene`. If `move_home` reports `holding_unknown` (the jaws could not be read),
-   check the gripper by hand before any grasp, open or reset. The launcher
+   still in the jaws: `move_home` (within those 5 min the reset refuses and says so), then
+   `place_at`, then `reset the scene`. If `move_home` reports `holding_unknown` (the jaws could
+   not be read), check the gripper by hand before any grasp, open or reset. The launcher
    registers the server with a 300 s budget so a persistent pick (60–120 s) is never cut by the
    host's 60 s default; picks dying at exactly 60 s mean a stale registration: `./run.sh <mode>`
    re-registers.

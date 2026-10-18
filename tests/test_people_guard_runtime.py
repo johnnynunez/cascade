@@ -235,7 +235,13 @@ def test_wave_at_the_audience_still_waves_inside_the_workspace(rig, profile):
 
 
 def _person(rt, xy, extent=(0.40, 0.30, 1.0), label="person"):
-    return rt.beliefs.update(label, np.array([xy[0], xy[1], 0.4]), 0.9, extent=np.array(extent))
+    """A localized person, its own belief. The store fuses by a size-scaled
+    radius whatever the label: a 1.7 m tall uncoloured observation 0.6 m
+    from the red cube would blend into the cube's belief (an alias, an EMA
+    position). A measured colour other than the cube's keeps them apart."""
+    b = rt.beliefs.update(label, np.array([xy[0], xy[1], 0.4]), 0.9, extent=np.array(extent), color="black")
+    assert b.label == label and np.allclose(b.position[:2], xy), "the person fused into another belief"
+    return b
 
 
 #: FK on all three profiles (same chain, same keyframes): home TCP (0.452, 0),

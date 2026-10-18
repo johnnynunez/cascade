@@ -186,7 +186,7 @@ def prepare_assets(repo: Path) -> None:
 QWEN_PORT = 8080
 # The license page the operator is asked to review (docs/DGX_SPARK_SETUP.md,
 # the consent dialog) and the URL recorded with their consent must be the same.
-EULA_URL = "https://docs.isaacsim.omniverse.nvidia.com/6.1.0/common/legal.html"
+EULA_URL = "https://docs.isaacsim.omniverse.nvidia.com/6.2.0/common/legal.html"
 # Receipts written before 2026-09-29 name this URL. It is the same Omniverse
 # license, but the link now answers HTTP 403 (AccessDenied), so it is only
 # honoured for existing consent and never shown to a new operator.

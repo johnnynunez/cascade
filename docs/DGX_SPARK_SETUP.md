@@ -4,7 +4,7 @@
 steps take about 25 min with warm download caches and 30–90 min on an uncached machine,
 plus cold CUDA builds.
 
-PAAI (Physical Agentic AI) installs the Build a Claw kitchen demo: Isaac Sim 6.1 with PhysX
+PAAI (Physical Agentic AI) installs the Build a Claw kitchen demo: Isaac Sim 6.2 with PhysX
 CUDA, real GraspGen-X inference, local Qwen Q4, OpenClaw and the PAAI camera extension in
 Chromium. No model API key is needed. The kitchen is Cocina_Asier_01 (owner-authorized
 geometry, CC0 wood, an original orange and fruit platter); the installer checks the archive
@@ -13,22 +13,12 @@ Capability status: [ROADMAP](ROADMAP.md).
 
 ## Validated release and scope
 
-The commands pin `ff8d58be1ae8e000bbecb19cd8db1551ac54be73` (reviewed 1 October 2026).
-The last fresh installation was measured on the earlier source
-`9cf540279f09df8197eda6541311b41edb455243` on a GB10 Spark, 30 September 2026
-([release receipt](../benchmark/results/spark_clean_delivery_20260930.json),
-[UI screenshot](../benchmark/results/images/spark_clean_three_cameras_20260930.png)):
-
-| Stage | Measured result |
-| --- | --- |
-| Install and read-only check | `PREPARED`, both exit 0; install **12 min 21 s** |
-| First headless desktop launch | Exit 0 and `spark_verify.py` READY; **12 min 12 s** |
-| Native visitor chat campaign | **5/5** objects passed independent physical placement and reset checks |
-| Real Chromium and shipped extension | Connected chat, enabled controls and three advancing **1280 × 720** camera views |
-| Full stop and second headless launch | New session and processes, READY again in **9 min 10 s** |
-
-These used reused download/uv caches and are not guarantees. Chromium ran under Xvfb; the
-GNOME app grid and a visible Isaac editor were not exercised.
+The commands pin `ba3815ad6cc7958b9dfb7ef134c5a440b239e8c6`, the first source on Isaac Sim 6.2.0
+(`isaacsim[all,extscache]==6.2.0.0`). **Spark acceptance on Isaac Sim 6.2 is pending:** no GB10
+install, READY proof or visitor campaign has run on this pin yet. Before an event, run steps 1–4 on
+a clean Spark and keep `runs/.install/install.json` and the READY receipt. The earlier
+[release receipt](../benchmark/results/spark_clean_delivery_20260930.json) predates Isaac Sim 6.2
+and does not certify this pin.
 
 Installed Spark defaults: PhysX CUDA, Qwen Q4, required GraspGen-X, three camera views,
 `dt=1/120`, six bridge iterations between nominal camera polls and the observed-finger gate
@@ -59,7 +49,7 @@ launcher: required in a graphical session, a non-blocking `WARNING` over SSH. A 
 package needs the [administrator command](#system-prerequisites).
 
 ```bash
-bash -o pipefail -c 'curl -fsSL --retry 3 https://raw.githubusercontent.com/johnnynunez/cascade/ff8d58be1ae8e000bbecb19cd8db1551ac54be73/scripts/spark_prerequisites.py | python3 -'
+bash -o pipefail -c 'curl -fsSL --retry 3 https://raw.githubusercontent.com/johnnynunez/cascade/ba3815ad6cc7958b9dfb7ef134c5a440b239e8c6/scripts/spark_prerequisites.py | python3 -'
 ```
 
 Success: `PREREQUISITES_OK`.
@@ -67,7 +57,7 @@ Success: `PREREQUISITES_OK`.
 ### 2. Install
 
 Before your first installation, review the [NVIDIA Isaac Sim / Omniverse
-licenses](https://docs.isaacsim.omniverse.nvidia.com/6.1.0/common/legal.html).
+licenses](https://docs.isaacsim.omniverse.nvidia.com/6.2.0/common/legal.html).
 **`--accept-eula` records your explicit acceptance for this checkout.**
 An agent must have the operator's explicit consent for this Isaac version.
 Previous explicit acceptance in the current task remains valid. If that consent is
@@ -79,7 +69,7 @@ assets, then builds the local CUDA model server. Needs at least 150 GiB free. Ti
 with warm caches, 30–90 min uncached plus cold CUDA builds. The log shows each stage.
 
 ```bash
-bash -o pipefail -c 'curl -fsSL --retry 3 https://raw.githubusercontent.com/johnnynunez/cascade/ff8d58be1ae8e000bbecb19cd8db1551ac54be73/scripts/bootstrap.sh | env -u ISAACSIM_PATH -u ISAACSIM_PYTHON_EXE -u CASCADE_QWEN_MODEL -u CASCADE_QWEN_MMPROJ -u LLAMA_SERVER -u LLAMA_DIR bash -s -- --ref ff8d58be1ae8e000bbecb19cd8db1551ac54be73 --profile spark --accept-eula --prepare-only --dir "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" 2>&1 | tee "${PAAI_INSTALL_DIR:-$HOME/paai-spark}-install.log"'
+bash -o pipefail -c 'curl -fsSL --retry 3 https://raw.githubusercontent.com/johnnynunez/cascade/ba3815ad6cc7958b9dfb7ef134c5a440b239e8c6/scripts/bootstrap.sh | env -u ISAACSIM_PATH -u ISAACSIM_PYTHON_EXE -u CASCADE_QWEN_MODEL -u CASCADE_QWEN_MMPROJ -u LLAMA_SERVER -u LLAMA_DIR bash -s -- --ref ba3815ad6cc7958b9dfb7ef134c5a440b239e8c6 --profile spark --accept-eula --prepare-only --dir "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" 2>&1 | tee "${PAAI_INSTALL_DIR:-$HOME/paai-spark}-install.log"'
 ```
 
 Success: `PREPARED`. No demo services or manipulation tests have run; `--prepare-only`
@@ -108,7 +98,7 @@ not start another copy. Timeouts: model health 30 min, Isaac startup 20 min.
   cd "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" || exit
   python3 scripts/desktop.py launch --repo "$PWD" --headless --no-open 2>&1 |
     tee "${PAAI_INSTALL_DIR:-$HOME/paai-spark}-launch.log" | awk '/^\[desktop\]/ { print; fflush() }'
-) && python3 "${PAAI_INSTALL_DIR:-$HOME/paai-spark}/scripts/spark_verify.py" --repo "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" --expected-ref ff8d58be1ae8e000bbecb19cd8db1551ac54be73
+) && python3 "${PAAI_INSTALL_DIR:-$HOME/paai-spark}/scripts/spark_verify.py" --repo "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" --expected-ref ba3815ad6cc7958b9dfb7ef134c5a440b239e8c6
 ```
 
 Success: one `READY` summary with both placements, cameras and resets passing. It checks the
@@ -203,7 +193,7 @@ Paths are relative to `$HOME/paai-spark`.
 | Component | Location |
 | --- | --- |
 | App, Python 3.12 and CUDA perception packages | `.venv/` |
-| Isaac Sim `isaacsim[all,extscache]==6.1.0.0`, Python 3.12 | `.isaacsim/` |
+| Isaac Sim `isaacsim[all,extscache]==6.2.0.0`, Python 3.12 | `.isaacsim/` |
 | GraspGen-X CUDA model, pinned source and full checkpoints | `.graspgenx/`, `.graspgenx-src/` |
 | OpenClaw 2026.9.3 and private Node.js | `.openclaw-cli/` |
 | Pinned Qwen Q4 model and BF16 vision projector | `models/qwen3.8-27b/` |

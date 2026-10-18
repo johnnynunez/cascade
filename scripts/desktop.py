@@ -77,7 +77,7 @@ def register(repo: Path, *, desktop_dir: Path | None = None) -> list[Path]:
 
 
 def confirm_eula() -> bool:
-    message = ("Install PAAI for this Linux Spark using Isaac Sim 6.1, the local model and OpenClaw.\n\n"
+    message = ("Install PAAI for this Linux Spark using Isaac Sim 6.2, the local model and OpenClaw.\n\n"
                f"Review the NVIDIA Isaac Sim / Omniverse EULA:\n{EULA_URL}\n\n"
                "Do you explicitly agree to this EULA? Downloads may be large. No driver or OS changes. "
                "If installation succeeds, the simulation proof will move the simulated robot. No physical hardware.")

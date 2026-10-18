@@ -118,8 +118,10 @@ class GpuPhysicsLogGuard:
                 raise RuntimeError("GPU physics/contact failure: " + self.failures[0]["message"])
 
 
-_SOURCE_VERSIONS = ("6.1.0", "6.2.0")
-_WHEEL_VERSION = "6.1.0.0"
+# Isaac Sim 6.2 is the minimum. Each newer release is added here explicitly, after its own
+# validation; a version this file does not list is refused.
+_SOURCE_VERSIONS = ("6.2.0",)
+_WHEEL_VERSION = "6.2.0.0"
 
 
 def _experience_version(path: Path, versions=_SOURCE_VERSIONS) -> str:
@@ -168,11 +170,10 @@ def find_experience(engine: str, *, release=None, package_roots=None) -> Path:
     for root in roots:
         candidate = root / "apps" / name
         if candidate.is_file():
-            # The managed wheel remains the independently pinned Spark 6.1
-            # install. 6.2 support requires an explicit complete release.
-            return _check_kit(candidate, versions=("6.1.0",))
+            # The managed wheel is the pinned Spark install.
+            return _check_kit(candidate, versions=(_WHEEL_VERSION.rsplit(".", 1)[0],))
     raise FileNotFoundError(
-        f"Isaac {engine} experience {name} not found; install isaacsim[all,extscache]==6.1.0.0 "
+        f"Isaac {engine} experience {name} not found; install isaacsim[all,extscache]=={_WHEEL_VERSION} "
         "in the Isaac Python environment, or set ISAACSIM_PATH to a complete release"
     )
 
@@ -180,7 +181,7 @@ def find_experience(engine: str, *, release=None, package_roots=None) -> Path:
 def ensure_time_code_range(stage, *, duration_s: float = 24 * 60 * 60) -> dict:
     """Give static robot assets a usable playback range without replacing animation.
 
-    Isaac 6.1 warns that startTimeCode == endTimeCode loops one frame and
+    Isaac warns that startTimeCode == endTimeCode loops one frame and
     prevents time-accumulating sensors/controllers from producing output.
     This changes timeline metadata only, never a body pose or physics limit.
     """
@@ -244,7 +245,7 @@ def installation_info() -> dict:
     if package_version is not None and package_version not in package_versions:
         raise RuntimeError(f"Isaac Sim package must be one of {package_versions}; selected Python has {package_version}")
     if sys.version_info[:2] != (3, 12):
-        raise RuntimeError("Supported Isaac Sim 6.1/6.2 runtimes require Python 3.12")
+        raise RuntimeError("Supported Isaac Sim 6.2 runtimes require Python 3.12")
     if release:
         root, selected = Path(release).expanduser().resolve(), Path(sys.executable).resolve()
         embedded = {p.resolve() for p in (root / "kit/python/bin").glob("python*") if p.is_file()}
@@ -254,7 +255,7 @@ def installation_info() -> dict:
     else:
         layout = "wheel"
         if package_version is None:
-            raise RuntimeError("Isaac Sim 6.1.0.0 is not installed in the selected Python")
+            raise RuntimeError(f"Isaac Sim {_WHEEL_VERSION} is not installed in the selected Python")
     experiences = {engine: find_experience(engine) for engine in ("newton", "physx")}
     versions = {engine: _experience_version(path) for engine, path in experiences.items()}
     if versions["newton"] != versions["physx"]:

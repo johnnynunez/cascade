@@ -481,7 +481,7 @@ if [[ $DRY == 1 ]]; then
     else
         log "would install missing extras/assets, start $SIM and sidecars, register OpenClaw, verify brain + motion + reset, then open chat"
     fi
-    log "Isaac target: selected source 6.1/6.2 or managed wheel 6.1.0.0; metadata not checked; profile=${CASCADE_OPENCLAW_PROFILE:-default}; no commands executed"
+    log "Isaac target: selected source 6.2 or managed wheel 6.2.0.0; metadata not checked; profile=${CASCADE_OPENCLAW_PROFILE:-default}; no commands executed"
     exit 0
 fi
 if [[ $CHECK == 0 ]]; then
@@ -634,7 +634,7 @@ if [[ $CHECK == 1 ]]; then
             if ISAAC_INFO="$(isaac_metadata_check 2>&1)"; then ok "Isaac Sim: $ISAAC_INFO"
             else bad "Isaac Sim: $ISAAC_INFO"; fi
         else
-            bad "Isaac Sim 6.1.0 (run scripts/install.sh --profile spark --accept-eula)"
+            bad "Isaac Sim 6.2.0 (run scripts/install.sh --profile spark --accept-eula)"
         fi
         [[ -f "$USD" ]] && ok "scene USD: $USD" || bad "scene USD $USD"
         if [[ -s "$SAM_WEIGHTS" ]]; then ok "SAM weights: $SAM_WEIGHTS"; else warn "$SAM_MISSING"; fi

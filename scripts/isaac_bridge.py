@@ -288,16 +288,16 @@ def _configure_newton_before_play() -> None:
     cfg.solver_cfg.nconmax = 32768
     cfg.solver_cfg.njmax = 4 * 32768 + 1200
     cfg.collision_cfg.rigid_contact_max = 32768
-    # Isaac's NewtonStage.simulate() (isaacsim.physics.newton; identical in
-    # 6.1.0 GA, 7.0.0a1 and internal develop of 2026-09-29) swaps state_0 and
-    # state_1 after every substep and, with the CUDA graph on, copies back
-    # only on the LAST substep. The captured graph always reads the buffer
-    # that was state_0 at capture, so the loop is only correct for an ODD
-    # substep count with the graph on (an even one with it off). Otherwise
-    # every frame replays one substep, physics runs at (N-1)/N speed (0.75x
-    # at the old N=4), and every supported-API write (RigidPrim teleports,
-    # prop resets) is overwritten on the next frame. Measured on a free-fall
-    # cube, docs/NEWTON_ENGINE.md "Isaac's Newton stepping bug".
+    # Substep parity guard. Before Isaac Sim 6.2, NewtonStage.simulate()
+    # (isaacsim.physics.newton) swapped state_0 and state_1 after every
+    # substep and, with the CUDA graph on, copied back only on the LAST
+    # substep, so the loop was only correct for an ODD substep count with the
+    # graph on (an even one with it off): otherwise physics ran at (N-1)/N
+    # speed and every supported-API write (RigidPrim teleports, prop resets)
+    # was overwritten on the next frame. Isaac Sim 6.2.0 copies the newest
+    # state back into the pinned buffer for any count; the guard stays until
+    # an even count is measured on 6.2. docs/NEWTON_ENGINE.md "Isaac's Newton
+    # stepping bug".
     _graph = bool(getattr(cfg, "use_cuda_graph", True))
     _n = int(args.newton_substeps)
     if _n < 1 or (_n % 2 == 1) != _graph:

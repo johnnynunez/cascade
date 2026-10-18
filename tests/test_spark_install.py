@@ -378,7 +378,7 @@ def test_isaac_installer_pins_python_wheel_and_does_not_touch_cascade_env(tmp_pa
         c[:2] == ["uv", "venv"] and "3.12" in c and c[-1] == str(target / ".isaacsim")
         for c in calls
     )
-    wheel_calls = [c for c in calls if "isaacsim[all,extscache]==6.1.0.0" in c]
+    wheel_calls = [c for c in calls if "isaacsim[all,extscache]==6.2.0.0" in c]
     assert len(wheel_calls) == 1
     assert "tinyobjloader==2.0.0rc13" in wheel_calls[0]
     assert str(target / ".isaacsim/bin/python") in wheel_calls[0]
@@ -387,7 +387,7 @@ def test_isaac_installer_pins_python_wheel_and_does_not_touch_cascade_env(tmp_pa
         "--index-strategy" in wheel_calls[0] and "unsafe-best-match" in wheel_calls[0]
     )
     assert any("libgomp.so.1" in " ".join(c) for c in calls)
-    assert any("torch==2.11.0+cu130" in c for c in calls), "Isaac6.1 pins torch2.11"
+    assert any("torch==2.11.0+cu130" in c for c in calls), "Isaac Sim 6.2 pins torch 2.11"
     assert not (target / ".venv").exists()
     assert "READY" not in result.stdout
 
@@ -405,7 +405,7 @@ def test_prepare_only_installs_complete_spark_with_pinned_rootless_host(tmp_path
     for spec in (
         "torch==2.14.0+cu130",
         "torchvision==0.29.0+cu130",
-        "isaacsim[all,extscache]==6.1.0.0",
+        "isaacsim[all,extscache]==6.2.0.0",
     ):
         assert any(spec in c for c in calls), spec
     assert any("torch.cuda.is_available" in " ".join(c) for c in calls)
@@ -1249,7 +1249,7 @@ def test_stdin_dry_run_defaults_to_complete_spark_without_mutation(tmp_path, ent
     output = result.stdout + result.stderr
     for expected in (
         "profile=spark",
-        "6.1.0.0",
+        "6.2.0.0",
         "3.12",
         "Qwen Q4 + vision projector",
         "OpenClaw",

@@ -44,7 +44,7 @@ if [[ "$REUSE" == 1 ]]; then
     printf '[install-isaac] Existing release metadata checked; no pip install, Kit startup or GPU proof.\n'
     exit 0
 fi
-printf '[install-isaac] Isaac Sim 6.1.0, isaacsim[all,extscache]==6.1.0.0, Python 3.12 -> %s\n' "$PY"
+printf '[install-isaac] Isaac Sim 6.2.0, isaacsim[all,extscache]==6.2.0.0, Python 3.12 -> %s\n' "$PY"
 [[ "$DRY" != 1 ]] || exit 0
 verify() {
     [[ -x "$PY" ]] || return 1
@@ -56,10 +56,10 @@ except OSError as exc:
     raise SystemExit(f"libgomp.so.1 is required on Spark; ask the administrator to install libgomp1 (no OS packages changed): {exc}")
 assert sys.version_info[:2] == (3, 12), "Isaac requires CPython 3.12"
 d = m.distribution("isaacsim")
-assert d.version == "6.1.0.0", d.version
+assert d.version == "6.2.0.0", d.version
 assert any(str(p).endswith("isaacsim/apps/isaacsim.exp.full.newton.kit") and d.locate_file(p).is_file() for p in d.files or []), "Newton experience missing from installed wheel"
 for name in ("isaacsim-app", "isaacsim-core", "isaacsim-extscache-kit", "isaacsim-extscache-kit-sdk", "isaacsim-extscache-physics"):
-    assert m.version(name) == "6.1.0.0", name'
+    assert m.version(name) == "6.2.0.0", name'
 }
 if [[ "$CHECK" == 1 ]]; then
     verify || { printf '[install-isaac] MISSING: exact Isaac wheel / Newton experience in %s\n' "$PY" >&2; exit 3; }
@@ -90,15 +90,15 @@ if [[ ! -x "$PY" ]]; then
     retry uv venv --python 3.12 "$DIR/.isaacsim"
 fi
 [[ "$("$PY" -c 'import sys; print("%d.%d" % sys.version_info[:2])')" == 3.12 ]] || die 'existing .isaacsim is not Python 3.12; refusing to replace it'
-# The latest Isaac6.1 core pins torch2.11; select its explicit CUDA13 wheel.
+# Isaac Sim 6.2 core pins torch 2.11; select its explicit CUDA 13 wheel.
 # This environment is intentionally independent of app and Cosmos torch.
 retry uv pip install --python "$PY" 'torch==2.11.0+cu130' --index-url https://download.pytorch.org/whl/cu130
 # Both indexes are required: e.g. mujoco-usd-converter==0.5.0 is on PyPI,
 # while NVIDIA has a different version. uv's first-index strategy cannot
-# resolve that exact dependency; the Isaac family remains pinned to 6.1.0.0.
+# resolve that exact dependency; the Isaac family remains pinned to 6.2.0.0.
 # Isaac core pins this prerelease transitively. Make that exact requirement
 # explicit so uv accepts it without enabling prereleases for every package.
-retry uv pip install --python "$PY" 'isaacsim[all,extscache]==6.1.0.0' 'tinyobjloader==2.0.0rc13' \
+retry uv pip install --python "$PY" 'isaacsim[all,extscache]==6.2.0.0' 'tinyobjloader==2.0.0rc13' \
     --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match
 verify
 printf '[install-isaac] Installed metadata and Newton experience checked; no Kit/GPU execution performed.\n'

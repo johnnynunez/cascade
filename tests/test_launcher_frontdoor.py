@@ -43,7 +43,7 @@ def test_private_delivery_artifacts_are_ignored_without_hiding_manifests(tmp_pat
     assert result.returncode == 1 and not result.stdout
 
 
-def source_release(tmp_path, *, version="6.1.0"):
+def source_release(tmp_path, *, version="6.2.0"):
     """Run real metadata/experience validation, never SimulationApp."""
     release = tmp_path / "Isaac source release"
     (release / "apps").mkdir(parents=True)
@@ -60,7 +60,7 @@ def source_release(tmp_path, *, version="6.1.0"):
 
 
 @pytest.mark.parametrize("check", [True, False])
-@pytest.mark.parametrize("version", ["6.1.0", "6.2.0"])
+@pytest.mark.parametrize("version", ["6.2.0"])
 def test_source_isaac_install_reuses_release_without_any_package_install(tmp_path, check, version):
     env, log = boundary_env(tmp_path)
     release = source_release(tmp_path, version=version)
@@ -343,7 +343,7 @@ def test_reused_isaac_bridge_is_probed_not_accepted_on_port_alone(launcher_bound
     port, _ = next(bridge)
     h = launcher_boundary
     isaac = h["repo"] / "python.sh"
-    executable(isaac, '#!/bin/bash\nprintf \'{"layout":"test-double","version":"6.1.0"}\\n\'\n')
+    executable(isaac, '#!/bin/bash\nprintf \'{"layout":"test-double","version":"6.2.0"}\\n\'\n')
     usd = h["repo"] / "scene.usda"
     usd.write_text("# metadata placeholder: never loaded")
     h["env"].update(ISAACSIM_PYTHON_EXE=str(isaac), CASCADE_BRIDGE_PORT=str(port), CASCADE_USD=str(usd))

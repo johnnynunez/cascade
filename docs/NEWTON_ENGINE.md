@@ -34,12 +34,12 @@ not certify another; see [profile defaults and current acceptance](ROADMAP.md).
 4. Hydroelastic contact is a separate opt-in (volumetric SDF on both colliders,
    `newton:hydroelasticEnabled` and the runtime `HydroelasticConfig` switch), not enabled by
    changing `contact_ke` or `impratio`, and not validated by the receipts here (see the
-   [Isaac Sim 6.1 contact reference](https://docs.isaacsim.omniverse.nvidia.com/6.1.0/physics/hydroelastic_contact.html)
-   and [nut-and-bolt walkthrough](https://docs.isaacsim.omniverse.nvidia.com/6.1.0/physics/hydroelastic_contact_walkthrough.html)).
+   [Isaac Sim 6.2 contact reference](https://docs.isaacsim.omniverse.nvidia.com/6.2.0/physics/hydroelastic_contact.html)
+   and [nut-and-bolt walkthrough](https://docs.isaacsim.omniverse.nvidia.com/6.2.0/physics/hydroelastic_contact_walkthrough.html)).
 5. Resets and verification read and write engine state; editing USD does not update a running
-   Newton scene ([data flow](https://docs.isaacsim.omniverse.nvidia.com/6.1.0/physics/new_physics_engine.html)).
+   Newton scene ([data flow](https://docs.isaacsim.omniverse.nvidia.com/6.2.0/physics/new_physics_engine.html)).
    Keep simulation time separate from wall time: rendering can make a fixed wall-clock delay too
-   short for jaw motion ([simulation fundamentals](https://docs.isaacsim.omniverse.nvidia.com/6.1.0/physics/simulation_fundamentals.html)).
+   short for jaw motion ([simulation fundamentals](https://docs.isaacsim.omniverse.nvidia.com/6.2.0/physics/simulation_fundamentals.html)).
 
 ## Real reBot asset on the internal 6.2 build: start-up, probe battery, wrist camera (7 October 2026)
 
@@ -56,7 +56,7 @@ Rig: x86 test rig, GPU 0, Isaac Sim 6.2.0-alpha.19 (`omni_isaac_sim` develop `48
 2. **Probe battery** (`scripts/physics_probe.py`): props come from the bridge's `_PROP_SPAWNS`,
    teleports use the engine-aware `place_prop` op, each grasp records `tcp_err_m`,
    `shoved_on_descent_m` and `lift_target_dz_m`. Settle / drop / grasp / push for both boxes:
-   **Newton 8/8, PhysX 8/8** (Newton 8/8 on the 6.1 baseline too).
+   **Newton 8/8, PhysX 8/8**.
 3. **"Green box grasp fails on Newton" was the probe**: at r = 0.34 m a lift 0.12 m above the grasp
    is outside the IK envelope on both engines. The probe now lifts to the highest reachable of
    +0.12/0.10/0.08/0.06 m and reports an unreachable lift as `skipped`, never a physics failure.
@@ -67,7 +67,7 @@ Rig: x86 test rig, GPU 0, Isaac Sim 6.2.0-alpha.19 (`omni_isaac_sim` develop `48
 5. **Open: Newton camera cadence on 6.2.** Each `app.update()` advances three physics steps on
    the Newton experience (one on PhysX), so a render can carry an intermediate step with no matching
    state; it is refused (`render frame has no unique matching state history`, fail-closed). While
-   the arm streams, 34–40 % of camera refreshes publish no frame on 6.2 (2.8 % on 6.1). Candidate
+   the arm streams, 34–40 % of camera refreshes publish no frame on 6.2. Candidate
    fixes, unmeasured: record state per physics step, or one physics step per update.
 
 ## Kitchen acceptance (2026-09-30)
@@ -163,15 +163,17 @@ are unmistakably spheres. Hull source, commit, SHA-256 and MIT attribution:
 
 ### 4b. Isaac's Newton stepping bug: use an odd substep count
 
-`isaacsim.physics.newton`'s `NewtonStage.simulate()` swaps `state_0` and `state_1` after every
-substep and, with the CUDA graph on (the default), copies back only on the last substep. The
-captured graph always reads the buffer that was `state_0` at capture, so the loop is correct only
-for an odd substep count with the graph on (even with it off). With 4 substeps physics ran at 0.75x
-and every write through the supported tensor API (`RigidPrim.set_world_poses`, prop resets) was
-overwritten on the next frame. Measured with Isaac's kit test runner on a free-falling cube
-(`test_newton_substeps`): graph on, N=2 at 0.500x and N=4 at 0.750x. The same loop is in 6.0.1,
-6.1.0 GA and 7.0.0a1; an upstream fix is under review. Until it ships, the bridge refuses the wrong
-parity and defaults to 5.
+Before Isaac Sim 6.2, `isaacsim.physics.newton`'s `NewtonStage.simulate()` swapped `state_0` and
+`state_1` after every substep and, with the CUDA graph on (the default), copied back only on the
+last substep. The captured graph always read the buffer that was `state_0` at capture, so the loop
+was correct only for an odd substep count with the graph on (even with it off). With 4 substeps
+physics ran at 0.75x and every write through the supported tensor API (`RigidPrim.set_world_poses`,
+prop resets) was overwritten on the next frame. Measured with Isaac's kit test runner on a
+free-falling cube (`test_newton_substeps`): graph on, N=2 at 0.500x and N=4 at 0.750x.
+
+Isaac Sim 6.2.0 pins `state_0` and copies the newest state back into it after an odd number of
+swaps, for any substep count (`newton_stage.py`, `simulate()`). No even count has been measured on
+6.2 yet, so the bridge still refuses the wrong parity and defaults to 5.
 
 ### Contact softness, resets and placement
 

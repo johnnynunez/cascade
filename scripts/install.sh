@@ -58,7 +58,7 @@ case "$DIR" in /*) ;; *) DIR="$PWD/$DIR" ;; esac
 log "profile=$PROFILE brain=$BRAIN source=$REF dir=$DIR"
 log "CASCADE: Python 3.12 in $DIR/.venv; source changes are preserved"
 if [[ "$PROFILE" == spark ]]; then
-    log "Isaac Sim 6.1.0: isaacsim[all,extscache]==6.1.0.0 in $DIR/.isaacsim (Python 3.12); explicit ISAACSIM_PATH is honored"
+    log "Isaac Sim 6.2.0: isaacsim[all,extscache]==6.2.0.0 in $DIR/.isaacsim (Python 3.12); explicit ISAACSIM_PATH is honored"
     log "Perception: CUDA aarch64 cu130 torch + torchvision, SAM 2.1-L mask weights (models/sam2.1_l.pt); the brain names the objects"
     log "GraspGen-X: pinned upstream model + CUDA 13 in private .graspgenx environment"
     log "Qwen Q4 + vision projector: pinned downloads in $DIR/models/qwen3.8-27b; verified CUDA llama.cpp in $DIR/.llama.cpp, loopback :8080"
@@ -70,7 +70,7 @@ if [[ "$DRY" == 1 ]]; then exit 0; fi
 HOST_BAD=0
 if [[ "$PROFILE" == spark ]]; then
   (
-    [[ "$ACCEPT" == 1 || "$CHECK" == 1 ]] || die 'Spark installation requires --accept-eula (https://docs.isaacsim.omniverse.nvidia.com/6.1.0/common/legal.html)'
+    [[ "$ACCEPT" == 1 || "$CHECK" == 1 ]] || die 'Spark installation requires --accept-eula (https://docs.isaacsim.omniverse.nvidia.com/6.2.0/common/legal.html)'
     [[ "$(uname -s)" == Linux && "$(uname -m)" == aarch64 ]] || die 'Spark requires Linux aarch64; use --profile laptop or ci explicitly on other hosts'
     LIBC="$(getconf GNU_LIBC_VERSION 2>/dev/null || true)"
     [[ "$LIBC" =~ ^glibc\ ([0-9]+)\.([0-9]+)$ ]] || die "cannot determine glibc version: $LIBC"
@@ -88,7 +88,7 @@ if [[ "$CHECK" == 1 ]]; then
         if [[ -f "$DIR/scripts/install_isaac.sh" ]]; then
             bash "$DIR/scripts/install_isaac.sh" --dir "$DIR" --check || MISSING=1
         else
-            missing "$DIR/.isaacsim/bin/python or a valid ISAACSIM_PATH (Isaac 6.1.0.0)"
+            missing "$DIR/.isaacsim/bin/python or a valid ISAACSIM_PATH (Isaac 6.2.0.0)"
         fi
         [[ -f "$DIR/scripts/serve_qwen_llamacpp.sh" ]] || missing 'local model / llama-server setup helper'
     fi

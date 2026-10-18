@@ -2,8 +2,8 @@
 
 **Decision (owner, 2026-10-18): NVIDIA Nemotron 3.5 Bolt 74B-A9B 24GB is the default brain for both the agent
 (OpenClaw) and cascade's perception. Qwen3.8-27B + DFlash2 stays selectable (`--brain qwen`,
-`scripts/serve_qwen_vllm.sh`); every `--brain qwen` path is byte-identical to main (`91bac52`) except the vLLM
-version its serve script installs (section 11).**
+`scripts/serve_qwen_vllm.sh`); every `--brain qwen` path is byte-identical to main before the switch (`91bac52`),
+its vLLM 0.31.0 included (section 11).**
 
 **Serving decision (this report): Bolt ships on llama.cpp v0.7.0** (`scripts/serve_nemotron_bolt_llamacpp.sh`: GGUF +
 vision projector + LiLiCorr DFlash drafter, two slots). Every vLLM build tried for Bolt faulted the GPU (Xid 31)
@@ -17,8 +17,8 @@ Versions shipped:
 |---|---|---|
 | **Bolt (default)** | llama.cpp v0.7.0 (`620d2225`), Bolt GGUF + mmproj + LiLiCorr GGUF drafter, 2 slots, weights read at start (`--load-mode none`) | e2e ×2 + 30-min soak beside Isaac Newton: 0 Xid (sections 7, 10) |
 | Bolt, vLLM (opt-in) | the model card's container: vLLM nightly `77154ca6` (0.32.0rc1) by digest + b12x 1.5.1 by hash, no drafter | faulted beside Isaac; warns at every start (section 9) |
-| Qwen (`--brain qwen`), vLLM | vLLM 0.32.0, torch 2.13 cu130, uv venv `~/.venvs/vllm-0.32.0-cu130` | section 11 |
-| Qwen, llama.cpp | llama.cpp v0.7.0 (main pinned `4695f001`) | pin only, not re-measured |
+| Qwen (`--brain qwen`), vLLM | vLLM 0.31.0 (as before #375; 0.32.0 cu130 measured 3-4% slower) | section 11 |
+| Qwen, llama.cpp | llama.cpp v0.7.0 (pinned in #375; before: `4695f001`) | not re-measured |
 
 ## 1. What the default switch changes
 
@@ -339,7 +339,22 @@ The pick's REFER stayed under its 20 s limit throughout (max 17.3 s).
 
 ## 11. Qwen3.8-27B + DFlash2 on vLLM 0.31.0 vs 0.32.0
 
-QWEN_SECTION
+Measured alone (no Isaac), one server at a time, 2026-10-18 18:39-18:49 CEST, same tools as section 8 with
+`--model qwen3.8-27b` (`results/qwen-*`): 0.31.0 = main's `serve_qwen_vllm.sh` before #375 (`91bac52`), 0.32.0 = #375's
+(torch cu130, `vllm[b12x]`). TTFT seconds, replay 1 / 2.
+
+| | vLLM 0.31.0 | vLLM 0.32.0 cu130 |
+|---|---|---|
+| agent 1st call (12.5k tokens; replay 2 hits 10.8k) | 5.84 / 1.23 | 6.01 / 1.27 |
+| follow-up calls | 0.93-1.84 | 0.94-1.88 |
+| decode tok/s (three runs) | 34.3 / 34.2 / 34.1 | 33.0 / 33.1 / 33.0 |
+| DFlash2 tokens accepted / drafted (decode probe) | 197 / 413 | 197 / 413 |
+| engine start: weights, then profile + warm-up | 37 s, 142 s | 41 s, 186 s |
+| errors, Xid | 0, 0 | 0, 0 |
+
+0.32.0 is 3.5% slower to decode, 1-11% slower to the first token on 11 of 12 calls and 49 s slower to start; the
+rule was to keep it only if it is not worse. **Qwen stays on vLLM 0.31.0**: `scripts/serve_qwen_vllm.sh` and
+`tests/test_qwen_vllm.py` are restored to `91bac52`.
 
 ## 12. Known limits
 

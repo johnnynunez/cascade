@@ -20,7 +20,7 @@
 #
 # Knobs: HOST (127.0.0.1), PORT (8080), API_KEY_FILE, GPU_UTIL (0.55; 0.40 next
 # to a second model), CTX (65536), SPEC=dflash|mtp|none, NSPEC (7),
-# SERVED_NAME, VENV (~/.venvs/vllm-0.32.0-cu130), MAX_JOBS (4), EXTRA_ARGS.
+# SERVED_NAME, VENV (~/.venvs/vllm), MAX_JOBS (4), EXTRA_ARGS.
 #
 # Security: the key is read from a 0600 file into VLLM_API_KEY, never argv
 # (argv is world-readable in /proc). A bind beyond loopback without a key is
@@ -29,10 +29,10 @@
 # Spark notes (each one cost an hour):
 # - `--safetensors-load-strategy eager`: mmap reads on GB10 run at ~5 MB/s at
 #   100 % CPU (27 min to load); eager reads take 50-90 s.
-# - `vllm download-kernels` (flashinfer-jit-cache cu130 with an sm121a build,
-#   flashinfer-cubin): without it FlashInfer JIT-compiles the CUTLASS FP4 GEMM
-#   with parallel nvcc next to the loaded model and the kernel OOM killer takes
-#   the engine. MAX_JOBS caps any JIT that remains.
+# - flashinfer-jit-cache (cu130, ships an sm121a build): without it FlashInfer
+#   JIT-compiles the CUTLASS FP4 GEMM with parallel nvcc next to the loaded
+#   model and the kernel OOM killer takes the engine. MAX_JOBS caps any
+#   JIT that remains.
 # - GPU memory counts against the caller's cgroup on unified memory: run it
 #   under `systemd-run --user -p MemoryMax=infinity` from a capped shell.
 set -euo pipefail
@@ -44,14 +44,9 @@ CTX="${CTX:-65536}"
 SPEC="${SPEC:-dflash}"
 NSPEC="${NSPEC:-7}"
 SERVED_NAME="${SERVED_NAME:-qwen3.8-27b}"
-VLLM_VERSION="0.32.0"   # DFlash2 landed in vLLM PR #52816
-# torch cu130 (the build 0.31.0 ran on here, and FlashInfer's prebuilt kernels'
-# CUDA), not uv's `--torch-backend=auto` pick (cu132 on this driver). A venv per
-# vLLM version and torch build: an upgrade builds a fresh one beside the old
-# instead of mutating it. (The Bolt brain does not use it: it runs on llama.cpp,
-# serve_nemotron_bolt_llamacpp.sh.)
-TORCH_BACKEND="cu130"
-VENV="${VENV:-$HOME/.venvs/vllm-$VLLM_VERSION-$TORCH_BACKEND}"
+VENV="${VENV:-$HOME/.venvs/vllm}"
+
+VLLM_VERSION="0.31.0"   # DFlash2 landed in vLLM PR #52816
 # The target keeps BF16 lm_head/embeddings (the drafter reuses them) and vision.
 TARGET_REPO="Inferact/Qwen3.8-27B-NVFP4"
 TARGET_REV="6128240ebaf4eaa7bad2b3d1c72c37d677c5f462"
@@ -93,12 +88,12 @@ if [ ! -x "$VENV/bin/vllm" ]; then
     command -v uv >/dev/null || die "uv is required to create $VENV"
     echo "[+] creating vLLM $VLLM_VERSION venv at $VENV" >&2
     uv venv "$VENV" --python 3.12
-    # vLLM 0.32.0 ships CUDA 13 arm64 wheels (b12x extra: its SM12x kernels).
-    uv pip install --python "$VENV/bin/python" --torch-backend="$TORCH_BACKEND" "vllm[b12x]==$VLLM_VERSION" \
-        "transformers>=5.16.1,<5.20.0" "huggingface_hub[hf_xet]"
+    uv pip install --python "$VENV/bin/python" "vllm==$VLLM_VERSION" \
+        "transformers>=5.10.4,<5.18.0" "huggingface_hub[hf_xet]"
     # Prebuilt FlashInfer kernels (sm121a included) instead of a JIT next to the model.
-    "$VENV/bin/vllm" download-kernels \
-        || echo "[!] precompiled kernels not installed: the first start JIT-compiles them (MAX_JOBS=${MAX_JOBS:-4})" >&2
+    uv pip install --python "$VENV/bin/python" "flashinfer-jit-cache==0.7.0.post1+cu130" \
+        --extra-index-url https://flashinfer.ai/whl/cu130 \
+        || echo "[!] flashinfer-jit-cache not installed: the first start JIT-compiles kernels (MAX_JOBS=${MAX_JOBS:-4})" >&2
 fi
 
 # ── models at pinned revisions ───────────────────────────────────────────

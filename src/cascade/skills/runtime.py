@@ -1194,6 +1194,12 @@ class SkillRuntime:
         # Optional task cancellation hook supplied by the orchestrator.
         self.motion_cancel_requested = None
         self.memory = memory
+        # The one choke point of the rules' triggers in memory (#388 re-review, Minor 2): about
+        # 30 notes quote the agent's own free text ({object!r}, {label!r}, {query!r}), and MCP
+        # world_state / task_memory / the digest read every line back to the agent, so every
+        # line and label this runtime's memory records has them withheld, as a result has.
+        if callable(getattr(memory, "set_text_filter", None)):
+            memory.set_text_filter(_without_rule_triggers)
         self.beliefs = beliefs
         self.trace = trace
         self.cfg = cfg

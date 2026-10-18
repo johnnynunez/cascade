@@ -15,7 +15,8 @@ trace rows from `execute()` on the mock stack for a stop the error does not
 name: with the sim retry ledger (the observed-finger gate on, the kitchen's
 setting) the row is marked `context.sim_retry.ended_in_stop` and never learned
 (A8 follow-ups fix, Important 1); without one (gate 0, every hardware profile)
-no row carries that mark, the gap the docs state.
+no row carries that mark, so harvest skips such a run altogether (#388 re-review
+Minor 1; the synthetic runs here carry a gate-1 run record).
 """
 import json
 
@@ -80,11 +81,16 @@ def _failed(error, **extra):
     return _call({"ok": False, "error": error, **extra})
 
 
-def _run(root, name, task, records):
+#: the run record of a kitchen sim run at gate 1: harvest reads only runs with the ledger (#388 re-review Minor 1)
+LEDGER_ON = {"sim_retry": True}
+
+
+def _run(root, name, task, records, record=LEDGER_ON):
     run = root / name
     run.mkdir(parents=True)
     (run / "trace.jsonl").write_text("\n".join(json.dumps(r) for r in records))
     (run / "summary.txt").write_text(f"task: {task}\nsuccess: true")
+    (run / "run.json").write_text(json.dumps(record))
     return run
 
 
@@ -342,10 +348,10 @@ def _stopped_grasp(runtime, kind):
     return grasp
 
 
-def _learn_from(rows, skill, root):
+def _learn_from(rows, skill, root, record):
     """`rows` (one execute() call's trace) followed by a measured-confirmed retry of the
-    same goal, as two runs of two tasks: the last failed row's diagnosis, and harvest's
-    result."""
+    same goal, as two runs of two tasks with the runtime's own run record: the last failed
+    row's diagnosis, and harvest's result."""
     failed = [r for r in rows if r.get("skill") == skill and not (r.get("result") or {}).get("ok", True)]
     row = failed[-1]
     context = row.get("context") or {}
@@ -354,7 +360,7 @@ def _learn_from(rows, skill, root):
               "result": _confirmed(skill)}
     runs = root / "runs"
     for name, task in (("run-a", TASK_A), ("run-b", TASK_B)):
-        _run(runs, name, task, rows + [repair])
+        _run(runs, name, task, rows + [repair], record)
     return row, diagnose(runs / "run-a"), harvest(runs, SkillLibrary(root / "lib"))
 
 
@@ -365,7 +371,9 @@ def test_a_stop_the_error_does_not_name_is_never_learned_with_the_ledger(monkeyp
     """The real trace row of a call an operator stop ended whose error names only the
     skill's own refusal: with the ledger (gate 1) the row is marked `ended_in_stop`, so a
     confirmed same-goal retry after it is never learned; without one (gate 0) no row
-    carries a `sim_retry` mark. The same refusal with no stop is learned at both gates."""
+    carries a `sim_retry` mark. The same refusal with no stop is teachable at both gates,
+    and learned at gate 1 only: harvest skips a run whose run.json shows no ledger (#388
+    re-review Minor 1)."""
     with _stack(monkeypatch, tmp_path, gate=bool(gate)) as (runtime, arm):
         _seen(runtime)
         runtime.cfg._data["grasp"]["max_pick_attempts"] = 1
@@ -378,15 +386,18 @@ def test_a_stop_the_error_does_not_name_is_never_learned_with_the_ledger(monkeyp
         res = runtime.execute(skill, dict(STACK_ARGS[skill]))
         assert (runtime.sim_retry is not None) is bool(gate)
         rows = runtime.trace.rows()
+        record = json.loads((runtime.trace.run_dir / "run.json").read_text())
     assert res["ok"] is False and OWN_REFUSAL in res["error"], res
-    row, diag, out = _learn_from(rows, skill, tmp_path)
+    assert record["sim_retry"] is bool(gate)
+    row, diag, out = _learn_from(rows, skill, tmp_path, record)
     stopped = kind != "none"
     if not gate:
         assert all("sim_retry" not in (r.get("context") or {}) for r in rows), rows
+        assert out["learned"] == 0 and out["diagnosed"] == 0 and out["skipped"] == 2, out  # no ledger: not harvested
         if stopped:
-            return  # the gap the docs state: no ledger, no mark
+            return  # no ledger, no mark: only the harvest gate keeps it out
     else:
         assert ((row["context"].get("sim_retry") or {}).get("ended_in_stop") is True) is stopped, row
+        assert out["skipped"] == 0 and out["learned"] == (0 if stopped else 1), out
     assert ended_in_stop(row["result"], row["context"]) is stopped
     assert diag.teachable is not stopped, diag
-    assert out["learned"] == (0 if stopped else 1), out

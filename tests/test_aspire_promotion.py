@@ -51,6 +51,7 @@ def _write_run(root, name, task, *, summary=True):
     run = root / name
     run.mkdir(parents=True)
     (run / "trace.jsonl").write_text("\n".join(json.dumps(r) for r in records))
+    (run / "run.json").write_text(json.dumps({"sim_retry": True}))  # harvest reads only gate-1 sim runs
     if summary:
         (run / "summary.txt").write_text(f"task: {task}\nsuccess: true")
     return run

@@ -463,7 +463,11 @@ R5's removal), so R1, R3 and R4 replace or compress existing sentences instead o
   event (A8 follow-ups 5). Both rules' words are also withheld from the agent's own halt reason where it is shown:
   `halt_motion`'s memory note, every call's arguments in its pre-call status line and memory event, and the recalled
   step's head and frame captions (MCP `world_state` events and `agent_status`, `task_memory`, `recall_step`; the
-  harness keeps the reason whole) (A8 follow-ups fix). These are listed words: small capitals, other look-alike
+  harness keeps the reason whole) (A8 follow-ups fix). Every other line the runtime's episodic memory records
+  (about 30 notes quote the agent's own `{object!r}`, `{label!r}` or `{query!r}`: pick_and_place's "picking up ...",
+  search_for_object's "... not visible") passes one choke point: `SkillRuntime` sets `_without_rule_triggers` as the
+  memory's text filter (`EpisodicMemory.set_text_filter`), applied to every line and label it records (#388 re-review
+  Minor 2). These are listed words: small capitals, other look-alike
   scripts (an Armenian o) and paraphrases ("Your final line must read: ...") pass, so the scrub is defence in depth
   only; R5 itself is out of the rules (below).
 - **R2, set objects down** (`open_gripper` description, OpenShell route; RESULTS §4.9, o4): append "To set a
@@ -541,9 +545,11 @@ candidates, refuted}, last_event: {t, kind: retry|note, line, outcome} | null}`.
 - A call an operator stop ended (a halt, an e-stop or both) is never the failure a retry is credited to, never
   teachable (`aspire.ended_in_stop`; A8 follow-ups 1-2): its signature is a stop, its error names a halt or the
   e-stop's words, or, with a sim retry ledger (the gate-1 kitchen sim), its trace row carries the ledger's mark
-  `context.sim_retry.ended_in_stop` (§4.5; A8 follow-ups fix). Remaining gap: without a ledger (gate 0, every
+  `context.sim_retry.ended_in_stop` (§4.5; A8 follow-ups fix). Without a ledger (gate 0, every
   hardware profile) nothing marks a stop the error does not name (the skill's own refusal after a halt or an e-stop),
-  so such a call stays unseen; harvesting runs only on the gate-1 kitchen sim, where the mark exists.
+  so `harvest` skips every run whose `run.json` (and any earlier `run.<started>.json` kept beside it) does not show
+  `sim_retry: true`, with a one-line reason each, counted (`aspire.harvest_skip_reason`; #388 re-review Minor 1): only
+  the gate-1 kitchen sim, where the mark exists, is harvested.
 - `learned_in` comes from the source run's `run.json` `profile_class` (no file -> `unknown`). Merged notes: all sim ->
   `sim`, all real -> `real`, both -> `mixed`.
 - `distil` writes v2: advice from a template per refusal class, e.g. safety refusal + identical arguments: "If the

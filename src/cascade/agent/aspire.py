@@ -16,6 +16,10 @@
     not proof of a causal repair or a transferable control policy. Runs with
     the same (skill, signature) fold into ONE entry whose front matter counts
     ``occurrences`` (distinct runs) and ``source_tasks`` (distinct tasks).
+    ``harvest`` reads only runs whose ``run.json`` shows the sim retry ledger
+    on (the kitchen sim at gate 1, ``harvest_skip_reason``): without a ledger
+    (gate 0, every hardware profile) nothing marks a stop the call's error does
+    not name, so a note learned there could work around an operator stop.
 
 ``retrieve(library, task)``
     Load keyword-matched PROMOTED notes into the built-in orchestrator at task
@@ -345,6 +349,56 @@ def _occurrence_index(library) -> dict[str, int]:
         return {}
 
 
+#: a run.json larger than this is no run record (the robot server writes ~1-3 KB;
+#: `skills.learned_block.RUN_JSON_MAX_BYTES`)
+_RUN_JSON_MAX_BYTES = 1 << 20
+
+
+def _ledger_record(path: Path) -> str | None:
+    """None when the run record at `path` says the run's runtime had the sim retry
+    ledger (`"sim_retry": true`, `apps.demo._stamp_run`), else why not (one phrase)."""
+    try:
+        with open(path, "rb") as f:
+            data = f.read(_RUN_JSON_MAX_BYTES + 1)
+    except FileNotFoundError:
+        return f"no {path.name}"
+    except OSError as exc:
+        return f"{path.name} unreadable ({type(exc).__name__})"
+    if len(data) > _RUN_JSON_MAX_BYTES:
+        return f"{path.name} too large for a run record"
+    try:
+        meta = json.loads(data.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return f"{path.name} is not JSON"
+    if not isinstance(meta, dict) or meta.get("sim_retry") is not True:
+        return f"{path.name} shows the sim retry ledger off (gate 0 or a hardware profile)"
+    return None
+
+
+def harvest_skip_reason(run_dir: str | Path) -> str | None:
+    """Why `harvest` skips `run_dir` (one line), or None when it harvests it.
+
+    Harvest reads only a run whose `run.json` shows the sim retry ledger on (the
+    kitchen sim at gate 1), and every earlier record a rebuild kept in the same
+    directory (`run.<started>.json`: its rows share the trace) too. Only the
+    ledger marks a failed call that an operator stop ended when the call's error
+    does not name the stop (`ended_in_stop`); without one (gate 0, every hardware
+    profile) such a call looks like a real failure, and a note learned from it
+    could work around a stop. No record, an unreadable one or a ledger that was
+    off: skipped (fail closed)."""
+    run_dir = Path(run_dir)
+    for record in (run_dir / "run.json", *sorted(run_dir.glob("run.*.json"))):
+        reason = _ledger_record(record)
+        if reason is not None:
+            return reason
+    return None
+
+
+def _selected_runs(root: Path, limit: int) -> list[Path]:
+    """The last `limit` run directories (by name) under `root` that hold a trace."""
+    return sorted([p for p in root.iterdir() if (p / "trace.jsonl").exists()])[-limit:]
+
+
 def harvest(runs_dir: str | Path, library, limit: int = 100) -> dict:
     """Diagnose selected runs and distil eligible retry associations offline.
 
@@ -352,15 +406,23 @@ def harvest(runs_dir: str | Path, library, limit: int = 100) -> dict:
     library counts it once per run directory, so harvesting the same runs
     again changes nothing. ``learned``/``entries`` report entries that gained
     evidence this harvest, ``promoted``/``candidates`` their status after it.
+    A run without the sim retry ledger is never diagnosed or learned from
+    (`harvest_skip_reason`): ``skipped`` counts those runs and
+    ``skipped_runs`` gives one line each, ``"<run>: <reason>"``.
     """
     root = Path(runs_dir).expanduser()
     if not root.exists():
         return {"runs": 0, "diagnosed": 0, "learned": 0, "entries": [],
-                "promoted": [], "candidates": []}
-    run_dirs = sorted([p for p in root.iterdir() if (p / "trace.jsonl").exists()])[-limit:]
+                "promoted": [], "candidates": [], "skipped": 0, "skipped_runs": []}
+    run_dirs = _selected_runs(root, limit)
     before = _occurrence_index(library)
     diagnoses = []
+    skipped = []
     for run in run_dirs:
+        reason = harvest_skip_reason(run)
+        if reason is not None:
+            skipped.append(f"{run.name}: {reason}")
+            continue
         diag = diagnose(run)
         if diag is None:
             continue
@@ -387,7 +449,19 @@ def harvest(runs_dir: str | Path, library, limit: int = 100) -> dict:
             Counter(d.signature for d in diagnoses if d.signature).most_common()
         ),
         "summaries": [d.summary() for d in diagnoses[-10:]],
+        "skipped": len(skipped),
+        "skipped_runs": skipped,
     }
+
+
+def skipped_runs(runs_dir: str | Path, limit: int = 100) -> list[str]:
+    """The runs `harvest(runs_dir, ..., limit)` would skip, one line each
+    (`"<run>: <reason>"`, `harvest_skip_reason`); nothing is diagnosed or written."""
+    root = Path(runs_dir).expanduser()
+    if not root.exists():
+        return []
+    return [f"{run.name}: {reason}" for run in _selected_runs(root, limit)
+            if (reason := harvest_skip_reason(run)) is not None]
 
 
 def retrieve(library, task: str, max_entries: int = 2, max_chars: int = 1400, *,

@@ -42,12 +42,23 @@ entirely on the jaw yaw and the chain behaves like a full-pose arm -- pan sets
 the azimuth, lift/elbow/flex set radius, height and pitch, roll sets the yaw.
 Unweighted 6-DoF IK solves those targets at a 0.94 rate over its workspace. The
 DOF it truly lacks shows up only for a TILTED approach, whose azimuth is then
-pinned to the arm's working plane; nothing in the tabletop pipeline asks for
-that, so the honest gate is IK failure rather than a weight that would quietly
-accept a pose the arm cannot hold.
+pinned to the arm's working plane; `ik` does not search for that plane, so
+the honest gate for a full tilted pose is IK failure rather than a weight that
+would quietly accept a pose the arm cannot hold (point_at's tilted pose uses
+`ik_approach`, below).
 
 When `ik_task_weights` is absent (i.e. always, today), the solver is exactly
 the unweighted LOCAL-frame one it always was, bit for bit.
+
+POINTING (`ik_approach`)
+------------------------
+point_at's lean-in pose names a TCP position and an approach DIRECTION only:
+the rotation about the approach is left free. That is 5 task DOF, which the
+SO-101 meets exactly when the approach lies in a vertical plane through its
+pan axis: its wrist roll moves the approach line sideways by -8..+3 mm
+(MEASURED: the TCP sits ~5 mm off the roll axis), a range that contains 0.
+A 6-DoF arm meets it in any vertical plane; damped least squares then keeps
+the jaw roll nearest its seed. `ik` is untouched by it.
 """
 
 from __future__ import annotations
@@ -203,6 +214,82 @@ class Kinematics:
             dq = J.T @ np.linalg.solve(JJt, err)
             q = self.clamp(q + step * dq, margin)
         return IKResult(q=q.copy(), success=False, error=err_norm, iterations=max_iter)
+
+    def ik_approach(
+        self,
+        position: np.ndarray,
+        approach: np.ndarray,
+        q_init: np.ndarray,
+        approach_axis: np.ndarray,
+        max_iter: int = 200,
+        tol: float = 1e-4,
+        damping: float = 1e-6,
+        step: float = 0.5,
+        retries: int = 4,
+        seed: int = 0,
+        limit_margin: float = 0.025,
+    ) -> IKResult:
+        """IK for a TCP `position` and an `approach` direction (base frame),
+        the rotation about the approach left free (see POINTING above).
+
+        `approach_axis` is the approach in the TCP frame (the tool column of
+        the arm's `tool_axis_order`). Same damped least squares, restarts and
+        limit margin as `ik`; the error is the position error and the
+        rotation that turns the TCP's approach onto `approach`, both in the
+        TCP frame, with the Jacobian's rotation about the approach removed.
+        `success` needs both within `tol` (m, rad)."""
+        pin = self._pin
+        p_target = np.asarray(position, dtype=float).reshape(3)
+        a_target = np.asarray(approach, dtype=float).reshape(3)
+        a_target = a_target / np.linalg.norm(a_target)
+        e_a = np.asarray(approach_axis, dtype=float).reshape(3)
+        e_a = e_a / np.linalg.norm(e_a)
+        perp = np.eye(3) - np.outer(e_a, e_a)
+        side = perp @ (np.eye(3)[int(np.argmin(np.abs(e_a)))])
+        side /= np.linalg.norm(side)
+        rng = np.random.default_rng(seed)
+        lo, hi = self.joint_limits
+        best = IKResult(q=np.asarray(q_init, dtype=float)[: self.n].copy(),
+                        success=False, error=np.inf, iterations=0)
+        starts = [np.asarray(q_init, dtype=float)[: self.n].copy()]
+        starts += [rng.uniform(lo + limit_margin, hi - limit_margin) for _ in range(retries)]
+        for q0 in starts:
+            q = self.clamp(q0.copy(), limit_margin)
+            err_norm = np.inf
+            res = None
+            for it in range(max_iter):
+                qf = self._pad(q)
+                pin.forwardKinematics(self.model, self.data, qf)
+                pin.updateFramePlacements(self.model, self.data)
+                oMf = self.data.oMf[self.fid]
+                R = np.asarray(oMf.rotation)
+                e_p = R.T @ (p_target - np.asarray(oMf.translation))
+                a_local = R.T @ a_target
+                axis = np.cross(e_a, a_local)
+                sin_t, cos_t = float(np.linalg.norm(axis)), float(e_a @ a_local)
+                angle = float(np.arctan2(sin_t, cos_t))
+                if sin_t > 1e-12:
+                    w = axis / sin_t * angle
+                else:   # aligned (0) or opposite (pi): turn about any perpendicular
+                    w = side * angle
+                err = np.concatenate([e_p, w])
+                err_norm = float(np.linalg.norm(err))
+                if err_norm < tol:
+                    res = IKResult(q=q.copy(), success=True, error=err_norm, iterations=it)
+                    break
+                J = pin.computeFrameJacobian(self.model, self.data, qf, self.fid,
+                                             pin.ReferenceFrame.LOCAL)[:, : self.n]
+                J = np.vstack([J[:3], perp @ J[3:]])
+                lam = damping * max(1.0, err_norm * 10.0)
+                dq = J.T @ np.linalg.solve(J @ J.T + lam * np.eye(6), err)
+                q = self.clamp(q + step * dq, limit_margin)
+            if res is None:
+                res = IKResult(q=q.copy(), success=False, error=err_norm, iterations=max_iter)
+            if res.success:
+                return res
+            if res.error < best.error:
+                best = res
+        return best
 
     def frame_poses(self, q: np.ndarray, frames, joint_values=None) -> list[np.ndarray]:
         """Base-frame 4x4 placements of named model frames (URDF links) at q.

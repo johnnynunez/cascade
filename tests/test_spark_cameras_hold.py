@@ -45,17 +45,24 @@ def load():
 
 class FakeBridge:
     """The bridge's `frame` op: `reply` is ("ok", jpeg, stamp) or ("refuse",)
-    (the bridge's own "unknown/not-ready camera" answer)."""
+    (the bridge's own "unknown/not-ready camera" answer). Each read waits
+    `delay` seconds and calls `during()` (if set) before it answers: a slow or
+    hung bridge."""
 
     def __init__(self):
         self.reply = ("ok", JPEG_1, 1.0)
         self.calls = 0
+        self.delay = 0.0
+        self.during = None
         bridge = self
 
         class Handler(socketserver.StreamRequestHandler):
             def handle(self):
                 json.loads(self.rfile.readline())
                 bridge.calls += 1
+                if bridge.during is not None:
+                    bridge.during()
+                time.sleep(bridge.delay)
                 if bridge.reply[0] == "drop":  # closes the connection, no reply
                     return
                 if bridge.reply[0] == "ok":
@@ -194,6 +201,29 @@ def test_the_hold_counts_from_the_last_advance_not_the_last_read(bridge):
         frames.frame("worktop")
 
 
+def test_a_new_image_from_a_slow_bridge_read_is_new_when_the_read_returns(bridge):
+    """The age counts from when the read that brought the image returned, not
+    from when the bridge was asked: a read that took 3 s (a hung bridge)
+    delivers a new image 0 s old. An unchanged image keeps its own age."""
+    cam = load()
+    clock = Clock()
+    frames = cam.Frames(bridge.port, clock=clock)
+    frames.frame("worktop")
+    bridge.reply = ("ok", JPEG_2, 2.0)
+    bridge.during = lambda: setattr(clock, "t", clock.t + 3.0)  # each read takes 3 s
+    clock.t = 100.6
+    row = frames.frame("worktop")
+    assert clock() == pytest.approx(103.6), "the read took 3 s of the clock"
+    assert (row["jpeg"], row["frame_id"]) == (JPEG_2, 2)
+    assert cam.age_s(row, clock()) == pytest.approx(0.0)
+    clock.t = 104.2
+    row = frames.frame("worktop")  # the same image after another 3 s read
+    assert (row["jpeg"], row["frame_id"]) == (JPEG_2, 2)
+    assert cam.age_s(row, clock()) == pytest.approx(3.6)
+    bridge.during = None
+    assert frames.state()["cameras"]["worktop"]["age_s"] == pytest.approx(3.6)
+
+
 def test_without_a_good_image_a_refusal_is_raised_as_before(bridge):
     cam = load()
     bridge.reply = ("refuse",)
@@ -315,6 +345,31 @@ def test_the_stream_closes_once_the_image_is_older_than_the_hold(bridge):
     ages = [float(h["x-frame-age"]) for _, h in held]
     assert 2 <= len(held) <= 3 and max(ages) < 1.2, ages
     assert took < 3.0
+
+
+def test_a_part_after_a_hung_bridge_read_carries_a_fresh_age(bridge):
+    """Shipped settings, real clock: the bridge hangs 3 s (under the 5 s
+    socket timeout) and then answers with a new image. That part's
+    X-Frame-Age is ~0, not the 3 s the read took: the extension would
+    otherwise label a brand-new image "Last frame · 3 s old"."""
+    cam = load()
+    http_server = _serve(cam, cam.Frames(bridge.port))
+    conn, response = _stream(http_server.server_address[1])
+    try:
+        first, _ = _parts(response, 1)
+        bridge.reply, bridge.delay = ("ok", JPEG_2, 2.0), 3.0
+        started = time.monotonic()
+        parts, closed = _parts(response, 1)
+        took = time.monotonic() - started
+    finally:
+        response.close()
+        conn.close()
+        http_server.shutdown()
+        http_server.server_close()
+    assert first[0][0] == JPEG_1 and not closed
+    (jpg, headers), = parts
+    assert jpg == JPEG_2 and took >= 3.0, (jpg, took)
+    assert float(headers["x-frame-age"]) < 0.1, headers
 
 
 def test_state_and_snapshot_carry_the_age_during_a_hold(bridge):

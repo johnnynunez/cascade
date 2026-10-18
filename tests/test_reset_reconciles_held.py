@@ -71,13 +71,17 @@ LATE_IN_LIFT = 90
 WHERE = {"after_close": 0, "late_in_lift": LATE_IN_LIFT}
 #: the reBot's rigid seat: stage 2 closes to 85 % of travel, 15 % open
 REBOT_SEAT_RAD = 6.2 * 0.15
+#: jaw readings the driver reports valid that are no number: no jaw width.
+#: Mapped onto jaw travel, +inf clips to open and -inf to closed (air).
+NON_FINITE = {"nan": float("nan"), "pinf": float("inf"), "ninf": float("-inf")}
 
 
 class _RecArm(MockArm):
     """MockArm that logs every streamed arm command and every jaw command,
     runs `r.on_send()` after each arm command, and reads the jaws as unknown
-    (`jaws = "unknown"`) or fails the whole read (`jaws = "error"`, with
-    `error` as the driver's text)."""
+    (`jaws = "unknown"`), as a valid reading that is no number (`jaws` a key
+    of NON_FINITE) or fails the whole read (`jaws = "error"`, with `error` as
+    the driver's text)."""
 
     def __init__(self, cfg, kinematics, r):
         super().__init__(cfg, kinematics)
@@ -99,8 +103,8 @@ class _RecArm(MockArm):
         if self.jaws == "error":
             raise TimeoutError(self.error)
         state = super().get_state()
-        if self.jaws == "nan":                     # a "valid" reading that is no number
-            return dataclasses.replace(state, gripper_valid=True, gripper_pos=float("nan"))
+        if self.jaws in NON_FINITE:                # a "valid" reading that is no number
+            return dataclasses.replace(state, gripper_valid=True, gripper_pos=NON_FINITE[self.jaws])
         return dataclasses.replace(state, gripper_valid=False) if self.jaws == "unknown" else state
 
 
@@ -302,6 +306,44 @@ def test_unreadable_jaws_after_a_stop_refuse_the_reset_and_name_the_way_out(rig,
     assert r.runtime.held_object is None and r.runtime._held_provisional is not None
 
 
+@pytest.mark.parametrize("jaws, error, signature", [("ok", REFUSAL, "state:holding"),
+                                                     ("unknown", UNREAD, "state:jaws_unreadable")])
+def test_a_reset_refused_for_the_jaws_is_filed_by_their_state_not_the_object(rig, jaws, error, signature):
+    """The envelope (the agent's failure digest) and aspire key a failure by
+    its signature: these refusals file under one stable state signature,
+    never the object's name (`other:holding_red_cube`) nor, for unreadable
+    jaws, an object too wide for them (`jaw`)."""
+    r = rig("rebot_rs")
+    _stop_in_the_grasp(r, stall=0.5)
+    r.arms[0].jaws = jaws
+    out = r.runtime.execute("reset_scene", {})
+    _refused(out, error)
+    assert r.runtime.envelope.stats()["reset_scene"]["failures"] == {signature: 1}
+
+
+@pytest.mark.parametrize("label", ["short", "long"])
+@pytest.mark.parametrize("case", ["unjudged", "contact"])
+def test_a_reset_refused_for_an_unjudged_or_unread_hold_is_filed_by_the_jaw_state(rig, case, label):
+    """The jaw reading that could not be judged, and the unfinished contact
+    episode whose jaws were never read (#367), file under the jaw state too:
+    never an object too wide for the jaws (`jaw`), never the label's first
+    words (`other:the_grasp_of`), whatever the label's length."""
+    r = rig("rebot_rs")
+    if label == "long":
+        sentence = _long_label_case(r, case)
+    else:
+        _stop_in_the_grasp(r, stall=0.5)
+        if case == "unjudged":
+            _malform(r.runtime, "label_only")
+            sentence = UNJUDGED
+        else:
+            r.runtime._contact_episode = {"unfinished": True}
+            sentence = CONTACT
+    out = r.runtime.execute("reset_scene", {})
+    assert out["ok"] is False and sentence in out["error"] and r.log == [], (out, r.log)
+    assert r.runtime.envelope.stats()["reset_scene"]["failures"] == {"state:jaws_unreadable": 1}
+
+
 def test_open_gripper_after_unreadable_jaws_clears_the_hold_and_the_reset_runs(rig):
     """The refusal's own way out, with the jaws still unreadable: the object
     taken out by hand, open_gripper drops the provisional hold, and the reset
@@ -346,7 +388,7 @@ def test_one_failed_jaw_read_then_good_reads_decide_on_the_real_reading(rig, mon
     r = rig("rebot_rs")
     _stop_in_the_grasp(r, stall=stall)
     rt = r.runtime
-    read = rt._gripper_width_frac
+    read = rt._jaw_state
     reads = []
 
     def flaky():
@@ -355,9 +397,9 @@ def test_one_failed_jaw_read_then_good_reads_decide_on_the_real_reading(rig, mon
             return read()
         if fault == "error":
             raise TimeoutError("gripper feedback timed out")
-        return None
+        return dataclasses.replace(read(), gripper_valid=False)
 
-    monkeypatch.setattr(rt, "_gripper_width_frac", flaky)
+    monkeypatch.setattr(rt, "_jaw_state", flaky)
     first = rt.skill_reset_scene()
     _refused(first, UNREAD)
     assert first["error"] == UNREAD + why and r.log == [], (first, r.log)
@@ -381,20 +423,22 @@ def test_an_estop_latched_after_the_stop_still_names_the_hold(rig):
     assert out["error"] == REFUSAL and r.log == [], (out, r.log)
 
 
+@pytest.mark.parametrize("reading", sorted(NON_FINITE))
 @pytest.mark.parametrize("stall", [0.5, None])
 @pytest.mark.parametrize("call", ["execute", "direct"])
-def test_a_non_finite_jaw_reading_after_a_stop_is_unreadable_never_empty(rig, call, stall):
-    """A reading the driver reports valid that is no number (NaN) is no jaw
-    width. It fell through every branch of the reconcile and CLEARED the
-    hold, so the reset homed with whatever the jaws held (stalled on the cube
-    or at the seat alike). It is unreadable: refused before any command, the
-    hold kept, and the next real reading decides."""
+def test_a_non_finite_jaw_reading_after_a_stop_is_unreadable_never_empty(rig, call, stall, reading):
+    """A reading the driver reports valid that is no number (NaN, +inf,
+    -inf) is no jaw width. NaN fell through every branch of the reconcile
+    and CLEARED the hold; +inf clipped to open and -inf to closed (air), so
+    the reset homed with whatever the jaws held (stalled on the cube or at
+    the seat alike). It is unreadable: refused before any command, the hold
+    kept, and the next real reading decides."""
     r = rig("rebot_rs")
     assert r.cfg.arm.type == "rebot_rs" and r.runtime._drives_real_gripper()
     _stop_in_the_grasp(r, stall=stall)
-    r.arms[0].jaws = "nan"
+    r.arms[0].jaws = reading
     state = r.runtime.arm.get_state()
-    assert state.gripper_valid is True and math.isnan(state.gripper_pos)
+    assert state.gripper_valid is True and not math.isfinite(state.gripper_pos)
     out = _reset(r, call)
     _refused(out, UNREAD)
     assert out["error"] == UNREAD + "no valid jaw feedback"
@@ -409,14 +453,31 @@ def test_a_non_finite_jaw_reading_after_a_stop_is_unreadable_never_empty(rig, ca
         assert r.log == [] and r.runtime.held_object == "red cube", r.log
 
 
-def test_a_grasp_entry_keeps_the_hold_on_a_non_finite_jaw_reading(rig):
-    """The entry's own reconcile (fail closed at the seat) reads NaN as
-    unknown too: the hold stays, nothing is promoted or cleared."""
+@pytest.mark.parametrize("reading", sorted(NON_FINITE))
+def test_a_grasp_entry_keeps_the_hold_on_a_non_finite_jaw_reading(rig, reading):
+    """The entry's own reconcile (fail closed at the seat) reads NaN and
+    +-inf as unknown too: the hold stays, nothing is promoted or cleared."""
     r = rig("rebot_rs")
     _stop_in_the_grasp(r, stall=0.5)
-    r.arms[0].jaws = "nan"
+    r.arms[0].jaws = reading
     r.runtime._reconcile_held()
     assert r.runtime.held_object is None and r.runtime._held_provisional is not None
+
+
+@pytest.mark.parametrize("reading", sorted(NON_FINITE))
+def test_a_held_flag_is_kept_on_a_non_finite_jaw_reading(rig, reading):
+    """A held flag (here promoted by a refused reset) is cleared only by a
+    MEASURED slip. -inf clipped to closed jaws and read as one: a grasp's
+    entry then forgot the cube still in the jaws. No number is no
+    measurement: the hold stays, as for NaN."""
+    r = rig("rebot_rs")
+    _stop_in_the_grasp(r, stall=0.5)
+    _refused(r.runtime.execute("reset_scene", {}), REFUSAL)
+    assert r.runtime.held_object == "red cube"
+    r.arms[0].jaws = reading
+    r.runtime._reconcile_held()
+    assert r.runtime.held_object == "red cube" and r.runtime._held_det_label is not None
+    assert r.log == [], r.log
 
 
 #: malformed markers, the jaw reading each is judged against, and why judging fails
@@ -474,8 +535,8 @@ def test_an_unfinished_contact_episode_is_refused_as_such_not_as_unread_jaws(rig
     r = rig("rebot_rs")
     _stop_in_the_grasp(r, stall=0.5)
     rt, reads = r.runtime, []
-    read = rt._gripper_width_frac
-    monkeypatch.setattr(rt, "_gripper_width_frac", lambda: reads.append(1) or read())
+    read = rt._jaw_state
+    monkeypatch.setattr(rt, "_jaw_state", lambda: reads.append(1) or read())
     rt._contact_episode = {"unfinished": True}
     out = _reset(r, call)
     _refused(out, CONTACT)
@@ -537,6 +598,64 @@ def test_an_empty_driver_error_names_its_type_not_a_bare_error_tag(rig):
     _refused(out, UNREAD)
     assert out["error"] == UNREAD + "TimeoutError", out
     assert r.log == [], r.log
+
+
+def _hold_named(rt, label):
+    prov = rt._held_provisional
+    rt._held_provisional = ProvisionalHold((label, *prov[1:]), prov.commanded_open, prov.expected_open)
+
+
+def test_a_label_that_fits_beside_a_short_driver_text_is_kept_whole(rig):
+    """The label gives way to the driver's text only as far as that text
+    needs (at most 40 characters): beside \"no valid jaw feedback\" a label
+    that fills the 240 characters exactly stays whole; one character more
+    and it is cut, the sentence and the driver's text still whole."""
+    r = rig("rebot_rs")
+    _stop_in_the_grasp(r, stall=0.5)
+    rt = r.runtime
+    whole = UNREAD.replace("red cube", "{}") + "no valid jaw feedback"
+    room = 240 - len(whole.format(""))
+    label = ("the big green ceramic coffee mug with a chipped handle that a visitor brought from home and "
+             "left on the table by the bin")[:room]
+    assert len(label) == room and not label.endswith(" ") and len(" Error: no valid jaw feedback") < 40
+    r.arms[0].jaws = "unknown"
+    _hold_named(rt, label)
+    out = rt.execute("reset_scene", {})
+    assert out["ok"] is False and out["error"] == whole.format(label), out
+    assert len(out["error"]) == 240 and r.log == [], (len(out["error"]), r.log)
+    _hold_named(rt, label + "x")
+    error = rt.execute("reset_scene", {})["error"]
+    assert error == whole.format(label[:room - 3].rstrip() + "..."), error
+    assert r.log == [], r.log
+
+
+@pytest.mark.parametrize("limit", [-3, 0, 1, 2, 3, 4, 30])
+def test_a_cut_text_never_runs_past_its_limit(limit):
+    """A cut ends in \"...\" when the limit has room for it; a smaller limit
+    keeps only as many of those dots, and none at all below 1: never more
+    characters than the limit (\"...\" for a limit of 1 overflowed it)."""
+    from cascade.skills.runtime import _cut_text
+
+    text = "CAN bus: gripper motor 7 did not answer the position request"
+    out = _cut_text(text, limit)
+    assert len(out) <= max(limit, 0), (limit, out)
+    assert out == (text[:limit - 3].rstrip() + "..." if limit >= 3 else "." * max(limit, 0)), out
+    assert _cut_text(text, len(text)) == text
+
+
+@pytest.mark.parametrize("keep", [0, 40])
+def test_a_refusal_template_longer_than_the_room_still_names_the_object(keep):
+    """A template that leaves the label no room (no shipped one does: the
+    tightest leaves 21 characters) keeps the sentence whole and the label's
+    first 18 characters plus \"...\" (it was cut to \"...\" alone); the text
+    then runs past 240 and the failure line marks it truncated. A short
+    label stays whole."""
+    from cascade.skills.runtime import _fit_label
+
+    template = "the jaw reading could not be judged: " + "check the gripper by hand; " * 9 + "{} may be in it."
+    assert len(template.format("")) > 240 - keep
+    assert _fit_label(template, LONG_LABEL, keep=keep) == template.format(LONG_LABEL[:18] + "...")
+    assert _fit_label(template, "red cube", keep=keep) == template.format("red cube")
 
 
 def test_the_failure_line_keeps_the_cut_marker_of_a_shortened_driver_error(rig):

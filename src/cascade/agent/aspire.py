@@ -4,6 +4,8 @@
     Match a failed call to a later measured-confirmed retry within a bounded
     trace window. Require the same goal, resolved arm and pre-call possession;
     explicit reset/task-end rows stop matching. Unknown context is rejected.
+    An operator halt is never that failed call: it is not how a primitive
+    broke, so a retry after it teaches nothing.
 
 ``distil(diagnosis, library)`` / ``harvest(runs_dir, library)``
     Recheck eligibility and persist the error, context, argument delta and
@@ -35,7 +37,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ..memory.envelope import normalize_failure
+from ..memory.envelope import HALT_SIGNATURE, failure_signature
 from .effects import CONFIRMED, POSTCONDITIONS
 
 #: A repair is only credited when the same primitive later succeeded within
@@ -107,8 +109,11 @@ class Diagnosis:
 
     @property
     def teachable(self) -> bool:
-        """Only scoped, measured-confirmed retry associations become notes."""
+        """Only scoped, measured-confirmed retry associations become notes.
+        An operator halt is not how the primitive broke: a retry after one
+        repaired nothing."""
         return (self.repaired and bool(self.failed_skill) and bool(self.signature)
+                and self.signature != HALT_SIGNATURE
                 and self.repair_skill == self.failed_skill
                 and _same_goal(self.failed_args, self.repair_args)
                 and _same_context(self.failed_skill, self.failed_context, self.repair_context)
@@ -186,9 +191,14 @@ def diagnose(run_dir: str | Path) -> Diagnosis | None:
         return diag
 
     # Select the LAST failure with a matching confirmed retry, or the first
-    # failure when no eligible retry was recorded.
+    # failure when no eligible retry was recorded. An operator halt is never
+    # that failure (a retry after it repaired nothing), so a real failure
+    # earlier in the run can still be learned; a run whose only failures
+    # are halts reports its first halt.
+    breakages = [(i, r) for i, r in failures
+                 if failure_signature(r.get("result") or {}) != HALT_SIGNATURE]
     chosen = None
-    for idx, rec in failures:
+    for idx, rec in breakages:
         skill = rec.get("skill", "")
         for later in records[idx + 1: idx + 1 + REPAIR_WINDOW]:
             result = later.get("result") or {}
@@ -203,12 +213,12 @@ def diagnose(run_dir: str | Path) -> Diagnosis | None:
                     and _confirmed_postcondition(skill, postcondition)):
                 chosen = (rec, later)
                 break
-    rec, fix = chosen if chosen is not None else (failures[0][1], None)
+    rec, fix = chosen if chosen is not None else ((breakages or failures)[0][1], None)
     diag.failed_skill = rec.get("skill", "")
     diag.failed_args = rec.get("args") or {}
     diag.failed_context = copy.deepcopy(rec.get("context") or {})
     diag.error = str((rec.get("result") or {}).get("error", ""))
-    diag.signature = normalize_failure(diag.error)
+    diag.signature = failure_signature(rec.get("result") or {})
     diag.keyframe = rec.get("keyframe_after") or ""
     if fix is None:
         return diag

@@ -9,17 +9,18 @@ the cube's top, the closed jaws ~2.5 cm below it. MuJoCo (so101_mujoco)
 shoved the prop 7.7 mm and reported "did not settle"; on the mock stack the
 call reported ok.
 
-Rule now: every pose point_at commands keeps the TCP AND the jaws (the
+Rule now: the TOP-DOWN pointing pose keeps the TCP AND the jaws (the
 profile's open-jaw sweep box, which bounds the closed jaws) at least
-`safety.min_clearance_m` (0.03) above the object's observed top, checked on
-the SOLVED pose. A hover below that is raised when the top-down ceiling
-allows it, a fallback rung below it is never tried, and when the ceiling is
-below the object top + margin the call refuses before any arm or jaw command.
-Profiles whose hover already cleared command exactly what they did before.
+`safety.min_clearance_m` (0.03) above the object's top, checked on the SOLVED
+pose. A hover below that is raised when the top-down ceiling allows it and a
+fallback rung below it is never tried. When no top-down pose clears (the
+ceiling is below the object top + margin, or every solve lands inside it),
+point_at leans in instead or refuses before any arm or jaw command: the
+SO-101 profiles and tall objects (tests/test_point_at_lean_in.py). Profiles
+whose hover already cleared command exactly what they did before.
 
 Real `build_runtime` wiring (LazyArm -> SafeArm -> SafetyHarness of each
-profile) over a MockArm that records every arm and jaw command; the MuJoCo
-case needs `mujoco` and the fetched SO-101 assets (CPU, MUJOCO_GL=disable).
+profile) over a MockArm that records every arm and jaw command.
 """
 
 from __future__ import annotations
@@ -31,7 +32,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-from conftest import REPO, needs_pin, needs_pin_so101
+from conftest import needs_pin
 
 from cascade.control.kinematics import IKResult
 from cascade.control.mock_arm import MockArm
@@ -41,7 +42,7 @@ from cascade.control.mock_arm import MockArm
 MARGIN = 0.03
 #: mock / mock_small synthetic box: 5 cm tall, on the table
 MOCK_TOP = 0.05
-CEILING_TEXT = "cannot point at 'red cube' from above on this arm: its top-down ceiling is"
+LEAN_TEXT = "cannot point at 'red cube' on this arm: "
 
 
 class _RecArm(MockArm):
@@ -144,33 +145,15 @@ def _record_ik(monkeypatch, runtime, solve=None):
 def _refused_untouched(r, out):
     assert out["ok"] is False, out
     assert _commands(r) == [] and r.jaws == [], "point_at sent a command before refusing"
-
-
-# ── the shipped SO-101 ceiling: refuse, never dip into the object ─────────
-
-
-@needs_pin_so101
-@pytest.mark.parametrize("camera", ["mock_small", "mock"])
-def test_so101_refuses_to_point_below_the_margin_before_any_command(rig, camera):
-    r = rig("so101_mock", camera)
-    assert float(r.cfg.safety.get("min_clearance_m")) == MARGIN
-
-    out = r.runtime.execute("point_at", {"label": "red cube"})
-
-    _refused_untouched(r, out)
-    assert CEILING_TEXT + " 0.040 m, below the object top + margin" in out["error"], out
     assert "nothing was moved" in out["error"], out
 
 
-@needs_pin_so101
-@pytest.mark.parametrize("camera", ["mock_small", "mock"])
-def test_so101_never_commands_a_pose_whose_jaws_reach_into_the_margin(rig, camera):
-    """The physical property, whatever the outcome: no commanded pose puts the
-    TCP or the jaws within the margin of the object's top."""
-    r = rig("so101_mock", camera)
-    r.runtime.execute("point_at", {"label": "red cube"})
-    for q in _commands(r):
-        assert _lowest_tool_z(r, q) >= MOCK_TOP + MARGIN - 1e-9
+def _no_lean_in(monkeypatch, runtime):
+    """Block the lean-in family (every solve fails) to test the top-down rule alone."""
+    def fail(position, approach, q0, *a, **k):
+        return IKResult(q=np.asarray(q0, float).copy(), success=False, error=1.0, iterations=0)
+
+    monkeypatch.setattr(runtime.kin, "ik_approach", fail)
 
 
 # ── profiles whose hover already clears: unchanged ─────────────────────────
@@ -196,26 +179,41 @@ def test_a_hover_that_clears_points_exactly_as_before(rig, monkeypatch, profile)
 
 
 @needs_pin
-def test_a_tall_object_above_the_ceiling_is_refused_before_any_command(rig, monkeypatch):
+def test_a_tall_object_above_the_ceiling_leans_in_without_a_top_down_solve(rig, monkeypatch):
     """mock ceiling = topdown_z_max 0.15 - 0.01 = 0.14 m; a 12 cm top needs the
-    TCP at 0.15 m. Before: the TCP hovered at 0.14, 2 cm over the top."""
+    TCP at 0.15 m. Before #369: the TCP hovered at 0.14, 2 cm over the top;
+    #369 refused; now no top-down rung is tried and the arm leans in."""
     r = rig("mock")
     _with_top(monkeypatch, r.runtime, 0.12)
     asked = _record_ik(monkeypatch, r.runtime)
 
     out = r.runtime.execute("point_at", {"label": "red cube"})
 
+    assert out["ok"] is True and out["lean_deg"] == 15, out
+    assert asked == [], "no top-down solve: the ceiling is below the top + margin"
+
+
+@needs_pin
+def test_an_object_out_of_reach_either_way_is_refused_before_any_command(rig, monkeypatch):
+    """A 60 cm top: above the top-down ceiling, and no lean-in pose reaches
+    it. The refusal names both."""
+    r = rig("mock")
+    _with_top(monkeypatch, r.runtime, 0.60)
+
+    out = r.runtime.execute("point_at", {"label": "red cube"})
+
     _refused_untouched(r, out)
-    assert asked == [], "refused before any IK solve"
-    assert (CEILING_TEXT + " 0.140 m, below the object top + margin (0.150 m: top 0.120 m + clearance "
-            "0.030 m + 0.000 m of jaw below the TCP); nothing was moved") in out["error"], out
+    assert (LEAN_TEXT + "from above, its top-down ceiling is 0.140 m, below the object top + margin "
+            "(0.630 m: top 0.600 m + clearance 0.030 m + 0.000 m of jaw below the TCP); leaning in 15-45 deg, "
+            "no pose keeps the TCP, the jaws and the arm 0.030 m from it and the table") in out["error"], out
+    assert out["error"].count("nothing was moved") == 1, out
 
 
 @needs_pin
 def test_a_fallback_rung_inside_the_margin_is_never_tried(rig, monkeypatch):
     """Top 0.10 m: the hover rung (0.14) clears, the fallback rung (0.12) does
-    not. With the hover unreachable the call refuses; before, it pointed from
-    0.12 m, 2 cm over the top."""
+    not. With the hover unreachable (and the lean-in blocked) the call
+    refuses; before #369 it pointed from 0.12 m, 2 cm over the top."""
     r = rig("mock")
     _with_top(monkeypatch, r.runtime, 0.10)
 
@@ -225,12 +223,13 @@ def test_a_fallback_rung_inside_the_margin_is_never_tried(rig, monkeypatch):
         return real(T, q0)
 
     asked = _record_ik(monkeypatch, r.runtime, ceiling)
+    _no_lean_in(monkeypatch, r.runtime)
 
     out = r.runtime.execute("point_at", {"label": "red cube"})
 
     _refused_untouched(r, out)
     assert asked and min(asked) >= 0.10 + MARGIN, asked
-    assert "cannot reach a pointing pose above 'red cube'" in out["error"], out
+    assert LEAN_TEXT + "from above, no pose solved; leaning in" in out["error"], out
 
 
 @needs_pin
@@ -268,8 +267,8 @@ def test_jaws_that_reach_past_the_tcp_raise_the_hover_by_their_reach(rig, monkey
 def test_the_solved_pose_is_checked_not_the_target(rig, monkeypatch):
     """IK answers that land lower than asked (TCP 0.04 m for the 0.09 m rung,
     0.03 m for the 0.12 m rung, over a 5 cm top) are rejected: the pose that
-    would execute decides, before any command. The refusal names the highest
-    of them."""
+    would execute decides, before any command. With the lean-in blocked the
+    refusal names the highest of them."""
     r = rig("mock")
 
     def low(T, q0, real):
@@ -278,13 +277,14 @@ def test_the_solved_pose_is_checked_not_the_target(rig, monkeypatch):
         return real(T, q0)
 
     asked = _record_ik(monkeypatch, r.runtime, low)
+    _no_lean_in(monkeypatch, r.runtime)
 
     out = r.runtime.execute("point_at", {"label": "red cube"})
 
     _refused_untouched(r, out)
     assert sorted(set(asked)) == [0.09, 0.12], asked      # both rungs tried, every yaw
-    assert ("cannot reach a pointing pose above 'red cube' that keeps the closed jaws 0.030 m above "
-            "its top (0.050 m): the best solved pose put them at 0.040 m; nothing was moved") in out["error"], out
+    assert (LEAN_TEXT + "from above, the best solved pose put the closed jaws at 0.040 m, less than "
+            "0.030 m above its top (0.050 m); leaning in") in out["error"], out
 
 
 @needs_pin
@@ -356,53 +356,3 @@ def test_a_stop_mid_gesture_sends_no_further_command(rig, kind):
     assert at_stop, "the gesture never streamed"
     assert len(arm.commands) == at_stop["arm"] and len(r.jaws) == at_stop["jaws"]
     assert out["ok"] is False, out
-
-
-# ── MuJoCo physics: the prop stays where it was ────────────────────────────
-
-MJCF = REPO / "assets" / "mjcf" / "so101" / "scene.xml"
-
-
-def _has_mujoco() -> bool:
-    try:
-        import mujoco  # noqa: F401
-    except ImportError:
-        return False
-    return True
-
-
-@needs_pin_so101
-@pytest.mark.skipif(not (_has_mujoco() and MJCF.exists()),
-                    reason="needs mujoco + `python scripts/fetch_robot_assets.py so101`")
-def test_so101_mujoco_point_at_leaves_the_prop_where_it_was(monkeypatch, tmp_path):
-    """Before: the closed jaws came down to 0.04 m on the 5 cm prop and pushed
-    it 7.7 mm ("did not settle at the pointing pose")."""
-    monkeypatch.setenv("MUJOCO_GL", "disable")
-    from cascade.apps import demo
-    from cascade.config import load_demo_config
-    from cascade.sim.truth import make_truth_pose_fn
-
-    cfg = load_demo_config(camera="mock_small", arm="so101_mujoco", llm="mock")
-    runtime, raw = demo.build_runtime(cfg, tmp_path / "run")
-    try:
-        deadline = time.monotonic() + 10.0
-        while time.monotonic() < deadline and runtime.beliefs.find("red cube") is None:
-            time.sleep(0.05)
-        truth = make_truth_pose_fn(raw)
-        before = {k: np.asarray(v, float)[:3].copy() for k, v in truth.all_poses().items()}
-        assert before, "the scene has no prop"
-        sent, jaws = [], []
-        send, grip = raw.send_joint_target, raw.set_gripper
-        monkeypatch.setattr(raw, "send_joint_target", lambda q: (sent.append(q), send(q))[1])
-        monkeypatch.setattr(raw, "set_gripper", lambda *a, **k: (jaws.append(a), grip(*a, **k))[1])
-
-        out = runtime.execute("point_at", {"label": "red cube"})
-        time.sleep(0.3)
-
-        after = {k: np.asarray(v, float)[:3] for k, v in truth.all_poses().items()}
-        moved = max(float(np.linalg.norm(after[k] - before[k])) for k in before)
-        assert moved < 0.001, f"the prop moved {moved * 1000:.1f} mm: {out}"
-        assert out["ok"] is False and CEILING_TEXT in out["error"], out
-        assert sent == [] and jaws == []
-    finally:
-        demo.shutdown_runtime(runtime, raw)

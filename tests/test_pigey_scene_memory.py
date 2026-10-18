@@ -209,6 +209,7 @@ def _stub(beliefs: BeliefStore, *, bounds=None, place_fails: int = 0, reveal=Non
     rt.skill_move_home = move_home
     rt._reobserve = reobserve
     rt._gripper_width_frac = lambda: 0.5
+    rt._finite_width_frac = lambda: 0.5
     rt._max_width = 0.09
     rt._localization_workspace_bounds = lambda: bounds
     return rt

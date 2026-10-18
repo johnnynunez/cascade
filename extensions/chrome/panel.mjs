@@ -30,7 +30,7 @@ function refresh(){
  if(paused||collapsed||outOfView()){state('paused','Paused','The connection pauses while the camera is out of view.');return;}
  if(networkError){const sec=Math.max(1,Math.ceil((retryAt-Date.now())/1000));state(lastFrame?'stale':'offline',lastFrame?'Not updating':'Offline',`${networkError} Retrying in ${sec} s.`);return;}
  const now=performance.now(),f=freshness({now,lastFrame,lastState,lastAdvance,hasAdvanced,error:cameraError});
- // The age keeps growing between parts: the 1 s tick ages the frame of a stream that stopped.
+ // The age keeps growing once parts stop: the 1 s tick ages the frame of a stream that stopped.
  const held=f==='live'&&frameAgeNote(frameAgeNow(frameAge,now-lastFrame));
  if(held)state('held',held,'No new image from the camera yet. This is the last one it sent.');
  else if(f==='live')state('live','Live',`The image is updating live.`);

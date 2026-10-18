@@ -26,7 +26,7 @@ from cascade.agent.effects import (
     annotate_result,
 )
 from cascade.agent.milestones import DONE, UNKNOWN, MilestoneTracker
-from cascade.memory.envelope import OperatingEnvelope, normalize_failure
+from cascade.memory.envelope import OperatingEnvelope, failure_signature, normalize_failure
 from cascade.skills.library import SkillLibrary
 
 
@@ -74,6 +74,148 @@ def test_failure_taxonomy_normalizes_real_harness_errors():
     assert normalize_failure("") == "unknown"
 
 
+#: an air grasp whose reopen could not read the jaws (runtime.skill_grasp_object's text)
+AIR_GRASP_UNREAD = ("air grasp: gripper closed fully, object not held; the jaws were not confirmed open: "
+                    "jaw state could not be read: gripper feedback timed out")
+#: pick_and_place's error after one missed attempt
+PICK_MISSED = "grasp failed after 1 attempts (0.0s): grasp missed: closed on air"
+#: handover's error after one missed attempt
+HANDOVER_MISSED = "could not grasp 'red cube' for handover: grasp missed: closed on air"
+
+#: The errors an operator halt itself leaves (runtime / harness texts). Its
+#: reason is free text (halt_motion's comes from the agent): it may name a
+#: breakage or hold "; ".
+OPERATOR_HALT_ERRORS = [
+    "MotionHalted: halted: operator: stop",
+    "MotionHalted: halt received during route planning or execution",
+    "MotionHalted: motion halted: operator: stop; not retrying",
+    "MotionHalted: halted: the jaws look too wide; air grasp ahead",
+    # a failed skill with no error of its own whose view-home return the halt skipped
+    "return to saved home skipped: motion halted: operator: stop",
+]
+
+
+@pytest.mark.parametrize("error", OPERATOR_HALT_ERRORS)
+def test_failure_taxonomy_files_an_operator_halt_as_a_halt(error):
+    """An operator halt is not how a primitive breaks: its signature is the
+    halt's (`failure_digest` in the agent's context, aspire's (skill,
+    signature) entries), never its first words (`other:motionhalted_halted`)
+    or a breakage its free-text reason names."""
+    assert normalize_failure(error) == "safety:halt"
+    assert failure_signature({"ok": False, "error": error}) == "safety:halt"
+
+
+#: A failed skill whose final park or view-home return the operator's halt
+#: then stopped: (its error, the stop first so the agent's 240-char FAILED
+#: line keeps it; the skill's own error, `skill_error`; the signature).
+HALTED_AFTER_A_FAILURE = [
+    (f"final park halted: operator: stop; {PICK_MISSED}", PICK_MISSED, "other:grasp_failed_after"),
+    (f"final park halted: halt received during route planning or execution; grasp failed after 1 attempts "
+     f"(0.0s): {AIR_GRASP_UNREAD}", f"grasp failed after 1 attempts (0.0s): {AIR_GRASP_UNREAD}",
+     "contact:air_grasp"),
+    (f"return to saved home halted: operator: stop; {HANDOVER_MISSED}", HANDOVER_MISSED, "other:could_not_grasp"),
+    (f"return to saved home skipped: motion halted: operator: stop; {PICK_MISSED}", PICK_MISSED,
+     "other:grasp_failed_after"),
+    # a halt reason that holds "; " and a breakage word: never cut at "; "
+    (f"final park halted: operator: wait; the object slipped; {PICK_MISSED}", PICK_MISSED,
+     "other:grasp_failed_after"),
+]
+
+
+@pytest.mark.parametrize("error, skill_error, signature", HALTED_AFTER_A_FAILURE)
+def test_a_failure_whose_later_park_or_return_was_halted_is_filed_as_that_failure(error, skill_error,
+                                                                                 signature):
+    """The skill broke first; the halt only stopped the park or return after
+    it. The call is filed by the skill's own error, never by the stop's text
+    or by cutting the text at "; " (a halt's reason may hold one)."""
+    assert failure_signature({"ok": False, "error": error, "skill_error": skill_error}) == signature
+    # the error alone reads as the halt: only `skill_error` names the breakage
+    assert failure_signature({"ok": False, "error": error}) == "safety:halt"
+
+
+@pytest.mark.parametrize("error, signature", [
+    # a failed skill with no halt in its error: the fallback, as before
+    (PICK_MISSED, "other:grasp_failed_after"),
+    (HANDOVER_MISSED, "other:could_not_grasp"),
+    # an e-stop is not the operator's halt
+    ("SafetyViolation: e-stop latched", "safety:estop"),
+    # a skill NAMED halt_motion: a bad call, not a halt
+    ("bad arguments for halt_motion: SkillRuntime.skill_halt_motion() got an unexpected keyword "
+     "argument 'speed'", "agent:bad_call"),
+])
+def test_failure_taxonomy_keeps_the_signature_of_an_error_without_a_halt(error, signature):
+    assert normalize_failure(error) == signature
+    assert failure_signature({"ok": False, "error": error}) == signature
+
+
+@pytest.mark.parametrize("error, signature", [
+    # an air grasp that names the jaws is still an air grasp, not an object too wide
+    (AIR_GRASP_UNREAD, "contact:air_grasp"),
+    (f"grasp failed after 1 attempts (0.0s): {AIR_GRASP_UNREAD}", "contact:air_grasp"),
+    (f"could not grasp 'red cube' for handover: {AIR_GRASP_UNREAD}", "contact:air_grasp"),
+    # an object wider than the jaws stays one
+    ("grasp failed after 2 attempts (0.0s): every candidate too wide (object wider than the jaws; "
+     "use push_object; giving up early)", "geometry:object_too_wide"),
+    ("jaw opening 0.09 m too small for a 0.12 m object", "geometry:object_too_wide"),
+])
+def test_failure_taxonomy_files_an_air_grasp_that_names_the_jaws_as_an_air_grasp(error, signature):
+    assert normalize_failure(error) == signature
+
+
+#: reset_scene's refusals for what the jaws may hold (#357, #359, #363), by
+#: the jaws' state: one stable signature each, never the object's name
+JAW_STATE_REFUSALS = [
+    ("holding red cube: place it first (place_at), then reset", "state:holding"),
+    ("holding the blue bowl: place it first (place_at), then reset", "state:holding"),
+    # a label whose own words a later pattern matches ("stale")
+    ("holding stale bread: place it first (place_at), then reset", "state:holding"),
+    ("holding red cube: call move_home first (it raises the gripper up its approach column, with the object), "
+     "then place_at, then reset_scene", "state:holding"),
+    ("the jaw state could not be read: if red cube is in the jaws, take it out by hand, then open_gripper, "
+     "then reset_scene. Error: no valid jaw feedback", "state:jaws_unreadable"),
+    ("the jaw state could not be read: if stale bread is in the jaws, take it out by hand, then open_gripper, "
+     "then reset_scene. Error: no valid jaw feedback", "state:jaws_unreadable"),
+    ("the jaw state could not be read: call move_home first (it raises the gripper up its approach column), "
+     "then, if red cube is in the jaws, take it out by hand, open_gripper, reset_scene. Error: gripper feedback "
+     "timed out", "state:jaws_unreadable"),
+    # the jaws read, but the interrupted grasp's marker could not be judged
+    # against them (#367): the jaw state is as unknown as an unread one
+    ("the jaw reading could not be judged: if red cube is in the jaws, take it out by hand, then open_gripper, "
+     "then reset_scene. Error: not enough values to unpack (expected 3, got 1)", "state:jaws_unreadable"),
+    ("the jaw reading could not be judged: call move_home first (it raises the gripper up its approach column), "
+     "then, if stale bread is in the jaws, take it out by hand, open_gripper, reset_scene. Error: '>=' not "
+     "supported between instances of 'NoneType' and 'float'", "state:jaws_unreadable"),
+    # an unfinished contact episode: the jaws were never read (#367); the
+    # label comes first, so its own words must not decide the signature
+    ("the grasp of red cube ended in an unfinished contact episode, so the jaws were not read and it may be "
+     "in them: a person must check the gripper.", "state:jaws_unreadable"),
+    ("the grasp of the very very very long blue mug ended in an unfinished contact episode, so the jaws were "
+     "not read and it may be in them: a person must check the gripper.", "state:jaws_unreadable"),
+    ("the grasp of stale bread that is too wide ended in an unfinished contact episode, so the jaws were not "
+     "read and it may be in them: a person must check the gripper.", "state:jaws_unreadable"),
+]
+
+
+@pytest.mark.parametrize("error, signature", JAW_STATE_REFUSALS)
+def test_failure_taxonomy_files_a_jaw_state_refusal_by_the_state(error, signature):
+    assert normalize_failure(error) == signature
+
+
+@pytest.mark.parametrize("error, signature", [
+    # an air grasp whose reopen could not read the jaws is still an air grasp
+    (AIR_GRASP_UNREAD, "contact:air_grasp"),
+    # a carried load's clearance refusal names what it holds: not a jaw-state
+    # refusal, it keeps main's signature
+    ("holding 'red cube': its bottom (estimated 4.0 cm below the gripper, measured) would come to 1.5 cm "
+     "above the table; it must stay 2.0 cm above it, the clearance the harness keeps for the gripper itself",
+     "other:holding_red_cube"),
+    # a halt is a halt, whatever its reason says
+    ("MotionHalted: halted: holding red cube: place it first", "safety:halt"),
+])
+def test_failure_taxonomy_keeps_other_texts_that_name_the_jaws_or_a_hold(error, signature):
+    assert normalize_failure(error) == signature
+
+
 def test_envelope_failure_digest_ranks_by_frequency():
     env = OperatingEnvelope()
     for _ in range(3):
@@ -107,6 +249,21 @@ def test_envelope_ingests_a_trace_file(tmp_path):
     env = OperatingEnvelope()
     assert env.ingest_trace(trace) == 4
     assert not env.check("grasp_object", {"x": 0.5}).ok
+
+
+def test_envelope_ingests_a_failure_whose_park_was_halted_as_that_failure(tmp_path):
+    """A trace row of a failed skill whose final park the operator halted:
+    filed as the skill's own failure; the error, stop first, is kept whole
+    for display."""
+    error, skill_error, signature = HALTED_AFTER_A_FAILURE[1]
+    trace = tmp_path / "trace.jsonl"
+    trace.write_text(json.dumps({"skill": "pick_and_place", "args": {"object": "red cube"},
+                                 "result": {"ok": False, "error": error, "skill_error": skill_error}}))
+    env = OperatingEnvelope()
+    assert env.ingest_trace(trace) == 1
+    stats = env.stats()["pick_and_place"]
+    assert stats["failures"] == {signature: 1} and stats["losses"] == 1
+    assert stats["last_error"] == error[:200]
 
 
 # ── Agentic-VLA: milestone verification ──────────────────────────────────
@@ -467,6 +624,19 @@ def test_unrepaired_failure_is_not_teachable(tmp_path):
     )
     diag = diagnose(run)
     assert diag.failed_skill == "grasp_object" and not diag.teachable
+
+
+def test_diagnose_files_a_failure_whose_park_was_halted_as_that_failure(tmp_path):
+    """The skill's own error (`skill_error`) is the signature; the error,
+    stop first, is the one the diagnosis shows."""
+    error, skill_error, signature = HALTED_AFTER_A_FAILURE[1]
+    run = _write_run(tmp_path, "halted-park", [
+        {"skill": "pick_and_place", "args": {"object": "cube"},
+         "result": {"ok": False, "error": error, "skill_error": skill_error}},
+    ], summary="task: x\nsuccess: false")
+    diag = diagnose(run)
+    assert diag.failed_skill == "pick_and_place"
+    assert diag.signature == signature and diag.error == error
 
 
 @pytest.mark.parametrize("confirmed_retries", [False, True])

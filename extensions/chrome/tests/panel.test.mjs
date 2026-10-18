@@ -215,6 +215,28 @@ test('a Spark frame whose stream stops keeps ageing on screen, then the 5 s rule
   }
 });
 
+test('a live but slowly changing Spark image stays Live until its next part, and a stall still counts', async () => {
+  const panel = await sparkPanel('slow-image');
+  const text = id => panel.element(id).textContent, said = panel.element('status-live');
+  try {
+    await panel.frame(0);
+    await panel.until(() => text('status') === 'Live', 'the first fresh frame goes live');
+    await panel.frame(0.9);  // the image last changed 0.9 s ago; the server writes a part every 0.5 s
+    assert.equal(text('status'), 'Live');
+    const writes = said.writes;
+    panel.advance(600);  // the next part is due, but the refresh tick comes first
+    await new Promise(resolve => setTimeout(resolve, 1100));  // at least one refresh tick
+    assert.equal(text('status'), 'Live', 'no Last frame flash just before the next part');
+    assert.equal(said.writes, writes, 'nothing announced');
+    await panel.frame(0.9);
+    panel.advance(1200);  // no part for 1.2 s: the stream stalled, so the time on screen counts too
+    await panel.until(() => text('status') === 'Last frame · 2 s old', 'the stall counts from the part age');
+    assert.equal(said.textContent, 'Last frame');
+  } finally {
+    panel.close();
+  }
+});
+
 test('a server that sends no X-Frame-Age stays Live between parts until the 5 s rule', async () => {
   const panel = await sparkPanel('no-age-ticks');
   const text = id => panel.element(id).textContent;

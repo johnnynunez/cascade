@@ -10,6 +10,7 @@ instead of crashing the loop.
 from __future__ import annotations
 
 from ..control import motion_evidence
+from ..control.jaw_stages import closing_stages, opens_past
 
 import contextlib
 import functools
@@ -465,7 +466,15 @@ _JAWS_NOT_JUDGED = "the jaw reading could not be judged"
 #: Why a persistence loop stops after a failed attempt that left an
 #: interrupted grasp's provisional hold (`_grasp_retry_verdict`): the next
 #: grasp would refuse it (`_possible_hold_refusal`); the ask names the way out.
-_POSSIBLE_HOLD_STOP = "the jaws may still hold an object; not retrying"
+#: In #366/#377's words, so the envelope files the stop `state:jaws_unreadable`
+#: whatever the attempt's own text ("jaws" alone matched `object_too_wide`).
+_POSSIBLE_HOLD_STOP = _JAWS_NOT_READ + " and the jaws may still hold an object; not retrying"
+#: The human's way out of a hold the jaws cannot confirm: the ask of a
+#: persistence loop that stopped on it (`_stuck_ask`) and of every skill entry
+#: that refuses it (`_raise_on_a_possible_hold`). The agent relays it; it never
+#: opens the jaws itself.
+_POSSIBLE_HOLD_ASK = ("My jaws may still hold an object, and I cannot read whether they do. If one is in them, "
+                      "take it out by hand, then say 'open the gripper' (open_gripper), and ask again.")
 
 
 def _error_text(exc: BaseException) -> str:
@@ -3320,10 +3329,11 @@ class SkillRuntime:
         them would drop it, from about 0.44 m at home on the reBot (#373
         review A). move_home's `holding_unknown` asks for the gripper to be
         checked first; this enforces it, on every arm type, in reset_scene's
-        words (`_unread_hold_refusal`), fitted for execute()'s "SkillError: "
-        in front. Its move_home-first form needs an approach column that still
-        applies: execute() forfeits a kept one before every motion skill but
-        move_home and reset_scene, so only a direct caller can meet it.
+        words (`_unread_hold_refusal`), fitted for execute()'s "SkillStuck: "
+        in front (`_raise_on_a_possible_hold`). Its move_home-first form needs
+        an approach column that still applies: execute() forfeits a kept one
+        before every motion skill but move_home and reset_scene, so only a
+        direct caller can meet it.
         None with a held flag (its own "already holding" refusal) and during
         an unfinished contact episode: the reconcile never reads those jaws,
         and the harness refuses every command until reset_scene's recovery.
@@ -3338,13 +3348,32 @@ class SkillRuntime:
                 self, provisional[0], SkillRuntime._arm_name_of(self, provisional.arm), provisional=True,
                 then="try again", keep=len("SkillError: "))
         return _unread_hold_refusal(provisional[0], column_kept=stop_retrace.live(self) is not None,
-                                    then="try again", prefix="SkillError: ")
+                                    then="try again", prefix="SkillStuck: ")
 
     def _raise_on_a_possible_hold(self) -> None:
-        """`_possible_hold_refusal` as the SkillError a skill's entry raises."""
-        refusal = SkillRuntime._possible_hold_refusal(self)
+        """`_possible_hold_refusal` as the SkillStuck a skill's entry raises:
+        execute() reports it STUCK with the persistence loops' own way-out
+        ask, so the agent relays it to the human instead of opening the jaws
+        itself (#379 review minor 3). A persistence loop catches it like any
+        refused attempt and stops on the hold (`_grasp_retry_verdict`)."""
+        refusal = self._possible_hold_refusal()
         if refusal is not None:
-            raise SkillError(refusal)
+            raise SkillStuck(refusal, _POSSIBLE_HOLD_ASK)
+
+    def _refuse_a_possible_hold_before_grasping(self) -> None:
+        """The guard of a composite whose motion starts with a grasp
+        (sort_by_color, restore_scene, search_for_object), placed right
+        before its FIRST grasp: an interrupted grasp's provisional hold is
+        judged as that grasp's entry would judge it (`_reconcile_held`) and
+        refused while it survives. Nothing before that point moves the arm
+        or the jaws (perception and planning only), so refusing there is as
+        safe as at the entry, and a call that grasps nothing (nothing to
+        sort, nothing displaced, the object already in view) runs as on main
+        (#379 review minor 4). A hold that a later object's failed attempt
+        leaves is the persistence loops' (`_grasp_retry_verdict`)."""
+        if getattr(self, "_held_provisional", None) is not None and not self.held_object:
+            self._reconcile_held()
+            self._raise_on_a_possible_hold()
 
     def _grasp_retry_verdict(self, object: str, attempt: int, last_err: str) -> str | None:
         """Why persistence should STOP retrying a grasp, or None to keep going.
@@ -4927,7 +4956,7 @@ class SkillRuntime:
         if self.held_object:
             raise SkillError(self._already_holding_refusal("grasp_object"))
         # Before any command: the pre-grasp opening would drop a possible hold.
-        SkillRuntime._raise_on_a_possible_hold(self)
+        self._raise_on_a_possible_hold()
         self._held_support_offset_m = None
         gcfg = self.cfg.grasp
         if _fix is not None and _frame is not None:
@@ -6425,23 +6454,49 @@ class SkillRuntime:
             return None
         return self._hold_after_contact(profile, squeeze, 1.0 - profile.close_frac_stage2, **close_kw)
 
-    def _close_two_stage(self, profile, *, _halt_generation=None, _before_close=None) -> None:
+    def _close_two_stage(self, profile, *, _halt_generation=None, _before_close=None,
+                         _never_past=None) -> int | None:
+        """The two-stage close (scout stage, then seat). A close never opens
+        the jaws: a stage more open than `_never_past` (the jaw position the
+        caller read before the close; None = not read) or than the stage
+        before it is skipped (`closing_stages`), and so is the backend's own
+        two-stage close when every stage would be (that driver skips by its
+        own reading too). Returns how many stages were skipped when the
+        caller passed a reading, else None as before. The grasp's and the
+        screw stroke's closes start from jaws they just opened and pass no
+        reading: every stage goes, exactly as before."""
+        skipped = self._close_stages(profile, _halt_generation=_halt_generation,
+                                     _before_close=_before_close, _never_past=_never_past)
+        return None if _never_past is None else skipped
+
+    def _close_stages(self, profile, *, _halt_generation, _before_close, _never_past) -> int:
         # Some hardware drivers expose a raw two-stage escape hatch. It may
         # not bypass a retained model-backed empty-tool withdrawal either.
         check = getattr(self.arm.harness, "check_model_withdrawal", None)
         if check is not None:
             check(command=True, gripper=True)
         if self._force_contact_close_enabled():
+            if opens_past(self._grip_closed, _never_past, self._grip_open, self._grip_closed):
+                return 1
             if _before_close is not None:
                 _before_close()
             self._set_gripper(self._grip_closed, effort=profile.effort,
                               **({"_halt_generation": _halt_generation} if _halt_generation is not None else {}))
             self._gripper_closes_commanded += 1
-            return
+            return 0
         raw = self.arm.raw
-        if hasattr(raw, "close_gripper_two_stage"):
-            if _before_close is not None:
-                raise SafetyViolation("observed-finger closing requires individually guarded stages")
+        bulk = hasattr(raw, "close_gripper_two_stage")
+        if bulk and _before_close is not None:
+            raise SafetyViolation("observed-finger closing requires individually guarded stages")
+        span = self._grip_closed - self._grip_open
+        stages = tuple((self._grip_open + span * frac, eff, frac) for frac, eff in (
+            (profile.close_frac_stage1, profile.effort * 0.7),
+            (profile.close_frac_stage2, profile.effort),
+        ))
+        kept = closing_stages(stages, _never_past, self._grip_open, self._grip_closed)
+        if bulk:
+            if not kept:
+                return len(stages)
             # The backend's own close bypasses SafeArm.set_gripper: a halt
             # since the running skill started keeps the jaws open (A3 review).
             check_halt = getattr(self.arm.harness, "_check_halt_generation", None)
@@ -6454,7 +6509,7 @@ class SkillRuntime:
                 effort=profile.effort,
             )
             self._gripper_closes_commanded += 1
-            return
+            return len(stages) - len(kept)
         timeout = self.cfg.grasp.get("close_feedback_timeout_s")
         band = CLOSE_STALL_BAND
         if timeout is not None:
@@ -6462,16 +6517,12 @@ class SkillRuntime:
             if not np.isfinite(timeout) or timeout <= 0:
                 raise SkillError("close_feedback_timeout_s must be finite and positive")
             band = close_stall_band(self.cfg.arm.get("gripper"))
-        span = self._grip_closed - self._grip_open
-        for frac, eff in (
-            (profile.close_frac_stage1, profile.effort * 0.7),
-            (profile.close_frac_stage2, profile.effort),
-        ):
+        for target, eff, frac in kept:
             if _before_close is not None:
                 _before_close()
             grasp_evidence.event("close_stage", closed_frac=frac, effort=eff,
-                                 target_pos=self._grip_open + span * frac)
-            self._set_gripper(self._grip_open + span * frac, effort=eff,
+                                 target_pos=target)
+            self._set_gripper(target, effort=eff,
                                  **({"_halt_generation": _halt_generation} if _halt_generation is not None else {}))
             # Counted once the command is accepted: the verifier may then say
             # "the jaw closed" (a refused stage leaves the count unchanged).
@@ -6479,6 +6530,7 @@ class SkillRuntime:
             time.sleep(float(self.cfg.grasp.get("close_settle_s", 0.0)))
             if timeout is not None:
                 self._wait_gripper_closed(1.0 - frac, timeout, band)
+        return len(stages) - len(kept)
 
     def _hold_squeeze_frac(self) -> float | None:
         """`gripper.hold_squeeze_frac` of the arm profile, validated (None = off).
@@ -8004,11 +8056,22 @@ class SkillRuntime:
         if not self.held_object:
             if not label:
                 raise SkillError("not holding anything; say which object to hand over")
+            if getattr(self, "_held_provisional", None) is not None:
+                # An interrupted grasp's hold, judged as the grasp would judge
+                # it and refused here while it survives (unread jaws): the
+                # refusal itself is the error, whole within the agent's 240
+                # characters, never wrapped in this skill's prefix (#379
+                # review minor 2).
+                self._reconcile_held()
+                self._raise_on_a_possible_hold()
             res = self._grasp_with_persistence(label)
             if not res.get("ok", True) or not res.get("held"):
+                why = str(res.get("error"))
                 out = {
                     "ok": False,
-                    "error": f"could not grasp {label!r} for handover: {res.get('error')}",
+                    # A long label is cut so the loop's error (its stop last)
+                    # stays whole in the agent's failure line.
+                    "error": _fit_label("could not grasp {} for handover: ", repr(label), keep=len(why)) + why,
                     "grasp_attempts": res.get("grasp_attempts"),
                 }
                 if _left_in_place(res):
@@ -8304,15 +8367,10 @@ class SkillRuntime:
         # (verified against the RS URDF); stay within +-0.20.
         zones_y = (-0.20, -0.10, 0.0, 0.10, 0.20)
         zone_x = float(self.cfg.grasp.get("drop_zone", [0.30, -0.20])[0])
-        if getattr(self, "_held_provisional", None) is not None and not self.held_object:
-            # An interrupted grasp's provisional hold: judged here, as the first
-            # object's grasp entry would, and refused before anything moves
-            # while it survives (every grasp would open the jaws on it).
-            self._reconcile_held()
-            self._raise_on_a_possible_hold()
         colors: dict[str, tuple[float, float]] = {}
         moved, failed = [], []
         left_in_place, left_by = False, None  # the last grasp attempt left the arm where it stopped
+        grasping = False  # a grasp was started (the possible-hold guard ran)
         for b in list(self.beliefs.all())[: int(max_objects)]:
             color = b.color or "unknown"
             if color not in colors:
@@ -8324,6 +8382,9 @@ class SkillRuntime:
             if np.linalg.norm(b.position[:2] - np.array([zx, zy])) < 0.07:
                 continue  # already sorted
             query = f"{b.color} {b.label}" if b.color else b.label
+            if not grasping:
+                grasping = True
+                self._refuse_a_possible_hold_before_grasping()   # every grasp would open the jaws on it
             try:
                 # a per-object slice of the budget: one stubborn object must
                 # not eat the whole sort
@@ -8720,7 +8781,6 @@ class SkillRuntime:
         self._reconcile_held()
         if self.held_object:
             raise SkillError(self._already_holding_refusal("restore_scene"))
-        self._raise_on_a_possible_hold()   # every move starts with a grasp
         tolerance_m = float(np.clip(float(tolerance_m), 0.02, 0.15))
         max_moves = int(np.clip(int(max_moves), 1, 8))
         budget_s = float(self.cfg.grasp.get("restore_object_persist_seconds", 40.0))
@@ -8760,6 +8820,8 @@ class SkillRuntime:
                 skip.add(step["label"])
                 plan = self._restore_plan(snap, tolerance_m, skip, seen_after)
                 continue
+            if not moves:
+                self._refuse_a_possible_hold_before_grasping()   # every move starts with a grasp
             try:
                 rec = self._move_object_to(step["query"], step["to"], budget_s=budget_s, kind=step["kind"])
             except MotionHalted as halted:
@@ -8863,7 +8925,6 @@ class SkillRuntime:
         self._reconcile_held()
         if self.held_object:
             raise SkillError(self._already_holding_refusal("search_for_object"))
-        self._raise_on_a_possible_hold()   # lifting an occluder starts with a grasp
         max_occluders = int(np.clip(int(max_occluders), 1, 4))
         gcfg = self.cfg.grasp
         budget_s = float(gcfg.get("search_occluder_persist_seconds", 40.0))
@@ -8928,6 +8989,8 @@ class SkillRuntime:
             if spot is None:
                 failed.append({"label": str(occ.label), "error": "no free, reachable spot to park it"})
                 continue
+            if not moved:
+                self._refuse_a_possible_hold_before_grasping()   # lifting an occluder starts with a grasp
             attempts += 1
             self.memory.add("note", f"lifting {occ.label!r} (likely occluder {attempts}/{max_occluders}) "
                                     f"and parking it at {np.round(spot, 3).tolist()}")
@@ -9141,9 +9204,35 @@ class SkillRuntime:
             time.sleep(.05)
 
     def skill_close_gripper(self) -> dict:
-        self._close_two_stage(select_profile("", "rigid"))
+        """Close the jaws (the rigid two-stage close). A close never opens
+        them: a stage more open than the jaws read is skipped, so a close
+        from the stage-2 seat (0.93 rad on the reBot) no longer reopens them
+        to the 3.1 rad scout stage first, which could drop a thin object
+        seated there (#379 review A). Jaws that give no reading (no valid
+        feedback, or one that is no number) while an object may be in them
+        -- an interrupted grasp's provisional hold, or a held object --
+        refuse before any command: no stage can be shown not to open them.
+        With nothing held, unread jaws close as before."""
+        state = self._jaw_state()
+        reading = float(state.gripper_pos) if getattr(state, "gripper_valid", True) else None
+        if reading is not None and not math.isfinite(reading):
+            reading = None
+        if reading is None:
+            self._raise_on_a_possible_hold()
+            if self.held_object:
+                raise SkillError(_fit_label(_JAWS_NOT_READ + " while holding {}: a close stage could open the "
+                                            "jaws on it; place it first (place_at)", repr(self.held_object),
+                                            keep=len("SkillError: ")))
+        closes = self._gripper_closes_commanded
+        skipped = self._close_two_stage(select_profile("", "rigid"), _never_past=reading)
         wf = self._gripper_width_frac()
-        return {"gripper": "closed", "open_frac": round(wf, 2) if wf is not None else "unknown"}
+        out = {"gripper": "closed", "open_frac": round(wf, 2) if wf is not None else "unknown"}
+        if skipped:
+            out["stages_skipped"] = skipped
+            if self._gripper_closes_commanded == closes:
+                out["note"] = ("the jaws already read at least as closed as every close stage, so none was "
+                               "sent: a close never opens them")
+        return out
 
     def _reset_camera_frames(self, *, require_geometry=False, scene_changed=True):
         """Reopen reset's capture barrier, retaining failed attempts for retry."""
@@ -10628,8 +10717,7 @@ def _stuck_ask(object: str, last_err: str, attempts: int, *, stage: str = "grasp
     obj = f"{object!r}" if object else "the object"
     n = max(int(attempts), 1)
     if _POSSIBLE_HOLD_STOP in err:
-        return ("My jaws may still hold an object, and I cannot read whether they do. If one is in them, "
-                "take it out by hand, then say 'open the gripper' (open_gripper), and ask again.")
+        return _POSSIBLE_HOLD_ASK
     if _is_gripper_fault(err):
         return (f"My gripper stopped itself while handling {obj}: "
                 + ("something is between the jaws, so I cannot find their closed position. "

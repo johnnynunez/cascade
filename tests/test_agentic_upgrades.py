@@ -193,6 +193,18 @@ JAW_STATE_REFUSALS = [
      "not read and it may be in them: a person must check the gripper.", "state:jaws_unreadable"),
     ("the grasp of stale bread that is too wide ended in an unfinished contact episode, so the jaws were not "
      "read and it may be in them: a person must check the gripper.", "state:jaws_unreadable"),
+    # a skill entry's own "already holding" refusal (grasp_object and every
+    # skill on it, turn_screw, restore_scene, search_for_object), also inside
+    # a composite's error: by the state, never the label (#379 review minor 6)
+    ("SkillError: already holding 'red cube'; place it first", "state:holding"),
+    ("SkillError: already holding 'stale bread'; place it first", "state:holding"),
+    ("could not grasp 'red cube' for handover: SkillError: already holding 'blue bowl'; place it first",
+     "state:holding"),
+    # the possible-hold refusals of a skill entry (STUCK) and of close_gripper
+    ("SkillStuck: the jaw state could not be read: if stale bread is in the jaws, take it out by hand, then "
+     "open_gripper, then try again. Error: no valid jaw feedback", "state:jaws_unreadable"),
+    ("SkillError: the jaw state could not be read while holding 'stale bread': a close stage could open the "
+     "jaws on it; place it first (place_at)", "state:jaws_unreadable"),
 ]
 
 

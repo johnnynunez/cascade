@@ -3337,16 +3337,18 @@ class SkillRuntime:
         None with a held flag (its own "already holding" refusal) and during
         an unfinished contact episode: the reconcile never reads those jaws,
         and the harness refuses every command until reset_scene's recovery.
-        Jaws that read again are judged by the reconcile as before."""
+        Jaws that read again are judged by the reconcile as before.
+        None, too, for a provisional hold ANOTHER arm's close left (R5): this
+        arm's jaws say nothing about it, and the "my jaws" ask would loop on
+        this arm's open_gripper (close_gripper with this arm's jaws unread,
+        #387 review Minor 2). The skills that would take that hold's slot
+        refuse it themselves, naming the holding arm
+        (`_refuse_on_another_arms_provisional`)."""
         provisional = getattr(self, "_held_provisional", None)
         if provisional is None or self.held_object or getattr(self, "_contact_episode", None) is not None:
             return None
         if SkillRuntime._provisional_on_another_arm(self, provisional):
-            # R5: another arm's close left it; only that arm's jaws may hold it,
-            # so the refusal names that arm and the way out on it (#374 + #379)
-            return SkillRuntime._held_elsewhere_refusal(
-                self, provisional[0], SkillRuntime._arm_name_of(self, provisional.arm), provisional=True,
-                then="try again", keep=len("SkillError: "))
+            return None
         return _unread_hold_refusal(provisional[0], column_kept=stop_retrace.live(self) is not None,
                                     then="try again", prefix="SkillStuck: ")
 
@@ -8069,7 +8071,8 @@ class SkillRuntime:
                 # it and refused here while it survives (unread jaws): the
                 # refusal itself is the error, whole within the agent's 240
                 # characters, never wrapped in this skill's prefix (#379
-                # review minor 2).
+                # review minor 2). Another arm's hold names that arm (R5).
+                self._refuse_on_another_arms_provisional("try again")
                 self._reconcile_held()
                 self._raise_on_a_possible_hold()
             res = self._grasp_with_persistence(label)
@@ -8231,6 +8234,7 @@ class SkillRuntime:
         self._reconcile_held()
         if self.held_object:
             raise SkillError(f"already holding {self.held_object!r}; place it first")
+        self._refuse_on_another_arms_provisional("try again")      # R5: its close would take that slot
         self._raise_on_a_possible_hold()
 
         _, fix = self._localize(label)

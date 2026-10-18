@@ -117,8 +117,10 @@ _FAILURE_PATTERNS: tuple[tuple[str, str], ...] = (
     # the jaws ("...: jaw state could not be read") stays an air grasp. The
     # jaw state is unknown alike when the jaws could not be read, when their
     # reading could not be judged against the interrupted grasp, and when an
-    # unfinished contact episode kept them from being read.
-    (r"\bholding [^;:]+: (?:place it first|call move_home first)", "state:holding"),
+    # unfinished contact episode kept them from being read. A skill entry's
+    # own "already holding 'X'; place it first" (grasp_object, turn_screw, the
+    # scene composites) is the same state, with ";" for ":" (#379 review).
+    (r"\bholding [^;:]+[:;] (?:place it first|call move_home first)", "state:holding"),
     (r"\bthe jaw (?:state could not be read|reading could not be judged)\b"
      r"|\bended in an unfinished contact episode, so the jaws were not read\b", "state:jaws_unreadable"),
     (r"would hit the table|below the table|link/joint \d+", "geometry:link_below_table"),

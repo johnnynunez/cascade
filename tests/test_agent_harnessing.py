@@ -12,8 +12,7 @@ import pytest
 from conftest import needs_pin
 
 from cascade.agent.llm import LLMResponse, MockLLM, ToolCall
-from cascade.harnessing import (AgentHarness, Harnessing, Library, Rollout, ScriptedImprover, Skill,
-                                TaskSpec, lint_text)
+from cascade.harnessing import (AgentHarness, Harnessing, Library, Rollout, ScriptedImprover, TaskSpec, lint_text)
 from cascade.harnessing.recursion import BudgetError, Ledger, parse_experience, parse_harness_answer
 from cascade.skills.runtime import TOOL_SPECS
 

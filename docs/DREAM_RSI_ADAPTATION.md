@@ -107,8 +107,9 @@ evidence that a note causes success.
    A halt or an e-stop on any arm after the refused call started, even one cleared again
    (Resume, `reset_estop`), stops it: the agent's repeat and every later call for the same
    object are refused before any motion ("the operator stopped the arm, so this repeat is
-   refused: report it and wait for a new order"), until `reset_scene` succeeds or the retry
-   window ends (the refusal says when). A hold or a pending episode spends it: the next call runs
+   refused: report it and wait"), until `reset_scene` succeeds or the retry window ends (the
+   refusal says when). The agent never resets the scene on its own: only the operator or the
+   visitor asks for that reset. A hold or a pending episode spends it: the next call runs
    as without the ledger, with no automatic home. Only a granted retry's result carries the
    "SIMULATION ONLY ... one more attempt" wording; every other result has it withheld, an
    operator's halt reason included.

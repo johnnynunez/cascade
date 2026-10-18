@@ -39,8 +39,10 @@ The ledger keeps one slot per goal, in one of four states:
   permission, and any after it, whatever a note or the agent makes of that
   permission -- is refused before any motion, by `precheck` and by `begin`,
   with a text that grants nothing and says how long the refusal lasts ("the
-  operator stopped the arm, so this repeat is refused: report it and wait for
-  a new order"; A8 fix, Critical 1; A8 fix 2);
+  operator stopped the arm, so this repeat is refused: report it and wait";
+  the agent never resets the scene on its own: a new order on the object
+  needs a reset only the operator or the visitor can ask for, or the window's
+  end; A8 fix, Critical 1; A8 fix 2);
 - spent: a halt, an e-stop latch, a hold, a pending contact or release episode
   or a blocked arm touched the goal: its calls run exactly as without the
   ledger -- no retry, no refusal, and nothing opens.
@@ -153,11 +155,14 @@ RETRY_TOO_LATE = "the retry window for this turn has passed"
 #: the error of every same-goal call refused because the operator stopped the rig after
 #: the refusal (A8 fix, Critical 1; A8 fix 2: until reset_scene or the window's end,
 #: `{seconds}` = the whole seconds left in it), and the instruction the runtime puts in
-#: `next_action`; neither carries the kitchen rules' retry trigger
+#: `next_action`; neither carries the kitchen rules' retry trigger, and the agent never
+#: resets the scene on its own: only the operator or the visitor asks for the reset (A8
+#: fix 2 text). Both fit the FAILED line's 240-character quote.
 RETRY_STOPPED = ("No retry for {goal}: the operator stopped the arm after the refusal, so this repeat is refused "
-                 "until reset_scene succeeds or the retry window ends in {seconds} s")
-RETRY_STOPPED_NEXT = ("The operator stopped the arm, so this repeat is refused: report it and wait for a new order. "
-                      "To act on the same object again, run reset_scene first (or wait until the retry window ends).")
+                 "until the scene is reset or the retry window ends in {seconds} s")
+RETRY_STOPPED_NEXT = ("The operator stopped the arm, so this repeat is refused: report it and wait. Never reset the "
+                      "scene on your own: a new order on this object needs a scene reset, which only the operator "
+                      "or the visitor can ask for (or the retry window's end).")
 
 #: words a goal never compares (A6-fix I1)
 _DETERMINERS = frozenset({"a", "an", "the", "this", "that", "these", "those"})

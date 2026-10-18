@@ -1038,13 +1038,15 @@ def test_the_stopped_refusal_names_the_window_end(ledger, clock):  # A8 fix 2 (r
     assert _begin(ledger, stop_token=(1,)) == ledger.precheck("pick_and_place", A) == _Stopped(seconds=301)
     assert _begin(ledger, stop_token=(1,))["error"] == (
         "No retry for green cube: the operator stopped the arm after the refusal, so this repeat is refused "
-        "until reset_scene succeeds or the retry window ends in 301 s")
+        "until the scene is reset or the retry window ends in 301 s")
 
 
-def test_the_stop_texts_grant_nothing():  # A8 fix, Critical 1; A8 fix 2
+def test_the_stop_texts_grant_nothing():  # A8 fix, Critical 1; A8 fix 2; A8 fix 2 text
     """Neither text carries the rules' trigger in any spelling the runtime withholds; the
     error says who stopped the arm, that the repeat is refused and until when; the
-    instruction says to report and wait, and how to act on the object again."""
+    instruction says to report and wait, never to reset the scene on its own: a new
+    order on the object needs a reset only the operator or the visitor can ask for
+    (the visitor rules: reset only on request), or the window's end."""
     from cascade.skills.runtime import _without_retry_trigger
 
     error = RETRY_STOPPED.format(goal="green cube", seconds=300)
@@ -1052,10 +1054,26 @@ def test_the_stop_texts_grant_nothing():  # A8 fix, Critical 1; A8 fix 2
         assert "SIMULATION ONLY" not in text.upper() and "MORE ATTEMPT" not in text.upper()
         assert _without_retry_trigger(text) is text
         assert "operator stopped the arm" in text and "repeat is refused" in text
-    assert error.endswith("until reset_scene succeeds or the retry window ends in 300 s")
-    assert RETRY_STOPPED_NEXT == ("The operator stopped the arm, so this repeat is refused: report it and wait for "
-                                  "a new order. To act on the same object again, run reset_scene first (or wait "
-                                  "until the retry window ends).")
+        assert "reset_scene" not in text  # names no tool to call
+    assert error.endswith("until the scene is reset or the retry window ends in 300 s")
+    assert RETRY_STOPPED_NEXT == ("The operator stopped the arm, so this repeat is refused: report it and wait. "
+                                  "Never reset the scene on your own: a new order on this object needs a scene "
+                                  "reset, which only the operator or the visitor can ask for (or the retry "
+                                  "window's end).")
+
+
+def test_the_stop_texts_fit_the_failed_line():  # A8 fix 2 text: the 240-character quote
+    """The FAILED line quotes the first 240 characters of the error: the stopped error,
+    for a 60-character object name and the longest wait (the whole window), stays whole
+    there, so the agent reads until when it is refused; the instruction fits the same
+    240 characters."""
+    from cascade.skills.runtime import _FAILED_ERROR_CHARS, _with_failure_instruction
+
+    assert _FAILED_ERROR_CHARS == 240
+    error = RETRY_STOPPED.format(goal="g" * 60, seconds=math.ceil(DEFAULT_WINDOW_S))
+    assert len(error) <= _FAILED_ERROR_CHARS and len(RETRY_STOPPED_NEXT) <= _FAILED_ERROR_CHARS
+    line = _with_failure_instruction({"ok": False, "error": error})["next_action"]
+    assert line.startswith(f"This attempt FAILED: {error}. ") and "truncated" not in line
 
 
 def test_a_renamed_repeat_after_a_stop_is_refused_too(ledger, clock):  # same goal, other words

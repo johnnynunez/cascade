@@ -1362,6 +1362,39 @@ class SkillRuntime:
             raise SkillError(f"{self.held_object!r} is held by arm {other!r}, not {self._running_arm_name()!r}; "
                              "no motion was sent")
 
+    def _refuse_on_another_arms_provisional(self, then: str) -> None:
+        """Refuse a grasp on this arm while ANOTHER arm's grasp, stopped after
+        its close, left a provisional hold (R5; Task 5 review Important 1).
+        The marker is one slot: this arm's close would take it and its
+        promotion or air verdict clear it, and the arm whose jaws may hold the
+        object would then open them at its next reset_scene. Called first,
+        before any perception or command; names that arm and the way out on it
+        (`then`: the call to make after it)."""
+        prov = getattr(self, "_held_provisional", None)
+        if prov is not None and self._provisional_on_another_arm(prov):
+            raise SkillError(self._held_elsewhere_refusal(prov[0], self._arm_name_of(prov.arm), provisional=True,
+                                                          then=then, keep=len("SkillError: ")))
+
+    def _already_holding_refusal(self, then: str) -> str:
+        """The "already holding" refusal of a grasp skill (`then`): on an arm
+        that does not hold the object it names the holding arm and the way out
+        on it (Task 5 review Minor 2), else today's text."""
+        holder = self._held_by_another_arm()
+        if holder is not None:
+            return self._held_elsewhere_refusal(self.held_object, holder, then=then, keep=len("SkillError: "))
+        return f"already holding {self.held_object!r}; place it first"
+
+    def _grasp_memory_label(self, label: str) -> str:
+        """The grasp-outcome memory's label for `label` on the running arm
+        (Task 5 review Minor 6). On a rig of two or more arms the arm's rig
+        name joins it: the memory learns per object profile, and one arm's
+        out-of-reach attempts ("pregrasp IK failed" counts as pregrasp_unsafe,
+        +8 mm of grasp height per loss) must not raise another arm's grasp of
+        that object. One arm keeps the bare label (its rows as before)."""
+        rig = getattr(self, "arm_rig", None)
+        name = SkillRuntime._running_arm_name(self) if len(getattr(rig, "arms", None) or ()) > 1 else None
+        return label if name is None else f"{label}@{name}"
+
     def _model_release_refusal(self, model_plan=None) -> None:
         """R9: the MuJoCo placement and withdrawal observers admit only an
         articulation root at the kinematic origin, so a base_pose arm with a
@@ -1376,8 +1409,10 @@ class SkillRuntime:
             value is not None and (key == "mj_delivery_area" or str(key).startswith("mj_release_"))
             for key, value in data.items())
         if model_plan is not None or declared:
+            # The way out (Task 5 review Minor 3): the failure line quotes it.
             raise SkillError("region placement / model release is not supported on a base_pose arm; "
-                             "no motion was sent")
+                             "no motion was sent. If the jaws hold something, release it with open_gripper "
+                             "(it opens where the gripper is) or reset_scene (it opens at home)")
 
     @property
     def arm(self):
@@ -2795,9 +2830,10 @@ class SkillRuntime:
     def _provisional_on_another_arm(self, prov) -> bool:
         """The provisional hold `prov` was recorded by a close of an arm other
         than the one running now (spec D9 / R5): the marker carries the arm
-        (`ProvisionalHold.arm`). A provisional without one (a plain tuple, a
-        marker set elsewhere, e.g. the VLA executor) counts as this arm's, as
-        before. Identity checks only: no arm attribute is read."""
+        (`ProvisionalHold.arm`; the analytic close and the VLA executor's
+        both). A provisional without one (a plain tuple, a marker set
+        elsewhere) counts as this arm's, as before. Identity checks only: no
+        arm attribute is read."""
         owner = getattr(prov, "arm", None)
         return owner is not None and owner is not self.arm
 
@@ -3020,6 +3056,9 @@ class SkillRuntime:
         and a halt the re-home's skip checks found, or one raised after the
         re-home or during the re-scan, raises MotionHalted before the next
         attempt."""
+        # R5: another arm's provisional hold refuses every attempt, and the
+        # retries re-home: refused once, before the loop.
+        self._refuse_on_another_arms_provisional("retry")
         with self._skill_halt_scope(self._skill_halt_baselines(self.arm)):
             return self._persistent_grasp_attempts(object, material, budget_s)
 
@@ -3342,11 +3381,13 @@ class SkillRuntime:
         # sorting on the unchanged model quality a second time.
         grasps = sorted(grasps, key=lambda g: -g.quality)
         lbl = label or getattr(fix, "label", None) or "object"
+        # Per arm on a rig of several (Task 5 review Minor 6); one arm: `lbl`.
+        memory_lbl = SkillRuntime._grasp_memory_label(self, lbl)
         try:
-            prior = self.grasp_memory.prior(lbl, fix) if _prior_snapshot is None else _prior_snapshot[0]
+            prior = self.grasp_memory.prior(memory_lbl, fix) if _prior_snapshot is None else _prior_snapshot[0]
             grasp_evidence.event("memory_prior", label=lbl, prior=prior)
             if prior:
-                grasps = (self.grasp_memory.rerank(grasps, lbl, fix) if _prior_snapshot is None
+                grasps = (self.grasp_memory.rerank(grasps, memory_lbl, fix) if _prior_snapshot is None
                           else self.grasp_memory.rerank_with_prior(grasps, fix, prior))
                 grasp_evidence.event("memory_reranked_candidates", grasps=grasps)
                 dz = (float(prior["nudges"].get("grasp_z_delta", 0.0))
@@ -4387,7 +4428,7 @@ class SkillRuntime:
         vert = float(-appr[2] / (np.linalg.norm(appr) + 1e-9))
         prior = None
         try:
-            prior = self.grasp_memory.prior(label, fix)
+            prior = self.grasp_memory.prior(SkillRuntime._grasp_memory_label(self, label), fix)
         except Exception:
             pass
         out = {
@@ -4449,6 +4490,9 @@ class SkillRuntime:
         `_observed_selection_on_failure` wrapper.
         """
         scene_enabled = os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1"
+        # R5: another arm's provisional hold keeps its slot: refused before
+        # any work, the VLA route included.
+        self._refuse_on_another_arms_provisional("grasp_object")
         # A new grasp forfeits an approach column kept after a STOP below an
         # earlier grasp's pregrasp (stop_retrace.py), whoever calls it.
         stop_retrace.forget(self)
@@ -4459,7 +4503,7 @@ class SkillRuntime:
                                  else _next_candidate.halt_generation)
         self._reconcile_held()
         if self.held_object:
-            raise SkillError(f"already holding {self.held_object!r}; place it first")
+            raise SkillError(self._already_holding_refusal("grasp_object"))
         self._held_support_offset_m = None
         gcfg = self.cfg.grasp
         if _fix is not None and _frame is not None:
@@ -4553,7 +4597,8 @@ class SkillRuntime:
             planning_active = True
             # Outcomes may change in another caller; this attempt uses one prior.
             import copy
-            frozen_prior = (copy.deepcopy(self.grasp_memory.prior(label, fix)),)
+            frozen_prior = (copy.deepcopy(
+                self.grasp_memory.prior(SkillRuntime._grasp_memory_label(self, label), fix)),)
             search.check()
 
         lim = self.arm.harness.limits
@@ -4951,7 +4996,7 @@ class SkillRuntime:
             # candidates (raise z, prefer top-down) for this object.
             try:
                 self.grasp_memory.record(
-                    label, fix, grasps[0] if grasps else None,
+                    SkillRuntime._grasp_memory_label(self, label), fix, grasps[0] if grasps else None,
                     success=False, reason=str(e),
                     z_nudge_applied=getattr(self, "_last_grasp_z_nudge", 0.0))
             except Exception:
@@ -5301,7 +5346,7 @@ class SkillRuntime:
                 self.memory.add("outcome", f"grasp {label!r} FAILED: jaws closed on air")
                 try:
                     self.grasp_memory.record(
-                        label, fix, grasp, success=False, reason="air grasp",
+                        SkillRuntime._grasp_memory_label(self, label), fix, grasp, success=False, reason="air grasp",
                         z_nudge_applied=getattr(self, "_last_grasp_z_nudge", 0.0))
                 except Exception:
                     pass
@@ -5362,7 +5407,7 @@ class SkillRuntime:
                            held_offset=held_offset_at_close)
         try:
             self.grasp_memory.record(
-                label, fix, grasp, success=True,
+                SkillRuntime._grasp_memory_label(self, label), fix, grasp, success=True,
                 z_nudge_applied=getattr(self, "_last_grasp_z_nudge", 0.0))
         except Exception:
             pass
@@ -5824,7 +5869,10 @@ class SkillRuntime:
             if home is not None and not self._move_planned(
                     np.asarray(home, dtype=float), duration_s=1.5, _halt_generation=halt_generation):
                 raise SkillError("did not settle at home before the VLA episode")
-            provisional = (label, fix.detection.label, detection_color(frame.rgb, fix.detection))
+            # The marker carries the arm whose close may leave it (R5): another
+            # arm's call neither judges it nor takes its slot.
+            provisional = ProvisionalHold((label, fix.detection.label, detection_color(frame.rgb, fix.detection)),
+                                          arm=self.arm)
             try:
                 report = executor.run(self, client, label=label, effort=profile.effort,
                                       halt_generation=halt_generation, provisional=provisional)
@@ -6732,6 +6780,8 @@ class SkillRuntime:
         # R9: its place stage would refuse a model release on a base_pose arm
         # after the grasp; refuse before any command instead.
         self._model_release_refusal()
+        # R5: another arm's provisional hold keeps its slot.
+        self._refuse_on_another_arms_provisional("pick_and_place")
         try:
             carry_attachment.check(self)
             self._reconcile_held()
@@ -7568,6 +7618,7 @@ class SkillRuntime:
     def skill_sort_by_color(self, max_objects: int = 6) -> dict:
         """Crowd-pleaser: group everything on the table into per-color zones
         along the front edge. Pure composition of pick_and_place."""
+        self._refuse_on_another_arms_provisional("sort_by_color")       # R5: before any object
         # +-0.24 is outside the top-down IK envelope at x=0.30 on this arm
         # (verified against the RS URDF); stay within +-0.20.
         zones_y = (-0.20, -0.10, 0.0, 0.10, 0.20)
@@ -7965,6 +8016,7 @@ class SkillRuntime:
         found and what failed -- and its postcondition says what an
         independent channel measured, which is the only claim of success.
         """
+        self._refuse_on_another_arms_provisional("restore_scene")       # R5: before any work
         name = str(name or "scene").strip().lower() or "scene"
         snap = self.beliefs.get_snapshot(name)
         if snap is None:
@@ -7976,7 +8028,7 @@ class SkillRuntime:
         carry_attachment.check(self)
         self._reconcile_held()
         if self.held_object:
-            raise SkillError(f"already holding {self.held_object!r}; place it first")
+            raise SkillError(self._already_holding_refusal("restore_scene"))
         tolerance_m = float(np.clip(float(tolerance_m), 0.02, 0.15))
         max_moves = int(np.clip(int(max_moves), 1, 8))
         budget_s = float(self.cfg.grasp.get("restore_object_persist_seconds", 40.0))
@@ -8100,10 +8152,11 @@ class SkillRuntime:
         query = str(label or "").strip()
         if not query:
             raise SkillError("search_for_object needs the object's name")
+        self._refuse_on_another_arms_provisional("search_for_object")   # R5: before any work
         carry_attachment.check(self)
         self._reconcile_held()
         if self.held_object:
-            raise SkillError(f"already holding {self.held_object!r}; place it first")
+            raise SkillError(self._already_holding_refusal("search_for_object"))
         max_occluders = int(np.clip(int(max_occluders), 1, 4))
         gcfg = self.cfg.grasp
         budget_s = float(gcfg.get("search_occluder_persist_seconds", 40.0))
@@ -8469,6 +8522,16 @@ class SkillRuntime:
         # the one jaw command at home below (the release, or the opening of
         # closed empty jaws) carry it.
         reset_generation = getattr(self.arm.harness, "_halt_generation", None)
+        column = stop_retrace.live_on_another_arm(self)
+        if column is not None:
+            # Another arm was stopped at its object and keeps its approach
+            # column (stop_retrace.py): this reset forgets every arm's column
+            # once home, and that arm's move_home could no longer raise its
+            # gripper up it. Refused before any motion (Task 5 review Minor 1),
+            # and before the hold refusal below: its place_at on that arm
+            # would forfeit the column too, so move_home comes first.
+            return {**out, "ok": False, "stage": "home", "home_skipped": True, "beliefs_forgotten": 0,
+                    "error": self._column_elsewhere_refusal(self._arm_name_of(column.arm))}
         holder = self._held_by_another_arm()
         if holder is not None:
             # R5 / D9: another arm holds the object. This reset would home
@@ -8818,21 +8881,34 @@ class SkillRuntime:
             return "default" if arm is getattr(self, "_arm", None) else None
         return next((key for key, candidate in rig.arms.items() if candidate is arm), None)
 
-    def _held_elsewhere_refusal(self, label, holder, *, provisional: bool = False) -> str:
-        """reset_scene's refusal while ANOTHER arm holds the object (R5), or
-        may hold it (its grasp stopped after the close): it names that arm and
-        the way out on it, never this arm's jaws. Fits the agent's failure
-        line (a long label is shortened, never the sentence)."""
+    def _held_elsewhere_refusal(self, label, holder, *, provisional: bool = False, then: str = "reset_scene",
+                                keep: int = 0) -> str:
+        """The refusal of a call on this arm while ANOTHER arm holds the
+        object (R5), or may hold it (its grasp stopped after the close):
+        reset_scene's, and a grasp skill's (`then`: the call to make once that
+        arm settled it). It names that arm and the way out on it, never this
+        arm's jaws. Fits the agent's failure line with `keep` characters to
+        spare (a raised refusal's "SkillError: "): a long label is shortened,
+        never the sentence."""
         arm = repr(holder).replace("{", "{{").replace("}", "}}")
         here = repr(self._running_arm_name()).replace("{", "{{").replace("}", "}}")
         if provisional:
             template = ("{} may be held by arm " + arm + " (its grasp stopped after the close), not " + here
                         + ": settle it with arm=" + arm + " first (move_home, then place_at or open_gripper), "
-                        "then reset_scene; no motion was sent")
+                        "then " + then + "; no motion was sent")
         else:
             template = ("{} is held by arm " + arm + ", not " + here + ": place it with arm=" + arm
-                        + " first (place_at), then reset_scene; no motion was sent")
-        return _fit_label(template, repr(str(label)))
+                        + " first (place_at), then " + then + "; no motion was sent")
+        return _fit_label(template, repr(str(label)), keep=keep)
+
+    def _column_elsewhere_refusal(self, holder) -> str:
+        """reset_scene's refusal while ANOTHER arm keeps a live stop column
+        (`stop_retrace.live_on_another_arm`): the way out is that arm's
+        move_home (it raises the gripper up its column), then this reset."""
+        arm, here = repr(holder), repr(self._running_arm_name())
+        return _cut_text(f"arm {arm} was stopped at its object and keeps its approach column, not {here}: call "
+                         f"move_home with arm={arm} first (it raises that gripper up the column), then reset_scene; "
+                         "no motion was sent", _FAILED_ERROR_CHARS)
 
     def _forget_held_object(self) -> None:
         """The jaws let the held object go: clear every held-object field."""
@@ -9384,9 +9460,10 @@ class SkillRuntime:
         """
         from ..perception.segmenter import fix_at_pixel
 
+        self._refuse_on_another_arms_provisional("grasp_at_pixel")      # R5: before the frame is read
         self._reconcile_held()
         if self.held_object:
-            raise SkillError(f"already holding {self.held_object!r}; place it first")
+            raise SkillError(self._already_holding_refusal("grasp_at_pixel"))
 
         # The frame is analysed in the running arm's frame (its camera pose
         # T^-1 T_table_cam), so the fix and the grasp are arm targets.

@@ -33,6 +33,9 @@ the column.
   map's `scene_reset_generation` moves only for payload-tracking maps.
 - `live` is a kept column while it still applies (the retrace's own rule):
   reset_scene's refusal names "move_home first" only then.
+  `live_on_another_arm` is another arm's, judged by the same rule for that
+  arm: reset_scene on this arm refuses while one exists (its forget would
+  strand that arm at its object) and names move_home on that arm.
 - `retrace` (skill_move_home, before its own home move) acts only when
   execute()'s ROOT motion skill is move_home or reset_scene. It moves ONE
   direct joint segment from the measured pose to `q_pre` (the reverse of the
@@ -111,6 +114,18 @@ def live(runtime) -> Kept | None:
     if record is None or _no_longer_applies(runtime, record) is not None:
         return None
     return record
+
+
+def live_on_another_arm(runtime) -> Kept | None:
+    """A column kept for ANOTHER arm than the running one, while it still
+    applies to that arm (`live`'s rule, judged for its own arm), or None.
+    reset_scene on this arm would forget it (`forget(every_arm=True)`) and
+    strand that arm at its object: the reset refuses instead and names
+    move_home on that arm (Task 5 review Minor 1). Reads only."""
+    for record in list((_records(runtime) or {}).values()):
+        if record.arm is not runtime.arm and _no_longer_applies(runtime, record, arm=record.arm) is None:
+            return record
+    return None
 
 
 def forget(runtime, *, every_arm: bool = False) -> int:
@@ -200,8 +215,9 @@ def upward_in_column(kin, start, goal, duration_s, rate_hz, column, z_max) -> st
     return None
 
 
-def _no_longer_applies(runtime, record) -> str | None:
-    arm = runtime.arm
+def _no_longer_applies(runtime, record, *, arm=None) -> str | None:
+    """Why `record` no longer applies to `arm` (default: the running arm), or None."""
+    arm = runtime.arm if arm is None else arm
     if record.arm is not arm or record.raw is not getattr(arm, "raw", None):
         return "the arm changed"
     if _clock() - record.kept_at > MAX_AGE_S:

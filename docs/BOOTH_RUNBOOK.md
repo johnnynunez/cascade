@@ -186,9 +186,14 @@ to the morning baseline after a bad streak (restart the server to load the resto
    into the diary"). **Grasping flaky all day:** degraded throw: *"open the gripper"* → host
    hand-places the prop → *"close the gripper, then throw it in the bin"*.
 3. **Tool call cancelled mid-motion** (host timeout or Esc): the arm freezes and the e-stop
-   LATCHES. Staff `reset_stop`, then `reset the scene`. The launcher registers the server with a
-   300 s budget so a persistent pick (60–120 s) is never cut by the host's 60 s default; picks
-   dying at exactly 60 s mean a stale registration: `./run.sh <mode>` re-registers.
+   LATCHES. Staff `reset_stop`, then `reset the scene`. **Stopped with the gripper at the object
+   (reBot):** the first motion call after the stop must be `move_home` or `reset the scene`, within
+   5 min: it raises the gripper straight up its approach column first. `open the gripper` or a
+   relative move first gives that column up and the arm stays frozen (jog it by hand). Object
+   still in the jaws: `move_home`, then place it (the reset refuses while holding). The launcher
+   registers the server with a 300 s budget so a persistent pick (60–120 s) is never cut by the
+   host's 60 s default; picks dying at exactly 60 s mean a stale registration: `./run.sh <mode>`
+   re-registers.
 4. **LLM stalls (G1 ladder, one-way):** cloud dead → pre-warmed local Qwen session (same MCP
    server). Local model loops → the **dashboard chat box** (MCP mode runs the tier-1 reflex
    grammar with zero LLM: every cheat-card motion beat survives; narrate the preview/where-is

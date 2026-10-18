@@ -28,8 +28,15 @@ that age passes 1 s the badge reads **Last frame · N s old**; when the stream s
 fresh image; after 5 s without one the badge reads **Not updating**. An image can read **Live** up
 to about 2 s old: counting the time on screen sooner flashed **Last frame** on slowly changing
 images. Other servers send no age, so their badge is unchanged; the visitor proxy
-(`deploy/brev/visitor.py`) does not forward the header, so visitors see no change. Screen
-readers hear only the state changes (Live, Last frame, Not updating), not every second of the count.
+(`deploy/brev/visitor.py`) does not forward the header, so visitors see no change.
+
+Screen readers hear two status regions, each only when its text changes:
+
+1. The state word (Live, Last frame, Not updating) from a hidden region; never the count.
+2. The sentence under the image (e.g. "The image is updating live."), once per state change.
+
+Known gap, older than the age label: during a network error that sentence ends "Retrying in N s."
+and changes every second, so it is announced every second.
 
 ## Discovery
 

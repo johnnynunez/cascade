@@ -307,40 +307,46 @@ def test_every_bolt_client_asks_for_the_served_name_and_thinking_off():
     assert 'SERVED_NAME="${SERVED_NAME:-nemotron-3.5-bolt}"' in text
 
 
-def _captured_chat(profile: str) -> dict:
-    """The request fields cascade's own agent client sends for a profile."""
-    pytest.importorskip("openai")
-    from types import SimpleNamespace
-
-    from cascade.agent import llm as llm_mod
-    from cascade.config import load_profile
-
-    client = llm_mod.make_llm(load_profile("llm", profile))
-    seen = {}
+def _stub_openai(monkeypatch, sent: dict) -> None:
+    """A stub `openai` module (CI installs no extras, AGENTS.md): the client's
+    request fields land in `sent`."""
+    from types import ModuleType, SimpleNamespace
 
     def create(**kwargs):
-        seen.update(kwargs)
+        sent.update(kwargs)
         message = SimpleNamespace(content="OK", tool_calls=None)
         return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
-    client._client.chat.completions.create = create
-    client.chat("system", [{"role": "user", "content": "hi"}])
-    return seen
+    module = ModuleType("openai")
+    module.OpenAI = lambda **kwargs: SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    monkeypatch.setitem(sys.modules, "openai", module)
 
 
-def test_cascades_agent_client_turns_bolts_thinking_off():
-    sent = _captured_chat("local_nemotron_bolt")
+def _captured_chat(monkeypatch, profile: str) -> dict:
+    """The request fields cascade's own agent client sends for a profile."""
+    from cascade.agent import llm as llm_mod
+    from cascade.config import load_profile
+
+    sent: dict = {}
+    _stub_openai(monkeypatch, sent)
+    llm_mod.make_llm(load_profile("llm", profile)).chat("system", [{"role": "user", "content": "hi"}])
+    return sent
+
+
+def test_cascades_agent_client_turns_bolts_thinking_off(monkeypatch):
+    sent = _captured_chat(monkeypatch, "local_nemotron_bolt")
     assert sent["model"] == "nemotron-3.5-bolt"
     assert sent["extra_body"] == {"chat_template_kwargs": {"enable_thinking": False}}
 
 
-def test_qwens_agent_client_request_is_unchanged():
-    assert "extra_body" not in _captured_chat("local_qwen")
+def test_qwens_agent_client_request_is_unchanged(monkeypatch):
+    sent = _captured_chat(monkeypatch, "local_qwen")
+    assert sent["model"] == "Qwen/Qwen3.8-27B" and "extra_body" not in sent
 
 
-def test_a_profile_extra_body_must_be_a_mapping():
-    pytest.importorskip("openai")
+def test_a_profile_extra_body_must_be_a_mapping(monkeypatch):
     from cascade.agent.llm import OpenAICompatClient
 
+    _stub_openai(monkeypatch, {})
     with pytest.raises(ValueError, match="extra_body"):
         OpenAICompatClient(model="m", base_url="http://127.0.0.1:1/v1", extra_body=["enable_thinking"])

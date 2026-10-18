@@ -1,0 +1,10 @@
+(APIServer pid=2294978) INFO 10-19 01:13:26 [cache.py:361] Using nvfp4 data type to store kv cache. It reduces the GPU memory footprint and boosts the performance. Meanwhile, it may cause accuracy drop without a proper scaling factor
+(EngineCore pid=2296525) INFO 10-19 01:13:36 [core.py:133] Initializing a V1 LLM engine (v0.32.0) with config: ...
+(EngineCore pid=2296525) INFO 10-19 01:13:50 [cuda.py:506] Using FLASHINFER attention backend out of potential backends: ['FLASHINFER'].
+(EngineCore pid=2296525) INFO 10-19 01:13:53 [interface.py:1096] Setting attention block size to 2944 tokens to ensure that attention page size is >= mamba page size.
+(EngineCore pid=2296525) INFO 10-19 01:14:43 [flashinfer.py:966] FlashInfer resolved query dtypes: prefill=torch.bfloat16, decode=torch.bfloat16, decode_backend=xqa, kv_cache_dtype=torch.uint8, arch=sm120
+(EngineCore pid=2296525) INFO 10-19 01:14:49 [gpu_worker.py:759] Available KV cache memory: 20.06 GiB
+(EngineCore pid=2296525) INFO 10-19 01:14:49 [kv_cache_utils.py:2327] GPU KV cache size: 438,056 tokens, Maximum concurrency for 65,536 tokens per request: 6.68x
+(EngineCore pid=2296525) INFO 10-19 01:14:49 [kv_cache_utils.py:853] kv cache group sizes (2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944)
+(EngineCore pid=2296525) INFO 10-19 01:14:49 [kv_cache_utils.py:854] kv lcm block sizes 2944
+(EngineCore pid=2296525) INFO 10-19 01:14:50 [cache.py:361] Using nvfp4 data type to store kv cache. It reduces the GPU memory footprint and boosts the performance. Meanwhile, it may cause accuracy drop without a proper scaling factor

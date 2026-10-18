@@ -1,0 +1,7 @@
+(EngineCore pid=2288665) INFO 10-19 01:06:28 [core.py:133] Initializing a V1 LLM engine (v0.32.0) with config: ...
+(EngineCore pid=2288665) INFO 10-19 01:06:30 [cuda.py:506] Using FLASH_ATTN attention backend out of potential backends: ['FLASH_ATTN', 'FLASHINFER', 'TRITON_ATTN', 'FLEX_ATTENTION'].
+(EngineCore pid=2288665) INFO 10-19 01:06:46 [interface.py:1096] Setting attention block size to 832 tokens to ensure that attention page size is >= mamba page size.
+(EngineCore pid=2288665) INFO 10-19 01:07:38 [gpu_worker.py:759] Available KV cache memory: 21.85 GiB
+(EngineCore pid=2288665) INFO 10-19 01:07:38 [kv_cache_utils.py:2327] GPU KV cache size: 209,867 tokens, Maximum concurrency for 65,536 tokens per request: 3.20x
+(EngineCore pid=2288665) INFO 10-19 01:07:38 [kv_cache_utils.py:853] kv cache group sizes (832, 832, 832, 832, 832, 832, 832, 832, 832, 832, 832, 832, 832, 832, 832)
+(EngineCore pid=2288665) INFO 10-19 01:07:38 [kv_cache_utils.py:854] kv lcm block sizes 832

@@ -645,14 +645,19 @@ class OperatingEnvelope:
             pass
 
     def export_markdown(self) -> str:
-        """RPent-style MEMORY.md section."""
+        """RPent-style MEMORY.md section. A skill's operator halts are listed
+        apart (they are not losses); a skill with only halts so far gets no
+        win/loss header, since it has no success rate yet."""
         lines = ["# Primitive operating envelopes", ""]
         with self._lock:
             for skill, st in sorted(self._skills.items()):
-                lines.append(
-                    f"## {skill} — {st.wins}W/{st.losses}L "
-                    f"({st.success_rate*100:.0f}% success, ~{st.duration_ms_mean/1000:.1f}s)"
-                )
+                if st.attempts or not st.halts:
+                    lines.append(
+                        f"## {skill} — {st.wins}W/{st.losses}L "
+                        f"({st.success_rate*100:.0f}% success, ~{st.duration_ms_mean/1000:.1f}s)"
+                    )
+                else:
+                    lines.append(f"## {skill}")
                 for key, span in sorted(st.spans.items()):
                     conf = span.confidence(self.min_support)
                     contra = (
@@ -672,6 +677,8 @@ class OperatingEnvelope:
                     )
                 for sig, n in sorted(st.failures.items(), key=lambda kv: -kv[1]):
                     lines.append(f"- FAILURE `{sig}` x{n}")
+                if st.halts:
+                    lines.append(f"- operator halts: {st.halts} (not counted as losses)")
                 lines.append("")
         return "\n".join(lines)
 

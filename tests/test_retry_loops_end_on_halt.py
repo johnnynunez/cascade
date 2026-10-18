@@ -29,6 +29,7 @@ import pytest
 
 from cascade.agent.aspire import diagnose
 from cascade.control.mock_arm import MockArm
+from cascade.skills.runtime import SlowPerceptionError
 from cascade.types import MotionHalted, SkillError
 
 HALT = "halted: operator: stop"
@@ -153,6 +154,14 @@ def _missing_place(r, monkeypatch):
     monkeypatch.setattr(runtime, "skill_place_at", place)
 
 
+#: the fake grasp's miss (`_missing_grasp`) and how it is filed
+MISSED = "grasp missed: closed on air"
+MISSED_SIG = "other:grasp_missed_closed"
+#: the fake place's failure, as pick_and_place's place loop says it
+PLACE_MISSED = "SkillError: place missed: target not reachable"
+PLACE_MISSED_SIG = "other:place_missed_target"
+
+
 def _assert_halted_result(r, out):
     assert r.at_stop is not None, "the retry never re-homed"
     assert r.sends == r.at_stop, f"{r.sends - r.at_stop} arm commands went out after the halt"
@@ -193,6 +202,10 @@ def test_a_halt_in_the_place_retry_rehome_ends_pick_and_place(rig, monkeypatch, 
     _assert_halted_result(r, out)
     assert r.places == 1, "the place loop tried again after the halt"
     assert r.runtime.held_object == "red cube"  # still in the jaws: nothing released it
+    # The place had already failed when the halt stopped its re-home: the
+    # call is filed as that failure, not as the halt (`skill_error`).
+    assert out["skill_error"] == PLACE_MISSED, out
+    assert _filed_as(r, "pick_and_place") == ({PLACE_MISSED_SIG: 1}, 0, PLACE_MISSED_SIG)
 
 
 @pytest.mark.parametrize("profile", RETRY_PROFILES)
@@ -355,6 +368,9 @@ def test_an_estop_in_the_fr3_retry_rehome_stays_an_estop(rig, monkeypatch, kind)
     assert "SafetyViolation: e-stop latched" in out["error"], out
     assert "MotionHalted" not in out["error"], out
     assert r.runtime.arm.harness.estopped
+    # An e-stop is still a loss, filed as the e-stop.
+    assert "skill_error" not in out, out
+    assert _filed_as(r, "handover") == ({"safety:estop": 1}, 0, "safety:estop")
 
 
 # ── a halt in the home move after a failed skill is named in its error ──────
@@ -605,3 +621,218 @@ def test_a_failed_skill_with_no_error_of_its_own_gets_the_stop_alone(rig, monkey
     assert out["ok"] is False and out["error"] == VIEW_HOME_HALTED["entry"], out
     assert "skill_error" not in out, out
     assert _filed_as(r, "grasp_object") == ({}, 1, "safety:halt")
+
+
+# ── a halt after a miss the loop had decided is filed as that miss ──────────
+#
+# A missed attempt is a failure the persistence loop has already decided; it
+# re-homes and tries again. An operator halt in that re-home, right after it,
+# in the next attempt, or as the attempt returns its miss ends the skill as a
+# bare MotionHalted (its text unchanged). The halt carries the last attempt's
+# own error (`skill_error`), so the call is still filed as that miss: a loss,
+# not an operator halt. A halt before any attempt failed is a halt.
+
+DECIDED_PROFILES = ["fr3", "rebot_rs", "mock"]
+DECIDED_SKILLS = [("handover", {"label": "red cube"}), ("pick_and_place", {"object": "red cube"})]
+#: (where the halt lands, the skill) -> the halt's own text, and grasp attempts made
+AFTER_A_MISS = {
+    ("rehome", "handover"): (HALT, 1),
+    ("rehome", "pick_and_place"): (HALT, 1),
+    # handover's loop checks for a halt before its next attempt; pick_and_place's
+    # next attempt is refused before its first command
+    ("after_rehome", "handover"): (NOT_RETRYING, 1),
+    ("after_rehome", "pick_and_place"): (REFUSED, 2),
+    ("next_attempt", "handover"): (HALT, 2),
+    ("next_attempt", "pick_and_place"): (HALT, 2),
+    ("with_the_miss", "handover"): (NOT_RETRYING, 1),
+    ("with_the_miss", "pick_and_place"): (NOT_RETRYING, 1),
+    # the next attempt's localization expired as the halt came (#343's stop)
+    ("perception_stop", "handover"): (NOT_RETRYING, 2),
+    ("perception_stop", "pick_and_place"): (NOT_RETRYING, 2),
+}
+
+
+def _stop_in_grasp(r, monkeypatch, nth, waypoint=5):
+    """Halt at the `waypoint`-th command of the `nth` grasp attempt."""
+    grasp, start = r.runtime.skill_grasp_object, []
+
+    def spy(*a, **k):
+        if r.grasps + 1 == nth:
+            start.append(r.sends)
+        return grasp(*a, **k)
+
+    def on_send():
+        if r.at_stop is None and start and r.sends - start[0] >= waypoint:
+            _stop_now(r, "halt")
+    monkeypatch.setattr(r.runtime, "skill_grasp_object", spy)
+    r.on_send = on_send
+
+
+def _halt_after_a_miss(r, monkeypatch, where):
+    """Halt after the first missed attempt, at `where` (AFTER_A_MISS)."""
+    if where == "rehome":
+        _stop_in_rehome(r, monkeypatch)
+    elif where == "after_rehome":
+        _halt_around_rehome(r, monkeypatch, "after")
+    elif where == "next_attempt":
+        _stop_in_grasp(r, monkeypatch, nth=2)
+    elif where == "perception_stop":
+        grasp = r.runtime.skill_grasp_object
+
+        def spy(*a, **k):
+            if r.grasps == 1:
+                r.grasps += 1
+                _stop_now(r, "halt")
+                raise SlowPerceptionError("test: the analysed frame is 6.0s old (limit 5s)")
+            return grasp(*a, **k)
+        monkeypatch.setattr(r.runtime, "skill_grasp_object", spy)
+    else:   # "with_the_miss": the attempt moved, missed and returns its miss
+        grasp = r.runtime.skill_grasp_object
+
+        def spy(*a, **k):
+            out = grasp(*a, **k)
+            if r.at_stop is None:
+                _stop_now(r, "halt")
+            return out
+        monkeypatch.setattr(r.runtime, "skill_grasp_object", spy)
+
+
+@pytest.mark.parametrize("where", sorted({w for w, _ in AFTER_A_MISS}))
+@pytest.mark.parametrize("skill, args", DECIDED_SKILLS, ids=[s for s, _ in DECIDED_SKILLS])
+@pytest.mark.parametrize("profile", DECIDED_PROFILES)
+def test_a_halt_after_a_missed_attempt_is_filed_as_the_miss(rig, monkeypatch, profile, skill, args, where):
+    r = rig(profile)
+    _missing_grasp(r, monkeypatch)
+    _halt_after_a_miss(r, monkeypatch, where)
+    text, attempts = AFTER_A_MISS[where, skill]
+
+    out = r.runtime.execute(skill, args)
+
+    assert r.at_stop is not None and r.sends == r.at_stop, f"{r.sends - r.at_stop} arm commands after the halt"
+    assert out["ok"] is False and out["error"] == f"MotionHalted: {text}", out   # the halt's text, unchanged
+    assert r.grasps == attempts, "the loop tried again after the halt"
+    assert out["skill_error"] == MISSED, out
+    assert _filed_as(r, skill) == ({MISSED_SIG: 1}, 0, MISSED_SIG)
+    assert not r.runtime.arm.harness.estopped
+
+
+@pytest.mark.parametrize("skill, args", DECIDED_SKILLS, ids=[s for s, _ in DECIDED_SKILLS])
+@pytest.mark.parametrize("profile", DECIDED_PROFILES)
+def test_a_halt_in_the_first_attempt_stays_a_halt(rig, monkeypatch, profile, skill, args):
+    """No attempt had failed yet: nothing was decided before the halt."""
+    r = rig(profile)
+    _missing_grasp(r, monkeypatch)
+    _stop_in_grasp(r, monkeypatch, nth=1)
+
+    out = r.runtime.execute(skill, args)
+
+    assert r.at_stop is not None and r.sends == r.at_stop, f"{r.sends - r.at_stop} arm commands after the halt"
+    assert out["ok"] is False and out["error"] == f"MotionHalted: {HALT}", out
+    assert r.grasps == 1
+    assert "skill_error" not in out, out
+    assert _filed_as(r, skill) == ({}, 1, "safety:halt")
+
+
+def test_grasp_with_persistence_called_directly_carries_the_miss_on_its_halt(rig, monkeypatch):
+    """Outside execute() the raised halt itself carries the miss."""
+    r = rig("rebot_rs")
+    _missing_grasp(r, monkeypatch)
+    _stop_in_rehome(r, monkeypatch)
+
+    with pytest.raises(MotionHalted) as raised:
+        r.runtime._grasp_with_persistence("red cube")
+
+    assert str(raised.value) == HALT
+    assert raised.value.skill_error == MISSED
+
+
+#: an attempt's own failure that its own recovery's halt carries (what
+#: skill_grasp_object raises after an air grasp whose exit was halted)
+AIR = "air grasp: gripper closed fully, object not held"
+
+
+@pytest.mark.parametrize("skill, args", DECIDED_SKILLS, ids=[s for s, _ in DECIDED_SKILLS])
+def test_the_last_attempts_own_failure_wins_over_an_earlier_miss(rig, monkeypatch, skill, args):
+    """Attempt 2 decided its own air grasp before the halt in its exit: the
+    call is filed as that air grasp (the innermost), not attempt 1's miss."""
+    r = rig("rebot_rs")
+    _missing_grasp(r, monkeypatch)
+    grasp = r.runtime.skill_grasp_object
+
+    def spy(*a, **k):
+        if r.grasps == 1:
+            r.grasps += 1
+            _stop_now(r, "halt")
+            halted = MotionHalted(HALT)
+            halted.skill_error = AIR
+            raise halted
+        return grasp(*a, **k)
+    monkeypatch.setattr(r.runtime, "skill_grasp_object", spy)
+
+    out = r.runtime.execute(skill, args)
+
+    assert out["error"] == f"MotionHalted: {HALT}" and r.grasps == 2, out
+    assert out["skill_error"] == AIR, out
+    assert _filed_as(r, skill) == ({"contact:air_grasp": 1}, 0, "contact:air_grasp")
+
+
+def _stop_in_place(r, monkeypatch, nth, waypoint=5):
+    """Halt at the `waypoint`-th command of the `nth` place attempt."""
+    place, start = r.runtime.skill_place_at, []
+
+    def spy(*a, **k):
+        if r.places + 1 == nth:
+            start.append(r.sends)
+        return place(*a, **k)
+
+    def on_send():
+        if r.at_stop is None and start and r.sends - start[0] >= waypoint:
+            _stop_now(r, "halt")
+    monkeypatch.setattr(r.runtime, "skill_place_at", spy)
+    r.on_send = on_send
+
+
+@pytest.mark.parametrize("profile", DECIDED_PROFILES)
+def test_a_halt_in_the_next_place_after_a_failed_place_is_filed_as_that_place(rig, monkeypatch, profile):
+    r = rig(profile)
+    _missing_grasp(r, monkeypatch, hold_on=1)
+    _missing_place(r, monkeypatch)
+    _stop_in_place(r, monkeypatch, nth=2)
+
+    out = r.runtime.execute("pick_and_place", {"object": "red cube"})
+
+    assert r.at_stop is not None and r.sends == r.at_stop, f"{r.sends - r.at_stop} arm commands after the halt"
+    assert out["error"] == f"MotionHalted: {HALT}" and r.places == 2, out
+    assert out["skill_error"] == PLACE_MISSED, out
+    assert _filed_as(r, "pick_and_place") == ({PLACE_MISSED_SIG: 1}, 0, PLACE_MISSED_SIG)
+
+
+@pytest.mark.parametrize("recovered", ["held_on_attempt_2", "held_after_the_miss"])
+@pytest.mark.parametrize("profile", DECIDED_PROFILES)
+def test_a_miss_the_grasp_stage_recovered_from_no_longer_decides_a_halted_place(rig, monkeypatch, profile,
+                                                                                recovered):
+    """A miss, then a grasp that held (the next attempt, or B36: the jaws
+    hold the object after the failed attempt): a halt in the first place is
+    a halt, never filed as that recovered miss."""
+    r = rig(profile)
+    runtime = r.runtime
+    if recovered == "held_on_attempt_2":
+        _missing_grasp(r, monkeypatch, hold_on=2)
+    else:
+        _missing_grasp(r, monkeypatch)
+
+        def held_after(object):
+            runtime.held_object, runtime._held_det_label = object, "cube"
+            return True, object
+        monkeypatch.setattr(runtime, "_held_after_failed_attempt", held_after)
+    _missing_place(r, monkeypatch)
+    _stop_in_place(r, monkeypatch, nth=1)
+
+    out = runtime.execute("pick_and_place", {"object": "red cube"})
+
+    assert r.at_stop is not None and r.sends == r.at_stop, f"{r.sends - r.at_stop} arm commands after the halt"
+    assert out["error"] == f"MotionHalted: {HALT}" and r.places == 1, out
+    assert r.grasps == (2 if recovered == "held_on_attempt_2" else 1)
+    assert "skill_error" not in out, out
+    assert _filed_as(r, "pick_and_place") == ({}, 1, "safety:halt")
+

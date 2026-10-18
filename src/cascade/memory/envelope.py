@@ -105,9 +105,9 @@ HALT_SIGNATURE = "safety:halt"
 _FAILURE_PATTERNS: tuple[tuple[str, str], ...] = (
     # The operator's halt is not how a primitive breaks: it matches first, so
     # its free-text reason (halt_motion's comes from the agent) never files
-    # it as a breakage it names. A failed skill whose park or view-home
-    # return the halt stopped afterwards names that stop first in its error,
-    # but is filed by its own error (`failure_signature`), never here.
+    # it as a breakage it names. A failed skill whose park, view-home return,
+    # recovery or retry the halt stopped afterwards is filed by its own
+    # error (`failure_signature`, `skill_error`), never here.
     # "halt" / "halted" as words: the skill halt_motion is not a halt.
     (r"\bhalt(ed)?\b", HALT_SIGNATURE),
     (r"would hit the table|below the table|link/joint \d+", "geometry:link_below_table"),
@@ -153,10 +153,13 @@ def failure_signature(result: dict) -> str:
     A skill that failed and whose final park or view-home return the
     operator's halt then stopped names that stop first in ``error`` (the
     agent's FAILED line keeps only its start) and keeps its own error in
-    ``skill_error``. The skill broke before the halt, so its own error is the
-    signature; ``error`` stays whole for display. Without ``skill_error``
-    (a halt alone, one the skill met itself, any other failure) it is
-    ``error``'s.
+    ``skill_error``. So does a skill the halt ended after a failure it had
+    already decided (an air grasp whose reopen or exit was halted, a retry
+    loop halted after a miss): its ``error`` is the halt's own text. The
+    skill broke before the halt, so its own error is the signature;
+    ``error`` stays whole for display. Without ``skill_error`` (a halt
+    alone, one that came before any failure was decided, any other
+    failure) it is ``error``'s.
     """
     return normalize_failure(str(result.get("skill_error") or result.get("error", "")))
 
@@ -366,8 +369,8 @@ class OperatingEnvelope:
 
         A failure filed as the operator's halt is not a loss: it only adds
         to ``halts``. An e-stop still counts, and so does a skill that
-        failed before the halt stopped its park or return (filed by its own
-        error).
+        failed before the halt stopped its park, its return, its recovery
+        or its retry (filed by its own error, ``skill_error``).
         """
         sig = "" if ok else (normalize_failure(error) if signature is None else signature)
         if sig == HALT_SIGNATURE:

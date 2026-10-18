@@ -816,6 +816,148 @@ def test_a_failed_grasp_without_a_stop_still_retries(rt, monkeypatch, skill, arg
     assert seen == {"grasps": 2, "homes": homes, "rescans": 1}
 
 
+# ── an air grasp whose own recovery the operator halted is filed as the air grasp ──
+#
+# The air grasp is decided before its recovery (the jaws' reopen, the exit
+# lift) runs. A halt there propagates as the MotionHalted it is (its text
+# unchanged), and it carries the air grasp (`skill_error`): the call is filed
+# as the air grasp, a loss, wherever in that second the halt lands. An e-stop
+# there is filed as the e-stop.
+
+
+def filed_as(rt, skill):
+    """The call's envelope failures, the envelope's operator halts (not
+    losses) and aspire's diagnosis of the run's trace."""
+    from cascade.agent.aspire import diagnose
+
+    stats = rt.envelope.stats()[skill]
+    return stats["failures"], stats["halts"], diagnose(rt.trace.run_dir).signature
+
+
+AIR_FILED = ({"contact:air_grasp": 1}, 0, "contact:air_grasp")
+
+
+def stop_in_the_air_grasp_recovery(rt, monkeypatch, where, stop="halt"):
+    """Stop (operator halt / e-stop) in the first air grasp's recovery: at the
+    5th command of the exit lift, while the jaws reopen, or as the exit starts
+    (it skips). Returns the arm command count at the stop."""
+    harness, raw, at_stop = rt.arm.harness, rt.arm.raw, []
+
+    def press():
+        if not at_stop:
+            harness.halt("operator") if stop == "halt" else harness.estop("operator")
+            at_stop.append(commands(rt))
+
+    if where == "reopen":
+        reopen = rt._open_empty_jaws
+
+        def jaws(*a, **k):
+            press()
+            return reopen(*a, **k)
+        monkeypatch.setattr(rt, "_open_empty_jaws", jaws)
+        return at_stop
+    real_exit, start = rt._air_grasp_exit, []
+
+    def exit_(column, move, **kw):
+        start.append(commands(rt))
+        if where == "before_exit":
+            press()
+        return real_exit(column, move, **kw)
+    monkeypatch.setattr(rt, "_air_grasp_exit", exit_)
+    if where == "exit":
+        send = raw.send_joint_target
+
+        def send_joint_target(q):
+            send(q)
+            if start and len(raw.commands) == start[0] + 5:
+                press()
+        monkeypatch.setattr(raw, "send_joint_target", send_joint_target)
+    return at_stop
+
+
+#: (where the halt lands, the skill) -> its error; the exit a halt skipped
+#: ends grasp_object with the air grasp itself, and the loops check for a halt
+AIR_HALTED = {
+    "exit": dict.fromkeys((GRASP[0], HANDOVER[0], PICK[0]), "MotionHalted: halted: operator"),
+    "reopen": dict.fromkeys((GRASP[0], HANDOVER[0], PICK[0]), f"MotionHalted: {LIFT_HALT}"),
+    "before_exit": {GRASP[0]: AIR, HANDOVER[0]: "MotionHalted: motion halted: operator; not retrying",
+                    PICK[0]: "MotionHalted: motion halted: operator; not retrying"},
+}
+
+
+@pytest.mark.parametrize("where", sorted(AIR_HALTED))
+@pytest.mark.parametrize("skill, args", [GRASP, HANDOVER, PICK], ids=["grasp_object", "handover", "pick_and_place"])
+def test_a_halt_in_an_air_grasps_recovery_is_filed_as_the_air_grasp(rt, monkeypatch, skill, args, where):
+    at_stop = stop_in_the_air_grasp_recovery(rt, monkeypatch, where)
+    seen = recovery_spies(rt, monkeypatch)
+
+    res = rt.execute(skill, args)
+
+    assert at_stop and commands(rt) == at_stop[0], "an arm command went out after the halt"
+    assert res["ok"] is False and res["error"] == AIR_HALTED[where][skill], res["error"]
+    assert seen == {"grasps": 1, "homes": 0, "rescans": 0}
+    assert res.get("skill_error") == (None if res["error"] == AIR else AIR), res
+    assert filed_as(rt, skill) == AIR_FILED
+    assert not rt.arm.harness.estopped
+
+
+@pytest.mark.parametrize("skill, args", [GRASP, PICK], ids=["grasp_object", "pick_and_place"])
+def test_an_estop_in_an_air_grasps_exit_is_filed_as_the_estop(rt, monkeypatch, skill, args):
+    at_stop = stop_in_the_air_grasp_recovery(rt, monkeypatch, "exit", stop="e-stop")
+
+    res = rt.execute(skill, args)
+
+    assert at_stop and commands(rt) == at_stop[0], "an arm command went out after the e-stop"
+    assert res["ok"] is False and "e-stop latched" in res["error"], res["error"]
+    assert "skill_error" not in res, res
+    assert filed_as(rt, skill) == ({"safety:estop": 1}, 0, "safety:estop")
+    rt.arm.harness.reset_estop()
+
+
+#: the descent's own failure, as execute() says it
+DESCENT_FAILED = "SkillError: did not settle at grasp pose"
+
+
+@pytest.mark.parametrize("skill, args", [GRASP, HANDOVER, PICK], ids=["grasp_object", "handover", "pick_and_place"])
+def test_a_halt_in_the_pre_close_retreat_is_filed_as_the_failed_descent(rt, monkeypatch, skill, args):
+    """The descent did not settle; the operator halts the pre-close retreat
+    that withdraws from it (its 5th command). The halt propagates as it is
+    and the call is filed as the failed descent."""
+    raw, at_stop, retreat = rt.arm.raw, [], []
+    move_joints, move_planned = rt._move_joints, rt._move_planned
+
+    def descend(q, *a, **k):
+        if k.get("bias_compensate"):
+            move_joints(q, *a, **k)
+            return False                     # moved, but did not settle at the grasp pose
+        return move_joints(q, *a, **k)
+
+    def planned_(q, *a, **k):
+        if not retreat and rt.arm.harness._grasp_exempt is not None:
+            retreat.append(commands(rt))     # the withdrawal inside the descent's column
+        return move_planned(q, *a, **k)
+
+    send = raw.send_joint_target
+
+    def send_joint_target(q):
+        send(q)
+        if retreat and not at_stop and len(raw.commands) == retreat[0] + 5:
+            rt.arm.harness.halt("operator")
+            at_stop.append(commands(rt))
+    monkeypatch.setattr(rt, "_move_joints", descend)
+    monkeypatch.setattr(rt, "_move_planned", planned_)
+    monkeypatch.setattr(raw, "send_joint_target", send_joint_target)
+    seen = recovery_spies(rt, monkeypatch)
+
+    res = rt.execute(skill, args)
+
+    assert at_stop and commands(rt) == at_stop[0], "an arm command went out after the halt"
+    assert res["ok"] is False and res["error"] == "MotionHalted: halted: operator", res["error"]
+    assert seen == {"grasps": 1, "homes": 0, "rescans": 0}
+    assert res["skill_error"] == DESCENT_FAILED, res
+    assert filed_as(rt, skill) == ({"other:did_not_settle": 1}, 0, "other:did_not_settle")
+
+
 # ── an operator halt at any point of a motion skill ends it (A3 review, round 3) ──
 #
 # Pre-existing on main: a halt raised while grasp_object PLANNED was cleared by

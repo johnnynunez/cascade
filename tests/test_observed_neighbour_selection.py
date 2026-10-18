@@ -370,6 +370,11 @@ def _precommand(message, conflict):
     return make(message, conflict)
 
 
+#: `_refuse_first_close`'s veto, as execute() says it
+FIRST_CLOSE_REFUSED = ("SafetyViolation: closing fingers intersects observed non-target surface: "
+                       "{'finger': 'joint_left', 'surface': 'other observed surface', 'injected': True}")
+
+
 def _refuse_first_close(monkeypatch, *, retreat="completes"):
     """Inject a live closing veto after the pre-vet (the gate refuses before
     any jaw command). `retreat` decides whether the withdrawal is vetted."""
@@ -592,10 +597,13 @@ def test_halt_after_withdrawal_ends_the_skill_without_another_candidate(monkeypa
             env.harness._halt_generation += 1        # operator halt right after the withdrawal
         return result
     env.rt._move_joints = moved
-    with pytest.raises(MotionHalted, match=r"^halt received during route planning or execution$"):
+    with pytest.raises(MotionHalted, match=r"^halt received during route planning or execution$") as raised:
         grasp(env)
     assert len(moves) == 4
     assert [c for c in env.calls if c[0] == "gripper"] == [("gripper", 1., .8)]
+    # The refused candidate was decided before the halt: the halt carries it,
+    # so execute() files the call as that refusal, not as the halt.
+    assert raised.value.skill_error == FIRST_CLOSE_REFUSED
 
 
 def _with_grasp_cfg(env, **values):
@@ -1272,11 +1280,13 @@ def test_a_halt_during_the_pre_close_retreat_ends_the_skill_as_a_halt(monkeypatc
             env.harness._halt_generation += 1        # operator halt as the withdrawal starts
         return move(*a, **k)
     env.rt._move_joints = moved
-    with pytest.raises(MotionHalted, match=r"^halt received during route planning or execution$"):
+    with pytest.raises(MotionHalted, match=r"^halt received during route planning or execution$") as raised:
         grasp(env)
     assert len(moves) == 4
     assert [c for c in env.calls if c[0] == "gripper"] == [("gripper", 1., .8)]
     assert len(joint_targets(env)) == 51             # home, pregrasp, descent; the withdrawal never streamed
+    # The veto was decided before the halt: the halt carries it (`skill_error`).
+    assert raised.value.skill_error == FIRST_CLOSE_REFUSED
 
 
 def test_a_ranking_query_names_no_object_while_a_refusal_still_does(monkeypatch):

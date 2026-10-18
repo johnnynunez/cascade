@@ -9848,11 +9848,31 @@ def _with_failure_instruction(result: dict) -> dict:
 #: attempt", "S I M U L A T I O N  O N L Y", a zero-width or other format character
 #: inside a word), with the digit 0 for the letter o.
 _RETRY_TRIGGER_PHRASES = ("simulation only", "one more attempt", "another attempt", "second attempt")
-_RETRY_TRIGGER_RE = re.compile(
-    r"(?<![a-z0-9])(?:" + "|".join(r"[\W_]*".join("[o0]" if ch == "o" else ch for ch in phrase.replace(" ", ""))
-                                   for phrase in _RETRY_TRIGGER_PHRASES) + ")", re.IGNORECASE)
-#: what stands in a trigger's place in a result the ledger did not grant
+#: R5's trigger (A8 follow-ups 5): the kitchen rules end the reply with the line a tool result
+#: gives ("If a tool result gives a line to end your reply with, end with exactly that line."),
+#: and no tool result gives one. Its words (the note lint's R5 `_RULE_TRIGGERS`, "end*" as end /
+#: ends / ending) are withheld from EVERY result, a granted retry's too, read the same way as R1's:
+#: an operator's halt reason (the agent's own `halt_motion(reason)`) never carries it.
+_REPLY_LINE_PHRASES = ("end your reply", "ends your reply", "ending your reply", "end your answer",
+                       "ends your answer", "ending your answer", "exact line", "exactly that line",
+                       "exactly this line")
+
+
+def _phrases_pattern(phrases) -> str:
+    """The phrases as one alternation: any run of separators between letters, 0 for o."""
+    return "|".join(r"[\W_]*".join("[o0]" if ch == "o" else ch for ch in phrase.replace(" ", ""))
+                    for phrase in phrases)
+
+
+_RETRY_TRIGGER_RE = re.compile(r"(?<![a-z0-9])(?:(?P<retry>" + _phrases_pattern(_RETRY_TRIGGER_PHRASES)
+                               + r")|(?P<reply>" + _phrases_pattern(_REPLY_LINE_PHRASES) + "))", re.IGNORECASE)
+#: R5's words alone: what a granted retry's result has withheld (it keeps R1's permission)
+_REPLY_LINE_RE = re.compile(r"(?<![a-z0-9])(?P<reply>" + _phrases_pattern(_REPLY_LINE_PHRASES) + ")",
+                            re.IGNORECASE)
+#: what stands in a trigger's place: R1's in a result the ledger did not grant, R5's in any result
 _RETRY_TRIGGER_WITHHELD = "(retry wording withheld)"
+_REPLY_LINE_WITHHELD = "(reply-line wording withheld)"
+_WITHHELD = {"retry": _RETRY_TRIGGER_WITHHELD, "reply": _REPLY_LINE_WITHHELD}
 #: Cyrillic, Greek and Latin look-alikes of the trigger's letters, read as those letters
 _TRIGGER_LOOKALIKES = str.maketrans({
     "\u0430": "a", "\u0410": "a", "\u0391": "a", "\u03b1": "a", "\u0251": "a", "\u0441": "c", "\u0421": "c",
@@ -9861,10 +9881,13 @@ _TRIGGER_LOOKALIKES = str.maketrans({
     "\u04cf": "l", "\u04c0": "l", "\u043c": "m", "\u041c": "m", "\u039c": "m", "\u039d": "n", "\u043e": "o",
     "\u041e": "o", "\u039f": "o", "\u03bf": "o", "\u03c3": "o", "\u0440": "p", "\u0420": "p", "\u03a1": "p",
     "\u03c1": "p", "\u0433": "r", "\u0455": "s", "\u0405": "s", "\u0442": "t", "\u0422": "t", "\u03a4": "t",
-    "\u03c4": "t", "\u03c5": "u", "\u0443": "y", "\u0423": "y", "\u03a5": "y", "\u04af": "y"})
+    "\u03c4": "t", "\u03c5": "u", "\u0443": "y", "\u0423": "y", "\u03a5": "y", "\u04af": "y",
+    # R5's letters R1 lacks (A8 follow-ups 5)
+    "\u0445": "x", "\u0425": "x", "\u03a7": "x", "\u051d": "w", "\u051c": "w"})
 #: the trigger squeezed (no separators, lower case, 0 read as o): a cheap first look, a
 #: superset of `_RETRY_TRIGGER_RE` (no word-start guard) on bytes
-_TRIGGER_SQUEEZED = tuple(phrase.replace(" ", "").encode() for phrase in _RETRY_TRIGGER_PHRASES)
+_TRIGGER_SQUEEZED = tuple(phrase.replace(" ", "").encode() for phrase in _RETRY_TRIGGER_PHRASES + _REPLY_LINE_PHRASES)
+_REPLY_LINE_SQUEEZED = tuple(phrase.replace(" ", "").encode() for phrase in _REPLY_LINE_PHRASES)
 _TRIGGER_SQUEEZE = bytes.maketrans(b"ABCDEFGHIJKLMNOPQRSTUVWXYZ0", b"abcdefghijklmnopqrstuvwxyzo")
 _TRIGGER_SEPARATORS = bytes(byte for byte in range(128) if not chr(byte).isalnum())
 
@@ -9879,16 +9902,22 @@ def _trigger_reading(text: str) -> str:
     return decomposed.translate({**_TRIGGER_LOOKALIKES, **hidden} if hidden else _TRIGGER_LOOKALIKES)
 
 
-def _may_carry_trigger(reading: str) -> bool:
+def _may_carry_trigger(reading: str, phrases: tuple = _TRIGGER_SQUEEZED) -> bool:
     """A cheap first look (C-level byte ops): False only when `reading` cannot match
-    `_RETRY_TRIGGER_RE` (its letters, squeezed, contain no trigger phrase)."""
+    `_RETRY_TRIGGER_RE` (its letters, squeezed, contain no trigger phrase; `phrases`:
+    the squeezed phrases of the pattern in use)."""
     squeezed = reading.encode("ascii", "ignore").translate(_TRIGGER_SQUEEZE, _TRIGGER_SEPARATORS)
-    return any(phrase in squeezed for phrase in _TRIGGER_SQUEEZED)
+    return any(phrase in squeezed for phrase in phrases)
 
 
-def _withhold_spans(text: str) -> str:
-    """`text` with each span that reads as the trigger replaced by `_RETRY_TRIGGER_WITHHELD`
-    (the rest kept as written: other scripts, accents, numbers), read character by
+def _withheld(match: re.Match) -> str:
+    """What stands in the place of a trigger `match` (R1's or R5's)."""
+    return _WITHHELD[match.lastgroup]
+
+
+def _withhold_spans(text: str, pattern: re.Pattern = _RETRY_TRIGGER_RE) -> str:
+    """`text` with each span that reads as a trigger of `pattern` replaced by its
+    placeholder (`_withheld`; the rest kept as written: other scripts, accents, numbers), read character by
     character so every match maps back to its own characters (the same reading as
     `_trigger_reading` of the whole text: NFKD decomposes each character on its own,
     and the marks it could reorder are dropped)."""
@@ -9898,37 +9927,45 @@ def _withhold_spans(text: str) -> str:
         pieces.append(reading)
         origin.extend([i] * len(reading))
     out, last = [], 0
-    for match in _RETRY_TRIGGER_RE.finditer("".join(pieces)):
+    for match in pattern.finditer("".join(pieces)):
         start, end = origin[match.start()], origin[match.end() - 1] + 1
         while end < len(text) and not pieces[end]:  # marks that only decorate the last letter
             end += 1
-        out += [text[last:start], _RETRY_TRIGGER_WITHHELD]
+        out += [text[last:start], _withheld(match)]
         last = end
     out.append(text[last:])
     return "".join(out)
 
 
-def _without_retry_trigger(value):
-    """`value` with every span that reads as a retry trigger (`_RETRY_TRIGGER_RE` on
-    `_trigger_reading`) withheld from every string in it: dicts, lists and tuples are
-    walked, and a container is copied only where a string changed (shared objects are
-    never edited). A plain-ASCII string skips the Unicode reading (A8 fix 2, Minor 6:
-    no mark, compatibility form or look-alike can be in it); a string without a trigger
-    comes back as it was, the same object, and so does any other value."""
+def _without_retry_trigger(value, pattern: re.Pattern = _RETRY_TRIGGER_RE, phrases: tuple = _TRIGGER_SQUEEZED):
+    """`value` with every span that reads as a rule trigger (`_RETRY_TRIGGER_RE` on
+    `_trigger_reading`: R1's retry permission and R5's reply line) withheld from every
+    string in it: dicts, lists and tuples are walked, and a container is copied only
+    where a string changed (shared objects are never edited). A plain-ASCII string
+    skips the Unicode reading (A8 fix 2, Minor 6: no mark, compatibility form or
+    look-alike can be in it); a string without a trigger comes back as it was, the same
+    object, and so does any other value. `pattern` / `phrases`: `_without_reply_line`'s."""
     if isinstance(value, str):
         reading = value if value.isascii() else _trigger_reading(value)
-        if not _may_carry_trigger(reading) or not _RETRY_TRIGGER_RE.search(reading):
+        if not _may_carry_trigger(reading, phrases) or not pattern.search(reading):
             return value
-        return _RETRY_TRIGGER_RE.sub(_RETRY_TRIGGER_WITHHELD, value) if reading is value else _withhold_spans(value)
+        return pattern.sub(_withheld, value) if reading is value else _withhold_spans(value, pattern)
     if isinstance(value, dict):
-        changed = {key: new for key, item in value.items() if (new := _without_retry_trigger(item)) is not item}
+        changed = {key: new for key, item in value.items()
+                   if (new := _without_retry_trigger(item, pattern, phrases)) is not item}
         return {**value, **changed} if changed else value
     if isinstance(value, (list, tuple)):
-        items = [_without_retry_trigger(item) for item in value]
+        items = [_without_retry_trigger(item, pattern, phrases) for item in value]
         if all(new is old for new, old in zip(items, value)):
             return value
         return items if isinstance(value, list) else tuple(items)
     return value
+
+
+def _without_reply_line(value):
+    """`value` with R5's reply line withheld (`_without_retry_trigger` with R5's words
+    alone): what a granted retry's result gets, so it keeps R1's permission."""
+    return _without_retry_trigger(value, _REPLY_LINE_RE, _REPLY_LINE_SQUEEZED)
 
 
 def _with_retry_text(result: dict, skill: str) -> dict:
@@ -9936,10 +9973,11 @@ def _with_retry_text(result: dict, skill: str) -> dict:
     (`sim_retry`): a granted retry puts RETRY_ALLOWED where the failure
     guidance stood (only pick_and_place's results carry it; else appended), a used one appends
     RETRY_USED, a stopped one RETRY_STOPPED_NEXT. The FAILED line and any move_home step stay
-    in front. The single choke point of the retry trigger: every result execute() returns
-    passes here, with or without a ledger, and only a granted one keeps the trigger -- every
-    other has it withheld from all its text (`_without_retry_trigger`: an operator's halt
-    reason, an error, a nested step's reason). Idempotent."""
+    in front. The single choke point of the rules' triggers: every result execute() returns
+    passes here, with or without a ledger, and only a granted one keeps R1's retry trigger --
+    every other has it withheld from all its text (`_without_retry_trigger`: an operator's halt
+    reason, an error, a nested step's reason); R5's reply line is withheld from every result, a
+    granted one too (`_without_reply_line`; A8 follow-ups 5). Idempotent."""
     from ..agent.sim_retry import RETRY_ALLOWED, RETRY_STOPPED_NEXT, RETRY_USED
 
     if not isinstance(result, dict):
@@ -9949,13 +9987,15 @@ def _with_retry_text(result: dict, skill: str) -> dict:
     own = str(result.get("next_action") or "").strip()
     if state.get("allowed") is True:
         text = RETRY_ALLOWED.format(skill=skill)
-        if text in own:
-            return result
-        if _PICK_FAILED_GUIDANCE in own:
-            own = own.replace(_PICK_FAILED_GUIDANCE, text)
-        else:
-            own = f"{own} {text}" if own else text
-        result["next_action"] = own
+        if text not in own:
+            if _PICK_FAILED_GUIDANCE in own:
+                own = own.replace(_PICK_FAILED_GUIDANCE, text)
+            else:
+                own = f"{own} {text}" if own else text
+            result["next_action"] = own
+        for key, value in list(result.items()):
+            if (new := _without_reply_line(value)) is not value:
+                result[key] = new
         return result
     added = (RETRY_STOPPED_NEXT if state.get("stopped") is True
              else RETRY_USED if state.get("used") is True else None)

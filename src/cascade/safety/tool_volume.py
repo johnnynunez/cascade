@@ -104,6 +104,36 @@ def box_grid(center, axes, half, spacing_m: float) -> np.ndarray:
     return np.asarray(center, dtype=float) + local @ np.asarray(axes, dtype=float).T
 
 
+def jaw_box(sweep, axis_order: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """The open-jaw sweep box in the TCP frame: (center, axes, half).
+
+    `sweep` is `grasp.graspgenx.sweep` (`extents_open`, optional
+    `offset_open`), given in the sweep frame: origin at the TCP, +X closing,
+    +Y third, +Z approach. `axes` columns map those onto the TCP frame of
+    `axis_order` (`tool_axis_order`). The one reading of the jaws that the
+    harness's tool volume (`build_tool_volume`) and point_at's pointing pose
+    both use, so the two cannot drift apart. A missing, non-numeric, negative
+    or non-finite box, or an unknown axis order, raises ValueError.
+    """
+    from ..skills.relative_motion import _TOOL_COLUMNS
+
+    raw_ext = sweep.get("extents_open") if sweep is not None else None
+    raw_off = sweep.get("offset_open", [0.0, 0.0, 0.0]) if sweep is not None else None
+    try:
+        ext = np.asarray(raw_ext, dtype=float).reshape(3)
+        off = np.asarray(raw_off, dtype=float).reshape(3)
+    except (TypeError, ValueError):
+        ext = off = np.full(3, np.nan)
+    if not (np.all(np.isfinite(ext)) and np.all(ext >= 0) and np.all(np.isfinite(off))):
+        raise ValueError(f"grasp.graspgenx.sweep open jaws must be finite, got {raw_ext!r}, {raw_off!r}")
+    if axis_order not in _TOOL_COLUMNS:
+        raise ValueError(f"unknown tool_axis_order {axis_order!r}")
+    a_col, j_col, t_col = _TOOL_COLUMNS[axis_order]
+    # sweep frame: +X closing, +Y third, +Z approach (origin at the TCP)
+    axes = np.eye(3)[:, [j_col, t_col, a_col]]
+    return axes @ off, axes, ext / 2.0
+
+
 def _flag(block, key: str) -> bool:
     value = block.get(key, True)
     if not isinstance(value, bool):
@@ -227,13 +257,7 @@ def build_tool_volume(view, arm_cfg) -> ToolVolume | None:
         sweep = ((view.get("grasp") or {}).get("graspgenx") or {}).get("sweep")
         if sweep is None or sweep.get("extents_open") is None:
             raise ValueError("safety.tool_volume.jaws needs grasp.graspgenx.sweep.extents_open")
-        ext = np.asarray(sweep.get("extents_open"), dtype=float).reshape(3)
-        off = np.asarray(sweep.get("offset_open", [0.0, 0.0, 0.0]), dtype=float).reshape(3)
-        if not (np.all(np.isfinite(ext)) and np.all(ext >= 0) and np.all(np.isfinite(off))):
-            raise ValueError(f"grasp.graspgenx.sweep open jaws must be finite, got {ext}, {off}")
-        # sweep frame: +X closing, +Y third, +Z approach (origin at the TCP)
-        axes = np.column_stack([eye[j_col], eye[t_col], eye[a_col]])
-        parts.append(box_grid(axes @ off, axes, ext / 2.0, spacing))
+        parts.append(box_grid(*jaw_box(sweep, order), spacing))
         names.append("jaws")
     for i, p in enumerate(parts):
         labels.append(np.full(len(p), i, dtype=int))

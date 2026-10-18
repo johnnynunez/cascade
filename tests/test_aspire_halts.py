@@ -1,11 +1,14 @@
-"""An operator halt teaches the ASPIRE library nothing.
+"""An operator stop teaches the ASPIRE library nothing.
 
-A halt is the operator's decision, not how a primitive breaks: a confirmed
-retry after one is no repair, so a halt is never the failure a retry is
-credited to (`diagnose` skips it when it chooses) and a halt diagnosis is
-never teachable. An earlier real failure in the same run is still learned,
-and so is a failed skill whose final park the operator halted afterwards:
-it is filed by the skill's own error (`skill_error`).
+A stop -- a halt, an e-stop or both (the e-stop then names itself) -- is the
+operator's decision, not how a primitive breaks: a confirmed retry after one
+is no repair, so a call that ended in a stop is never the failure a retry is
+credited to (`diagnose` skips it when it chooses) and its diagnosis is never
+teachable (A8 follow-ups 1). That holds even when main files the call under
+the failure the skill had decided before the stop (#377: `skill_error`, the
+error naming the stop first): learning across an operator stop risks notes
+that work around stops (A8 follow-ups 2). An earlier real failure in the same
+run, before a stop, is still learned.
 
 Fixtures are synthetic traces with the runtime's real error texts.
 """
@@ -13,8 +16,9 @@ import json
 
 import pytest
 
-from cascade.agent.aspire import Diagnosis, diagnose, distil, harvest, retrieve
+from cascade.agent.aspire import Diagnosis, diagnose, distil, ended_in_stop, harvest, retrieve
 from cascade.agent.effects import CONFIRMED, POSTCONDITIONS
+from cascade.memory.envelope import failure_signature
 from cascade.skills.library import SkillLibrary
 
 TASK_A = "pick the cube"
@@ -31,6 +35,26 @@ HALTS = [
     "MotionHalted: halt received during route planning or execution",
     "return to saved home skipped: motion halted: operator: stop",
 ]
+#: what the operator's e-stop leaves, alone or with a halt (both stops: the e-stop
+#: wins and names itself, tests/test_retry_loops_end_on_halt.py "both stops")
+ESTOPS = {
+    "e-stop": "SafetyViolation: e-stop latched",
+    "both stops": "SafetyViolation: e-stop latched; not retrying",
+    "e-stop, view-home skipped": "return to saved home skipped: e-stop latched",
+    # filed by its "jaws" (geometry:object_too_wide), still the e-stop's text
+    "e-stop, jaws closed": "SafetyViolation: e-stop latched before the closed jaws were opened",
+}
+#: a failure the skill had decided before the operator halted it (#377): the error
+#: names the halt (first), `skill_error` keeps the decided failure, which files it
+MISSED = "grasp missed: closed on air"
+DECIDED_THEN_HALTED = {
+    # the halt stopped the recovery or the retry after the miss (`_keep_decided_failure`)
+    "halted after a miss": ("MotionHalted: halted: operator: stop", MISSED),
+    # the halt stopped the final park (`_stop_first`)
+    "final park halted": (f"final park halted: operator: stop; {PICK_MISSED}", PICK_MISSED),
+    # the halt stopped the view-home return (`_stop_first`)
+    "view-home halted": (f"return to saved home halted: operator: stop; {PICK_MISSED}", PICK_MISSED),
+}
 
 
 def _confirmed(skill="pick_and_place"):
@@ -87,8 +111,8 @@ def test_a_halt_diagnosis_is_never_teachable(tmp_path):
                      repair_postcondition=confirmed["postcondition"], repaired=True)
     assert not diag.teachable
     assert distil(diag, SkillLibrary(tmp_path / "lib")) is None
-    # the same diagnosis of a real failure is teachable
-    diag.signature = "contact:air_grasp"
+    # the same diagnosis of a real failure is teachable (its error names no stop: A8 follow-ups 2)
+    diag.signature, diag.error = "contact:air_grasp", "air grasp: gripper closed fully, object not held"
     assert diag.teachable
 
 
@@ -114,20 +138,113 @@ def test_an_earlier_real_failure_is_learned_past_a_halt(tmp_path, order):
     assert diag.teachable is (order != "halt_first_no_retry")
 
 
-def test_a_failure_whose_final_park_was_halted_is_learned_as_that_failure(tmp_path):
-    """The skill missed, then the operator halted its final park: the miss
-    came first and is what a retry repaired. Two tasks promote it under the
-    miss's signature; the note the agent gets never names the halt as the
-    failure."""
+@pytest.mark.parametrize("kind", sorted(ESTOPS))
+def test_a_retry_after_an_estop_or_both_stops_is_never_learned(tmp_path, kind):  # A8 follow-ups 1
+    """Two tasks, each an e-stopped (or both-stopped) pick_and_place and then a
+    confirmed retry of the same goal: diagnosed, nothing learned, promoted or served
+    (main wrote `pick-and-place-safety-estop.md`)."""
     runs = tmp_path / "runs"
-    composite = f"final park halted: operator: stop; {PICK_MISSED}"
     for name, task in (("run-a", TASK_A), ("run-b", TASK_B)):
-        _run(runs, name, task, [_failed(composite, skill_error=PICK_MISSED), _call(_confirmed())])
+        _run(runs, name, task, [_failed(ESTOPS[kind]), _call(_confirmed())])
     library = SkillLibrary(tmp_path / "lib")
 
     out = harvest(runs, library)
 
-    assert out["promoted"] == ["pick-and-place-other-grasp-failed-after"], out
-    served = retrieve(library, QUERY)
-    assert "after **other:grasp_failed_after**" in served, served
-    assert "**safety:halt**" not in served, served
+    assert out["diagnosed"] == 2 and out["learned"] == 0, out
+    assert out["promoted"] == [] and out["candidates"] == [], out
+    assert library.records() == [] and list((tmp_path / "lib").glob("*.md")) == []
+    assert retrieve(library, QUERY) == ""
+    for name in ("run-a", "run-b"):
+        diag = diagnose(runs / name)
+        assert diag.error == ESTOPS[kind] and not diag.teachable
+
+
+@pytest.mark.parametrize("kind", sorted(DECIDED_THEN_HALTED))
+def test_a_decided_failure_that_ended_in_a_halt_is_never_learned(tmp_path, kind):  # A8 follow-ups 2
+    """The skill missed, then the operator halted what came next (the retry, the
+    final park, the view-home return): main files the call by the miss
+    (`skill_error`), and it stays filed so, but a confirmed retry after it is never
+    credited to it: the call ended in an operator stop. Two tasks learn nothing."""
+    error, decided = DECIDED_THEN_HALTED[kind]
+    runs = tmp_path / "runs"
+    for name, task in (("run-a", TASK_A), ("run-b", TASK_B)):
+        _run(runs, name, task, [_failed(error, skill_error=decided), _call(_confirmed())])
+    library = SkillLibrary(tmp_path / "lib")
+
+    out = harvest(runs, library)
+
+    assert out["diagnosed"] == 2 and out["learned"] == 0, out
+    assert out["promoted"] == [] and out["candidates"] == [], out
+    assert library.records() == [] and retrieve(library, QUERY) == ""
+    for name in ("run-a", "run-b"):
+        diag = diagnose(runs / name)
+        assert diag.signature == failure_signature({"error": decided}) != "safety:halt"  # main's filing kept
+        assert diag.error == error and not diag.teachable
+
+
+#: the contract when only the signature names the stop (a stop text in `skill_error` alone)
+FILED_AS_A_STOP = {
+    "filed as the halt": (PICK_MISSED, "MotionHalted: halted: operator: stop"),
+    "filed as the e-stop": (PICK_MISSED, "SafetyViolation: e-stop latched"),
+}
+STOPPED_CALLS = {**{f"halt {i}": (halt, None) for i, halt in enumerate(HALTS)},
+                 **{kind: (estop, None) for kind, estop in ESTOPS.items()},
+                 **DECIDED_THEN_HALTED, **FILED_AS_A_STOP}
+
+
+@pytest.mark.parametrize("kind", sorted(STOPPED_CALLS))
+def test_ended_in_stop_reads_the_error_and_the_signature(kind):  # A8 follow-ups 1, 2
+    error, decided = STOPPED_CALLS[kind]
+    result = {"ok": False, "error": error} if decided is None else {"ok": False, "error": error, "skill_error": decided}
+    assert ended_in_stop(result)
+
+
+@pytest.mark.parametrize("result", [
+    {"ok": False, "error": "SafetyViolation: link/joint 7 would hit the table"},
+    {"ok": False, "error": PICK_MISSED},
+    {"ok": False, "error": "air grasp: gripper closed fully, object not held"},
+    {"ok": False, "error": "SafetyViolation: finger trajectory intersects observed surface: lemon"},
+    {"ok": False, "error": "unknown skill halt_motion_x"},  # \"halt\" inside a name is no halt
+    {"ok": False, "error": ""}, {"ok": False}, None, "MotionHalted: halted: operator: stop",
+])
+def test_a_failure_no_stop_ended_is_no_stopped_call(result):
+    assert not ended_in_stop(result)
+
+
+@pytest.mark.parametrize("kind", sorted(STOPPED_CALLS))
+def test_a_stop_diagnosis_is_never_teachable(tmp_path, kind):  # A8 follow-ups 1, 2
+    """Even a diagnosis that meets every other condition (a matching,
+    measured-confirmed retry of the same goal and context), whatever signature
+    its call is filed under: the call ended in an operator stop."""
+    error, decided = STOPPED_CALLS[kind]
+    diag = _diagnosis(error=error, signature=failure_signature({"error": error, "skill_error": decided}))
+    assert not diag.teachable
+    assert distil(diag, SkillLibrary(tmp_path / "lib")) is None
+    # the same diagnosis of a failure that ended in no stop is teachable
+    real = "SafetyViolation: link/joint 7 would hit the table"
+    assert _diagnosis(error=real, signature=failure_signature({"error": real})).teachable
+
+
+@pytest.mark.parametrize("kind", sorted(STOPPED_CALLS))
+def test_an_earlier_real_failure_is_learned_past_a_stopped_call(tmp_path, kind):  # A8 follow-ups 1, 2
+    """The run's real failure, then a call that ended in a stop, then a confirmed
+    retry: the retry is credited to the real failure (as past a halt), never to the
+    stopped call."""
+    error, decided = STOPPED_CALLS[kind]
+    real = _failed("SafetyViolation: link/joint 7 would hit the table")
+    stopped = _failed(error) if decided is None else _failed(error, skill_error=decided)
+    run = _run(tmp_path / "runs", "run-a", TASK_A, [real, stopped, _call(_confirmed())])
+
+    diag = diagnose(run)
+
+    assert diag.n_failures == 2
+    assert diag.signature == "geometry:link_below_table" and diag.error == real["result"]["error"]
+    assert diag.teachable
+
+
+def _diagnosis(*, error, signature):
+    confirmed = _confirmed()
+    return Diagnosis(run="run-a", task=TASK_A, failed_skill="pick_and_place", signature=signature, error=error,
+                     failed_args=dict(ARGS), failed_context=dict(CONTEXT), repair_skill="pick_and_place",
+                     repair_args=dict(ARGS), repair_context=dict(CONTEXT),
+                     repair_postcondition=confirmed["postcondition"], repaired=True)

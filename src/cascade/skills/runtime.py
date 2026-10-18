@@ -1442,15 +1442,20 @@ class SkillRuntime:
         self.arm.harness._check_halt_generation(generation)
 
     def _sim_retry_finish(self, ledger, name, args, result, trace_context, *, retry, retry_home, exc_type, state,
-                          arm, harness, baselines) -> dict:
+                          arm, harness, baselines, stop_token0) -> dict:
         """Hand the finished call to the ledger, read at the END of the call (the
         hold, a latch, a halt since the skill started, a pending episode, the
         rig's stop token), then compose the agent text and mark the trace row
-        (the retry, its home, a ledger that switched itself off)."""
-        result = ledger.finish(name, args, result, exc_type=exc_type, held=bool(self._jaws_may_hold()),
-                               latched=self._stop_latched(arm), halted=self._halted_since_skill_start(baselines),
-                               episode_pending=_episode_pending(harness),
-                               refused_grasps=state.refused_grasps, retry=retry, stop_token=self._stop_token())
+        (the retry, its home, a ledger that switched itself off, a failed call an
+        operator stop ended). `stop_token0`: the stop token `begin` saw."""
+        held = bool(self._jaws_may_hold())
+        latched = self._stop_latched(arm)
+        halted = self._halted_since_skill_start(baselines)
+        pending = _episode_pending(harness)
+        token = self._stop_token()
+        result = ledger.finish(name, args, result, exc_type=exc_type, held=held, latched=latched, halted=halted,
+                               episode_pending=pending, refused_grasps=state.refused_grasps, retry=retry,
+                               stop_token=token)
         ok = isinstance(result, dict) and result.get("ok") is True
         ledger.note_motion(name, ok)
         if name == "reset_scene" and ok:
@@ -1459,6 +1464,12 @@ class SkillRuntime:
         mark = {"retry": True, "auto_home": retry_home} if retry is not None else {}
         if ledger.off:
             mark["off"] = True
+        # a failed call an operator stop ended (latched now, a halt since the skill
+        # started, or a halt / e-stop during the call, even one cleared again: the
+        # ledger's own rule, R7): ASPIRE never learns from it, also when its error
+        # names only the skill's own refusal (`aspire.ended_in_stop`; A8 follow-ups fix)
+        if not ok and (latched or halted or token != stop_token0):
+            mark["ended_in_stop"] = True
         if mark:
             trace_context["sim_retry"] = mark
         return result
@@ -2021,19 +2032,20 @@ class SkillRuntime:
         # `begin` alone: it returns the refusal `precheck` would, and under a
         # pending stop it also spends every other open slot (A7 ruling).
         ledger = self._sim_retry_ledger(name)
-        retry = retry_g0 = ledger_args = effective_harness = retry_state = None
+        retry = retry_g0 = ledger_args = effective_harness = retry_state = stop_token0 = None
         if ledger is not None:
             ledger_args = (dict(requested_args) if resolved_arm is None
                            else {**requested_args, "arm": resolved_arm})
             effective_harness = (getattr(effective_arm, "__dict__", None) or {}).get("harness")
             raw = getattr(selected if selected is not None else self.arm, "raw", None)
             # R7: the rig's stop token too: a halt or e-stop since the refusal, even
-            # one cleared again, spends the slot (no retry, no automatic home)
+            # one cleared again, spends the slot (no retry, no automatic home); kept
+            # for the end of the call (a stop during it, `_sim_retry_finish`)
             step = ledger.begin(name, ledger_args, held=self._jaws_may_hold(),
                                 latched=self._stop_latched(effective_arm),
                                 episode_pending=_episode_pending(effective_harness),
                                 motion_blocked=getattr(raw, "_stopped", False) is True,
-                                stop_token=self._stop_token())
+                                stop_token=(stop_token0 := self._stop_token()))
             if isinstance(step, dict):
                 return self._sim_retry_refusal(name, args, step, trace_context)
             retry = step
@@ -2515,7 +2527,7 @@ class SkillRuntime:
             result = self._sim_retry_finish(
                 ledger, name, ledger_args, result, trace_context, retry=retry, retry_home=retry_home,
                 exc_type=refused_by if refused_by is not None else retry_state.refusal_exc_type, state=retry_state,
-                arm=effective_arm, harness=effective_harness, baselines=skill_halt)
+                arm=effective_arm, harness=effective_harness, baselines=skill_halt, stop_token0=stop_token0)
         self.trace.record(name, args, result, dur, before, after,
                           tier=self.current_tier, context=trace_context,
                           keyframe_before_wrists=before_wrists, keyframe_after_wrists=after_wrists)

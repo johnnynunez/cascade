@@ -10,16 +10,25 @@ error naming the stop first): learning across an operator stop risks notes
 that work around stops (A8 follow-ups 2). An earlier real failure in the same
 run, before a stop, is still learned.
 
-Fixtures are synthetic traces with the runtime's real error texts.
+Fixtures are synthetic traces with the runtime's real error texts, and real
+trace rows from `execute()` on the mock stack for a stop the error does not
+name: with the sim retry ledger (the observed-finger gate on, the kitchen's
+setting) the row is marked `context.sim_retry.ended_in_stop` and never learned
+(A8 follow-ups fix, Important 1); without one (gate 0, every hardware profile)
+no row carries that mark, the gap the docs state.
 """
 import json
 
 import pytest
+from conftest import needs_pin
+from test_agent_results_compose import _seen
+from test_sim_retry_runtime import _nudged, _stack
 
 from cascade.agent.aspire import Diagnosis, diagnose, distil, ended_in_stop, harvest, retrieve
 from cascade.agent.effects import CONFIRMED, POSTCONDITIONS
 from cascade.memory.envelope import failure_signature
 from cascade.skills.library import SkillLibrary
+from cascade.types import SafetyViolation
 
 TASK_A = "pick the cube"
 TASK_B = "stack the cube on the box"
@@ -248,3 +257,136 @@ def _diagnosis(*, error, signature):
                      failed_args=dict(ARGS), failed_context=dict(CONTEXT), repair_skill="pick_and_place",
                      repair_args=dict(ARGS), repair_context=dict(CONTEXT),
                      repair_postcondition=confirmed["postcondition"], repaired=True)
+
+
+#: a trace row's context with the ledger's mark (`_sim_retry_finish`): a stop the error does not name
+MARKED = {**CONTEXT, "sim_retry": {"ended_in_stop": True}}
+REFUSAL_ERROR = "SafetyViolation: finger trajectory intersects observed surface: lemon"
+
+
+def test_aspire_reads_the_taxonomys_own_estop_words():  # A8 follow-ups fix, Minor 3
+    from cascade.agent import aspire
+    from cascade.memory import envelope
+
+    assert aspire._ESTOP_WORDS.pattern == envelope.ESTOP_WORDS
+    assert (envelope.ESTOP_WORDS, "safety:estop") in envelope._FAILURE_PATTERNS
+
+
+def test_the_ledgers_mark_is_a_stopped_call_whatever_the_error_says():  # A8 follow-ups fix, Important 1
+    assert ended_in_stop({"ok": False, "error": REFUSAL_ERROR}, MARKED)
+    assert ended_in_stop(None, MARKED)
+    for context in (None, CONTEXT, {"sim_retry": {"retry": True, "auto_home": False}},
+                    {"sim_retry": {"ended_in_stop": "yes"}}, {"sim_retry": True}, "ended_in_stop"):
+        assert not ended_in_stop({"ok": False, "error": REFUSAL_ERROR}, context), context
+
+
+def test_a_diagnosis_of_a_marked_call_is_never_teachable(tmp_path):  # A8 follow-ups fix, Important 1
+    """Even one built directly, with every other condition met: the failed call's
+    context carries the ledger's mark."""
+    diag = _diagnosis(error=REFUSAL_ERROR, signature=failure_signature({"error": REFUSAL_ERROR}))
+    assert diag.teachable  # the refusal alone is a real failure
+    diag.failed_context = dict(MARKED)
+    assert not diag.teachable
+    assert distil(diag, SkillLibrary(tmp_path / "lib")) is None
+
+
+def test_a_marked_call_is_skipped_and_an_earlier_real_failure_is_learned(tmp_path):  # A8 follow-ups fix
+    """A run with a marked call and a confirmed retry after it: the retry is never
+    credited to the marked call; an earlier real failure is still learned past it."""
+    marked = {**_failed(REFUSAL_ERROR), "context": dict(MARKED)}
+    alone = diagnose(_run(tmp_path / "a", "run-a", TASK_A, [marked, _call(_confirmed())]))
+    assert alone.error == REFUSAL_ERROR and not alone.repaired and not alone.teachable
+    real = _failed("SafetyViolation: link/joint 7 would hit the table")
+    past = diagnose(_run(tmp_path / "b", "run-a", TASK_A, [real, marked, _call(_confirmed())]))
+    assert past.signature == "geometry:link_below_table" and past.teachable
+
+
+# ── end to end: a stop the call's error does not name (A8 follow-ups fix, Important 1) ──
+
+#: the observed-finger gate's own refusal: an error that names no stop
+OWN_REFUSAL = "finger trajectory intersects observed surface: lemon"
+#: the goal of each motion skill on the mock stack
+STACK_ARGS = {"grasp_object": {"label": "red cube"}, "pick_and_place": {"object": "red cube"}}
+#: (skill, stop) rows whose failed result names only the skill's own refusal (measured on the
+#: mock stack: `aspire_stop_teach_probe`). "<stop>+own": the operator's stop during the call,
+#: then the refusal; "e-stop reset": the e-stop and its reset, the arm moves again, then the
+#: refusal; "<stop> before+own": the stop pending (halt) or latched (e-stop) before the call
+#: starts, then the refusal before any motion
+UNNAMED_STOPS = [("grasp_object", kind) for kind in (
+    "halt+own", "halt withdrawn+own", "e-stop+own", "both+own", "e-stop reset+own", "e-stop reset",
+    "halt before+own", "e-stop before+own")] + [("pick_and_place", kind) for kind in (
+    "e-stop+own", "e-stop reset+own", "e-stop reset", "e-stop before+own")]
+#: the same refusal with no stop: still learned, with the ledger or without
+NO_STOP = [("grasp_object", "none"), ("pick_and_place", "none")]
+
+
+def _stopped_grasp(runtime, kind):
+    """A grasp that moves the arm (unless the stop came before the call), meets the
+    operator's stop `kind`, then raises the gate's own refusal."""
+    def grasp(*_a, **_k):
+        harness = runtime.arm.harness
+        stop = kind.split("+")[0]
+        if not stop.endswith(" before"):
+            assert runtime._move_joints(_nudged(runtime), duration_s=0.3)
+        if stop in ("halt", "both", "halt withdrawn"):
+            harness.halt("operator: stop")
+        if stop in ("e-stop", "both", "e-stop reset"):
+            harness.estop("operator e-stop")
+        if stop == "halt withdrawn":
+            harness.clear_halt()  # the operator's Resume
+        if stop == "e-stop reset":
+            harness.reset_estop()  # the operator's reset
+        if kind == "e-stop reset":  # the arm moves again after the reset
+            assert runtime._move_joints(_nudged(runtime, -0.05), duration_s=0.3)
+        raise SafetyViolation(OWN_REFUSAL)
+    return grasp
+
+
+def _learn_from(rows, skill, root):
+    """`rows` (one execute() call's trace) followed by a measured-confirmed retry of the
+    same goal, as two runs of two tasks: the last failed row's diagnosis, and harvest's
+    result."""
+    failed = [r for r in rows if r.get("skill") == skill and not (r.get("result") or {}).get("ok", True)]
+    row = failed[-1]
+    context = row.get("context") or {}
+    repair = {"skill": skill, "args": dict(row.get("args") or {}),
+              "context": {"arm": context.get("arm"), "held_object": context.get("held_object")},
+              "result": _confirmed(skill)}
+    runs = root / "runs"
+    for name, task in (("run-a", TASK_A), ("run-b", TASK_B)):
+        _run(runs, name, task, rows + [repair])
+    return row, diagnose(runs / "run-a"), harvest(runs, SkillLibrary(root / "lib"))
+
+
+@needs_pin
+@pytest.mark.parametrize("gate", [0, 1], ids=["gate 0", "gate 1"])
+@pytest.mark.parametrize(("skill", "kind"), UNNAMED_STOPS + NO_STOP)
+def test_a_stop_the_error_does_not_name_is_never_learned_with_the_ledger(monkeypatch, tmp_path, gate, skill, kind):
+    """The real trace row of a call an operator stop ended whose error names only the
+    skill's own refusal: with the ledger (gate 1) the row is marked `ended_in_stop`, so a
+    confirmed same-goal retry after it is never learned; without one (gate 0) no row
+    carries a `sim_retry` mark. The same refusal with no stop is learned at both gates."""
+    with _stack(monkeypatch, tmp_path, gate=bool(gate)) as (runtime, arm):
+        _seen(runtime)
+        runtime.cfg._data["grasp"]["max_pick_attempts"] = 1
+        runtime.skill_grasp_object = _stopped_grasp(runtime, kind)
+        harness = runtime.arm.harness
+        if kind.startswith("halt before"):
+            harness.halt("operator: stop")
+        if kind.startswith("e-stop before"):
+            harness.estop("operator e-stop")
+        res = runtime.execute(skill, dict(STACK_ARGS[skill]))
+        assert (runtime.sim_retry is not None) is bool(gate)
+        rows = runtime.trace.rows()
+    assert res["ok"] is False and OWN_REFUSAL in res["error"], res
+    row, diag, out = _learn_from(rows, skill, tmp_path)
+    stopped = kind != "none"
+    if not gate:
+        assert all("sim_retry" not in (r.get("context") or {}) for r in rows), rows
+        if stopped:
+            return  # the gap the docs state: no ledger, no mark
+    else:
+        assert ((row["context"].get("sim_retry") or {}).get("ended_in_stop") is True) is stopped, row
+    assert ended_in_stop(row["result"], row["context"]) is stopped
+    assert diag.teachable is not stopped, diag
+    assert out["learned"] == (0 if stopped else 1), out

@@ -98,6 +98,10 @@ DERIVED_FEATURES: dict[str, tuple[str, ...]] = {
 
 #: The signature of the operator's halt (`safety/harness.SafetyHarness.halt`).
 HALT_SIGNATURE = "safety:halt"
+#: The e-stop's words: the taxonomy files a text by them as `safety:estop`, and
+#: `agent.aspire` reads them anywhere in an error (one pattern, so the two
+#: cannot drift apart).
+ESTOP_WORDS = r"e-?stop|emergency|stopped by operator"
 
 #: Failure taxonomy.  Ordered: first match wins.  Keep the patterns tied to
 #: what the harness / skills actually emit (see safety/harness.py, skills/
@@ -132,7 +136,7 @@ _FAILURE_PATTERNS: tuple[tuple[str, str], ...] = (
     (r"slip|dropped|lost the object", "contact:slip"),
     (r"never seen|not seen|no object|could not find|not found|unknown object", "perception:not_found"),
     (r"stale|watchdog|too old", "safety:stale_perception"),
-    (r"e-?stop|emergency|stopped by operator", "safety:estop"),
+    (ESTOP_WORDS, "safety:estop"),
     (r"velocity|too fast|jerk", "safety:velocity_cap"),
     (r"timeout|timed out", "runtime:timeout"),
     (r"bad arguments|unknown skill", "agent:bad_call"),

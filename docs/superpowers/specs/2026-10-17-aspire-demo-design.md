@@ -441,11 +441,13 @@ and R4 replace or compress existing sentences instead of only adding. Tests: `te
   under the 650 cap). Only the runtime writes the trigger (RETRY_ALLOWED, §4.5): the note lint refuses a note that
   carries R1's or R5's trigger words (rule `rule_trigger`: "simulation only", "one more attempt", "another
   attempt", "second attempt", "end your reply", "end your answer", "exact line", "exactly that line", "exactly
-  this line"; never across a comma: "In simulation, only grasp from above" is served), so a served note can never
+  this line"; across a comma too, except the setting "in / during simulation, only ..." in lower or Title case:
+  "In simulation, only grasp from above" is served, "SIMULATION, ONLY: ..." is not), so a served note can never
   read as the permission or as the reply line (A8). A note never discourages or works around an operator stop
   either (rule `stop_workaround`, A8 fix: every form of "stop" but "stop sign" / "bus stop", "halt" in any
   spelling, interrupt, abort, the Spanish / French / German stop words; pause, freeze, stall, stuck, ... with a
-  continue, defer or repeat word; "do not wait for / ask" a person; "ask nobody"; an unfinished or freed motion
+  continue, defer or repeat word, or a negator in the same clause ("Cancel nothing on the oven panel; it is not
+  ours." is served); "do not wait for / ask" a person; "ask nobody"; an unfinished or freed motion
   with a repeat), and is plain English (rule `language`: two or more Spanish, French, German or Portuguese
   function words). Accepted over-blocks: kitchen lines that use "stop" as a verb and advice that respects a stop
   ("Never retry after a halt."). The runtime's `_with_retry_text`, which every result of

@@ -39,6 +39,7 @@ from __future__ import annotations
 import errno
 import functools
 import hashlib
+import itertools
 import json
 import logging
 import os
@@ -541,6 +542,8 @@ _TURN_REACH = 3
 _RULE_TRIGGERS = (("simulation*", "only"), ("one", "more", "attempt*"), ("another", "attempt*"),
                   ("second", "attempt*"), ("end*", "your", "reply*"), ("end*", "your", "answer*"),
                   ("exact", "line*"), ("exactly", "that", "line*"), ("exactly", "this", "line*"))
+#: the words that make "<word> simulation, only ..." a setting, not the trigger (`_first_trigger`)
+_SIMULATION_SETTING = frozenset({"in", "during"})
 # ── stop_workaround (A8 fix, Important 2; the owner's rule: ANY advice that discourages or
 # works around an operator stop is refused). The stop vocabulary itself is banned rather
 # than a list of workaround verbs (a verb list scored 0/125 on its own design set but served
@@ -554,8 +557,10 @@ _STOP_TOPIC = (("halt",), ("halts",), ("halted",), ("halting",), ("interrupt*",)
                ("unfreez*",), ("kill", "switch*"), ("stop", "button*"), ("stop", "request*"), ("stop", "command*"),
                ("operator", "stop*"), ("parada*",), ("paro",), ("parar",), ("detien*",), ("deten*",), ("pausa*",),
                ("reanud*",), ("reintent*",), ("arret*",), ("stopp",))
-#: stop forms that are also kitchen words: refused with a `_STOP_ACTIONS` word, a negator or
-#: "<motion verb> ... again" in the same field
+#: stop forms that are also kitchen words: refused with a `_STOP_ACTIONS` word or "<motion verb>
+#: ... again" in the same field, or a negator in the same clause (re-review Minor 5: "Cancel
+#: nothing on the oven panel; it is not ours." is served; "needs" and "instead" alone are no
+#: workaround, "needn't" and "instead of" are)
 _STOP_FORMS = (("paus*",), ("freez*",), ("froze*",), ("button*",), ("interven*",), ("cancel*",), ("stall*",),
                ("idl*",), ("stuck",), ("lock*", "up"))
 #: every form of the word stop, refused wherever it stands except in these compound nouns
@@ -570,8 +575,8 @@ _STOP_ACTIONS = (
     ("once", "more"), ("anyway",), ("anyhow",), ("regardless",), ("despite",), ("even", "if"), ("even", "when"),
     ("even", "after"), ("even", "though"), ("move*", "on"), ("go", "ahead"), ("left", "off"),
     # defer / downplay
-    ("delay*",), ("postpon*",), ("defer*",), ("can", "wait"), ("only", "after"), ("need*",), ("needless*",),
-    ("unnecessar*",), ("reason",), ("avoid*",), ("instead",), ("rather",), ("wast*",), ("false", "alarm*"),
+    ("delay*",), ("postpon*",), ("defer*",), ("can", "wait"), ("only", "after"), ("needn",), ("needless*",),
+    ("unnecessar*",), ("reason",), ("avoid*",), ("instead", "of"), ("rather",), ("wast*",), ("false", "alarm*"),
     ("accident*",), ("spurious*",), ("mistak*",), ("harmless*",), ("final",), ("only", "a"), ("just", "a"),
     ("slow*", "down"), ("honor*",), ("honour*",))
 _AGAIN_VERBS = (("pick*",), ("call*",), ("run*",), ("try",), ("tries",), ("tried",), ("do",), ("does",), ("did",),
@@ -857,10 +862,11 @@ class _View:
     of some family can start (`_heads`) and `by_key` those positions by the first letter
     of their readings."""
 
-    __slots__ = ("breaks", "by_key", "cands", "dashes", "live", "words")
+    __slots__ = ("breaks", "by_key", "cands", "capitals", "dashes", "live", "words")
 
     def __init__(self, text: str, spans: list[tuple[str, int, int]]):
         self.words = [word for word, _, _ in spans]
+        self.capitals = [text[start:end].isupper() for _, start, end in spans]
         gaps = [""] + [text[spans[k - 1][2]:spans[k][1]] for k in range(1, len(spans))]
         self.breaks = [_break(gap) for gap in gaps]
         self.dashes = [_dash(gap) for gap in gaps]
@@ -939,15 +945,24 @@ def _first(view: _View, phrases) -> str | None:
     return None
 
 
-def _first_in_clause(view: _View, phrases) -> str | None:
-    """`_first`, but a match whose words a comma separates is none: "In simulation, only grasp
-    from above" is no "simulation only" (A8 review Minor 4; any other break still joins)."""
-    family = _compiled(phrases)
+def _first_trigger(view: _View) -> str | None:
+    """`_first` over `_RULE_TRIGGERS`, but "in simulation, only ..." / "during simulation, only
+    ..." is none: a setting, a comma, then advice (A8 review Minor 4). Only that shape: "in" or
+    "during" right before "simulation", one comma between it and "only", neither word in
+    capitals; any other comma still joins ("SIMULATION, ONLY: ...", re-review Minor 3)."""
+    family = _compiled(_RULE_TRIGGERS)
     for i in family.starts(view):
         n = family.at(view, i)
-        if n and "," not in view.breaks[i + 1:i + n]:
+        if n and not _simulation_setting(view, i, n):
             return " ".join(view.words[i:i + n])
     return None
+
+
+def _simulation_setting(view: _View, i: int, n: int) -> bool:
+    """Words i..i+n-1 are "simulation, only" right after "in" / "during", in lower or Title case."""
+    return (n == 2 and i > 0 and view.words[i - 1] in _SIMULATION_SETTING and view.breaks[i] == ""
+            and view.words[i].startswith("simulation") and view.breaks[i + 1] == ","
+            and not view.capitals[i] and not view.capitals[i + 1])
 
 
 def _followed(view: _View, heads, tails, reach: int) -> tuple[str, str] | None:
@@ -1205,6 +1220,19 @@ def _identifier_problems(text: str, skill: str) -> list[tuple[str, str]]:
     return list(found.items())
 
 
+def _in_clause_with(view: _View, anchors, others) -> str | None:
+    """The first `others` phrase that starts in the clause (no clause break, `_break` ".",
+    between) of some `anchors` phrase; None when there is none."""
+    anchor_family, other_family = _compiled(anchors), _compiled(others)
+    clause = list(itertools.accumulate(1 if gap == "." else 0 for gap in view.breaks))
+    anchored = {clause[i] for i in anchor_family.starts(view) if anchor_family.at(view, i)}
+    for i in other_family.starts(view):
+        n = other_family.at(view, i)
+        if n and clause[i] in anchored:
+            return " ".join(view.words[i:i + n])
+    return None
+
+
 def _stop_word(views) -> str | None:
     """The first form of "stop" any reading of the field carries (joins too: "st op"), outside
     the compound nouns "stop sign" and "bus stop"."""
@@ -1309,13 +1337,14 @@ def _structure_problems(text: str, skill: str) -> list[tuple[str, str]]:
     found.append(("weaken", f"'{weakened[0]}' near '{weakened[1]}'" if weakened else None))
     claim = followed(_CLAIM_AS, _SUCCESS, _TREAT_REACH) or followed(_CLAIM_SAY, _SUCCESS, _SAY_REACH)
     found.append(("success_claim", f"claims success ('{claim[0]}' ... '{claim[1]}')" if claim else None))
-    trigger = next((hit for view in views if (hit := _first_in_clause(view, _RULE_TRIGGERS))), None)
+    trigger = next((hit for view in views if (hit := _first_trigger(view))), None)
     found.append(("rule_trigger", f"carries a rule trigger only tool results give ('{trigger}')" if trigger else None))
     # a note never discourages or works around an operator stop (A8 fix, Important 2)
     workaround = (hidden.get("stop_workaround") or phrase(_STOP_TOPIC) or _stop_word(views)
                   or phrase(_ASK_NOBODY))
     if not workaround and (form := phrase(_STOP_FORMS)):
-        action = (phrase(_STOP_ACTIONS) or phrase(_NEGATORS)
+        action = (phrase(_STOP_ACTIONS)
+                  or next((hit for view in views if (hit := _in_clause_with(view, _STOP_FORMS, _NEGATORS))), None)
                   or " ".join(followed(_AGAIN_VERBS, _AGAIN, _AGAIN_REACH) or ()))
         workaround = f"{form} ... {action}" if action else None
     if not workaround and phrase(_PEOPLE):

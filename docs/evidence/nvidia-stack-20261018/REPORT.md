@@ -1,17 +1,18 @@
 # NVIDIA technology inventory, 2026-10-18
 
-Summary: CASCADE `main` at `4d32eeb5` uses **34 NVIDIA technologies**. Six are on by default in the
-shipped Linux/Spark launch: **Isaac Sim 6.1** (Kit, RTX cameras through Replicator), **CUDA PhysX**,
-**GraspGen-X**, **OpenShell**, **CUDA** and the **DGX Spark (GB10)**. Warp is the default occupancy
-backend when nvblox is absent. 19 are opt-in, each with its own validation scope; five build or
-supply the robot and scene assets; three are tooling. Two more were evaluated and not adopted, and
+Summary: CASCADE `main` at `4d32eeb5`, with the Isaac Sim 6.2 minimum of
+[#382](https://github.com/johnnynunez/cascade/pull/382), uses **33 NVIDIA technologies**. Six are on by
+default in the shipped Linux/Spark launch: **Isaac Sim 6.2** (Kit, RTX cameras through Replicator),
+**CUDA PhysX**, **GraspGen-X**, **OpenShell**, **CUDA** and the **DGX Spark (GB10)**. Warp is the
+default occupancy backend when nvblox is absent. 18 are opt-in, each with its own validation scope;
+five build or supply the robot and scene assets; three are tooling. Two more were evaluated and not adopted, and
 eight are references or plans with no dependency.
 
 | tier | count | technologies |
 |---|---|---|
-| Core (shipped Linux/Spark launch) | 6 | Isaac Sim 6.1 + Replicator RTX cameras, CUDA PhysX, GraspGen-X, OpenShell, CUDA, DGX Spark |
+| Core (shipped Linux/Spark launch) | 6 | Isaac Sim 6.2 + Replicator RTX cameras, CUDA PhysX, GraspGen-X, OpenShell, CUDA, DGX Spark |
 | Default backend | 1 | Warp (occupancy TSDF/EDT when nvblox is not installed) |
-| Opt-in (merged, own validation scope) | 19 | Newton, Isaac Lab 3.0, MuJoCo Warp, OVRTX + ovstage, nvblox, cuVSLAM, cuMotion, Cosmos3-Edge, NemoClaw, H2 policy, Isaac Sim 6.2 (internal), Isaac Lab-Arena, Brev, NGC Isaac Sim container, NVENC, Isaac Sim RTSP streaming (off), Jetson Thor, NVFP4, RTX PRO 6000 Blackwell |
+| Opt-in (merged, own validation scope) | 18 | Newton, Isaac Lab 3.0, MuJoCo Warp, OVRTX + ovstage, nvblox, cuVSLAM, cuMotion, Cosmos3-Edge, NemoClaw, H2 policy, Isaac Lab-Arena, Brev, NGC Isaac Sim container, NVENC, Isaac Sim RTSP streaming (off), Jetson Thor, NVFP4, RTX PRO 6000 Blackwell |
 | Assets | 5 | urdf-usd-converter, Isaac Sim asset transformer (SimReady rules), vMaterials (MDL), Isaac Sim public assets, IsaacGymEnvs Factory assets |
 | Tooling | 3 | NVIDIA Container Toolkit, Kit Tracy profiler extension, NVML / `nvidia-smi` |
 | Evaluated, not adopted | 2 | Nemotron 3.5 Super VL, Cosmos3-Edge as detector |
@@ -46,19 +47,18 @@ Tiers:
 
 | technology | version / pin | what CASCADE uses it for | entry points | tier | best recorded evidence |
 |---|---|---|---|---|---|
-| **Isaac Sim** (Kit, USD stage, timeline) | 6.1.0 (`isaacsim[all,extscache]==6.1.0.0`, Python 3.12) | the kitchen and tabletop simulator behind the ZMQ bridge (:8611) | `scripts/isaac_bridge.py`, `scripts/install_isaac.sh` | core | Spark fresh install 12 min 21 s; native visitor chat **5/5** objects with placement and reset checks (30 Sep 2026, [DGX Spark setup](../../DGX_SPARK_SETUP.md)) |
-| **Isaac Sim 6.2** (internal build) | 6.2 | H2 humanoid owner and the MicroDuck native bridge | `scripts/isaac_h2_bridge.py`, `scripts/isaac_microduck_bridge.py`, `src/cascade/sim/h2_physx.py` | opt-in | H2 binding gate passed in simulation, 7 Oct 2026 ([H2](../../HUMANOID_H2.md)) |
+| **Isaac Sim** (Kit, USD stage, timeline) | 6.2.0 (`isaacsim[all,extscache]==6.2.0.0`, Python 3.12; NGC `isaac-sim:6.2.0` on Brev); 6.2 is the minimum, older releases are refused | the kitchen and tabletop simulator behind the ZMQ bridge (:8611), the H2 humanoid owner and the MicroDuck native bridge | `scripts/isaac_bridge.py`, `scripts/isaac_h2_bridge.py`, `scripts/isaac_microduck_bridge.py`, `scripts/install_isaac.sh`, `scripts/isaac_runtime.py` | core | 6.2.0.0 wheel on x86_64: bridge up, probe battery on PhysX and Newton ([#382](https://github.com/johnnynunez/cascade/pull/382)); Spark acceptance on 6.2 pending; H2 binding gate passed on an internal 6.2 build ([H2](../../HUMANOID_H2.md)) |
 | **PhysX** (GPU/CUDA) | bundled with Isaac Sim | default engine of the Spark launcher and Brev; H2 runs PhysX first (its policy was trained there) | `--engine physx` | core | as Isaac Sim |
-| **Newton** | 1.6.1rc1 inside Isaac Sim 6.2; 1.6.0 standalone | `--engine newton` in the Isaac bridge (:8681); MicroDuck BAM actuators; Factory screw/thread-contact fixture | `isaacsim.physics.newton` in `scripts/isaac_bridge.py`, `src/cascade/control/newton_bam.py`, `src/cascade/sim/microduck_newton.py`, `scripts/validate_screw_contact.py` | opt-in | Newton launcher READY with GraspGen-X; green cube and orange passed the full audit (2.3 / 5.6 mm), x86_64 only ([Newton](../../NEWTON_ENGINE.md)) |
+| **Newton** | 1.6.1 in Isaac Sim 6.2.0 (1.6.1rc1 in the internal 6.2 builds); 1.6.0 standalone | `--engine newton` in the Isaac bridge (:8681); MicroDuck BAM actuators; Factory screw/thread-contact fixture | `isaacsim.physics.newton` in `scripts/isaac_bridge.py`, `src/cascade/control/newton_bam.py`, `src/cascade/sim/microduck_newton.py`, `scripts/validate_screw_contact.py` | opt-in | Newton launcher READY with GraspGen-X; green cube and orange passed the full audit (2.3 / 5.6 mm), x86_64 only ([Newton](../../NEWTON_ENGINE.md)) |
 | **Isaac Lab** | 3.0 (separate venv) | agentic MicroDuck demos: one Isaac Lab env = one Newton world per robot; the admitted MicroDuck USD comes from Isaac Lab #8265 | `src/cascade/sim/microduck_lab_world.py`, `scripts/microduck_agentic/` | opt-in | MicroDuck status **candidate**; walking and turning not physically admitted ([MicroDuck](../../MICRODUCK.md)) |
-| **Warp** | `warp-lang>=1.16` (occupancy), `>=1.7` (sim-warp), 1.17.0 in the Newton env | occupancy TSDF + exact EDT kernels on CPU or CUDA; Isaac camera readback buffers; base of Newton and MJWarp | `src/cascade/perception/occupancy_backends.py` (`WarpTsdfBackend`), `_warp_tsdf_kernels.py`, `scripts/isaac_camera_readback.py` | default backend | bridge order `auto: nvblox > warp > voxel` |
+| **Warp** | `warp-lang>=1.16` (occupancy), `>=1.7` (sim-warp), 1.18.0 in Isaac Sim 6.2.0, 1.17.0 in the Newton env | occupancy TSDF + exact EDT kernels on CPU or CUDA; Isaac camera readback buffers; base of Newton and MJWarp | `src/cascade/perception/occupancy_backends.py` (`WarpTsdfBackend`), `_warp_tsdf_kernels.py`, `scripts/isaac_camera_readback.py` | default backend | bridge order `auto: nvblox > warp > voxel` |
 | **MuJoCo Warp** (MJWarp) | `mujoco-warp>=3.1`; 3.12.0 in the Newton env | `engine: warp` for MJCF arms; Newton's solver (contacts 32768, 132272 constraint rows) | `src/cascade/control/mujoco_arm.py`, `configs/arms/so101_mjwarp.yaml` | opt-in | ~650x slower than the C engine on CPU (README); no GPU number recorded |
 
 ## Rendering and sensors
 
 | technology | version / pin | what CASCADE uses it for | entry points | tier | best recorded evidence |
 |---|---|---|---|---|---|
-| **RTX cameras + Omniverse Replicator** | bundled with Isaac Sim | RGB, metric depth (`distance_to_image_plane`) and instance masks from Isaac render products | `isaacsim.sensors.experimental.rtx`, `omni.replicator.core` in `scripts/isaac_bridge.py`, `src/cascade/sim/h2_physx.py`, `src/cascade/sim/microduck_newton.py` | core | three advancing 1280x720 camera views on the Spark (30 Sep 2026) |
+| **RTX cameras + Omniverse Replicator** | bundled with Isaac Sim | RGB, metric depth (`distance_to_image_plane`) and instance masks from Isaac render products | `isaacsim.sensors.experimental.rtx`, `omni.replicator.core` in `scripts/isaac_bridge.py`, `src/cascade/sim/h2_physx.py`, `src/cascade/sim/microduck_newton.py` | core | cam0, side and wrist frames from the 6.2.0.0 wheel bridge ([#382](https://github.com/johnnynunez/cascade/pull/382)) |
 | **OVRTX + ovstage** | `ovrtx==0.5.0.377615`, `ovstage==0.2.0.377349` (`.[ovrtx]`); 0.5.1 in the MicroDuck Isaac Lab venv | RTX RGB-D without Kit: static USD camera, `OvrtxRenderer.render(SceneSnapshot)`, live Isaac producer (`CASCADE_CAMERA_RENDERER=ovrtx`), MicroDuck 1080p replays | `src/cascade/sim/ovrtx_renderer.py`, `src/cascade/perception/ovrtx_camera.py` | opt-in | analytic RGB-D passed on RTX PRO 6000 and GB10; one `pick_and_place` with live OVRTX cameras + cuMotion + GPU PhysX (2 Oct 2026, [OVRTX](../../OVRTX_RENDERER.md)) |
 | **NVENC** | host FFmpeg `h264_nvenc` | Brev visitor camera video, one encoder for all cameras | `deploy/brev/visitor_video.py`, `deploy/brev/streaming/camera_streams.py` | opt-in | Brev only ([Brev](../../BREV.md)) |
 | **Isaac Sim RTSP streaming** | `isaacsim.streaming.rtsp` | camera streams from Isaac on Brev | `deploy/brev/streaming/` | opt-in, **off** | the RTSP/WebRTC profile is off and unaccepted |
@@ -74,7 +74,7 @@ Tiers:
 
 | technology | version / pin | what CASCADE uses it for | entry points | tier | best recorded evidence |
 |---|---|---|---|---|---|
-| **GraspGen-X** (NVlabs) | source `b9429097`, checkpoints `7c834043`, grippers `19a03c00` | learned 6-DoF grasps (diffusion, 400 samples in the kitchen) from a local server (:5556); required in the Spark profile, stubs rejected | `scripts/install_graspgenx.sh`, `scripts/serve_graspgenx.sh`, `src/cascade/grasping/graspgenx_backend.py` | core | the Spark 5/5 campaign above ([GraspGen-X on Spark](../../GRASPGENX_SPARK.md)) |
+| **GraspGen-X** (NVlabs) | source `b9429097`, checkpoints `7c834043`, grippers `19a03c00` | learned 6-DoF grasps (diffusion, 400 samples in the kitchen) from a local server (:5556); required in the Spark profile, stubs rejected | `scripts/install_graspgenx.sh`, `scripts/serve_graspgenx.sh`, `src/cascade/grasping/graspgenx_backend.py` | core | required in the Spark profile; Spark acceptance on Isaac Sim 6.2 pending ([GraspGen-X on Spark](../../GRASPGENX_SPARK.md)) |
 | **cuMotion** | 1.1.0 (`ac115fdb`), separate env, not redistributed | `TrajectoryOptimizer` for every arm motion in the cuMotion profiles, through `SafeArm` | `src/cascade/planning/cumotion.py`, `cascade.apps.plan_motion`, `configs/arms/isaac_cumotion.yaml`, `isaac_kitchen_cumotion.yaml` | opt-in | one complete Isaac tabletop `pick_and_place`; planning smokes on x86_64 and Spark; no success rate ([cuMotion](../../CUMOTION.md)) |
 
 ## Models and agent runtime
@@ -91,11 +91,11 @@ Tiers:
 
 | technology | version / pin | what CASCADE uses it for | entry points | tier | best recorded evidence |
 |---|---|---|---|---|---|
-| **DGX Spark** (GB10, aarch64) | install pinned to `ff8d58be` | event machine: the PAAI kitchen demo | `scripts/install.sh --profile spark`, `scripts/bootstrap.sh`, `scripts/spark_verify.py` | core | READY in 12 min 12 s; second launch 9 min 10 s |
+| **DGX Spark** (GB10, aarch64) | install pinned to `ba3815ad` (Isaac Sim 6.2.0) | event machine: the PAAI kitchen demo | `scripts/install.sh --profile spark`, `scripts/bootstrap.sh`, `scripts/spark_verify.py` | core | install, READY proof and visitor campaign on Isaac Sim 6.2 pending |
 | **CUDA** | `uv.lock`: torch 2.13.0 (via the `perception` extra) with CUDA 13.0 runtime, cuBLAS 13.1, cuDNN 9.20, NCCL 2.29, cuSPARSE(Lt), cuFFT, cuRAND, cuSOLVER, cuFile, NVRTC, nvJitLink, CUPTI, NVSHMEM, NVTX, CUDA Python bindings 13.3.1; private CUDA 13.2.2 for nvblox | every GPU component above; `device: auto` probes CUDA first | `src/cascade/device.py` | core | n/a |
-| **RTX PRO 6000 Blackwell** | dual-GPU local PC; Brev `g7e.2xlarge` (Server Edition, 97,887 MiB) | development and x86_64 validation while the Sparks are disconnected | n/a | opt-in | one Qwen + Isaac run used 36,590 MiB with video off |
+| **RTX PRO 6000 Blackwell** | dual-GPU local PC; Brev `g7e.2xlarge` (Server Edition, 97,887 MiB) | development and x86_64 validation while the Sparks are disconnected | n/a | opt-in | Brev deployment check on the 6.2 image pending |
 | **Brev** | `brev create ... --type g7e.2xlarge` | x86_64 cloud deployment of the kitchen | `deploy/brev/deploy.sh` | opt-in | own acceptance boundary; no Spark default applies |
-| **NGC Isaac Sim container** | `nvcr.io/nvidia/isaac-sim:6.1.0@sha256:0c16dd67...` | base image of the Brev deployment | `deploy/brev/container/Dockerfile` | opt-in | Brev only |
+| **NGC Isaac Sim container** | `nvcr.io/nvidia/isaac-sim:6.2.0@sha256:bcb96e0b...` (amd64) | base image of the Brev deployment | `deploy/brev/container/Dockerfile` | opt-in | Brev only |
 | **Jetson Thor** | Tegra 6.8.12 kernel | host of the Franka FR3 rig: CASCADE, Cosmos3 Edge and the occupancy bridge pinned to CPUs 0-7, ROS bringup beside them; `device: auto` also covers Orin/Thor builds | `scripts/franka_openclaw.py`, `configs/arms/fr3.yaml`, `configs/llm/local_cosmos.yaml` | opt-in | rig bring-up documented in [Franka](../../FRANKA_OPENCLAW.md); no success rate |
 | **Isaac Lab-Arena** | inspected source `c8d04e21` | strict importer for Arena results and a policy adapter | `src/cascade/eval/arena.py`, `benchmark/arena/` | opt-in | CPU tests; no benchmark task completed ([adapters](../../../benchmark/arena/README.md)) |
 
@@ -106,7 +106,7 @@ Tiers:
 | **urdf-usd-converter** (newton-physics) | 0.3.0 `@554f3dc` | builds the reBot B601 USD from Seeed's URDF | `assets/usd/RS-rebot-dev-arm/docs/VALIDATION.md` |
 | **Isaac Sim asset transformer** + SimReady rules | develop rules >= 1.7.12 | restructures the reBot USD (payload on the root prim, mimic-joint gains per SimReady) | `assets/usd/RS-rebot-dev-arm/scripts/run_transformer_361.py`, `prep_asset.py` |
 | **vMaterials** (MDL) | n/a | the reBot's `ABS_Hard_Leather.mdl` material | `assets/usd/RS-rebot-dev-arm/Textures/` |
-| **Isaac Sim public assets** (S3) | Isaac 6.0 / 6.1 asset roots | H2 USD and policy files, Isaac Lab materials and skies, the MicroDuck USD folder from Isaac Lab | `assets/h2/bundle/`, `configs/h2/bundle.json`, `assets/microduck/` |
+| **Isaac Sim public assets** (S3) | Isaac 6.2 asset root | H2 USD and policy files, Isaac Lab materials and skies, the MicroDuck USD folder from Isaac Lab | `assets/h2/bundle/`, `configs/h2/bundle.json`, `assets/microduck/` |
 | **IsaacGymEnvs Factory assets** | pinned commit (`manifest.json`) | nut, bolt, peg, hole and gear plate for the fastening runtime | `assets/factory/nut_bolt/` |
 
 ## Tooling
@@ -195,9 +195,11 @@ Pinocchio, LIBERO, VAB, Tracy itself, the Franka ROS 2 controllers.
 
 ## Gaps seen
 
-- **Three version lines run side by side:** Isaac Sim 6.1 on the event path and the internal 6.2 for
-  H2 and MicroDuck; Newton 1.6.1rc1 inside 6.2 and 1.6.0 standalone; OVRTX 0.5.0 in the extra and
-  0.5.1 in the MicroDuck venv. A result on one does not certify another.
+- **Isaac Sim 6.2.0 is the minimum** ([#382](https://github.com/johnnynunez/cascade/pull/382)), but
+  H2 and MicroDuck were validated on internal 6.2 pre-release builds with Newton 1.6.1rc1, while
+  6.2.0 ships Newton 1.6.1: the MicroDuck SDK recipe still pins 1.6.1rc1. Newton 1.6.0 runs
+  standalone; OVRTX is 0.5.0 in the extra and 0.5.1 in the MicroDuck venv. A result on one does not
+  certify another.
 - **nvblox** is a local source build: upstream caps Torch at 2.9.1, so the wrapper is installed with
   `--no-deps`, and the release has no ARM64 wheel. It is off in the Spark presenter profile.
 - **cuMotion** is under the Isaac ROS Software License and must be installed by the user.

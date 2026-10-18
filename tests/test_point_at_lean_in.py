@@ -35,7 +35,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-from conftest import REPO, needs_pin, needs_pin_so101
+from conftest import REPO, SO101_URDF, needs_pin, needs_pin_so101
 
 from cascade.control.mock_arm import MockArm
 
@@ -1856,23 +1856,41 @@ def _surface(m, g, step=0.002):
     return grid[np.isclose(np.abs(grid), half).any(axis=1)]
 
 
+def _jaw_volume_outside(vol, points, which):
+    """`points` (TCP frame; the moving jaw's turned back to the stop) that no
+    `jaw_volume` box of `which` holds (0.1 mm tolerance)."""
+    from cascade.safety.tool_volume import jaw_box
+
+    inside = np.zeros(len(points), dtype=bool)
+    for b in vol.get(which):
+        centre, axes, half = jaw_box({"extents_open": b.get("extents"), "offset_open": b.get("offset")}, "open_down")
+        inside |= (np.abs((points - centre) @ axes) <= half + 1e-4).all(axis=1)
+    return points[~inside]
+
+
+def _so101_jaw_volume():
+    from cascade.config import load_demo_config
+
+    acfg = load_demo_config(camera="mock_small", arm="so101_mock", llm="mock").arm
+    return acfg, acfg.gripper.get("jaw_volume")
+
+
 @needs_pin_so101
 @needs_mujoco
 def test_the_so101_jaw_volume_holds_the_mujoco_jaws_at_every_angle():
-    """so101.yaml `gripper.jaw_volume` against the Menagerie collision
-    geometry: every collision surface of the gripper body (fixed boxes) and
-    of the moving jaw (its boxes, turned about the hinge from `stop_rad` to
-    the angle) lies inside the configured boxes, at gripper angles from the
-    stop to 1.0 rad (past open_pos 0.60)."""
+    """so101.yaml `gripper.jaw_volume` against the Menagerie model: every
+    surface, collision AND visual (the visual geoms are the STL meshes), of
+    the gripper body and its wrist camera mount (fixed boxes) and of the
+    moving jaw (its boxes, turned about the hinge from `stop_rad` to the
+    angle) lies inside the configured boxes, at gripper angles from the stop
+    to 1.0 rad (past open_pos 0.60). (#378 review: the STL meshes poked out
+    7.8 mm and 4.1 mm, the camera mount 60 mm.)"""
     import mujoco
 
-    from cascade.config import load_demo_config
     from cascade.control.kinematics import Kinematics
-    from cascade.safety.tool_volume import jaw_box
     from cascade.skills import pointing
 
-    acfg = load_demo_config(camera="mock_small", arm="so101_mock", llm="mock").arm
-    vol = acfg.gripper.get("jaw_volume")
+    acfg, vol = _so101_jaw_volume()
     kin = Kinematics(acfg.get("model"), acfg.get("ee_frame"), int(acfg.get("n_joints")), acfg.get("joint_signs"))
     m = mujoco.MjModel.from_xml_path(str(MJCF))
     d = mujoco.MjData(m)
@@ -1882,20 +1900,17 @@ def test_the_so101_jaw_volume_holds_the_mujoco_jaws_at_every_angle():
         d.qpos[m.jnt_qposadr[mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, name)]] = v
     grip = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, "gripper")
     moving = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, "moving_jaw_so101_v1")
-    bodies = {mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, "gripper"), moving}
-    geoms = [g for g in range(m.ngeom) if m.geom_bodyid[g] in bodies and (m.geom_contype[g] or m.geom_conaffinity[g])]
+    bodies = {mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, b) for b in ("gripper", "camera_mount")} | {moving}
+    geoms = [g for g in range(m.ngeom) if m.geom_bodyid[g] in bodies]
+    kinds = {"collision": 0, "visual": 0}
+    for g in geoms:
+        kinds["collision" if (m.geom_contype[g] or m.geom_conaffinity[g]) else "visual"] += 1
+    assert kinds["collision"] >= 10 and kinds["visual"] >= 4, f"test setup: {kinds}"
+    assert mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, "camera_mount") >= 0
     local = {g: _surface(m, g) for g in geoms}
-    boxes = {k: [jaw_box({"extents_open": b.get("extents"), "offset_open": b.get("offset")}, "open_down")
-                 for b in vol.get(k)] for k in ("fixed", "moving")}
     hinge = np.asarray(vol.get("hinge").get("point"), float)
     axis = np.asarray(vol.get("hinge").get("axis"), float)
     inv = np.linalg.inv(kin.fk(q))
-
-    def outside(points, which):
-        inside = np.zeros(len(points), dtype=bool)
-        for centre, axes, half in boxes[which]:
-            inside |= (np.abs((points - centre) @ axes) <= half + 1e-4).all(axis=1)
-        return points[~inside]
 
     stop = float(vol.get("stop_rad"))
     assert stop == pytest.approx(float(m.jnt_range[grip][0]), abs=1e-4), "stop_rad is the MJCF's closed stop"
@@ -1907,8 +1922,95 @@ def test_the_so101_jaw_volume_holds_the_mujoco_jaws_at_every_angle():
             tcp = world @ inv[:3, :3].T + inv[:3, 3]
             if m.geom_bodyid[g] == moving:     # turned back about the hinge to the stop
                 tcp = (tcp - hinge) @ pointing._rotation(axis, stop - angle).T + hinge
-                bad = outside(tcp, "moving")
+                bad = _jaw_volume_outside(vol, tcp, "moving")
             else:
-                bad = outside(tcp, "fixed")
+                bad = _jaw_volume_outside(vol, tcp, "fixed")
             assert not len(bad), (f"geom {g} at {angle:.3f} rad pokes out of the jaw volume by "
                                   f"{np.round(bad[0] * 1000, 1).tolist()} mm (TCP frame)")
+
+
+STL_DIR = REPO / "assets" / "mjcf" / "so101" / "assets"
+
+
+def _read_stl(path) -> np.ndarray:
+    """(n, 3, 3) triangles of a binary or ASCII STL file."""
+    import struct
+
+    data = path.read_bytes()
+    if data[:5] == b"solid" and b"facet" in data[:512]:
+        verts = [[float(v) for v in ln.split()[1:4]] for ln in data.decode().splitlines()
+                 if ln.strip().startswith("vertex")]
+        return np.asarray(verts, float).reshape(-1, 3, 3)
+    n = struct.unpack("<I", data[80:84])[0]
+    rec = np.frombuffer(data[84:84 + 50 * n], dtype=np.dtype([("n", "<f4", 3), ("v", "<f4", (3, 3)), ("a", "<u2")]))
+    return rec["v"].astype(float)
+
+
+def _triangle_samples(tris, step=0.0015) -> np.ndarray:
+    """The vertices and a grid at most `step` apart on every triangle."""
+    a, b, c = tris[:, 0], tris[:, 1], tris[:, 2]
+    n_all = np.maximum(1, np.ceil(np.maximum(np.linalg.norm(b - a, axis=1), np.linalg.norm(c - a, axis=1)) / step))
+    out = [tris.reshape(-1, 3)]
+    for n in np.unique(n_all.astype(int)):
+        k = np.flatnonzero(n_all == n)
+        uu, vv = np.meshgrid(np.linspace(0, 1, n + 1), np.linspace(0, 1, n + 1))
+        sel = (uu + vv) <= 1 + 1e-12
+        out.append((a[k, None, :] + uu[sel][None, :, None] * (b[k] - a[k])[:, None, :]
+                    + vv[sel][None, :, None] * (c[k] - a[k])[:, None, :]).reshape(-1, 3))
+    return np.vstack(out)
+
+
+@needs_pin_so101
+@pytest.mark.skipif(not (STL_DIR / "moving_jaw_so101_v1.stl").exists(),
+                    reason="needs `python scripts/fetch_robot_assets.py so101` (the STL meshes)")
+def test_the_so101_jaw_volume_holds_the_urdf_stl_meshes_at_every_angle():
+    """The same check on the real parts, without MuJoCo: the URDF's own
+    visual meshes (the STL files, read here) placed by the URDF through
+    pinocchio, gripper_link fixed and moving_jaw_so101_v1_link turned back
+    about the hinge, at gripper angles from the stop to 1.0 rad."""
+    import xml.etree.ElementTree as ET
+
+    import pinocchio as pin
+
+    from cascade.skills import pointing
+
+    acfg, vol = _so101_jaw_volume()
+    urdf = SO101_URDF
+    pm = pin.buildModelFromUrdf(str(urdf))
+    pdata = pm.createData()
+    parts = {}
+    for link in ET.parse(urdf).getroot().findall("link"):
+        if link.get("name") not in ("gripper_link", "moving_jaw_so101_v1_link"):
+            continue
+        for vis in link.findall("visual"):
+            o = vis.find("origin")
+            T = np.eye(4)
+            T[:3, :3] = pin.rpy.rpyToMatrix(*[float(v) for v in o.get("rpy").split()])
+            T[:3, 3] = [float(v) for v in o.get("xyz").split()]
+            mesh = STL_DIR / vis.find("geometry/mesh").get("filename").split("/")[-1]
+            parts.setdefault(link.get("name"), []).append((mesh.name, T, _triangle_samples(_read_stl(mesh))))
+    assert sorted(len(v) for v in parts.values()) == [1, 2], f"test setup: {parts.keys()}"
+    hinge = np.asarray(vol.get("hinge").get("point"), float)
+    axis = np.asarray(vol.get("hinge").get("axis"), float)
+    stop = float(vol.get("stop_rad"))
+    q5 = np.asarray(acfg.get("home_q"), float)
+    names = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper"]
+    for angle in np.linspace(stop, 1.0, 9):
+        qf = np.zeros(pm.nq)
+        for name, v in zip(names, [*q5, angle]):
+            qf[pm.idx_qs[pm.getJointId(name)]] = v
+        pin.forwardKinematics(pm, pdata, qf)
+        pin.updateFramePlacements(pm, pdata)
+        inv = np.linalg.inv(np.array(pdata.oMf[pm.getFrameId(acfg.get("ee_frame"))].homogeneous))
+        for link, meshes in parts.items():
+            T_link = inv @ np.array(pdata.oMf[pm.getFrameId(link)].homogeneous)
+            for mesh, T_mesh, pts in meshes:
+                T = T_link @ T_mesh
+                tcp = pts @ T[:3, :3].T + T[:3, 3]
+                if link == "moving_jaw_so101_v1_link":
+                    tcp = (tcp - hinge) @ pointing._rotation(axis, stop - angle).T + hinge
+                    bad = _jaw_volume_outside(vol, tcp, "moving")
+                else:
+                    bad = _jaw_volume_outside(vol, tcp, "fixed")
+                assert not len(bad), (f"{mesh} at {angle:.3f} rad pokes out of the jaw volume at "
+                                      f"{np.round(bad[0] * 1000, 1).tolist()} mm (TCP frame)")

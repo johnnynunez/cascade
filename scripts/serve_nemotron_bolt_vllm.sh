@@ -32,8 +32,15 @@
 #
 # Knobs: HOST (127.0.0.1), PORT (8080), API_KEY_FILE, GPU_UTIL (0.45), CTX (65536),
 # MAX_SEQS (4), SPEC=none|dflash (none), NSPEC (7), SERVED_NAME (nemotron-3.5-bolt),
-# PREFIX_MATCH (64; 0 = vLLM's own choice), MEM_FLOOR_GB (3), CACHE_DIR, HF_HUB_CACHE,
-# CONTAINER, EXTRA_ARGS.
+# PREFIX_MATCH (64; 0 = vLLM's own choice), KV_DTYPE=nvfp4|fp8 (nvfp4), MEM_FLOOR_GB (3),
+# CACHE_DIR, HF_HUB_CACHE, CONTAINER, EXTRA_ARGS.
+#
+# KV cache: NVFP4 by default (KV_DTYPE=fp8 is the cache this route served before). The
+# pinned nightly 77154ca6 carries vLLM #46963 (NVFP4 KV on SM12x through FlashInfer) and
+# #60452 (XQA decode of it on SM12x); Bolt's attention layers (head size 128, 2 KV heads)
+# qualify. Measured against FP8 on an RTX PRO 6000 (docs/evidence/brain-kv-nvfp4-2026-10-19):
+# 28% more KV tokens, the same GSM8K, 1.4% slower decode, 20% slower 54k-token prefill. The
+# Mamba state stays BF16 (--mamba-*-cache-dtype).
 #
 # Pinned: the vendor image by digest (vLLM 0.32.0rc1 nightly 77154ca6), b12x by
 # wheel hash (baked into a local image by --setup-only, so serving needs no
@@ -80,6 +87,7 @@ SPEC="${SPEC:-none}"
 NSPEC="${NSPEC:-7}"
 SERVED_NAME="${SERVED_NAME:-nemotron-3.5-bolt}"
 PREFIX_MATCH="${PREFIX_MATCH:-64}"
+KV_DTYPE="${KV_DTYPE:-nvfp4}"
 MEM_FLOOR_GB="${MEM_FLOOR_GB:-3}"
 CACHE_DIR="${CACHE_DIR:-$HOME/.cache/cascade/nemotron-bolt}"
 HF_HUB_CACHE="${HF_HUB_CACHE:-${HF_HOME:-$HOME/.cache/huggingface}/hub}"
@@ -110,6 +118,7 @@ for arg in "$@"; do
 done
 
 case "$SPEC" in none|dflash) ;; *) die "SPEC must be none|dflash (got '$SPEC')" 2 ;; esac
+case "$KV_DTYPE" in nvfp4|fp8) ;; *) die "KV_DTYPE must be nvfp4|fp8 (got '$KV_DTYPE')" 2 ;; esac
 [[ "$SERVED_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]*$ ]] || die "SERVED_NAME must be a bare id (no '/'): $SERVED_NAME" 2
 [[ "$PORT" =~ ^[0-9]{1,5}$ ]] && (( PORT >= 1 && PORT <= 65535 )) || die "PORT must be a TCP port (got '$PORT')" 2
 for knob in CTX MAX_SEQS NSPEC PREFIX_MATCH MEM_FLOOR_GB; do
@@ -208,7 +217,7 @@ DOCKER=(docker run -d --rm --name "$CONTAINER"
     --max-model-len "$CTX" --max-num-seqs "$MAX_SEQS" --gpu-memory-utilization "$GPU_UTIL"
     --enable-chunked-prefill --enable-prefix-caching
     ${CACHE_ARGS[@]+"${CACHE_ARGS[@]}"}
-    --kv-cache-dtype fp8 --linear-backend b12x --moe-backend b12x
+    --kv-cache-dtype "$KV_DTYPE" --linear-backend b12x --moe-backend b12x
     --attention-backend FLASHINFER --mamba-backend flashinfer
     --mamba-ssm-cache-dtype bfloat16 --mamba-cache-dtype bfloat16 --seed 42
     --limit-mm-per-prompt '{"video":0}'
@@ -249,7 +258,7 @@ trap 'exit 130' INT
 trap 'exit 129' HUP
 "${DOCKER[@]}" >/dev/null
 STARTED=1
-log "container $CONTAINER started (port $HOST:$PORT, util $GPU_UTIL, ctx $CTX, seqs $MAX_SEQS, spec $SPEC, prefix match ${PREFIX_MATCH/#0/vllm default}${VLLM_API_KEY:+, key set})"
+log "container $CONTAINER started (port $HOST:$PORT, util $GPU_UTIL, ctx $CTX, seqs $MAX_SEQS, spec $SPEC, kv $KV_DTYPE, prefix match ${PREFIX_MATCH/#0/vllm default}${VLLM_API_KEY:+, key set})"
 docker logs -f "$CONTAINER" 2>&1 &
 floor_kb=$(( MEM_FLOOR_GB * 1024 * 1024 ))
 until [ "$(curl -s -o /dev/null -w '%{http_code}' "http://$HOST:$PORT/health" 2>/dev/null || true)" = 200 ]; do

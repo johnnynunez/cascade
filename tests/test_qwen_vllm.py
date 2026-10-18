@@ -62,7 +62,7 @@ print("/hub/" + a[1].replace("/", "--") + "/" + a[a.index("--revision") + 1])
 
 
 def run(tmp_path, venv, *args, **env):
-    e = {k: v for k, v in os.environ.items() if not k.startswith(("VLLM_", "API_KEY", "HOST", "PORT", "SPEC"))}
+    e = {k: v for k, v in os.environ.items() if not k.startswith(("VLLM_", "API_KEY", "HOST", "PORT", "SPEC", "KV_DTYPE"))}
     e.update({"VENV": str(venv), "HOME": str(tmp_path / "home"), "CUDA_HOME": str(tmp_path / "cuda"),
               "PATH": "/usr/bin:/bin", **env})
     return subprocess.run(["bash", str(SCRIPT), *args], env=e, capture_output=True, text=True, timeout=60)
@@ -180,3 +180,64 @@ def test_every_local_profile_asks_for_a_name_the_server_answers_to(tmp_path, ven
     names = set(a[a.index("--served-model-name") + 1:a.index("--host")])
     profile = yaml.safe_load((REPO / "configs" / "llm" / "local_qwen.yaml").read_text())
     assert profile["model"] in names
+
+
+def test_a_missing_venv_is_built_with_uv_on_the_pinned_vllm(tmp_path, venv):
+    """vLLM 0.32.0 ships CUDA 13 arm64 wheels: a uv venv per version (shared
+    with the Bolt brain, hence the b12x extra), uv picking the matching torch,
+    then the precompiled FlashInfer kernels instead of a JIT next to the model."""
+    import shutil
+
+    fresh = tmp_path / "fresh-venv"
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    log = tmp_path / "uv.log"
+    (bindir / "uv").write_text(f"#!{sys.executable}\n" + f"""
+import json, os, shutil, sys
+a = sys.argv[1:]
+with open({str(log)!r}, "a") as f:
+    f.write(json.dumps(a) + "\\n")
+if a[:1] == ["venv"]:
+    os.makedirs(os.path.join(a[1], "bin"), exist_ok=True)
+    for name in ("vllm", "hf"):
+        shutil.copy2(os.path.join({str(venv)!r}, "bin", name), os.path.join(a[1], "bin", name))
+""")
+    (bindir / "uv").chmod(0o755)
+    r = run(tmp_path, fresh, "--setup-only", PATH=f"{bindir}:/usr/bin:/bin")
+    assert r.returncode == 0, r.stdout + r.stderr
+    uv = [json.loads(line) for line in log.read_text().splitlines()]
+    assert uv[0][:2] == ["venv", str(fresh)]
+    assert "--torch-backend=cu130" in uv[1] and "vllm[b12x]==0.32.0" in uv[1], "torch cu130, never auto (cu132 faulted)"
+    assert any(json.loads(line).get("vllm_args") == ["download-kernels"]
+               for line in r.stdout.splitlines() if '"vllm_args"' in line)
+    assert '"serve"' not in r.stdout, "setup never serves"
+    shutil.rmtree(fresh)
+
+
+def test_the_default_venv_is_per_vllm_version():
+    text = SCRIPT.read_text()
+    assert 'VLLM_VERSION="0.32.0"' in text and 'TORCH_BACKEND="cu130"' in text
+    assert 'VENV="${VENV:-$HOME/.venvs/vllm-$VLLM_VERSION-$TORCH_BACKEND}"' in text
+
+
+def test_the_kv_cache_is_nvfp4_on_flashinfer_by_default(tmp_path, venv):
+    """vLLM 0.32.0 writes and reads an NVFP4 KV cache on SM12x (FlashInfer: fa2
+    prefill, XQA decode); the FLASHINFER attention backend is the one that has it."""
+    a = served(run(tmp_path, venv))["vllm_args"]
+    assert flag(a, "--kv-cache-dtype") == "nvfp4"
+    assert flag(a, "--attention-backend") == "FLASHINFER"
+
+
+@pytest.mark.parametrize("kv, expected", [("fp8", ["--kv-cache-dtype", "fp8"]), ("auto", [])])
+def test_kv_dtype_knob(tmp_path, venv, kv, expected):
+    a = served(run(tmp_path, venv, KV_DTYPE=kv))["vllm_args"]
+    got = [x for i, x in enumerate(a) if x == "--kv-cache-dtype" or (i and a[i - 1] == "--kv-cache-dtype")]
+    assert got == expected
+    assert "--attention-backend" not in a, "only NVFP4 pins the backend"
+
+
+def test_an_unknown_kv_dtype_is_refused_before_serving(tmp_path, venv):
+    r = run(tmp_path, venv, KV_DTYPE="int4")
+    assert r.returncode == 2 and "KV_DTYPE must be nvfp4|fp8|auto" in r.stderr
+    assert '"vllm_args"' not in r.stdout
+

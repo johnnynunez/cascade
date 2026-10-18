@@ -99,7 +99,8 @@ sys.exit(0)
 def run(host, *args, **env):
     e = {k: v for k, v in os.environ.items()
          if not k.startswith(("VLLM_", "API_KEY", "HOST", "PORT", "SPEC", "NSPEC", "GPU_UTIL", "CTX", "MAX_SEQS",
-                              "SERVED_NAME", "PREFIX_MATCH", "MEM_FLOOR", "CACHE_DIR", "HF_", "CONTAINER", "EXTRA"))}
+                              "SERVED_NAME", "PREFIX_MATCH", "MEM_FLOOR", "CACHE_DIR", "HF_", "CONTAINER", "EXTRA",
+                              "KV_DTYPE"))}
     e.update({"HOME": str(host["tmp"] / "home"), "HF_HUB_CACHE": str(host["hub"]),
               "PATH": f"{host['bin']}:/usr/bin:/bin", **env})
     return subprocess.run(["bash", str(SCRIPT), *args], env=e, capture_output=True, text=True, timeout=60)
@@ -153,6 +154,8 @@ def test_dry_run_is_the_measured_vllm_route_on_loopback(host):
     assert flag(args, "--reasoning-parser-plugin").endswith(f"/snapshots/{TARGET[1]}/{PARSER}")
     assert flag(args, "--safetensors-load-strategy") == "eager"
     assert (flag(args, "--linear-backend"), flag(args, "--moe-backend")) == ("b12x", "b12x")
+    assert flag(args, "--kv-cache-dtype") == "nvfp4", "the nightly carries vLLM #46963/#60452 (NVFP4 KV on SM12x)"
+    assert flag(args, "--attention-backend") == "FLASHINFER", "the backend that reads FP8 and NVFP4 caches on SM12x"
     assert "--speculative-config" not in args, "no drafter by default: it costs the agent its prefix hits"
     for env in ("HF_HUB_OFFLINE=1", "TRANSFORMERS_OFFLINE=1"):
         assert env in args
@@ -175,7 +178,8 @@ def test_prefix_caching_hits_below_the_hybrid_lcm_block(host):
 
 def test_knobs_reach_the_server(host):
     args = dry(host, PORT="18491", GPU_UTIL="0.5", CTX="32768", MAX_SEQS="2", SERVED_NAME="bolt",
-               SPEC="dflash", NSPEC="5", CONTAINER="bolt-x")
+               SPEC="dflash", NSPEC="5", CONTAINER="bolt-x", KV_DTYPE="fp8")
+    assert flag(args, "--kv-cache-dtype") == "fp8"
     assert flag(args, "-p") == "127.0.0.1:18491:8000" and flag(args, "--name") == "bolt-x"
     assert (flag(args, "--gpu-memory-utilization"), flag(args, "--max-model-len"), flag(args, "--max-num-seqs"),
             flag(args, "--served-model-name")) == ("0.5", "32768", "2", "bolt")
@@ -191,6 +195,7 @@ def test_knobs_reach_the_server(host):
     ({"GPU_UTIL": "1.5"}, "GPU_UTIL must be"),
     ({"CTX": "64k"}, "CTX must be"),
     ({"CONTAINER": "a b"}, "CONTAINER must be"),
+    ({"KV_DTYPE": "auto"}, "KV_DTYPE must be"),
 ])
 def test_bad_knobs_are_refused(host, env, message):
     r = run(host, "--dry-run", **env)

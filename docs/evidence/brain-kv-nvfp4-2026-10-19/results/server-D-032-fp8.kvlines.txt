@@ -1,0 +1,9 @@
+(EngineCore pid=2123195) INFO 10-19 00:22:59 [core.py:133] Initializing a V1 LLM engine (v0.32.0) with config: ...
+(EngineCore pid=2123195) INFO 10-19 00:23:01 [cuda.py:506] Using FLASHINFER attention backend out of potential backends: ['FLASHINFER', 'TRITON_ATTN'].
+(EngineCore pid=2123195) INFO 10-19 00:23:16 [model_runner.py:424] Model loading took 27.84 GiB memory and 16.134922 seconds
+(EngineCore pid=2123195) INFO 10-19 00:23:16 [interface.py:1096] Setting attention block size to 1648 tokens to ensure that attention page size is >= mamba page size.
+(EngineCore pid=2123195) INFO 10-19 00:24:07 [flashinfer.py:966] FlashInfer resolved query dtypes: prefill=torch.bfloat16, decode=torch.bfloat16, decode_backend=xqa, kv_cache_dtype=torch.float8_e4m3fn, arch=sm120
+(EngineCore pid=2123195) INFO 10-19 00:24:34 [gpu_worker.py:759] Available KV cache memory: 20.06 GiB
+(EngineCore pid=2123195) INFO 10-19 00:24:34 [kv_cache_utils.py:2327] GPU KV cache size: 155,146 tokens, Maximum concurrency for 65,536 tokens per request: 2.37x
+(EngineCore pid=2123195) INFO 10-19 00:24:34 [kv_cache_utils.py:853] kv cache group sizes (1648, 1648, 1648, 1648, 1648, 1648, 1648, 1648, 1648, 1648, 1648, 1648, 1648, 1648, 64)
+(EngineCore pid=2123195) INFO 10-19 00:24:34 [kv_cache_utils.py:854] kv lcm block sizes 6592

@@ -178,6 +178,21 @@ JAW_STATE_REFUSALS = [
     ("the jaw state could not be read: call move_home first (it raises the gripper up its approach column), "
      "then, if red cube is in the jaws, take it out by hand, open_gripper, reset_scene. Error: gripper feedback "
      "timed out", "state:jaws_unreadable"),
+    # the jaws read, but the interrupted grasp's marker could not be judged
+    # against them (#367): the jaw state is as unknown as an unread one
+    ("the jaw reading could not be judged: if red cube is in the jaws, take it out by hand, then open_gripper, "
+     "then reset_scene. Error: not enough values to unpack (expected 3, got 1)", "state:jaws_unreadable"),
+    ("the jaw reading could not be judged: call move_home first (it raises the gripper up its approach column), "
+     "then, if stale bread is in the jaws, take it out by hand, open_gripper, reset_scene. Error: '>=' not "
+     "supported between instances of 'NoneType' and 'float'", "state:jaws_unreadable"),
+    # an unfinished contact episode: the jaws were never read (#367); the
+    # label comes first, so its own words must not decide the signature
+    ("the grasp of red cube ended in an unfinished contact episode, so the jaws were not read and it may be "
+     "in them: a person must check the gripper.", "state:jaws_unreadable"),
+    ("the grasp of the very very very long blue mug ended in an unfinished contact episode, so the jaws were "
+     "not read and it may be in them: a person must check the gripper.", "state:jaws_unreadable"),
+    ("the grasp of stale bread that is too wide ended in an unfinished contact episode, so the jaws were not "
+     "read and it may be in them: a person must check the gripper.", "state:jaws_unreadable"),
 ]
 
 

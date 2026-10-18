@@ -18,6 +18,7 @@ from cascade.perception.workspace import WorkspaceFilter
 
 SHIPPED_RIGHT = [0.0, -0.22, 0.0, 0.0, 0.0, 0.0]
 RAISED = [0.0, -0.22, 0.03, 0.0, 0.0, 0.0]
+YAWED = [0.03, -0.22, 0.0, 0.0, 0.0, 0.4]
 IDENTITY = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
 
@@ -50,9 +51,9 @@ def _main_reject(f, center, extents=None, mask_frac=None):
 
 
 #: main's dataclass defaults (f5ad8ab), literally
-_MAIN_DEFAULTS = dict(base_radius_m=0.12, base_height_m=0.50, max_extent_m=0.35, min_extent_m=0.015,
-                      table_z_m=-0.05, max_z_m=0.60, reach_m=1.00, max_frame_frac=0.45, min_height_m=0.010,
-                      self_mask=True, self_mask_max_frac=0.5)
+_MAIN_DEFAULTS = {"base_radius_m": 0.12, "base_height_m": 0.50, "max_extent_m": 0.35, "min_extent_m": 0.015,
+                  "table_z_m": -0.05, "max_z_m": 0.60, "reach_m": 1.00, "max_frame_frac": 0.45,
+                  "min_height_m": 0.010, "self_mask": True, "self_mask_max_frac": 0.5}
 
 
 def _main_fields(cfg):
@@ -165,6 +166,74 @@ def test_each_arm_base_is_excluded_and_the_phantom_origin_is_not():
     assert wf.reject([0.0, -0.22 - 0.081, 0.05]) is None
     assert wf.reject([0.0, -0.22, 0.49]) == "robot"
     assert wf.reject([0.0, -0.22, 0.51]) is None
+
+
+def test_a_yawed_base_sits_at_its_translation():
+    # the base origin in W is the pose's translation (0.03, -0.22), whatever the yaw:
+    # not R^T t, not -R^T t (the inverse's translation)
+    wf = _rig_filter(_cfg(["so101_left", "so101_right"], {"so101_right": YAWED}))
+    assert [(b.x, b.y, b.z) for b in wf.bases] == [(0.0, 0.22, 0.0), (0.03, -0.22, 0.0)]
+    assert wf.reject([0.10, -0.22, 0.05]) == "robot"               # 0.07 from (0.03, -0.22)
+    assert wf.reject([-0.07, -0.22, 0.05]) is None                  # 0.10 from it
+
+
+def test_a_single_posed_arm_reads_its_own_workspace_filter():
+    # so101_right alone: one base where it stands, with so101_right's 0.08 / 0.48
+    # (not the dataclass defaults 0.12 / 1.00)
+    from cascade.perception.workspace import WorkspaceBase
+
+    want = (WorkspaceBase(x=0.0, y=-0.22, z=0.0, radius_m=0.08, height_m=0.50, reach_m=0.48),)
+    cfg = _cfg(["so101_right"])
+    assert _rig_filter(cfg).bases == want
+    # an arm entry without a resolved view (a hand-built config) falls back to the
+    # rig's top-level section, which on a single-arm rig is that arm's own
+    cfg._data["arm"].pop("resolved", None)
+    assert cfg.arm.get("resolved") is None
+    assert _rig_filter(cfg).bases == want
+
+
+def test_from_config_keeps_the_bases_without_a_section():
+    from cascade.perception.workspace import WorkspaceBase
+
+    b = WorkspaceBase(x=0.0, y=-0.22, z=0.0, radius_m=0.08, height_m=0.50, reach_m=0.48)
+    for section in (None, object()):                                 # no section / not a mapping
+        wf = WorkspaceFilter.from_config(section, bases=[b])
+        assert wf.bases == (b,)
+        assert wf.reject([0.0, -0.22, 0.05]) == "robot"
+        assert wf.reject([0.0, 0.0, 0.05]) is None                   # no phantom origin base
+
+
+@pytest.mark.parametrize("field", ["x", "y", "z", "radius_m", "height_m", "reach_m"])
+@pytest.mark.parametrize("bad", [float("nan"), float("inf")])
+def test_a_workspace_base_refuses_non_finite_numbers(field, bad):
+    from cascade.perception.workspace import WorkspaceBase
+
+    ok = {"x": 0.0, "y": -0.22, "z": 0.0, "radius_m": 0.08, "height_m": 0.50, "reach_m": 0.48}
+    WorkspaceBase(**ok)
+    with pytest.raises(ValueError, match="finite"):
+        WorkspaceBase(**{**ok, field: bad})
+
+
+def test_a_non_finite_base_pose_refuses_the_build_before_any_arm(tmp_path, monkeypatch):
+    # fail closed: a NaN base would exclude nothing and put nothing out of reach
+    from cascade.apps import demo
+    from cascade.control.mock_arm import MockArm
+
+    monkeypatch.setenv("CASCADE_GRASP_BACKEND", "obb")
+    made = []
+
+    def make_arm(acfg, kinematics=None):
+        made.append(str(acfg.get("name")))
+        return MockArm(acfg, kinematics=kinematics)
+
+    monkeypatch.setattr(demo, "make_arm", make_arm)
+    with pytest.raises(ValueError, match=r"arm 'so101_right': base_pose .*finite"):
+        demo.build_runtime(_cfg(["so101_left", "so101_right"], {"so101_right": [float("nan"), -0.22, 0, 0, 0, 0]}),
+                           tmp_path / "run", view=False, serve=False)
+    assert made == []
+    single = _cfg(["so101_right"], {"so101_right": [0.0, float("inf"), 0, 0, 0, 0]})
+    with pytest.raises(ValueError, match="finite"):
+        demo._workspace_bases(single, demo._arm_cfgs(single))
 
 
 def test_a_raised_base_raises_its_cylinder():

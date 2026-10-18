@@ -309,6 +309,10 @@ Each converted site gets a RED test on a base 3 cm above the table plane (`base_
     `[0, -0.44, 0, 0, 0, 0]` (the shipped 0.44 m spacing). Both bases at the origin would make the neighbour gate
     refuse every grasp, so a pair of identities proves nothing. The single-arm `so101_left` with `[0]*6` is also
     compared with no base_pose.
+  - One carve-out on the identity rig: its right arm still declares a non-identity base_pose, so its shared
+    WorkspaceFilter carries both bases (D6). Filter decisions there change by design, only near the right base
+    ("robot" inside its cylinder) and within the right arm's reach beyond the left's (no longer "out_of_reach").
+    The byte-identical rows are its primary's calls on scenes outside those two regions.
   - `execute(arm=<non-primary>)` uses that arm's own profile (Q4 a), so a non-primary call can differ from main
     by design. Example: pick_and_place's default drop zone. Joint-only calls on the pair's right arm may differ only
     in the verifier's `gripper_frac` and its evidence text (R3: the running arm's jaws are read now).

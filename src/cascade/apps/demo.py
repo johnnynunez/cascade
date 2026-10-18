@@ -43,7 +43,7 @@ from ..perception.depth_provider import DepthProvider
 from ..perception.grounding import Extrinsics
 from ..perception.stream import CameraRig, CameraStream
 from ..perception.world import LockedDetector, WatchedCamera, WorldWatcher
-from ..perception.workspace import WorkspaceBase, WorkspaceFilter
+from ..perception.workspace import WorkspaceBase, WorkspaceFilter, config_float
 from ..safety.harness import SafeArm, SafetyHarness, SafetyLimits
 from ..safety.tool_volume import build_tool_volume
 from ..skills.runtime import SkillRuntime
@@ -519,6 +519,13 @@ def _base_transform(acfg):
     return pose_to_transform(pose)
 
 
+def _moves_the_base(T) -> bool:
+    """A `_base_transform` that moves the arm off the table origin: not None
+    and not the exact identity. The identity counts as no base_pose (spec §4,
+    D2), so an identity rig keeps today's paths (D5, D6)."""
+    return T is not None and not np.array_equal(T, np.eye(4))
+
+
 def _refuse_eye_in_hand_beside_a_base_pose(cfg, arm_names, arm_cfgs) -> None:
     """Spec D5: a rig with an arm mounted at a (non-identity) `base_pose`
     refuses an eye-in-hand camera, before any arm is made.
@@ -528,11 +535,8 @@ def _refuse_eye_in_hand_beside_a_base_pose(cfg, arm_names, arm_cfgs) -> None:
     map and the beliefs share. No shipped profile combines the two (the
     MuJoCo loader already refuses wrist cameras on a rig). Rigs without a
     base_pose (or with the identity) are not inspected here at all."""
-    mounted = []
-    for name, acfg in zip(arm_names, arm_cfgs, strict=True):
-        T = _base_transform(acfg)
-        if T is not None and not np.array_equal(T, np.eye(4)):
-            mounted.append(name)
+    mounted = [name for name, acfg in zip(arm_names, arm_cfgs, strict=True)
+               if _moves_the_base(_base_transform(acfg))]
     if not mounted:
         return
     for i, ccfg in enumerate(_camera_cfgs(cfg)):
@@ -555,25 +559,24 @@ def _workspace_bases(cfg, arm_cfgs) -> tuple[WorkspaceBase, ...] | None:
     top-level section for an arm without a resolved view).
     """
     transforms = [_base_transform(a) for a in arm_cfgs]
-    if not any(T is not None and not np.array_equal(T, np.eye(4)) for T in transforms):
+    if not any(_moves_the_base(T) for T in transforms):
         return None
     defaults = WorkspaceFilter()
-
-    def value(section, key: str, default: float) -> float:    # WorkspaceFilter.from_config's rule
-        v = section.get(key, default)
-        return default if v is None else float(v)
-
     bases = []
-    for acfg, T in zip(arm_cfgs, transforms, strict=True):
+    for i, (acfg, T) in enumerate(zip(arm_cfgs, transforms, strict=True)):
         view = acfg.get("resolved")
         own = (view.get("workspace_filter") if view else cfg.get("workspace_filter")) or _empty_cfg()
         x, y, z = (0.0, 0.0, 0.0) if T is None else (float(v) for v in T[:3, 3])
-        bases.append(WorkspaceBase(
-            x=x, y=y, z=z,
-            radius_m=value(own, "base_radius_m", defaults.base_radius_m),
-            height_m=value(own, "base_height_m", defaults.base_height_m),
-            reach_m=value(own, "reach_m", defaults.reach_m),
-        ))
+        try:
+            bases.append(WorkspaceBase(
+                x=x, y=y, z=z,
+                radius_m=config_float(own, "base_radius_m", defaults.base_radius_m),
+                height_m=config_float(own, "base_height_m", defaults.base_height_m),
+                reach_m=config_float(own, "reach_m", defaults.reach_m),
+            ))
+        except ValueError as e:    # a non-finite base_pose: refuse the build, before any arm is made
+            raise ValueError(f"arm {str(acfg.get('name', f'arm{i}'))!r}: base_pose {acfg.get('base_pose')!r}: "
+                             f"{e}") from None
     return tuple(bases)
 
 

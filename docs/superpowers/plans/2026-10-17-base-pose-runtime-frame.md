@@ -709,9 +709,13 @@ def test_viewers_read_the_primary_frame_during_a_bound_call(make_runtime, monkey
   rigs: rebot_rs, mock, so101_mock, pair_identity_primary, so101_right_joint_only, pair_right_joint_only. Add:
   - `isaac_kitchen`: the kitchen arm profile on a MockArm with camera `mock`. If its `detector` override needs a
     server, give both trees the mock detector: the same input on both sides.
-  - `pair_identity`: both poses identity, world-target calls on the primary (no `arm=`). Calls with
-    `arm=<non-primary>` change by design (Q4 a: that arm's own profile), so they are not in the byte-identical
-    set. `pair_right_joint_only` is expected to stay identical, because both so101 profiles carry the same
+  - `pair_identity` (R12): left `[0, 0, 0, 0, 0, 0]` (the exact identity, so T is None) and right
+    `[0, -0.44, 0, 0, 0, 0]` (the shipped 0.44 m spacing; both at the origin would make the neighbour gate refuse
+    every grasp). World-target calls on the primary (no `arm=`). Calls with `arm=<non-primary>` change by design
+    (Q4 a: that arm's own profile), so they are not in the byte-identical set. Its WorkspaceFilter carries the
+    right base (D6), so detections near the right base or only within the right arm's reach are decided
+    differently by design (spec §4 carve-out); the scenes of the byte-identical rows stay outside those regions.
+    `pair_right_joint_only` is expected to stay identical, because both so101 profiles carry the same
     gripper and relative_motion values. Any diff there must be explained by Q4 a in the ledger.
   - `so101_right_tilted_joint`: TILTED, joint-only calls.
 

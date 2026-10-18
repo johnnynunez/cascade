@@ -681,7 +681,7 @@ def _thread_starts(source: str, filename: str = "<src>") -> list[str]:
 
 
 def test_the_thread_census_sees_every_way_to_start_a_thread():
-    source = "\n".join([
+    lines = [
         "threading.Thread(target=f).start()",
         "Thread(target=f)",
         "threading.Timer(1.0, f).start()",
@@ -696,7 +696,8 @@ def test_the_thread_census_sees_every_way_to_start_a_thread():
         "list(map(f, xs))",
         "self.map.add_pose(p)",
         "ThreadContract(x)",
-    ])
+    ]
+    source = "\n".join(lines)
     assert [hit.split(" ", 1)[1] for hit in _thread_starts(source)] == [
         "threading.Thread", "Thread", "threading.Timer", "pool.submit", "pool.map", "asyncio.to_thread",
         "loop.run_in_executor", "_thread.start_new_thread", "_WorkerThread"]

@@ -43,6 +43,13 @@ from dataclasses import dataclass
 import numpy as np
 
 
+def config_float(section, key: str, default: float) -> float:
+    """One number of a `workspace_filter:` section: unset or null -> `default`.
+    The rule `WorkspaceFilter.from_config` applies to every numeric key."""
+    v = section.get(key, default)
+    return default if v is None else float(v)
+
+
 @dataclass(frozen=True)
 class WorkspaceBase:
     """One arm's base in the TABLE frame, for a rig whose arms declare a
@@ -61,6 +68,14 @@ class WorkspaceBase:
     radius_m: float
     height_m: float
     reach_m: float
+
+    def __post_init__(self) -> None:
+        # Fail closed: a NaN base never excludes anything and puts nothing
+        # out of reach (every comparison with it is False).
+        values = {k: getattr(self, k) for k in ("x", "y", "z", "radius_m", "height_m", "reach_m")}
+        bad = {k: v for k, v in values.items() if not np.isfinite(float(v))}
+        if bad:
+            raise ValueError(f"a workspace base needs finite numbers, got {bad}")
 
     def distance_xy(self, c: np.ndarray) -> float:
         return float(np.hypot(c[0] - self.x, c[1] - self.y))
@@ -235,8 +250,7 @@ class WorkspaceFilter:
             return base
 
         def f(key: str, default: float) -> float:
-            v = cfg.get(key, default)
-            return default if v is None else float(v)
+            return config_float(cfg, key, default)
 
         def flag(key: str, default: bool) -> bool:
             v = cfg.get(key, default)

@@ -56,8 +56,8 @@ REFUSAL = "holding red cube: place it first (place_at), then reset"
 UNREAD = ("the jaw state could not be read: if red cube is in the jaws, take it out by hand, then "
           "open_gripper, then reset_scene. Error: ")
 #: the jaws were read, but the marker could not be judged against them
-UNJUDGED = ("the interrupted grasp's hold marker could not be judged against the jaws: if red cube is in "
-            "the jaws, take it out by hand, then open_gripper, then reset_scene. Error: ")
+UNJUDGED = ("the jaw reading could not be judged: if red cube is in the jaws, take it out by hand, then "
+            "open_gripper, then reset_scene. Error: ")
 #: an unfinished contact episode: the reconcile never reads the jaws
 CONTACT = ("the grasp of red cube ended in an unfinished contact episode, so the jaws were not read and it "
            "may be in them: a person must check the gripper.")

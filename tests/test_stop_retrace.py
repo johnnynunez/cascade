@@ -636,6 +636,212 @@ def test_on_a_real_gripper_a_failed_jaw_read_after_the_retrace_names_the_jaw_rea
         assert commands(rt) == at[0]
 
 
+# ── #367 on #359's path: a marker that cannot be judged, a NaN jaw reading ──
+
+#: the jaws were read, but the interrupted grasp's marker could not be judged
+#: against them (#367 `_HoldNotJudged`): the cause each malformed marker gives
+NOT_JUDGED = {
+    # its close's opening and no expected one, the jaws at that seat: `_air_grasp` raises
+    "no_expected_open": (None, "'>=' not supported between instances of 'NoneType' and 'float'"),
+    # a bare label, the jaws stalled on the cube: promoting it cannot unpack it
+    "label_only": (0.5, "not enough values to unpack (expected 3, got 1)"),
+}
+
+
+def malformed_marker(rt, kind):
+    from cascade.skills.runtime import ProvisionalHold
+
+    prov = rt._held_provisional
+    rt._held_provisional = (ProvisionalHold(tuple(prov), prov.commanded_open) if kind == "no_expected_open"
+                            else ProvisionalHold(prov[:1]))
+
+
+@pytest.mark.parametrize("kind", sorted(NOT_JUDGED))
+def test_on_a_real_gripper_a_marker_that_cannot_be_judged_after_the_retrace_is_holding_unknown(
+        rebot_real, monkeypatch, kind):
+    """#367: the seat-aware reconcile reads the jaws but cannot judge a
+    malformed marker against them (`_HoldNotJudged`). move_home's report
+    after the retrace (#359's seat-aware caller) fails closed like the reset:
+    `holding_unknown`, naming that reason and its cause (never \"the jaw
+    state could not be read\", never empty jaws), no jaw command, the hold
+    kept. The next reset refuses with the same reason and 0 commands."""
+    stall, why = NOT_JUDGED[kind]
+    rt = rebot_real
+    mock_of(rt).object_stop_frac = stall
+    stopped_at_the_object(rt, monkeypatch, skill=("grasp_object", {"label": "red cube"}))
+    malformed_marker(rt, kind)
+    jaws = jaw_commands(rt, monkeypatch)
+    res = rt.execute("move_home", {})
+    assert res["ok"] is True and res["stop_retrace"].startswith("completed") and at_home(rt), res
+    assert res["holding_unknown"] is True and "holding" not in res, res
+    assert res["next_action"] == ("the jaw reading could not be judged: red cube may still be in the jaws; check "
+                                  f"the gripper before any other grasp, open or reset. Error: {why}"), res
+    assert jaws == [] and rt.held_object is None and rt._held_provisional is not None
+    n0 = commands(rt)
+    res = rt.execute("reset_scene", {})
+    assert res["ok"] is False and res["error"] == (
+        "the jaw reading could not be judged: if red cube is in the jaws, take it out by hand, then open_gripper, "
+        f"then reset_scene. Error: {why}"), res
+    assert commands(rt) == n0 and jaws == []
+
+
+@pytest.mark.parametrize("kind", sorted(NOT_JUDGED))
+def test_on_a_real_gripper_a_marker_that_cannot_be_judged_with_the_column_kept_says_move_home_first(
+        rebot_real, monkeypatch, kind):
+    """The reset's not-judged refusal while the column is kept: move_home
+    first, like the held and unreadable ones, the label whole, the cause cut
+    to the 240 characters the agent's failure line quotes, 0 commands, the
+    column kept."""
+    stall, why = NOT_JUDGED[kind]
+    rt = rebot_real
+    mock_of(rt).object_stop_frac = stall
+    stopped_at_the_object(rt, monkeypatch, skill=("grasp_object", {"label": "red cube"}))
+    from cascade.skills import stop_retrace
+
+    malformed_marker(rt, kind)
+    kept, jaws, n0 = stop_retrace.kept(rt), jaw_commands(rt, monkeypatch), commands(rt)
+    res = rt.execute("reset_scene", {})
+    whole = ("the jaw reading could not be judged: call move_home first (it raises the gripper up its approach "
+             f"column), then, if red cube is in the jaws, take it out by hand, open_gripper, reset_scene. Error: {why}")
+    assert len(whole) > 240 and res["ok"] is False and res["error"] == whole[:237].rstrip() + "...", res
+    assert commands(rt) == n0 and jaws == [] and stop_retrace.kept(rt) is kept
+
+
+@pytest.mark.parametrize("error", ["CAN feedback lost", ""], ids=["text", "empty"])
+def test_on_a_real_gripper_a_failed_jaw_read_after_the_retrace_names_its_error_or_its_type(
+        rebot_real, monkeypatch, error):
+    """#367 M5 on #359's report: a driver error with no text names its type
+    (never a dangling \"Error: \")."""
+    rt = rebot_real
+    mock_of(rt).object_stop_frac = 0.5
+    stopped_at_the_object(rt, monkeypatch, skill=("grasp_object", {"label": "red cube"}))
+    raw = mock_of(rt)
+    real, reads = raw.get_state, []
+
+    def once():
+        reads.append(1)
+        if len(reads) == 1:
+            raise TimeoutError(error)
+        return real()
+
+    arm_after_the_retrace(rt, monkeypatch, lambda: monkeypatch.setattr(raw, "get_state", once))
+    res = rt.execute("move_home", {})
+    assert res["ok"] is True and res["holding_unknown"] is True, res
+    assert res["next_action"] == UNKNOWN_NEXT + f". Error: {error or 'TimeoutError'}", res
+
+
+def nan_jaws(rt, monkeypatch):
+    """The driver reports the jaw reading valid, but it is no number."""
+    real = mock_of(rt).get_state
+    monkeypatch.setattr(mock_of(rt), "get_state",
+                        lambda: dataclasses.replace(real(), gripper_valid=True, gripper_pos=float("nan")))
+
+
+@pytest.mark.parametrize("stall", [0.5, None], ids=["on-the-object", "at-the-seat"])
+def test_on_a_real_gripper_a_nan_jaw_reading_after_the_retrace_is_holding_unknown_never_empty(
+        rebot_real, monkeypatch, stall):
+    """#367's NaN rule on #359's path: the jaws read NaN once the retrace has
+    run. move_home reports `holding_unknown` (the hold kept, no jaw
+    command), never the empty-jaws result; the next reset refuses with 0
+    commands."""
+    rt = rebot_real
+    mock_of(rt).object_stop_frac = stall
+    stopped_at_the_object(rt, monkeypatch, skill=("grasp_object", {"label": "red cube"}))
+    arm_after_the_retrace(rt, monkeypatch, lambda: nan_jaws(rt, monkeypatch))
+    jaws = jaw_commands(rt, monkeypatch)
+    res = rt.execute("move_home", {})
+    assert res["ok"] is True and res["stop_retrace"].startswith("completed") and at_home(rt), res
+    assert res["holding_unknown"] is True and res["next_action"] == UNKNOWN_NEXT and "holding" not in res, res
+    assert rt.held_object is None and rt._held_provisional is not None and jaws == []
+    n0 = commands(rt)
+    res = rt.execute("reset_scene", {})
+    assert res["ok"] is False and res["error"] == UNREADABLE_PLAIN, res
+    assert commands(rt) == n0 and jaws == []
+
+
+@pytest.mark.parametrize("stall", [0.5, None], ids=["on-the-object", "at-the-seat"])
+def test_on_a_real_gripper_a_nan_jaw_reading_with_the_column_kept_sends_the_agent_to_move_home_first(
+        rebot_real, monkeypatch, stall):
+    """A NaN reading before the reset, with the column kept: refused with 0
+    commands (move_home first), never the empty-jaws reset that would
+    retrace, home and open the jaws on the object."""
+    rt = rebot_real
+    mock_of(rt).object_stop_frac = stall
+    stopped_at_the_object(rt, monkeypatch, skill=("grasp_object", {"label": "red cube"}))
+    from cascade.skills import stop_retrace
+
+    kept = stop_retrace.kept(rt)
+    nan_jaws(rt, monkeypatch)
+    jaws, n0 = jaw_commands(rt, monkeypatch), commands(rt)
+    res = rt.execute("reset_scene", {})
+    assert res["ok"] is False and res["error"] == UNREADABLE_KEPT, res
+    assert commands(rt) == n0 and jaws == [] and stop_retrace.kept(rt) is kept
+    assert rt.held_object is None and rt._held_provisional is not None
+
+
+#: a label longer than the 240 characters the agent's failure line quotes
+LONG_LABEL = "the " + "very " * 40 + "long blue mug"
+
+
+@pytest.mark.parametrize("case", ["stalled", "unreadable", "not_judged"])
+def test_on_a_real_gripper_every_move_home_first_refusal_keeps_a_readable_label(rebot_real, monkeypatch, case):
+    """#367's label rule on the kept-column texts: a label too long is cut
+    (\"...\") so the sentence and 40 characters of the error fit 240, and
+    every form keeps at least its first 18 characters: the not-judged form
+    once left only \"...\" (its sentence alone took 216 characters)."""
+    rt = rebot_real
+    mock_of(rt).object_stop_frac = None if case == "not_judged" else 0.5
+    stopped_at_the_object(rt, monkeypatch, skill=("grasp_object", {"label": "red cube"}))
+    from cascade.skills.runtime import ProvisionalHold
+
+    prov = rt._held_provisional
+    rt._held_provisional = ProvisionalHold((LONG_LABEL, *prov[1:]), prov.commanded_open,
+                                           None if case == "not_judged" else prov.expected_open)
+    if case == "unreadable":
+        real = mock_of(rt).get_state
+        monkeypatch.setattr(mock_of(rt), "get_state", lambda: dataclasses.replace(real(), gripper_valid=False))
+    n0 = commands(rt)
+    res = rt.execute("reset_scene", {})
+    error = res["error"]
+    sentence = ("call move_home first (it raises the gripper up its approach column, with the object), then "
+                "place_at, then reset_scene" if case == "stalled" else
+                " is in the jaws, take it out by hand, open_gripper, reset_scene. Error: ")
+    assert res["ok"] is False and commands(rt) == n0 and len(error) <= 240, (len(error), error)
+    assert sentence in error and "move_home first" in error and LONG_LABEL[:18] in error, error
+    assert "(truncated; see error)" not in res["next_action"], res
+
+
+@pytest.mark.parametrize("stop", ["halt", "e-stop", "did not settle"])
+def test_a_reset_whose_home_move_fails_after_a_completed_retrace_keeps_the_retrace_report(rebot, monkeypatch, stop):
+    """#359 final review M4: reset_scene's home move fails AFTER the retrace
+    completed (an operator halt / e-stop, or a move that does not settle).
+    The failed reset still says what the retrace did (`stop_retrace`), as
+    move_home's own failed result does; nothing is sent after a stop."""
+    rt = rebot
+    mock_of(rt).object_stop_frac = 0.5
+    stopped_at_the_object(rt, monkeypatch, skill=("grasp_object", {"label": "red cube"}))
+    harness, at = rt.arm.harness, []
+
+    def fail():
+        at.append(commands(rt))
+        if stop == "halt":
+            harness.halt("operator")
+        elif stop == "e-stop":
+            harness.estop("operator")
+        else:
+            monkeypatch.setattr(rt.arm, "move_planned", lambda *a, **k: False)
+            monkeypatch.setattr(rt, "_return_to_view_home", lambda *a, **k: {
+                "ok": False, "status": "failed", "error": "did not settle at home"})
+
+    arm_after_the_retrace(rt, monkeypatch, fail)
+    res = rt.execute("reset_scene", {})
+    assert res["ok"] is False and res["stage"] == "home" and len(at) == 1, res
+    assert res["error"].startswith("Scene reset could not reach home: "), res
+    assert res["stop_retrace"].startswith("completed: the TCP rose"), res
+    if stop != "did not settle":
+        assert commands(rt) == at[0], res                       # 0 commands after the stop
+
+
 @pytest.mark.parametrize("stop", ["halt", "e-stop"])
 def test_a_stop_in_the_home_move_after_the_reconcile_keeps_the_holding_report(rebot, monkeypatch, stop):
     """Review M2: a halt / e-stop that lands after the jaw reconcile ends the

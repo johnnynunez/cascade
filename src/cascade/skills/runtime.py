@@ -303,9 +303,23 @@ class ProvisionalHold(tuple):
 
 
 class _HoldNotJudged(Exception):
-    """reset_scene's seat-aware reconcile read the jaws but could not judge the
-    interrupted grasp's marker against that reading (a malformed marker): not
-    a jaw-read failure. Raised only with `seat_aware`; the cause is chained."""
+    """A seat-aware reconcile (reset_scene's refusal, move_home's jaw report
+    after a stop retrace) read the jaws but could not judge the interrupted
+    grasp's marker against that reading (a malformed marker): not a jaw-read
+    failure. Raised only with `seat_aware`; the cause is chained."""
+
+
+#: How the seat-aware callers name jaws they could not read, and jaws they
+#: read but could not judge (`_HoldNotJudged`). Short: the move_home-first
+#: refusal needs room for the label within the agent's 240 characters.
+_JAWS_NOT_READ = "the jaw state could not be read"
+_JAWS_NOT_JUDGED = "the jaw reading could not be judged"
+
+
+def _error_text(exc: BaseException) -> str:
+    """An exception's text for a refusal's \"Error: \" tail; one without text
+    names its type, never a bare tag."""
+    return str(exc).strip() or type(exc).__name__
 
 
 def _cut_text(text: str, limit: int) -> str:
@@ -8034,6 +8048,9 @@ class SkillRuntime:
         except (SkillError, SafetyViolation) as e:
             out.update(ok=False, stage="home", home_error=str(e), beliefs_forgotten=0,
                        error=f"Scene reset could not reach home: {e}")
+            # A stop retrace that completed before the failed home move: the
+            # result still says so, as move_home's own (#359 review M4).
+            _with_retrace_result(out, e)
             return out
         # The arm is home and the scene changes next: a column kept after a
         # STOP (stop_retrace.py) no longer describes anything.
@@ -8261,14 +8278,13 @@ class SkillRuntime:
         if contact:
             return _fit_label("the grasp of {} ended in an unfinished contact episode, so the jaws were not "
                               "read and it may be in them: a person must check the gripper.", provisional[0])
-        head = (("the interrupted grasp's hold marker could not be judged against the jaws"
-                 if judge_error is not None else "the jaw state could not be read")
+        head = ((_JAWS_NOT_JUDGED if judge_error is not None else _JAWS_NOT_READ)
                 + (": call move_home first (it raises the gripper up its approach column), then, if {} is in "
                    "the jaws, take it out by hand, open_gripper, reset_scene." if column_kept else
                    ": if {} is in the jaws, take it out by hand, then open_gripper, then reset_scene."))
         way_out = _fit_label(head, provisional[0], keep=_REFUSAL_ERROR_ROOM)
         exc = judge_error if judge_error is not None else read_error
-        why = "no valid jaw feedback" if exc is None else str(exc).strip() or type(exc).__name__
+        why = "no valid jaw feedback" if exc is None else _error_text(exc)
         return way_out + _cut_text(f" Error: {why}", _FAILED_ERROR_CHARS - len(way_out))
 
     def _forget_held_object(self) -> None:
@@ -8437,12 +8453,16 @@ class SkillRuntime:
         (`_reconcile_held(seat_aware=True)`, #363): stalled on the object ->
         `holding` + place it first; at the commanded seat, closed or open ->
         nothing (the provisional hold is dropped); unreadable (unknown
-        feedback, or the read raised) -> `holding_unknown`: the object may
-        still be in the jaws, never the empty-jaws result (review Important
-        #2, M3)."""
-        read_error = None
+        feedback, a reading that is no number, or the read raised) ->
+        `holding_unknown`: the object may still be in the jaws, never the
+        empty-jaws result (review Important #2, M3). Read but not judgeable
+        (a malformed marker, `_HoldNotJudged`, #367): `holding_unknown` too,
+        naming that reason; the hold stays and the jaws are not commanded."""
+        read_error = judge_error = None
         try:
             self._reconcile_held(seat_aware=True)
+        except _HoldNotJudged as exc:  # the jaws were read: the marker could not be judged
+            judge_error = exc.__cause__
         except Exception as exc:  # noqa: BLE001 -- the jaw read failed: reported below
             read_error = exc
         if self.held_object:
@@ -8452,9 +8472,11 @@ class SkillRuntime:
         provisional = getattr(self, "_held_provisional", None)
         if provisional is None:
             return {}
+        head = _JAWS_NOT_JUDGED if judge_error is not None else _JAWS_NOT_READ
+        exc = judge_error if judge_error is not None else read_error
         return {"holding_unknown": True, "next_action": (
-            f"the jaw state could not be read: {provisional[0]} may still be in the jaws; check the gripper "
-            "before any other grasp, open or reset" + ("" if read_error is None else f". Error: {read_error}"))}
+            f"{head}: {provisional[0]} may still be in the jaws; check the gripper before any other grasp, open "
+            "or reset" + ("" if exc is None else f". Error: {_error_text(exc)}"))}
 
     def skill_move_to_rest(self, keep_torque: bool = False) -> dict:
         """"Home" / "pose 0" / "rest" / "park": fold the arm onto its rest pose
@@ -9029,10 +9051,11 @@ def _stop_first(stop: str, error) -> str:
 
 def _with_retrace_result(result: dict, exc: BaseException) -> None:
     """A move_home that retraced after a STOP and then failed in its home
-    move (a halt, an e-stop, a fault): its failed `result` keeps what the
-    retrace did and what the jaws hold (`stop_retrace`, `holding` or
-    `holding_unknown`, `next_action`), which skill_move_home attached to the
-    exception (review M2)."""
+    move (a halt, an e-stop, a fault): its failed `result` (execute()'s, or
+    reset_scene's when the reset called it) keeps what the retrace did and
+    what the jaws hold (`stop_retrace`, `holding` or `holding_unknown`,
+    `next_action`), which skill_move_home attached to the exception (review
+    M2, M4)."""
     kept = getattr(exc, "retrace_result", None)
     if isinstance(kept, dict):
         result.update(kept)

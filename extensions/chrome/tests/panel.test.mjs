@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
 
 test('pause, resume and reconnect keep the camera action labels in sync', async () => {
   const elements = new Map();
@@ -55,14 +56,21 @@ test('pause, resume and reconnect keep the camera action labels in sync', async 
 
 // A fake Spark camera viewer (scripts/spark_cameras.py): /api/status with its
 // discovery contract, /state with an advancing frame_id, and an MJPEG stream
-// whose parts the test writes with the server's own header layout.
+// whose parts the test writes with the server's own header layout. The panel's
+// clock (performance.now) stands still until the test advances it, so a part
+// is rendered at an exact age; its timers (the 1 s refresh tick, the /state
+// poll) run in real time. Every element counts the writes to its text.
 async function sparkPanel(key) {
-  const elements = new Map(), listeners = {};
+  const elements = new Map(), listeners = {}, clock = {now: 1000};
   const names = ['document', 'window', 'location', 'chrome', 'fetch', 'Image'];
   const original = Object.fromEntries(names.map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
+  const realNow = Object.getOwnPropertyDescriptor(performance, 'now');
   const element = id => {
     if (!elements.has(id)) elements.set(id, {
-      textContent: '', dataset: {}, events: {}, attributes: {}, hidden: false, options: [],
+      text: '', writes: 0,
+      get textContent() { return this.text; },
+      set textContent(value) { this.text = String(value); this.writes++; },
+      dataset: {}, events: {}, attributes: {}, hidden: false, options: [],
       addEventListener(event, fn) { this.events[event] = fn; },
       setAttribute(name, value) { this.attributes[name] = value; },
       removeAttribute(name) { delete this.attributes[name]; },
@@ -81,7 +89,10 @@ async function sparkPanel(key) {
       if (descriptor) Object.defineProperty(globalThis, name, descriptor);
       else delete globalThis[name];
     }
+    if (realNow) Object.defineProperty(performance, 'now', realNow);
+    else delete performance.now;
   };
+  performance.now = () => clock.now;
   Object.assign(globalThis, {
     document: {getElementById: element, querySelectorAll: () => [], createElement: () => ({}),
       querySelector: () => ({classList: {toggle() {}}}), body: {classList: {add() {}}},
@@ -119,6 +130,8 @@ async function sparkPanel(key) {
   await until(() => stream !== null, 'the stream opens');
   return {
     element, until, fake, stateReads: () => stateReads,
+    // No part arrives for `ms` more milliseconds of the panel's clock.
+    advance(ms) { clock.now += ms; },
     // b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: N" + f"\r\nX-Frame-Age: {age:.2f}" + b"\r\n\r\n" + jpeg + b"\r\n"
     // Writes one part and returns once the panel has rendered it (a new image URL).
     async frame(age) {
@@ -176,5 +189,83 @@ test('a held Spark frame shows its age instead of Live, and Live returns with a 
     assert.equal(state(), 'stale');
   } finally {
     panel.close();
+  }
+});
+
+test('a Spark frame whose stream stops keeps ageing on screen, then the 5 s rule takes over', async () => {
+  const panel = await sparkPanel('frame-age-ticks');
+  const text = id => panel.element(id).textContent, state = () => panel.element('status').dataset.state;
+  try {
+    await panel.frame(0);
+    await panel.until(() => text('status') === 'Live', 'the first fresh frame goes live');
+    panel.advance(1500);  // no further part: the frame on screen is 1.5 s old
+    await panel.until(() => text('status') === 'Last frame · 1 s old', 'the refresh tick counts the time since the part');
+    assert.equal(state(), 'held');
+    assert.equal(text('frame-note'), 'Last frame · 1 s old');
+    assert.equal(panel.element('retry').hidden, true, 'a held frame is no outage: no Reconnect');
+    panel.advance(1000);
+    await panel.until(() => text('status') === 'Last frame · 2 s old', 'the count goes on between parts');
+    panel.advance(2600);  // 5.1 s without a part
+    await panel.until(() => text('status') === 'Not updating', 'the 5 s stale rule still wins');
+    assert.equal(state(), 'stale');
+    await panel.frame(0);
+    await panel.until(() => text('status') === 'Live', 'a fresh part brings Live back');
+  } finally {
+    panel.close();
+  }
+});
+
+test('a server that sends no X-Frame-Age stays Live between parts until the 5 s rule', async () => {
+  const panel = await sparkPanel('no-age-ticks');
+  const text = id => panel.element(id).textContent;
+  try {
+    await panel.frame();
+    await panel.until(() => text('status') === 'Live', 'the first frame goes live');
+    panel.advance(3000);  // under the 4 s /state rule: no poll is needed to stay Live
+    await new Promise(resolve => setTimeout(resolve, 1100));  // at least one refresh tick
+    assert.equal(text('status'), 'Live');
+    panel.advance(2100);
+    await panel.until(() => text('status') === 'Not updating', 'the 5 s stale rule');
+  } finally {
+    panel.close();
+  }
+});
+
+test('screen readers hear the state changes, never the held count ticking', async () => {
+  const panel = await sparkPanel('announce');
+  const text = id => panel.element(id).textContent, said = panel.element('status-live');
+  const detail = panel.element('detail');
+  try {
+    await panel.frame(0);
+    await panel.until(() => text('status') === 'Live', 'the first fresh frame goes live');
+    assert.equal(said.textContent, 'Live');
+    const writes = said.writes;
+    panel.advance(1500);
+    await panel.until(() => text('status') === 'Last frame · 1 s old', 'held');
+    assert.equal(said.textContent, 'Last frame');
+    assert.equal(said.writes, writes + 1);
+    const details = detail.writes;
+    panel.advance(1000);
+    await panel.until(() => text('status') === 'Last frame · 2 s old', 'two seconds');
+    panel.advance(1000);
+    await panel.until(() => text('status') === 'Last frame · 3 s old', 'three seconds');
+    assert.equal(said.writes, writes + 1, 'the count never reaches the live region');
+    assert.equal(detail.writes, details, 'nor is the unchanged detail rewritten');
+    panel.advance(2100);
+    await panel.until(() => text('status') === 'Not updating', 'stale');
+    assert.equal(said.textContent, 'Not updating');
+    assert.equal(said.writes, writes + 2);
+  } finally {
+    panel.close();
+  }
+});
+
+test('the camera badge is no live region: a hidden status region announces the state', async () => {
+  const html = await readFile(new URL('../panel.html', import.meta.url), 'utf8');
+  const tag = id => html.match(new RegExp(`<[a-z]+ id="${id}"[^>]*>`))?.[0] ?? '';
+  assert.match(tag('status'), /class="badge"/);
+  assert.doesNotMatch(tag('status'), /aria-live|role=/);
+  for (const attribute of ['class="sr-only"', 'role="status"', 'aria-live="polite"']) {
+    assert.ok(tag('status-live').includes(attribute), `${attribute} in ${tag('status-live') || 'no #status-live'}`);
   }
 });

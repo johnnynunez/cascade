@@ -187,11 +187,12 @@ def test_the_slowest_free_closing_ramp_is_no_stall_at_the_isaac_band(monkeypatch
 @pytest.mark.parametrize("rate_hz", [2.5, 3.0, 3.5, 5.0, 14.0])
 def test_the_widest_band_the_cap_admits_never_reads_free_closing_as_stopped(monkeypatch, rate_hz):
     """The cap sits below the free-closing step: at the widest band the build
-    accepts, every free-closing step (0.028 open fraction per bridge
-    iteration, the slowest measured) leaves the band, so the jaws run to the
-    target at any loop rate above 2 it/s. (Below 2 it/s no step lands in a
-    0.5 s window and every band reads a stop, on main too.) A band of 0.028
-    or more would hold one step and read free closing as stopped."""
+    accepts, every step of steady free closing (0.028 open fraction per bridge
+    iteration, the slowest measured, one per iteration at a steady loop rate)
+    leaves the band, so the jaws run to the target at any steady rate above
+    2 it/s. (Below 2 it/s, or across any 0.5 s gap without a step, no step
+    lands in the window and every band reads a stop, on main too.) A band of
+    0.028 or more would hold one step and read free closing as stopped."""
     from cascade.skills.runtime import CLOSE_STALL_BAND_MAX
 
     widest = math.nextafter(CLOSE_STALL_BAND_MAX, 0.0)
@@ -286,8 +287,8 @@ def test_real_and_mock_arms_keep_mains_band(name):
 
 # ── a bad value fails closed ───────────────────────────────────────────────
 
-#: 0.02-0.049 passed main's 0.05 cap; a band that wide reads Newton's free
-#: closing (0.028 per bridge iteration) as stopped at 2-3.5 it/s.
+#: 0.02-0.049 passed main's 0.05 cap; a band that wide reads Newton's steady
+#: free closing (0.028 per bridge iteration) as stopped at 2-3.5 it/s.
 _BAD = [0, 0.0, -0.01, 0.02, 0.028, 0.049, 0.05, 0.5, 1, float("nan"), float("inf"), "wide", True]
 
 

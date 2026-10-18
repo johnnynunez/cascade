@@ -22,10 +22,13 @@ camera); in **Show in chat** it expands in the tab. The stream keeps running acr
 
 The badge says **Live** while the camera advances. The Spark camera server
 (`scripts/spark_cameras.py`) keeps serving its last image for up to 5 s when the simulator skips
-frames and marks each image with its `X-Frame-Age`; once that age passes 1 s the badge reads
-**Last frame · N s old** instead, and **Live** returns with the next fresh image. Other servers
-send no age, so their badge is unchanged; the visitor proxy (`deploy/brev/visitor.py`) does not
-forward the header, so visitors see no change.
+frames and marks each image with its `X-Frame-Age`; once the image's age (that header plus the
+time it has been on screen) passes 1 s the badge reads **Last frame · N s old** instead, counting
+up every second even when no further image arrives, and **Live** returns with the next fresh
+image; after 5 s without one it reads **Not updating**. Screen readers hear only the state
+changes (Live, Last frame, Not updating), not every second of the count. Other servers send no
+age, so their badge is unchanged; the visitor proxy (`deploy/brev/visitor.py`) does not forward
+the header, so visitors see no change.
 
 ## Discovery
 

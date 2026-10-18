@@ -26,7 +26,7 @@ import test_stop_retrace as T
 from cascade.memory.envelope import failure_signature, normalize_failure
 from cascade.skills import carry_attachment, stop_retrace
 from cascade.skills.runtime import ProvisionalHold, SkillRuntime
-from cascade.types import SkillError
+from cascade.types import SkillStuck
 from conftest import needs_pin
 
 pytestmark = needs_pin
@@ -40,11 +40,12 @@ READINGS = ("unknown", "nan", "pinf", "ninf")
 STALLS = pytest.mark.parametrize("stall", [0.5, None], ids=["on-the-object", "at-the-seat"])
 
 #: the refusal of a skill whose first jaw command opens the jaws, as execute()
-#: reports it (reset_scene's #363 text, its last step the retry)
-REFUSAL = ("SkillError: the jaw state could not be read: if red cube is in the jaws, take it out by hand, then "
+#: reports it (reset_scene's #363 text, its last step the retry): STUCK, so
+#: the agent relays the ask instead of opening the jaws itself
+REFUSAL = ("SkillStuck: the jaw state could not be read: if red cube is in the jaws, take it out by hand, then "
            "open_gripper, then try again. Error: no valid jaw feedback")
 #: ... while the approach column kept after the STOP still applies
-REFUSAL_KEPT = ("SkillError: the jaw state could not be read: call move_home first (it raises the gripper up its "
+REFUSAL_KEPT = ("SkillStuck: the jaw state could not be read: call move_home first (it raises the gripper up its "
                 "approach column), then, if red cube is in the jaws, take it out by hand, open_gripper, try again. "
                 "Error: no valid jaw feedback")
 #: a persistence loop's stop when a failed attempt leaves a possible hold, in
@@ -81,6 +82,8 @@ def holding_unknown_at_home(rt, monkeypatch, stall, reading="unknown"):
 
 def assert_refused_before_any_command(rt, res, n0, jaws, prov, error=REFUSAL):
     assert res["ok"] is False and res["error"] == error, res
+    assert res["outcome"] == "stuck" and res["ask"] == LOOP_ASK, res     # the human's way out, relayed
+    assert res["next_action"].startswith("STUCK: relay `ask` to the human verbatim"), res
     assert len(res["error"]) <= 240 and "(truncated; see error)" not in res["next_action"], res
     assert T.commands(rt) == n0 and jaws == []                  # no arm and no jaw command
     assert rt._held_provisional == prov and rt.held_object is None
@@ -136,10 +139,11 @@ def test_a_column_kept_after_the_stop_is_forfeited_as_by_every_grasp_and_the_ref
 
 def direct_pick(rt):
     """pick_and_place called directly (no execute(): a composite's own call),
-    its SkillError as execute() would name it."""
-    with pytest.raises(SkillError) as refused:
+    its SkillStuck as execute() would name it."""
+    with pytest.raises(SkillStuck) as refused:
         SkillRuntime.skill_pick_and_place(rt, "red cube")
-    return f"SkillError: {refused.value}"
+    assert refused.value.ask == LOOP_ASK
+    return f"SkillStuck: {refused.value}"
 
 
 @pytest.mark.parametrize("reading", ["unknown", "ninf"])
@@ -164,7 +168,7 @@ def test_a_direct_caller_with_the_column_still_kept_is_sent_to_move_home_first(r
 
 @pytest.mark.parametrize("column", [False, True], ids=["no-column", "column-kept"])
 def test_a_long_label_is_cut_never_the_refusal(rebot_real, monkeypatch, column):
-    """The refusal and execute()'s "SkillError: " fit the agent's 240
+    """The refusal and execute()'s "SkillStuck: " fit the agent's 240
     characters, in both forms (the move_home-first one leaves the label the
     least room): a label too long is cut ("..."), the way out and the error
     stay whole."""
@@ -184,13 +188,13 @@ def test_a_long_label_is_cut_never_the_refusal(rebot_real, monkeypatch, column):
         error = res["error"]
         assert res["ok"] is False and error in res["next_action"], res        # quoted whole
     assert len(error) <= 240 and T.commands(rt) == n0, (len(error), error)
-    assert error.startswith("SkillError: the jaw state could not be read: ") and "the very very" in error, error
+    assert error.startswith("SkillStuck: the jaw state could not be read: ") and "the very very" in error, error
     assert T.LONG_LABEL not in error and "... is in the jaws, take it out by hand" in error, error
     assert error.endswith("try again. Error: no valid jaw feedback"), error
     assert ("call move_home first" in error) is column, error
 
 
-@pytest.mark.parametrize("prefix", ["", "SkillError: "], ids=["reset", "skill-error"])
+@pytest.mark.parametrize("prefix", ["", "SkillStuck: "], ids=["reset", "skill-stuck"])
 @pytest.mark.parametrize("column", [False, True], ids=["no-column", "column-kept"])
 def test_the_shared_refusal_fits_240_with_its_prefix_and_a_long_driver_error(prefix, column):
     """The text reset_scene and the skill entries share, with the longest

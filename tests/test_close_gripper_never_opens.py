@@ -33,7 +33,7 @@ from cascade.control.mock_arm import MockArm
 from cascade.grasping.force import GRIP_PROFILES
 from cascade.skills import stop_retrace
 from cascade.skills.runtime import SkillRuntime
-from cascade.types import SkillError
+from cascade.types import SkillStuck
 from conftest import needs_pin
 
 rebot_real = T.rebot_real   # the REAL rebot_rs type (a real gripper), its backend a MockArm
@@ -121,9 +121,9 @@ def test_a_direct_caller_with_the_column_still_kept_is_sent_to_move_home_first(r
     T.stopped_at_the_object(rt, monkeypatch, skill=("grasp_object", {"label": "red cube"}))
     P.unreadable(rt, monkeypatch, reading)
     prov, jaws, n0 = rt._held_provisional, T.jaw_commands(rt, monkeypatch), T.commands(rt)
-    with pytest.raises(SkillError) as refused:
+    with pytest.raises(SkillStuck) as refused:
         SkillRuntime.skill_close_gripper(rt)
-    assert f"SkillError: {refused.value}" == P.REFUSAL_KEPT
+    assert f"SkillStuck: {refused.value}" == P.REFUSAL_KEPT and refused.value.ask == P.LOOP_ASK
     assert T.commands(rt) == n0 and jaws == [] and rt._held_provisional == prov
 
 

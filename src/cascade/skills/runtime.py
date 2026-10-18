@@ -416,6 +416,12 @@ _JAWS_NOT_JUDGED = "the jaw reading could not be judged"
 #: In #366/#377's words, so the envelope files the stop `state:jaws_unreadable`
 #: whatever the attempt's own text ("jaws" alone matched `object_too_wide`).
 _POSSIBLE_HOLD_STOP = _JAWS_NOT_READ + " and the jaws may still hold an object; not retrying"
+#: The human's way out of a hold the jaws cannot confirm: the ask of a
+#: persistence loop that stopped on it (`_stuck_ask`) and of every skill entry
+#: that refuses it (`_raise_on_a_possible_hold`). The agent relays it; it never
+#: opens the jaws itself.
+_POSSIBLE_HOLD_ASK = ("My jaws may still hold an object, and I cannot read whether they do. If one is in them, "
+                      "take it out by hand, then say 'open the gripper' (open_gripper), and ask again.")
 
 
 def _error_text(exc: BaseException) -> str:
@@ -2918,10 +2924,11 @@ class SkillRuntime:
         them would drop it, from about 0.44 m at home on the reBot (#373
         review A). move_home's `holding_unknown` asks for the gripper to be
         checked first; this enforces it, on every arm type, in reset_scene's
-        words (`_unread_hold_refusal`), fitted for execute()'s "SkillError: "
-        in front. Its move_home-first form needs an approach column that still
-        applies: execute() forfeits a kept one before every motion skill but
-        move_home and reset_scene, so only a direct caller can meet it.
+        words (`_unread_hold_refusal`), fitted for execute()'s "SkillStuck: "
+        in front (`_raise_on_a_possible_hold`). Its move_home-first form needs
+        an approach column that still applies: execute() forfeits a kept one
+        before every motion skill but move_home and reset_scene, so only a
+        direct caller can meet it.
         None with a held flag (its own "already holding" refusal) and during
         an unfinished contact episode: the reconcile never reads those jaws,
         and the harness refuses every command until reset_scene's recovery.
@@ -2930,13 +2937,17 @@ class SkillRuntime:
         if provisional is None or self.held_object or getattr(self, "_contact_episode", None) is not None:
             return None
         return _unread_hold_refusal(provisional[0], column_kept=stop_retrace.live(self) is not None,
-                                    then="try again", prefix="SkillError: ")
+                                    then="try again", prefix="SkillStuck: ")
 
     def _raise_on_a_possible_hold(self) -> None:
-        """`_possible_hold_refusal` as the SkillError a skill's entry raises."""
-        refusal = SkillRuntime._possible_hold_refusal(self)
+        """`_possible_hold_refusal` as the SkillStuck a skill's entry raises:
+        execute() reports it STUCK with the persistence loops' own way-out
+        ask, so the agent relays it to the human instead of opening the jaws
+        itself (#379 review minor 3). A persistence loop catches it like any
+        refused attempt and stops on the hold (`_grasp_retry_verdict`)."""
+        refusal = self._possible_hold_refusal()
         if refusal is not None:
-            raise SkillError(refusal)
+            raise SkillStuck(refusal, _POSSIBLE_HOLD_ASK)
 
     def _grasp_retry_verdict(self, object: str, attempt: int, last_err: str) -> str | None:
         """Why persistence should STOP retrying a grasp, or None to keep going.
@@ -4483,7 +4494,7 @@ class SkillRuntime:
         if self.held_object:
             raise SkillError(f"already holding {self.held_object!r}; place it first")
         # Before any command: the pre-grasp opening would drop a possible hold.
-        SkillRuntime._raise_on_a_possible_hold(self)
+        self._raise_on_a_possible_hold()
         self._held_support_offset_m = None
         gcfg = self.cfg.grasp
         if _fix is not None and _frame is not None:
@@ -10025,8 +10036,7 @@ def _stuck_ask(object: str, last_err: str, attempts: int, *, stage: str = "grasp
     obj = f"{object!r}" if object else "the object"
     n = max(int(attempts), 1)
     if _POSSIBLE_HOLD_STOP in err:
-        return ("My jaws may still hold an object, and I cannot read whether they do. If one is in them, "
-                "take it out by hand, then say 'open the gripper' (open_gripper), and ask again.")
+        return _POSSIBLE_HOLD_ASK
     if _is_gripper_fault(err):
         return (f"My gripper stopped itself while handling {obj}: "
                 + ("something is between the jaws, so I cannot find their closed position. "

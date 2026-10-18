@@ -606,9 +606,10 @@ detector:
   api_key_file: ${CASCADE_PERCEPTION_KEY_FILE:-~/.cascade/nemoclaw/llama.key}
   # Guarded box replies (auto = by served id: Nemotron 3.5 Bolt, whose greedy
   # list could repeat one label until the token cap): a JSON schema of at most
-  # 20 boxes within 1024 tokens, a cut reply keeps its complete boxes, a loop
+  # 12 boxes within 1024 tokens, a cut reply keeps its complete boxes, a loop
   # keeps its first box, inventory entries the prompt excludes (keyboards, the
-  # robot arm) are dropped. true / false force it; Qwen3.8 is unchanged.
+  # robot arm, the rest of the computer: mice, computer towers) are dropped.
+  # true / false force it; Qwen3.8 is unchanged.
   reply_guards: auto
   timeout_s: 20
   # Background (watcher) requests, streamed: an open-world inventory decodes

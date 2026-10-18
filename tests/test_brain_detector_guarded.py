@@ -64,8 +64,9 @@ def test_a_loop_ended_by_the_schemas_bound_loses_its_tail():
 
 
 def test_every_looping_label_in_a_reply_at_the_bound_keeps_its_first_box():
-    run = [("black cable", (100, 100 + 10 * k, 140, 140 + 10 * k)) for k in range(6)]
+    run = [("black cable", (100, 100 + 10 * k, 140, 140 + 10 * k)) for k in range(4)]
     items = REAL[:1] + run + REAL[1:] + LOOP[:GUARDED_MAX_BOXES - len(REAL) - len(run)]
+    assert len(items) == GUARDED_MAX_BOXES and GUARDED_MAX_BOXES - len(REAL) - len(run) >= 4  # both labels loop
     found = parse_guarded_boxes(reply([entry(*e) for e in items]), W, H, cut=False)
     assert labels(found) == ["red plush lobster", "black cable", "black pouch", "white cup", "white cable"]
 
@@ -98,12 +99,13 @@ def test_a_loop_alternating_two_labels_keeps_one_box_of_each():
 
 def test_a_label_looping_between_other_entries_keeps_its_first_box():
     # s10's shape: "black rectangular object" comes back between other entries, never twice in a row.
+    colours = ("white", "yellow", "orange", "silver", "blue", "green", "pink", "gray")
     others = [(f"{c} rectangular object", (500 + 10 * k, 100, 540 + 10 * k, 140))
-              for k, c in enumerate(("white", "yellow", "orange", "silver", "blue", "green", "pink", "gray"))]
+              for k, c in enumerate(colours[:(GUARDED_MAX_BOXES - 4) // 2])]
     items = REAL[:2] + [x for k, o in enumerate(others) for x in (("black rectangular object",
                                                                   (100 + 30 * k, 900, 140 + 30 * k, 999)), o)]
-    assert len(items) == 18
     items += [("black rectangular object", (400, 900, 440, 999)), ("tan rectangular object", (600, 100, 640, 140))]
+    assert len(items) == GUARDED_MAX_BOXES and len(others) + 1 >= 4  # at the bound, black listed >= 4 times
     found = parse_guarded_boxes(reply([entry(*e) for e in items]), W, H, cut=False)
     assert labels(found) == ["red plush lobster", "black pouch", "black rectangular object"] + [
         label for label, _ in others] + ["tan rectangular object"]
@@ -111,7 +113,11 @@ def test_a_label_looping_between_other_entries_keeps_its_first_box():
 
 @pytest.mark.parametrize("label", ["computer keyboard", "gray keyboard", "black and yellow robotic arm",
                                    "white robot arm", "black computer monitor", "laptop", "Human Hand",
-                                   "wooden table", "phone screen"])
+                                   "wooden table", "phone screen",
+                                   # the rest of the computer whose screen and keyboard the prompt excludes
+                                   "computer mouse", "black computer mouse", "computer mice", "mouse pad",
+                                   "computer mouse pad", "silver computer tower", "black mesh computer tower",
+                                   "PC case"])
 def test_an_inventory_entry_the_prompt_excludes_is_dropped(label):
     text = reply([entry(*REAL[0]), entry(label, (100, 100, 300, 300))])
     assert labels(parse_guarded_boxes(text, W, H, cut=False)) == ["red plush lobster"]
@@ -120,7 +126,8 @@ def test_an_inventory_entry_the_prompt_excludes_is_dropped(label):
 
 
 @pytest.mark.parametrize("label", ["table tennis ball", "hand cream", "monitor stand", "arm band", "screwdriver",
-                                   "gripper pad", "red plush lobster"])
+                                   "gripper pad", "red plush lobster", "gray plush mouse", "toy mouse", "mouse trap",
+                                   "pencil case", "phone case", "block tower", "computer cable"])
 def test_only_the_head_noun_counts(label):
     text = reply([entry(label, (100, 100, 300, 300))])
     assert labels(parse_guarded_boxes(text, W, H, cut=False)) == [label]
@@ -147,6 +154,12 @@ def test_the_schema_asks_for_a_bounded_list_of_integer_boxes():
     assert item["properties"]["label"]["maxLength"] == 64
     # A loop of Bolt-sized entries (~36 tokens) ends at the schema's bound well before the token cap.
     assert GUARDED_MAX_BOXES * 40 < GUARDED_MAX_TOKENS < 1500
+
+
+def test_the_bound_sits_above_the_busiest_bake_off_frame():
+    # 9 identifiable objects on the busiest of the 47 bake-off frames; no object Bolt found sat past its 12th
+    # entry, and a bound of 12 ends a loop ~40% sooner than 20 (docs/evidence/bolt-default-fixes-2026-10-19).
+    assert GUARDED_MAX_BOXES == 12
 
 
 # -- the detector ---------------------------------------------------------------------------------------------------

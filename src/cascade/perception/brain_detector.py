@@ -128,16 +128,19 @@ def parse_boxes(text: str, width: int, height: int) -> list[tuple[str, np.ndarra
 #: Nemotron 3.5 Bolt, greedy, repeated one label with its box sliding a few
 #: units per entry until the token cap on 6 of the 47 bake-off frames, and the
 #: cut reply was rejected, so those frames showed nothing
-#: (docs/evidence/bolt-default-fixes-2026-10-18). It also lists categories the
-#: inventory prompt excludes (keyboards, the robot arm). Guarded requests ask
-#: for BOX_LIST_SCHEMA within GUARDED_MAX_TOKENS and their replies go through
-#: parse_guarded_boxes. Every other brain (Qwen3.8 never looped) keeps its
-#: request and parse unchanged.
+#: (docs/evidence/bolt-default-fixes-2026-10-19). It also lists categories the
+#: inventory prompt excludes (keyboards, the robot arm) and the rest of that
+#: computer (mice, computer towers). Guarded requests ask for BOX_LIST_SCHEMA
+#: within GUARDED_MAX_TOKENS and their replies go through parse_guarded_boxes.
+#: Every other brain (Qwen3.8 never looped) keeps its request and parse
+#: unchanged.
 GUARDED_REPLY_MODELS = frozenset({"nemotron-3.5-bolt"})
 #: A guarded reply lists at most this many boxes (the schema's maxItems): the
-#: busiest bake-off frame has 9 identifiable objects and Bolt listed at most 15
-#: when it did not loop.
-GUARDED_MAX_BOXES = 20
+#: busiest bake-off frame has 9 identifiable objects, and no object Bolt found
+#: sat past the 12th entry of its reply (it listed at most 15 when it did not
+#: loop). A loop starts within the first 8 entries and ends here, after ~430
+#: tokens instead of the ~720 a bound of 20 let it spend.
+GUARDED_MAX_BOXES = 12
 #: ...and decodes at most this many tokens (Bolt spends ~36 per box), so a
 #: loop ends at the schema's bound well before this cap.
 GUARDED_MAX_TOKENS = 1024
@@ -153,13 +156,17 @@ BOX_LIST_SCHEMA = {
 #: In a guarded reply that hit a bound, a label with this many or more entries
 #: is a repetition loop: only its first entry is kept.
 _LOOP_ENTRIES = 4
-#: A label whose head noun (its last words) is a category _EXCLUDE names: the
-#: inventory prompt asks the brain not to list these, and a guarded reply's
-#: entries that do are dropped. Head noun only: "keyboard" goes, "table
-#: tennis ball" and "hand cream" stay.
+#: A label whose head noun (its last words) is a category _EXCLUDE names, or
+#: the rest of the computer whose screen and keyboard it names (a computer
+#: mouse, a mouse pad, a computer tower or PC case: 11 of Bolt's 41 false
+#: positives on the bake-off frames): the inventory prompt asks the brain not
+#: to list these, and a guarded reply's entries that do are dropped. Head noun
+#: only: "keyboard" goes, "table tennis ball", "hand cream", "plush mouse" and
+#: "pencil case" stay.
 _EXCLUDED_HEAD = re.compile(
     r"(?:\brobot(?:ic)? arm|\bgrippers?|\bperson|\bpeople|\bhands?|\bscreens?|\bmonitors?|\blaptops?|"
-    r"\bkeyboards?|\bfurniture|\bwalls?|\btables?)$")
+    r"\bkeyboards?|\bfurniture|\bwalls?|\btables?|"
+    r"\bcomputer (?:mouse|mice)|\bmouse ?pads?|\b(?:computer|pc) (?:towers?|cases?))$")
 
 
 def _complete_items(body: str) -> list:

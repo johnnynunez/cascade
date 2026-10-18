@@ -338,3 +338,50 @@ def test_late_halt_blocks_every_following_recovery_action(monkeypatch, when):
     assert not result['ok'] and 'halt' in result['recovery_error']
     assert calls == ([] if when == 'last_clock' else ['home'] if when == 'home' else ['home', 'jaw'])
     assert not raw.commands
+
+
+#: the Isaac bridge's prop reset failing, as reset_scene reports it
+PROPS_FAILED = 'Isaac prop reset failed: bridge refused the reset'
+
+
+@pytest.mark.parametrize('stop', [None, 'halt', 'estop'])
+def test_a_cancelled_recovery_keeps_the_isaac_prop_reset_failure(monkeypatch, stop):
+    """The Isaac prop reset failed (a decided failure), then the operator's
+    halt cancelled the retained recovery: the error names the cancellation
+    first and keeps the failure, which files the call (`skill_error`), as a
+    halted park keeps its skill's failure. An e-stop is the e-stop
+    (`safety:estop`), as before; with no stop the failure is the error."""
+    from cascade.memory.envelope import failure_signature
+    rt, m, raw, harness, _ = runtime_case()
+    rt.skill_move_home = lambda **kwargs: None
+    raw.set_gripper = lambda value, effort=1.: None
+
+    def props():
+        if stop == 'halt':
+            harness.halt('during the prop reset')
+        elif stop == 'estop':
+            harness.estop('operator e-stop')
+        raise RuntimeError('bridge refused the reset')
+    raw.reset_props = props
+    from types import ModuleType
+    import cascade.sim
+    fake_world = ModuleType('cascade.sim.mujoco_world')
+    fake_world.live_worlds = lambda: []
+    monkeypatch.setitem(__import__('sys').modules, fake_world.__name__, fake_world)
+    monkeypatch.setattr(cascade.sim, 'mujoco_world', fake_world, raising=False)
+    rt._reset_observation_pending, rt._reset_scene_changed = True, False
+    rt._refresh_halt_generation = harness._halt_generation
+    with rt.watcher.paused():
+        result = rt.skill_reset_scene()
+    assert result['ok'] is False and result['world_error'] == 'bridge refused the reset', result
+    if stop == 'halt':
+        assert result['error'] == ('Scene recovery cancelled: halt received during route planning or execution; '
+                                   + PROPS_FAILED), result['error']
+        assert result['skill_error'] == PROPS_FAILED and result['stage'] == 'reset_recovery', result
+        assert failure_signature(result) == 'other:isaac_prop_reset'
+    elif stop == 'estop':
+        assert result['error'] == 'Scene recovery cancelled: e-stop latched during scene recovery', result
+        assert 'skill_error' not in result and failure_signature(result) == 'safety:estop'
+    else:
+        assert result['error'] == PROPS_FAILED and 'skill_error' not in result, result
+        assert failure_signature(result) == 'other:isaac_prop_reset'

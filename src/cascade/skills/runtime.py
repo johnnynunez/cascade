@@ -8258,8 +8258,16 @@ class SkillRuntime:
                 if self.arm.harness.estopped:
                     raise SafetyViolation("e-stop latched during scene recovery")
             except SafetyViolation as exc:
-                out.update(ok=False, stage="reset_recovery", recovery_error=str(exc),
-                           error=f"Scene recovery cancelled: {exc}")
+                out.update(ok=False, stage="reset_recovery", recovery_error=str(exc))
+                stop = f"Scene recovery cancelled: {exc}"
+                if isinstance(exc, MotionHalted) and out.get("error"):
+                    # The reset had already failed (the Isaac prop reset, the
+                    # observation): the halt is named first and that failure
+                    # files the call (`skill_error`), as a halted park keeps
+                    # its skill's failure. An e-stop names itself alone.
+                    _stop_first(out, stop)
+                else:
+                    out["error"] = stop
                 out.setdefault("beliefs_forgotten", 0)
                 return True
             return False

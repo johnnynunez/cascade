@@ -1198,6 +1198,13 @@ class SkillRuntime:
                 return f"halted: {halted}" if halted else "halt received during route planning or execution"
         return None
 
+    @staticmethod
+    def _skill_halt_estopped(baselines) -> bool:
+        """A harness that took a halt since the skill started
+        (`_skill_halt_reason`) also has its e-stop latched: both stops came."""
+        return any(harness._halt_generation != generation and getattr(harness, "estopped", False)
+                   for harness, generation in baselines)
+
     def _select_arm(self, name):
         """Resolve an arm name to a SafeArm, or raise SkillError.
 
@@ -1960,7 +1967,12 @@ class SkillRuntime:
                 # what it moved): never report that as a success (A3 review).
                 # Every other field stays; an object still in the jaws is named.
                 result["ok"] = False
-                result["error"] = f"MotionHalted: {halted_in_skill}"
+                # With both stops (that halt AND a latched e-stop) the e-stop
+                # wins, as in begin_motion and `_end_on_halt`: a sort that
+                # kept what it moved after `_end_on_halt` named the e-stop is
+                # filed `safety:estop`, never as the halt.
+                result["error"] = ("SafetyViolation: e-stop latched" if self._skill_halt_estopped(skill_halt)
+                                   else f"MotionHalted: {halted_in_skill}")
                 if self.held_object:
                     result.setdefault("holding", self.held_object)
         except (SkillError, SafetyViolation) as e:
@@ -2646,14 +2658,20 @@ class SkillRuntime:
         and the halt reaches execute() (A3 review). Their re-home's
         begin_motion used to clear the halt, so the arm went on after an
         operator STOP. The generation also catches a halt cleared again (a
-        Resume) and an air grasp whose exit the halt skipped. An e-stop needs
-        no check here: `_grasp_retry_verdict` stops on the latch, and the
-        harness refuses every command under it. `failure`: the last attempt's
-        own failure, decided before the halt; the halt carries it
-        (`_keep_decided_failure`), so the call is filed as that failure."""
+        Resume) and an air grasp whose exit the halt skipped. An e-stop alone
+        needs no check here: `_grasp_retry_verdict` stops on the latch, and
+        the harness refuses every command under it. When both came (a newer
+        halt AND a latched e-stop) the e-stop wins, as in begin_motion and the
+        release recovery: it is raised as itself, never as a halt, and
+        carries no `failure` (an e-stop is filed `safety:estop`, a loss).
+        `failure`: the last attempt's own failure, decided before the halt;
+        the halt carries it (`_keep_decided_failure`), so the call is filed
+        as that failure."""
         harness = getattr(self.arm, "harness", None)
         if halt_generation is None or getattr(harness, "_halt_generation", None) == halt_generation:
             return
+        if getattr(harness, "estopped", False):
+            raise SafetyViolation("e-stop latched; not retrying")
         reason = getattr(harness, "halted", None)
         halted = MotionHalted(f"motion halted: {reason}; not retrying" if reason
                               else "halt received during the grasp; not retrying")

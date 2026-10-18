@@ -96,6 +96,9 @@ def _stop_now(r, kind):
         harness.halt("operator: stop")
     elif kind == "estop_harness":
         harness.estop("operator e-stop")
+    elif kind == "halt_then_estop":  # both stops: a newer halt generation AND a latched e-stop
+        harness.halt("operator: stop")
+        harness.estop("operator e-stop")
     else:  # "estop_safearm": SafeArm.stop() latches the e-stop and stops the driver
         r.runtime.arm.stop()
     r.at_stop = r.sends
@@ -574,14 +577,14 @@ def _one_air_grasp_unread_reopen(r, monkeypatch):
     monkeypatch.setattr(runtime, "skill_grasp_object", grasp)
 
 
-def _stop_on_entry(r, monkeypatch, name):
-    """Halt on entry to the runtime's `name` (the final park's
-    skill_move_home, or execute()'s view-home return)."""
+def _stop_on_entry(r, monkeypatch, name, kind="halt"):
+    """Halt (or stop: `kind`) on entry to the runtime's `name` (the final
+    park's skill_move_home, or execute()'s view-home return)."""
     move = getattr(r.runtime, name)
 
     def spy(*a, **k):
         if r.at_stop is None:
-            _stop_now(r, "halt")
+            _stop_now(r, kind)
         return move(*a, **k)
     monkeypatch.setattr(r.runtime, name, spy)
 
@@ -1283,3 +1286,242 @@ def test_an_estop_in_a_later_object_after_a_failed_one_stays_an_estop(rig, monke
     assert out["ok"] is False and "skill_error" not in out, out
     assert _filed_as(r, "restore_scene") == ({"safety:estop": 1}, 0, "safety:estop")
     assert r.runtime.arm.harness.estopped
+
+
+# ── both stops: the e-stop wins ──────────────────────────────────────────────
+
+@pytest.mark.parametrize("skill, args", DECIDED_SKILLS, ids=[s for s, _ in DECIDED_SKILLS])
+@pytest.mark.parametrize("profile", DECIDED_PROFILES)
+def test_an_estop_with_a_newer_halt_after_a_miss_is_filed_as_the_estop(rig, monkeypatch, profile, skill, args):
+    """A miss, then in the re-home a halt AND an e-stop. The e-stop is a loss
+    (`safety:estop`), not the operator's halt: the retry loops' halt check
+    (`_end_on_halt`) names the e-stop, as the release recovery does (#366
+    round 2), and carries no `skill_error`. Nothing moves after the stops."""
+    r = rig(profile)
+    _missing_grasp(r, monkeypatch)
+    _stop_in_rehome(r, monkeypatch, kind="halt_then_estop")
+
+    out = r.runtime.execute(skill, args)
+
+    assert r.at_stop is not None and r.sends == r.at_stop, f"{r.sends - r.at_stop} arm commands after the stops"
+    assert out["ok"] is False and "e-stop latched" in out["error"] and "halt" not in out["error"], out
+    assert "skill_error" not in out, out
+    assert _filed_as(r, skill) == ({"safety:estop": 1}, 0, "safety:estop")
+    assert r.runtime.arm.harness.estopped
+
+
+
+def _sort_one_then_miss(r, monkeypatch):
+    """sort_by_color over two cubes: the first is grasped and placed (the
+    sort has moved one), every later grasp misses."""
+    runtime = r.runtime
+    _two_beliefs(runtime, monkeypatch)
+    _missing_grasp(r, monkeypatch)
+    grasp = runtime.skill_grasp_object
+
+    def first_holds(object, material=None, **kwargs):
+        if r.grasps == 0:
+            r.grasps += 1
+            _move_off(runtime, 0.15)
+            runtime.held_object, runtime._held_det_label = object, "cube"
+            return {"held": object, "grip_verified": True, "grip_profile": None}
+        return grasp(object, material, **kwargs)
+
+    def place(x, y, **kwargs):
+        r.places += 1
+        _move_off(runtime, 0.25)
+        runtime.held_object = None
+        return {"ok": True, "at": [x, y]}
+
+    monkeypatch.setattr(runtime, "skill_grasp_object", first_holds)
+    monkeypatch.setattr(runtime, "skill_place_at", place)
+
+
+@pytest.mark.parametrize("kind", ["halt_then_estop", "estop_harness", "halt"])
+@pytest.mark.parametrize("profile", DECIDED_PROFILES)
+def test_a_sort_that_moved_one_then_got_both_stops_is_filed_as_the_estop(rig, monkeypatch, profile, kind):
+    """sort_by_color moved one cube; the next one missed and its re-home got
+    a halt AND an e-stop. `_end_on_halt` names the e-stop, the sort keeps
+    what it moved (ok), and execute()'s "a halt is never a success" must
+    then name the e-stop too: filed `safety:estop`, never as the halt.
+    Controls: the e-stop alone (the sort keeps what it moved: not a loss);
+    the halt alone (the halt carries the miss: filed as it)."""
+    r = rig(profile)
+    _sort_one_then_miss(r, monkeypatch)
+    _stop_in_rehome(r, monkeypatch, kind=kind)
+
+    out = r.runtime.execute("sort_by_color", {})
+
+    assert r.at_stop is not None and r.sends == r.at_stop, f"{r.sends - r.at_stop} arm commands after the stops"
+    assert r.places == 1, r.places
+    if kind == "halt":
+        assert out["error"] == f"MotionHalted: {HALT}" and out["skill_error"] == MISSED, out
+        assert _filed_as(r, "sort_by_color") == ({MISSED_SIG: 1}, 0, MISSED_SIG)
+    elif kind == "estop_harness":
+        assert "skill_error" not in out, out
+        if profile == "fr3":   # its view-home return was skipped by the e-stop: the call's error
+            assert out["ok"] is False and out["error"] == "return to saved home skipped: e-stop latched", out
+            assert _filed_as(r, "sort_by_color") == ({"safety:estop": 1}, 0, "safety:estop")
+        else:                  # the sort kept what it moved (main's outcome): not a loss, not a halt
+            assert out["ok"] is True and out["failed"] and out["moved"], out
+            assert _filed_as(r, "sort_by_color") == ({}, 0, "")
+    else:
+        assert out["ok"] is False and out["error"] == "SafetyViolation: e-stop latched", out
+        assert "skill_error" not in out, out
+        assert _filed_as(r, "sort_by_color") == ({"safety:estop": 1}, 0, "safety:estop")
+    assert r.runtime.arm.harness.estopped is (kind != "halt")
+
+
+def _halt_check_harness(*, halted, estopped):
+    from cascade.safety.harness import SafetyHarness, SafetyLimits
+
+    harness = SafetyHarness(SafetyLimits(workspace_min=-np.ones(3), workspace_max=np.ones(3)))
+    baseline = harness._halt_generation
+    if halted:
+        harness.halt("operator: stop")
+    if estopped:
+        harness.estop("operator e-stop")
+    return harness, baseline
+
+
+@pytest.mark.parametrize("halted, estopped, raised", [
+    (True, False, "motion halted: operator: stop; not retrying"),
+    (True, True, "e-stop latched; not retrying"),
+    (False, True, None),     # the e-stop alone: the retry verdict stops on the latch, as before
+    (False, False, None),
+])
+def test_end_on_halt_names_the_estop_when_both_stops_came(halted, estopped, raised):
+    from cascade.memory.envelope import normalize_failure
+    from cascade.types import SafetyViolation
+
+    harness, baseline = _halt_check_harness(halted=halted, estopped=estopped)
+    runtime = SimpleNamespace(arm=SimpleNamespace(harness=harness))
+    from cascade.skills.runtime import SkillRuntime
+
+    if raised is None:
+        assert SkillRuntime._end_on_halt(runtime, baseline, failure=MISSED) is None
+        return
+    with pytest.raises(SafetyViolation) as stop:
+        SkillRuntime._end_on_halt(runtime, baseline, failure=MISSED)
+    assert str(stop.value) == raised
+    if estopped:
+        assert not isinstance(stop.value, MotionHalted)
+        assert getattr(stop.value, "skill_error", None) is None   # an e-stop never carries the miss
+        assert normalize_failure(f"SafetyViolation: {stop.value}") == "safety:estop"
+    else:
+        assert isinstance(stop.value, MotionHalted) and stop.value.skill_error == MISSED
+
+
+@pytest.mark.parametrize("halted, estopped, both", [
+    ({0}, {0}, True),
+    ({0}, {1}, False),    # two arms: one halted, the other e-stopped -- not both stops on the halted one
+    (set(), {0}, False),  # the e-stop alone: execute() names no halt at all
+    ({0}, set(), False),
+])
+def test_execute_names_the_estop_only_on_the_harness_that_took_the_halt(halted, estopped, both):
+    """execute()'s "a halt is never a success" names the e-stop when the
+    harness that took the halt since the skill started also latched one."""
+    from cascade.skills.runtime import SkillRuntime
+
+    baselines = [_halt_check_harness(halted=i in halted, estopped=i in estopped) for i in (0, 1)]
+    assert SkillRuntime._skill_halt_estopped(baselines) is both
+
+
+@pytest.mark.parametrize("when", ["before", "during_state_read"])
+@pytest.mark.parametrize("halted, estopped", [(True, False), (True, True), (False, True)])
+def test_safearm_planned_route_names_the_estop_when_both_stops_came(halted, estopped, when):
+    """SafeArm.move_planned's route-planning halt check: with both stops the
+    refusal is the e-stop's (begin_motion's order). One stop alone is refused
+    as before (the e-stop alone by the route planner). No arm command goes
+    out either way."""
+    from test_home_routes import case
+
+    from cascade.memory.envelope import normalize_failure
+    from cascade.types import SafetyViolation, SkillError
+
+    safe, raw, harness = case()
+    baseline = harness._halt_generation
+    target = np.asarray(raw.get_state().q, dtype=float) + np.array([0.02, 0.0, 0.0])
+
+    def stop():
+        if halted:
+            harness.halt("operator: stop")
+        if estopped:
+            harness.estop("operator e-stop")
+    if when == "before":
+        stop()
+    else:  # between move_planned's two halt checks
+        read = raw.get_state
+
+        def read_then_stop():
+            state = read()
+            stop()
+            return state
+        raw.get_state = read_then_stop
+    sent = []
+    raw.send_joint_target = lambda q: sent.append(q)
+
+    with pytest.raises((SafetyViolation, SkillError)) as refused:
+        safe.move_planned(target, duration_s=1.0, _halt_generation=baseline)
+
+    assert not sent
+    if halted and estopped:
+        assert type(refused.value) is SafetyViolation and str(refused.value) == "e-stop latched"
+        assert normalize_failure(f"SafetyViolation: {refused.value}") == "safety:estop"
+    elif halted:
+        assert isinstance(refused.value, MotionHalted)
+        assert str(refused.value) == "halt received during route planning or execution"
+    else:  # main's refusal, unchanged
+        assert type(refused.value) is SkillError
+        assert str(refused.value) == "no safe joint route found; direct route: e-stop latched"
+
+
+@pytest.mark.parametrize("kind", ["halt_then_estop", "halt", "estop_harness"])
+@pytest.mark.parametrize("profile", DECIDED_PROFILES)
+def test_move_home_with_both_stops_on_entry_is_filed_as_the_estop(rig, monkeypatch, profile, kind):
+    """A halt AND an e-stop as move_home starts: its planned route is refused
+    by the e-stop, filed `safety:estop`. Controls: the halt alone stays a
+    halt; the e-stop alone is the e-stop."""
+    r = rig(profile)
+    _move_off(r.runtime, 0.2)
+    r.at_stop = None
+    _stop_on_entry(r, monkeypatch, "skill_move_home", kind=kind)
+
+    out = r.runtime.execute("move_home", {})
+
+    assert r.at_stop is not None and r.sends == r.at_stop, f"{r.sends - r.at_stop} arm commands after the stops"
+    assert out["ok"] is False and "skill_error" not in out, out
+    if kind == "halt":
+        assert "halt" in out["error"] and "e-stop" not in out["error"], out
+        assert _filed_as(r, "move_home") == ({}, 1, "safety:halt")
+    else:
+        assert "e-stop latched" in out["error"] and "halt" not in out["error"], out
+        assert _filed_as(r, "move_home") == ({"safety:estop": 1}, 0, "safety:estop")
+
+
+@pytest.mark.parametrize("halted, estopped", [(True, False), (True, True), (False, True)])
+def test_safearm_jaws_name_the_estop_when_both_stops_came(halted, estopped):
+    """SafeArm.set_gripper checks the e-stop before the halt generation (the
+    order begin_motion, check_stream_start and the release recovery use):
+    with both stops, the refusal is the e-stop's. No jaw command goes out."""
+    from test_home_routes import case
+
+    from cascade.memory.envelope import normalize_failure
+    from cascade.types import SafetyViolation
+
+    safe, raw, harness = case()
+    baseline = harness._halt_generation
+    if halted:
+        harness.halt("operator: stop")
+    if estopped:
+        harness.estop("operator e-stop")
+    jaws = []
+    raw.set_gripper = lambda pos, effort=1.0: jaws.append(pos)
+
+    with pytest.raises(SafetyViolation) as refused:
+        safe.set_gripper(1.0, _halt_generation=baseline)
+
+    assert jaws == []
+    assert isinstance(refused.value, MotionHalted) is (halted and not estopped), refused.value
+    assert normalize_failure(f"{type(refused.value).__name__}: {refused.value}") == (
+        "safety:estop" if estopped else "safety:halt")

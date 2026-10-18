@@ -1958,6 +1958,7 @@ class SkillRuntime:
                     # candidates of the failed choice (grasp_object).
                     result["observed_selection"] = e.observed_selection
             _with_retrace_result(result, e)
+            _with_skill_error(result, e)
         except TypeError as e:
             result = {"ok": False, "error": f"bad arguments for {name}: {e}"}
         except Exception as e:  # camera dropouts, CAN loss, ... : the agent
@@ -1986,7 +1987,7 @@ class SkillRuntime:
                   and _home_return_halted(home_return)):
                 # The skill failed, then the operator's halt stopped (or
                 # skipped) its return: the error names that halt first.
-                result["error"] = _stop_first(returned, result.get("error"))
+                _stop_first(result, returned)
         if name in _MOTION_SKILLS:
             # Readiness can fail DURING a motion as well as before it. A
             # trajectory abort latches STOP; handing that failure back to
@@ -2036,7 +2037,7 @@ class SkillRuntime:
         perception_timings = None
         if owns_perception_timings:
             perception_timings, self._call_perception_timings = self._call_perception_timings, None
-        from ..memory.envelope import DERIVED_FEATURES
+        from ..memory.envelope import DERIVED_FEATURES, failure_signature
         if name not in DERIVED_FEATURES:
             measured = None
         if measured is not None:
@@ -2134,7 +2135,7 @@ class SkillRuntime:
             self.envelope.record(
                 name, args, ok=bool(result.get("ok")),
                 error=str(result.get("error", "")), duration_ms=dur,
-                measured=measured,
+                measured=measured, signature=failure_signature(result),
             )
         except Exception:
             pass
@@ -2613,7 +2614,7 @@ class SkillRuntime:
         skill takes at its start for `_end_on_halt`."""
         return getattr(getattr(self.arm, "harness", None), "_halt_generation", None)
 
-    def _end_on_halt(self, halt_generation) -> None:
+    def _end_on_halt(self, halt_generation, failure: str | None = None) -> None:
         """Raise MotionHalted if the operator's halt arrived since
         `halt_generation` (taken when a composite grasp skill started).
 
@@ -2625,13 +2626,17 @@ class SkillRuntime:
         operator STOP. The generation also catches a halt cleared again (a
         Resume) and an air grasp whose exit the halt skipped. An e-stop needs
         no check here: `_grasp_retry_verdict` stops on the latch, and the
-        harness refuses every command under it."""
+        harness refuses every command under it. `failure`: the last attempt's
+        own failure, decided before the halt; the halt carries it
+        (`_keep_decided_failure`), so the call is filed as that failure."""
         harness = getattr(self.arm, "harness", None)
         if halt_generation is None or getattr(harness, "_halt_generation", None) == halt_generation:
             return
         reason = getattr(harness, "halted", None)
-        raise MotionHalted(f"motion halted: {reason}; not retrying" if reason
-                           else "halt received during the grasp; not retrying")
+        halted = MotionHalted(f"motion halted: {reason}; not retrying" if reason
+                              else "halt received during the grasp; not retrying")
+        _keep_decided_failure(halted, failure)
+        raise halted
 
     def _held_after_failed_attempt(self, object: str) -> tuple[bool, str] | None:
         """B36: after a grasp attempt FAILED, ask the jaws whether the close
@@ -2693,6 +2698,9 @@ class SkillRuntime:
         attempt = 0
         stop = None  # why the loop stopped early (None = budget spent)
         halt_generation = self._halt_generation_now()  # an operator halt since now ends it
+        # The last failed attempt's own error: a halt after it (in the re-home,
+        # the next attempt) carries it, so the call is filed as that miss.
+        decided = None
         while attempt < max_attempts:
             attempt += 1
             if attempt > 1:
@@ -2703,14 +2711,15 @@ class SkillRuntime:
                 self.memory.add("note", f"not giving up: attempt {attempt}/{max_attempts} on {object!r}")
                 try:
                     self.skill_move_home()
-                except MotionHalted:
+                except MotionHalted as halted:
+                    _keep_decided_failure(halted, decided)
                     raise  # STOP during the re-home ends this skill: no re-scan, no retry
                 except (SkillError, SafetyViolation):
                     pass
                 self._reobserve()
                 # A halt the re-home skipped on, or one raised after it or
                 # during the re-scan, ends the loop before the next attempt.
-                self._end_on_halt(halt_generation)
+                self._end_on_halt(halt_generation, failure=decided)
             # Arm motions counted before this attempt: only an attempt that
             # moved the arm can have left it at a refused grasp pose.
             motions_before = self._arm_motions_counted()
@@ -2718,14 +2727,15 @@ class SkillRuntime:
                 res = self.skill_grasp_object(object, material=material,
                     **({"_planning_deadline": deadline}
                        if os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1" else {}))
-            except MotionHalted:
+            except MotionHalted as halted:
+                _keep_decided_failure(halted, decided)
                 raise  # the operator's halt ends this skill: no re-home, no retry
             except (SkillError, SafetyViolation) as e:
                 note = _perception_stop(e, attempt)
                 if note is not None:
                     # An operator halt since the loop started ends it as the
                     # halt, not as this refusal (A3: `_end_on_halt`).
-                    self._end_on_halt(halt_generation)
+                    self._end_on_halt(halt_generation, failure=decided)
                     # Same rule as pick_and_place: an expired analysis, a scene
                     # that changed under the two-phase localization (already
                     # retried once) or a re-anchor that failed again after a
@@ -2737,7 +2747,8 @@ class SkillRuntime:
             if res.get("ok", True) and res.get("held"):
                 res["grasp_attempts"] = attempt
                 return res
-            self._end_on_halt(halt_generation)
+            decided = res.get("error") or decided   # this attempt's miss, decided before any later halt
+            self._end_on_halt(halt_generation, failure=decided)
             last_err = str(res.get("error", "grasp failed"))
             if os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1":
                 out = {**res, "ok": False, "home_skipped": True, "grasp_attempts": attempt,
@@ -4846,13 +4857,15 @@ class SkillRuntime:
                         settled = self._move_planned(
                             q_pre, duration_s=float(gcfg.get("descend_duration_s", 2.0)))
                     recovery = "completed" if settled else "did not settle"
-                except MotionHalted:
+                except MotionHalted as halted:
                     # An operator halt during the withdrawal ends the skill as
                     # the halt it is, never folded into the veto's text (the
-                    # e-stop and every other refusal are reported below).
+                    # e-stop and every other refusal are reported below). The
+                    # descent had already failed: the halt carries that failure.
                     self.memory.add("outcome", f"grasp descent failed: {exc}; pre-close retreat halted")
                     if selection is not None:
                         selection.finish(f"failed: {str(exc)[:200]}; pre-close retreat halted")
+                    _keep_decided_failure(halted, f"{type(exc).__name__}: {exc}")
                     raise
                 except (SkillError, SafetyViolation) as retreat_error:
                     recovery = f"refused: {retreat_error}"
@@ -4952,6 +4965,7 @@ class SkillRuntime:
                     return self._move_planned(q, duration_s=descend_s,
                                               _halt_generation=scene_halt_generation)
 
+                error = "air grasp: gripper closed fully, object not held"
                 try:
                     reopen = self._air_grasp_reopen(open_pos, scene_gate,
                                                     halt_generation=scene_halt_generation)
@@ -4963,9 +4977,9 @@ class SkillRuntime:
                                                         halt_generation=scene_halt_generation)
                 except SafetyViolation as exc:
                     grasp_evidence.event("exit_withdrawal", outcome=f"stopped: {type(exc).__name__}: {exc}")
+                    _keep_decided_failure(exc, error)   # a halt in the recovery: still this air grasp
                     raise
                 grasp_evidence.event("exit_withdrawal", outcome=recovery)
-                error = "air grasp: gripper closed fully, object not held"
                 if reopen.startswith("refused"):
                     # never "did not open": a jaw command may have moved them
                     error += f"; the jaws were not confirmed open: {reopen.removeprefix('refused: ')}"
@@ -5078,7 +5092,10 @@ class SkillRuntime:
                                     + selection.note(f"next candidate: {none_left}"))
             failure._observed_noted = True
             raise failure from none_left
-        except MotionHalted:
+        except MotionHalted as halted:
+            # The veto was decided before the halt: the halt carries it,
+            # unless the next candidate's own failure came later.
+            _keep_decided_failure(halted, f"{type(refusal).__name__}: {refusal}")
             raise
         except (SkillError, SafetyViolation) as failed:
             if not getattr(failed, "_observed_noted", False):
@@ -6417,6 +6434,10 @@ class SkillRuntime:
         p_attempt = 0
         tp = t0
         stop = None  # why the grasp loop stopped early (None = budget spent)
+        # The last failed attempt's own error (a grasp miss, a failed place),
+        # until an attempt holds: a halt after it (in the re-home, the next
+        # attempt) carries it, so the call is filed as that failure.
+        decided = None
         while placed is None:
             # ── grasp stage (skipped when re-entering after a mid-carry slip
             # left something verified in the jaws -- cannot happen today, but
@@ -6440,7 +6461,8 @@ class SkillRuntime:
                     )
                     try:  # clear the camera view so the re-scan actually sees
                         self.skill_move_home()
-                    except MotionHalted:
+                    except MotionHalted as halted:
+                        _keep_decided_failure(halted, decided)
                         raise  # STOP during the re-home ends this skill: no re-scan, no retry
                     except (SkillError, SafetyViolation):
                         pass
@@ -6451,7 +6473,8 @@ class SkillRuntime:
                     res = self.skill_grasp_object(object, material=material,
                         **({"_planning_deadline": deadline}
                            if os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1" else {}))
-                except MotionHalted:
+                except MotionHalted as halted:
+                    _keep_decided_failure(halted, decided)
                     raise  # the operator's halt ends this skill: no re-home, no retry
                 except (SkillError, SafetyViolation) as e:
                     if isinstance(e, carry_attachment.AttachmentInvalid):
@@ -6461,7 +6484,7 @@ class SkillRuntime:
                     if note is not None:
                         # An operator halt since the skill started ends it as
                         # the halt, not as this refusal (A3: `_end_on_halt`).
-                        self._end_on_halt(halt_generation)
+                        self._end_on_halt(halt_generation, failure=decided)
                         return {**failure_destination, "ok": False, "stage": "grasp",
                                 "error": str(e), "home_skipped": True,
                                 "grasp_attempts": attempt, "note": note}
@@ -6471,8 +6494,10 @@ class SkillRuntime:
                 timings[f"grasp_attempt{attempt}_s"] = round(time.monotonic() - tg, 2)
                 if res.get("ok", True) and res.get("held"):
                     grasp = res
+                    decided = None   # held: the earlier misses no longer decide this call
                     break
-                self._end_on_halt(halt_generation)
+                decided = res.get("error") or decided   # this attempt's miss, decided before any later halt
+                self._end_on_halt(halt_generation, failure=decided)
                 last_err = str(res.get("error", "grasp failed"))
                 if os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1":
                     out = {**failure_destination, "ok": False, "stage": "grasp",
@@ -6502,6 +6527,7 @@ class SkillRuntime:
                         )
                         grasp = {"held": held_label, "grip_verified": None, "grip_profile": None,
                                  "recovered_after": last_err}
+                        decided = None
                         break
                     last_err += f" (holding {held_label!r}, not {object!r}; a new grasp cannot start)"
                     stop = "holding another object"
@@ -6534,7 +6560,7 @@ class SkillRuntime:
                     "suggestion": "check world_state / camera_snapshot; the object may be unreachable or mis-detected",
                 }
                 if park_halt is not None:
-                    out["error"] = _stop_first(_halted_text("final park", park_halt), out["error"])
+                    _stop_first(out, _halted_text("final park", park_halt))
                 # The robot did everything it can on its own: the budget is
                 # spent, or the stop reason is one no retry cures (never
                 # seen, too wide). That is STUCK -- a request to the human,
@@ -6561,7 +6587,8 @@ class SkillRuntime:
                     )
                     try:  # carry it home first: clears the view of the arm
                         self.skill_move_home()  # + held object for the re-scan
-                    except MotionHalted:
+                    except MotionHalted as halted:
+                        _keep_decided_failure(halted, decided)
                         raise  # STOP during the re-home ends this skill: no re-scan, no retry
                     except (SkillError, SafetyViolation):
                         pass
@@ -6601,7 +6628,9 @@ class SkillRuntime:
                 except (SkillError, SafetyViolation) as e:
                     place_err = f"{type(e).__name__}: {e}"
                     if isinstance(e, MotionHalted):
+                        _keep_decided_failure(e, decided)
                         raise  # the operator's halt ends this skill: no re-home, no place retry
+                    decided = place_err   # this place failed before any later halt
                     if isinstance(e, carry_attachment.AttachmentInvalid):
                         return carry_attachment.failure_result(self, e,
                             **failure_destination, grasp_attempts=attempt, place_attempts=p_attempt)
@@ -7352,7 +7381,9 @@ class SkillRuntime:
 
         An operator halt that ends the grasp's persistence loop (raised in a
         grasp attempt, its re-home or its re-scan) or a clear-view home here
-        raises MotionHalted, so the caller's loop ends too. A halt in the
+        raises MotionHalted, so the caller's loop ends too; after a failed
+        grasp, the halt in its clear-view home carries that failure
+        (`skill_error`, filed as it). A halt in the
         place call comes back as the place's failure in the record
         (`holding` names what the jaws still hold; the caller stops on it).
         Under execute() the skill's halt baseline refuses every later motion
@@ -7381,7 +7412,9 @@ class SkillRuntime:
             elif not self._estopped():  # the operator stopped the arm: no re-home (A3 review)
                 try:  # never leave the arm over the table after a failed attempt
                     self.skill_move_home()
-                except MotionHalted:
+                except MotionHalted as halted:
+                    # this failed grasp's own re-home: the halt carries the failure
+                    _keep_decided_failure(halted, res.get("error") or rec["error"])
                     raise  # the caller's next step would clear the halt and move
                 except (SkillError, SafetyViolation):
                     pass
@@ -9124,11 +9157,17 @@ def _halted_text(move: str, halt: str) -> str:
     return f"{move} {halt}" if halt.startswith("halted: ") else f"{move} halted: {halt}"
 
 
-def _stop_first(stop: str, error) -> str:
-    """The operator's stop that also ended a failed skill, then the skill's
-    own `error`: outcome first, as `_reset_release_failed` does, because the
-    agent's FAILED line keeps only the first 240 characters of the error."""
-    return f"{stop}; {error}" if error else stop
+def _stop_first(result: dict, stop: str) -> None:
+    """Name the operator's stop that also ended a failed skill first in its
+    `error`, then the skill's own error: outcome first, as
+    `_reset_release_failed` does, because the agent's FAILED line keeps only
+    the first `_FAILED_ERROR_CHARS` characters of the error. The skill's own
+    error stays in `skill_error`: it broke before the stop, so that error,
+    not the stop, files the call (`memory.envelope.failure_signature`)."""
+    error = result.get("error")
+    if error:
+        result.setdefault("skill_error", error)
+    result["error"] = f"{stop}; {error}" if error else stop
 
 
 def _with_retrace_result(result: dict, exc: BaseException) -> None:
@@ -9141,6 +9180,30 @@ def _with_retrace_result(result: dict, exc: BaseException) -> None:
     kept = getattr(exc, "retrace_result", None)
     if isinstance(kept, dict):
         result.update(kept)
+
+
+def _keep_decided_failure(exc: BaseException, failure: str | None) -> None:
+    """An operator halt that stopped the recovery or the retry after a
+    failure the skill had already decided (an air grasp's reopen or exit, the
+    pre-close retreat after a failed descent, the next candidate after a
+    withdrawn veto, a persistence loop's re-home or next attempt after a miss)
+    carries that failure as `skill_error`, the way skill_move_home attaches
+    `retrace_result`. execute() keeps it in the failed result, so the call is
+    filed as that failure (`memory.envelope.failure_signature`), not as the
+    halt; the error stays the halt's own text. Only a halt: an e-stop is filed
+    as the e-stop. The innermost failure wins (an attempt's own air grasp over
+    the loop's earlier miss)."""
+    if isinstance(exc, MotionHalted) and failure and getattr(exc, "skill_error", None) is None:
+        exc.skill_error = str(failure)
+
+
+def _with_skill_error(result: dict, exc: BaseException) -> None:
+    """A skill a halt ended after its own decided failure
+    (`_keep_decided_failure`): the failed result keeps that failure in
+    `skill_error`, as `_stop_first` does for a halted park or return."""
+    failure = getattr(exc, "skill_error", None)
+    if failure:
+        result.setdefault("skill_error", failure)
 
 
 def _left_in_place(result: dict) -> bool:

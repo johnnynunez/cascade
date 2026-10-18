@@ -20,16 +20,21 @@ CACHE_S = .5
 #: the bridge refuses a camera for ~0.3 s (p90 0.65-0.8 s) whenever its 0.5 s
 #: fallback capture lands off the render rhythm. Raising there closed the
 #: MJPEG stream, and the extension's 2/4/8 s reconnect backoff turned each gap
-#: into a 4-7 s "Not updating" episode (20.7 % of samples; 0 % with this hold,
-#: newton-diag Q2 S1). Only this viewer holds: the bridge, and every perception
-#: reader of it, still sees a missing frame as missing.
+#: into a 4-7 s "Not updating" episode; holding keeps the stream open through
+#: the gap instead (tests/test_spark_cameras_hold.py). Only this viewer holds:
+#: the bridge, and every perception reader of it, still sees a missing frame
+#: as missing.
 HOLD_S = 5.
 #: During a hold the bridge is asked again after this long, not CACHE_S.
 RETRY_S = .1
 
 
 def age_s(row, now=None):
-    """Seconds since this surface first received the image in `row`."""
+    """Seconds since this surface first received the image in `row`: the
+    X-Frame-Age header and `/state`'s `age_s`. It is NOT the capture age: the
+    time the image spent in the simulator and the bridge before this viewer
+    read it is not counted, so a fresh-looking age can be a slightly older
+    image."""
     return (time.monotonic() if now is None else now) - row["advance"]
 
 
@@ -136,6 +141,7 @@ class CameraHandler(BaseHTTPRequestHandler):
                 row = frames.frame(snapshots[path])
             except (OSError, ValueError, KeyError):
                 return self.respond(503, b'{"error":"Camera is reconnecting"}')
+            # X-Frame-Age: seconds since this viewer first saw the image (age_s), not its capture age
             return self.respond(200, row["jpeg"], "image/jpeg",
                                 [("X-Frame-Age", f"{age_s(row, frames.clock()):.2f}")])
         streams = {f"/stream/{name}": name for name in CAMERAS}
@@ -149,6 +155,8 @@ class CameraHandler(BaseHTTPRequestHandler):
                 while True:
                     row = frames.frame(streams[path])
                     frame = row["jpeg"]
+                    # X-Frame-Age as on /snapshot: since this viewer first saw the image, not
+                    # since capture. The extension shows it once it passes 1 s (core.mjs).
                     self.wfile.write(b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: "
                                      + str(len(frame)).encode()
                                      + f"\r\nX-Frame-Age: {age_s(row, frames.clock()):.2f}".encode()

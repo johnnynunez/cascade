@@ -1,6 +1,6 @@
 {
  "source": "Newton close-settle diagnosis, 18 Oct 2026 (newton-diag q1): 20 scripted grasp closes of the green cube at its E2E spawn (0.24, 0.01), TCP z 0.042, the runtime's two-stage rigid close (0.5, then 0.15 open). Isaac Sim 6.2 Newton (SolverMuJoCo, 5 substeps, dt 1/120), bridge loop 12-15 it/s.",
- "rows": "[seconds of wall clock after that stage's jaw command, jaw open fraction (1 = open)], one row per bridge iteration; stage2 is cut 9 s after its command, its first row is the last reading before it",
+ "rows": "[seconds of wall clock after that stage's jaw command, jaw open fraction (1 = open)], one row per bridge iteration. stage1 ends at the live stage-2 command (the side sampler can lag the live poll by one iteration); stage2's rows at t <= 0 are the readings up to its command, the first one equal to stage1's last. stage2 ends about 2 s after the live rule settled or 9 s after its command, whichever came first: 14 of 20 series end at 2.98-6.23 s, the other 6 at 8.92-8.99 s",
  "jaw_off_face_deg": "angle between the jaw axis and the nearest cube face normal",
  "live_stage2": "what the live run's emulation of the current rule (0.002 band, 0.5 s window) measured, for reference",
  "trials": [

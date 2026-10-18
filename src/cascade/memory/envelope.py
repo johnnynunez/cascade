@@ -268,6 +268,9 @@ class _SkillStats:
     #: calls on which an expected derived feature could not be measured.
     #: A count, never a value: the absence is the record.
     missing: dict[str, int] = field(default_factory=dict)
+    #: failures that were the operator's halt (safety:halt): not losses,
+    #: they touch nothing else here (see ``OperatingEnvelope.record``)
+    halts: int = 0
 
     @property
     def attempts(self) -> int:
@@ -287,6 +290,7 @@ class _SkillStats:
             "duration_ms_mean": round(self.duration_ms_mean, 1),
             "derived": sorted(self.derived),
             "missing": dict(self.missing),
+            "halts": self.halts,
         }
 
     @classmethod
@@ -300,6 +304,7 @@ class _SkillStats:
             duration_ms_mean=float(d.get("duration_ms_mean", 0.0)),
             derived=set(d.get("derived") or ()),
             missing={str(k): int(v) for k, v in (d.get("missing") or {}).items()},
+            halts=int(d.get("halts", 0)),
         )
 
 
@@ -358,7 +363,21 @@ class OperatingEnvelope:
         reuse a derived feature's name are dropped -- an agent argument can
         never pose as a measurement. ``signature`` files a failure
         (``failure_signature`` of its result); None: ``error``'s.
+
+        A failure filed as the operator's halt is not a loss: it only adds
+        to ``halts``. An e-stop still counts, and so does a skill that
+        failed before the halt stopped its park or return (filed by its own
+        error).
         """
+        sig = "" if ok else (normalize_failure(error) if signature is None else signature)
+        if sig == HALT_SIGNATURE:
+            # The operator's decision, not how the primitive broke: no win
+            # or loss, no proven-range contradiction, no missing
+            # measurement, last error or duration from it.
+            with self._lock:
+                self._skills.setdefault(skill, _SkillStats()).halts += 1
+            self._save()
+            return
         reserved = DERIVED_FEATURES.get(skill, ())
         feats = {k: v for k, v in _numeric_features(args, extra).items() if k not in reserved}
         present, missing = _split_measured(skill, measured)
@@ -378,7 +397,6 @@ class OperatingEnvelope:
                         span.add(val)
             else:
                 st.losses += 1
-                sig = normalize_failure(error) if signature is None else signature
                 st.failures[sig] = st.failures.get(sig, 0) + 1
                 st.last_error = error or ""
                 # RPent contradiction signal: this failing call's feature

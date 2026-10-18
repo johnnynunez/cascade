@@ -371,9 +371,10 @@ def _scrub_time(error):
 
 def _filed_as(r, skill):
     """How this call's failure was filed: its envelope signatures (the
-    agent's `failure_digest`) and aspire's diagnosis of the run's trace."""
-    return (r.runtime.envelope.stats()[skill]["failures"],
-            diagnose(r.runtime.trace.run_dir).signature)
+    agent's `failure_digest`), the envelope's operator halts (not losses)
+    and aspire's diagnosis of the run's trace."""
+    stats = r.runtime.envelope.stats()[skill]
+    return stats["failures"], stats["halts"], diagnose(r.runtime.trace.run_dir).signature
 
 
 def _one_marked_miss(r, monkeypatch):
@@ -408,7 +409,7 @@ def test_a_failed_pick_and_place_park_error_names_a_halt_but_not_an_estop(rig, m
 
     assert r.at_stop is not None and r.sends == r.at_stop, "an arm command went out after the stop"
     assert out["ok"] is False and out["stage"] == "grasp", out
-    assert _filed_as(r, "pick_and_place") == ({"other:grasp_failed_after": 1}, "other:grasp_failed_after")
+    assert _filed_as(r, "pick_and_place") == ({"other:grasp_failed_after": 1}, 0, "other:grasp_failed_after")
     if kind == "halt":
         assert _scrub_time(out["error"]) == f"final park {HALT}; {PICK_MISSED}", out["error"]
         assert _scrub_time(out["skill_error"]) == PICK_MISSED, out
@@ -475,7 +476,7 @@ def test_a_halt_in_fr3_view_home_return_after_a_failed_skill_is_named_in_its_err
     assert out["ok"] is False, out
     assert out["return_home"]["status"] == ("halted" if where == "route" else "skipped"), out["return_home"]
     assert _scrub_time(out["error"]) == f"{VIEW_HOME_HALTED[where]}; {missed}", out["error"]
-    assert _filed_as(r, skill) == ({signature: 1}, signature)
+    assert _filed_as(r, skill) == ({signature: 1}, 0, signature)
     assert _scrub_time(out["skill_error"]) == missed, out
     assert not r.runtime.arm.harness.estopped
 
@@ -493,7 +494,7 @@ def test_fr3_view_home_return_after_a_failed_skill_without_a_halt_keeps_its_erro
 
     assert out["return_home"]["status"] == ("returned" if stop == "none" else "skipped"), out["return_home"]
     assert _scrub_time(out["error"]) == PICK_MISSED, out["error"]
-    assert _filed_as(r, "pick_and_place") == ({"other:grasp_failed_after": 1}, "other:grasp_failed_after")
+    assert _filed_as(r, "pick_and_place") == ({"other:grasp_failed_after": 1}, 0, "other:grasp_failed_after")
 
 
 def test_a_halt_inside_an_fr3_skill_is_not_named_again_by_its_return(rig, monkeypatch):
@@ -517,7 +518,7 @@ def test_a_halt_inside_an_fr3_skill_is_not_named_again_by_its_return(rig, monkey
     assert out["return_home"]["reason"] == "motion halted: operator: stop", out["return_home"]
     assert out["error"] == f"MotionHalted: {HALT}", out["error"]
     assert "skill_error" not in out, out
-    assert _filed_as(r, "grasp_object") == ({"safety:halt": 1}, "safety:halt")
+    assert _filed_as(r, "grasp_object") == ({}, 1, "safety:halt")
 
 
 # ── the stop leads a long error: the agent's FAILED line keeps 240 characters ──
@@ -581,7 +582,7 @@ def test_the_stop_leads_a_long_failed_skill_error(rig, monkeypatch, profile, ski
     assert len(out["error"]) > 240, out["error"]
     kept = out["next_action"].split(" (truncated; see error)")
     assert len(kept) == 2 and f"This attempt FAILED: {stop}; " in kept[0], out["next_action"]
-    assert _filed_as(r, skill) == ({"contact:air_grasp": 1}, "contact:air_grasp")
+    assert _filed_as(r, skill) == ({"contact:air_grasp": 1}, 0, "contact:air_grasp")
     assert _scrub_time(out["skill_error"]) == failure, out
     assert not r.runtime.arm.harness.estopped
 
@@ -603,4 +604,4 @@ def test_a_failed_skill_with_no_error_of_its_own_gets_the_stop_alone(rig, monkey
     assert r.at_stop is not None and r.sends == r.at_stop, "an arm command went out after the halt"
     assert out["ok"] is False and out["error"] == VIEW_HOME_HALTED["entry"], out
     assert "skill_error" not in out, out
-    assert _filed_as(r, "grasp_object") == ({"safety:halt": 1}, "safety:halt")
+    assert _filed_as(r, "grasp_object") == ({}, 1, "safety:halt")

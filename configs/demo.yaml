@@ -26,6 +26,19 @@ safety:
   # profile overrides) with thresholds for their MIT loop.
   contact_monitor:
     enabled: false
+  # People guard (src/cascade/safety/people_guard.py): the agent's motion
+  # tools never target, approach or throw at a person. Both settings are in
+  # the TABLE frame (where people stand; the base frame of an arm without a
+  # base_pose, and every arm-frame point is lifted by base_pose first).
+  # visitor_sides: the sides of the table where visitors may stand (forward =
+  # +x, away from the base of a single arm; left = +y); a throw toward one is
+  # refused, because nothing vets where the object lands. Every side until a
+  # rig measures one free of visitors. visitor_zones: boxes where visitors
+  # stand ({name, min: [x,y,z], max: [x,y,z]}), grown by min_clearance_m; the
+  # TCP never enters one (harness) and no call aims into one. None measured yet.
+  people:
+    visitor_sides: [forward, left, right, back]
+    visitor_zones: []
 
 # Occupancy / distance-field map (perception/occupancy.py). ON by default:
 # the harness gains a measured-clearance gate whenever the bridge answers.
@@ -604,6 +617,13 @@ detector:
   base_url: ${CASCADE_PERCEPTION_URL:-http://127.0.0.1:8080/v1}
   model: ${CASCADE_PERCEPTION_MODEL:-nemotron-3.5-bolt}
   api_key_file: ${CASCADE_PERCEPTION_KEY_FILE:-~/.cascade/nemoclaw/llama.key}
+  # Guarded box replies (auto = by served id: Nemotron 3.5 Bolt, whose greedy
+  # list could repeat one label until the token cap): a JSON schema of at most
+  # 12 boxes within 1024 tokens, a cut reply keeps its complete boxes, a loop
+  # keeps its first box, inventory entries the prompt excludes (keyboards, the
+  # robot arm, the rest of the computer: mice, computer towers) are dropped.
+  # true / false force it; Qwen3.8 is unchanged.
+  reply_guards: auto
   timeout_s: 20
   # Background (watcher) requests, streamed: an open-world inventory decodes
   # many more tokens than a refer. While a motion skill, preview_grasp or

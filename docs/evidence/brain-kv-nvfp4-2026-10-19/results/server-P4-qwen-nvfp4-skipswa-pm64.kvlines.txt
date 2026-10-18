@@ -1,0 +1,11 @@
+(APIServer pid=2290972) INFO 10-19 01:08:26 [cache.py:361] Using nvfp4 data type to store kv cache. It reduces the GPU memory footprint and boosts the performance. Meanwhile, it may cause accuracy drop without a proper scaling factor
+(EngineCore pid=2291988) INFO 10-19 01:08:35 [core.py:133] Initializing a V1 LLM engine (v0.32.0) with config: ...
+(EngineCore pid=2291988) INFO 10-19 01:08:50 [cuda.py:506] Using FLASH_ATTN attention backend out of potential backends: ['FLASH_ATTN', 'FLASHINFER', 'TRITON_ATTN', 'FLEX_ATTENTION'].
+(EngineCore pid=2291988) INFO 10-19 01:08:53 [interface.py:1096] Setting attention block size to 2944 tokens to ensure that attention page size is >= mamba page size.
+(EngineCore pid=2291988) INFO 10-19 01:09:48 [flashinfer.py:966] FlashInfer resolved query dtypes: prefill=torch.bfloat16, decode=torch.bfloat16, decode_backend=xqa, kv_cache_dtype=torch.uint8, arch=sm120
+(EngineCore pid=2291988) INFO 10-19 01:10:43 [gpu_worker.py:759] Available KV cache memory: 20.08 GiB
+(EngineCore pid=2291988) INFO 10-19 01:10:43 [kv_cache_utils.py:2327] GPU KV cache size: 404,350 tokens, Maximum concurrency for 65,536 tokens per request: 6.17x
+(EngineCore pid=2291988) INFO 10-19 01:10:43 [kv_cache_utils.py:853] kv cache group sizes (2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 816)
+(EngineCore pid=2291988) INFO 10-19 01:10:43 [kv_cache_utils.py:854] kv lcm block sizes 150144
+(EngineCore pid=2291988) ERROR 10-19 01:10:43 [core.py:1510] ValueError: Invalid prefix_match_unit=64; prefix-cacheable KV cache group block sizes must be divisible by prefix_match_unit. Got group block sizes=[2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 816], prefix-cacheable=[2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944
+ValueError: Invalid prefix_match_unit=64; prefix-cacheable KV cache group block sizes must be divisible by prefix_match_unit. Got group block sizes=[2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 816], prefix-cacheable=[2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 2944, 816].

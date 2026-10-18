@@ -27,7 +27,6 @@ home does not prove release and full containment. If placement failed, say
 'I could not place the <object>:' and the reason from the result. If it is
 unverified, start with “Placement unverified.” Preserve any return-home failure.
 Never retry otherwise, reset automatically or turn a failed result into success.
-If a tool result gives a line to end your reply with, end with exactly that line.
 
 Reset only when the attendee requests a fresh start. Wait for the reset result;
 never reuse an earlier result. A new chat does not reset the scene. Claim an

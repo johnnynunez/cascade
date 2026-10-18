@@ -19,14 +19,15 @@ import pytest
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = "scripts/serve_nemotron_bolt_llamacpp.sh"
 MANIFEST = "deploy/brev/profiles/nemotron-3.5-bolt-24gb.json"
-HELP = ("--mmproj --alias --chat-template-kwargs --reasoning --spec-draft-model --api-key-file "
+HELP = ("--mmproj --alias --chat-template-kwargs --chat-template-file --reasoning --spec-draft-model --api-key-file "
         "--spec-type none,draft-simple,draft-dflash --load-mode MODE")
+TEMPLATE = "scripts/chat_templates/nemotron-3.5-bolt-openclaw.jinja"
 
 
 @pytest.fixture
 def prepared(tmp_path):
     repo = tmp_path / "repo"
-    for rel in (SCRIPT, "deploy/brev/fetch_models.py"):
+    for rel in (SCRIPT, "deploy/brev/fetch_models.py", TEMPLATE):
         (repo / rel).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(REPO / rel, repo / rel)
     real = json.loads((REPO / MANIFEST).read_text())
@@ -54,7 +55,7 @@ else:
     env = {**os.environ, "HOME": str(tmp_path / "home"), "PY": sys.executable, "LLAMA_SERVER": str(server),
            "CASCADE_LLAMA_CUDA_ARCH": "121"}
     for key in ("LLAMA_DIR", "MODEL_ROOT", "PORT", "CTX", "PARALLEL", "SPEC", "NSPEC", "ALIAS", "API_KEY_FILE",
-                "CASCADE_MODEL_MIRROR_URL"):
+                "CASCADE_MODEL_MIRROR_URL", "CHAT_TEMPLATE_FILE"):
         env.pop(key, None)
     return {"repo": repo, "dir": directory, "server": server, "env": env}
 
@@ -89,6 +90,47 @@ def test_the_cards_recipe_on_loopback_with_two_slots_and_thinking_off(prepared):
     assert "--jinja" in args and flag(args, "--flash-attn") == "on"
     assert flag(args, "--load-mode") == "none"   # read once into GPU memory (no mmap): no page-cache copy
     assert "--api-key-file" not in args
+
+
+def test_the_openclaw_cache_boundary_template_is_served_by_default(prepared):
+    # The per-session part of OpenClaw's system text goes after the tool block, so a new chat reuses
+    # the system text + tools prefix (scripts/chat_templates/, tests/test_bolt_chat_template.py).
+    args = served(invoke(prepared))
+    assert flag(args, "--chat-template-file") == str(prepared["repo"] / TEMPLATE)
+    assert "--jinja" in args
+
+
+def test_an_empty_chat_template_file_serves_the_ggufs_own_template(prepared):
+    args = served(invoke(prepared, CHAT_TEMPLATE_FILE=""))
+    assert "--chat-template-file" not in args and "--jinja" in args
+
+
+def test_a_chosen_chat_template_file_reaches_the_server(prepared, tmp_path):
+    other = tmp_path / "other.jinja"
+    other.write_text("{{ messages }}")
+    assert flag(served(invoke(prepared, CHAT_TEMPLATE_FILE=str(other))), "--chat-template-file") == str(other)
+
+
+def test_a_missing_chat_template_file_is_refused(prepared):
+    (prepared["repo"] / TEMPLATE).unlink()
+    for args in ((), ("--check",)):
+        result = invoke(prepared, *args)
+        assert result.returncode == 1 and "CHAT_TEMPLATE_FILE" in result.stderr, result.stderr
+        assert '"server_args"' not in result.stdout
+
+
+def test_a_server_without_chat_template_file_is_refused(prepared):
+    help_text = HELP.replace(" --chat-template-file", "")
+    prepared["server"].write_text(f"#!{sys.executable}\n" + f"""
+import json, sys
+if sys.argv[1:] == ['--help']:
+    print({help_text!r})
+else:
+    print(json.dumps({{'server_args': sys.argv[1:]}}))
+""")
+    result = invoke(prepared)
+    assert result.returncode == 1 and "llama-server lacks --chat-template-file" in result.stderr
+    assert served(invoke(prepared, CHAT_TEMPLATE_FILE=""))  # the GGUF's own template needs no such flag
 
 
 def test_spec_none_serves_without_the_drafter(prepared):

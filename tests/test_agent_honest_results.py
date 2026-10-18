@@ -20,6 +20,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 from conftest import needs_pin
+from people_sides import no_visitor_side
 
 from cascade.agent.effects import Postcondition
 from cascade.config import load_demo_config
@@ -429,6 +430,7 @@ def test_the_move_home_step_is_given_once(runtime, monkeypatch):
 def test_a_throw_whose_grasp_moved_and_was_refused_asks_for_move_home_once(runtime):
     """Re-review minor 3: throw grasps first; its refused inner grasp after
     the arm moved leaves the arm where that attempt stopped, like grasp_object."""
+    no_visitor_side(runtime)     # the throw's own mechanics (people_sides.py)
     runtime.skill_grasp_object = _refuse_after_moving(runtime)
     result = runtime.execute("throw", {"label": "green cube"})
     assert result["ok"] is False and runtime.held_object is None
@@ -537,7 +539,7 @@ def test_move_relative_tells_the_agent_its_frame_and_the_screen_view(runtime):
 
 @needs_pin
 def test_a_viewer_frame_move_names_the_camera_view(runtime):
-    r = runtime.execute("move_relative", {"direction": "toward_viewer", "distance_m": 0.03})
+    r = runtime.execute("move_relative", {"direction": "away_from_viewer", "distance_m": 0.03})
     assert r["ok"], r
     action = r["next_action"]
     assert "as seen on the camera" in action and r["as_seen_on_screen"] in action

@@ -4,8 +4,10 @@
     Match a failed call to a later measured-confirmed retry within a bounded
     trace window. Require the same goal, resolved arm and pre-call possession;
     explicit reset/task-end rows stop matching. Unknown context is rejected.
-    An operator halt is never that failed call: it is not how a primitive
-    broke, so a retry after it teaches nothing. Nor is a call the sim retry
+    A call that ended in an operator stop (a halt, an e-stop or both) is never
+    that failed call: a stop is not how a primitive broke, so a retry after it
+    teaches nothing -- even when the call is filed under a failure the skill
+    had decided before the stop (`skill_error`). Nor is a call the sim retry
     ledger refused before any motion (nothing ran).
 
 ``distil(diagnosis, library)`` / ``harvest(runs_dir, library)``
@@ -14,6 +16,10 @@
     not proof of a causal repair or a transferable control policy. Runs with
     the same (skill, signature) fold into ONE entry whose front matter counts
     ``occurrences`` (distinct runs) and ``source_tasks`` (distinct tasks).
+    ``harvest`` reads only runs whose ``run.json`` shows the sim retry ledger
+    on (the kitchen sim at gate 1, ``harvest_skip_reason``): without a ledger
+    (gate 0, every hardware profile) nothing marks a stop the call's error does
+    not name, so a note learned there could work around an operator stop.
 
 ``retrieve(library, task)``
     Load keyword-matched PROMOTED notes into the built-in orchestrator at task
@@ -38,12 +44,60 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ..memory.envelope import HALT_SIGNATURE, failure_signature, refused_before_motion
+from ..memory.envelope import (
+    ESTOP_WORDS,
+    HALT_SIGNATURE,
+    failure_signature,
+    normalize_failure,
+    refused_before_motion,
+)
 from .effects import CONFIRMED, POSTCONDITIONS
 
 #: A repair is only credited when the same primitive later succeeded within
 #: this many steps -- otherwise the "fix" is just an unrelated later action.
 REPAIR_WINDOW = 6
+
+#: The signatures of the operator's stops: the halt, and the e-stop (alone, or
+#: with a halt: then the e-stop names itself first).
+STOP_SIGNATURES = frozenset({HALT_SIGNATURE, "safety:estop"})
+#: an e-stop's words anywhere in an error (`memory.envelope.ESTOP_WORDS`, the
+#: taxonomy's own e-stop pattern): the taxonomy files some e-stop texts by an earlier
+#: word ("e-stop latched before the closed jaws were opened" -> "jaw"); a halt's word
+#: is the taxonomy's first pattern
+_ESTOP_WORDS = re.compile(ESTOP_WORDS, re.IGNORECASE)
+
+
+def _names_a_stop(error: object) -> bool:
+    """`error` (a failed result's) says an operator stop ended the call: a halt
+    (`normalize_failure` files any halt word first) or an e-stop, also when it
+    names the stop first and the skill's own failure after it (#377)."""
+    text = str(error or "")
+    return normalize_failure(text) == HALT_SIGNATURE or _ESTOP_WORDS.search(text) is not None
+
+
+def _marked_ended_in_stop(context: object) -> bool:
+    """A trace row's `context` carries the sim retry ledger's mark of a failed call
+    an operator stop ended (`sim_retry.ended_in_stop`, skills/runtime.py
+    `_sim_retry_finish`): written with a ledger only (the kitchen sim, gate on)."""
+    mark = context.get("sim_retry") if isinstance(context, dict) else None
+    return isinstance(mark, dict) and mark.get("ended_in_stop") is True
+
+
+def ended_in_stop(result: object, context: object = None) -> bool:
+    """A failed result of a call that an operator stop (halt, e-stop or both)
+    ended: never the failure a retry is credited to, never teachable (A8
+    follow-ups 1, 2). Its signature may still be a failure the skill decided
+    before the stop (`skill_error`, #377): learning across a stop risks notes
+    that work around stops. Read from the result's signature and error, and from
+    the trace row's `context` (A8 follow-ups fix): the ledger marks a stop the
+    error does not name (the skill's own refusal after it). Without a ledger
+    (gate 0, every hardware profile) nothing marks such a stop: it stays unseen."""
+    if _marked_ended_in_stop(context):
+        return True
+    if not isinstance(result, dict):
+        return False
+    return failure_signature(result) in STOP_SIGNATURES or _names_a_stop(result.get("error"))
+
 
 # Preserve recorded task identifiers; changing the goal is not repairing it.
 _GOAL_KEYS = ("object", "label", "query", "destination", "arm", "spatial_hint",
@@ -111,10 +165,13 @@ class Diagnosis:
     @property
     def teachable(self) -> bool:
         """Only scoped, measured-confirmed retry associations become notes.
-        An operator halt is not how the primitive broke: a retry after one
-        repaired nothing."""
+        An operator stop (a halt, an e-stop or both) is not how the primitive
+        broke: a retry after a call it ended repaired nothing, whatever
+        signature the call is filed under (`ended_in_stop`), also one only the
+        ledger's mark in its context shows."""
         return (self.repaired and bool(self.failed_skill) and bool(self.signature)
-                and self.signature != HALT_SIGNATURE
+                and self.signature not in STOP_SIGNATURES and not _names_a_stop(self.error)
+                and not _marked_ended_in_stop(self.failed_context)
                 and self.repair_skill == self.failed_skill
                 and _same_goal(self.failed_args, self.repair_args)
                 and _same_context(self.failed_skill, self.failed_context, self.repair_context)
@@ -192,14 +249,16 @@ def diagnose(run_dir: str | Path) -> Diagnosis | None:
         return diag
 
     # Select the LAST failure with a matching confirmed retry, or the first
-    # failure when no eligible retry was recorded. An operator halt is never
-    # that failure (a retry after it repaired nothing), so a real failure
-    # earlier in the run can still be learned; a run whose only failures
-    # are halts reports its first halt. Nor is a call the sim retry ledger
-    # refused before any motion (`refused_before_motion`: nothing ran; a
-    # stopped one is a halt's or an e-stop's echo).
+    # failure when no eligible retry was recorded. A call an operator stop
+    # ended (a halt, an e-stop or both; also one filed under the failure the
+    # skill decided before the stop) is never that failure (a retry after it
+    # repaired nothing), so a real failure earlier in the run can still be
+    # learned; a run whose only failures are stopped calls reports its first.
+    # Nor is a call the sim retry ledger refused before any motion
+    # (`refused_before_motion`: nothing ran; a stopped one is a halt's or an
+    # e-stop's echo).
     breakages = [(i, r) for i, r in failures
-                 if failure_signature(r.get("result") or {}) != HALT_SIGNATURE
+                 if not ended_in_stop(r.get("result") or {}, r.get("context"))
                  and not refused_before_motion(r.get("context"))]
     chosen = None
     for idx, rec in breakages:
@@ -290,6 +349,56 @@ def _occurrence_index(library) -> dict[str, int]:
         return {}
 
 
+#: a run.json larger than this is no run record (the robot server writes ~1-3 KB;
+#: `skills.learned_block.RUN_JSON_MAX_BYTES`)
+_RUN_JSON_MAX_BYTES = 1 << 20
+
+
+def _ledger_record(path: Path) -> str | None:
+    """None when the run record at `path` says the run's runtime had the sim retry
+    ledger (`"sim_retry": true`, `apps.demo._stamp_run`), else why not (one phrase)."""
+    try:
+        with open(path, "rb") as f:
+            data = f.read(_RUN_JSON_MAX_BYTES + 1)
+    except FileNotFoundError:
+        return f"no {path.name}"
+    except OSError as exc:
+        return f"{path.name} unreadable ({type(exc).__name__})"
+    if len(data) > _RUN_JSON_MAX_BYTES:
+        return f"{path.name} too large for a run record"
+    try:
+        meta = json.loads(data.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return f"{path.name} is not JSON"
+    if not isinstance(meta, dict) or meta.get("sim_retry") is not True:
+        return f"{path.name} shows the sim retry ledger off (gate 0 or a hardware profile)"
+    return None
+
+
+def harvest_skip_reason(run_dir: str | Path) -> str | None:
+    """Why `harvest` skips `run_dir` (one line), or None when it harvests it.
+
+    Harvest reads only a run whose `run.json` shows the sim retry ledger on (the
+    kitchen sim at gate 1), and every earlier record a rebuild kept in the same
+    directory (`run.<started>.json`: its rows share the trace) too. Only the
+    ledger marks a failed call that an operator stop ended when the call's error
+    does not name the stop (`ended_in_stop`); without one (gate 0, every hardware
+    profile) such a call looks like a real failure, and a note learned from it
+    could work around a stop. No record, an unreadable one or a ledger that was
+    off: skipped (fail closed)."""
+    run_dir = Path(run_dir)
+    for record in (run_dir / "run.json", *sorted(run_dir.glob("run.*.json"))):
+        reason = _ledger_record(record)
+        if reason is not None:
+            return reason
+    return None
+
+
+def _selected_runs(root: Path, limit: int) -> list[Path]:
+    """The last `limit` run directories (by name) under `root` that hold a trace."""
+    return sorted([p for p in root.iterdir() if (p / "trace.jsonl").exists()])[-limit:]
+
+
 def harvest(runs_dir: str | Path, library, limit: int = 100) -> dict:
     """Diagnose selected runs and distil eligible retry associations offline.
 
@@ -297,15 +406,23 @@ def harvest(runs_dir: str | Path, library, limit: int = 100) -> dict:
     library counts it once per run directory, so harvesting the same runs
     again changes nothing. ``learned``/``entries`` report entries that gained
     evidence this harvest, ``promoted``/``candidates`` their status after it.
+    A run without the sim retry ledger is never diagnosed or learned from
+    (`harvest_skip_reason`): ``skipped`` counts those runs and
+    ``skipped_runs`` gives one line each, ``"<run>: <reason>"``.
     """
     root = Path(runs_dir).expanduser()
     if not root.exists():
         return {"runs": 0, "diagnosed": 0, "learned": 0, "entries": [],
-                "promoted": [], "candidates": []}
-    run_dirs = sorted([p for p in root.iterdir() if (p / "trace.jsonl").exists()])[-limit:]
+                "promoted": [], "candidates": [], "skipped": 0, "skipped_runs": []}
+    run_dirs = _selected_runs(root, limit)
     before = _occurrence_index(library)
     diagnoses = []
+    skipped = []
     for run in run_dirs:
+        reason = harvest_skip_reason(run)
+        if reason is not None:
+            skipped.append(f"{run.name}: {reason}")
+            continue
         diag = diagnose(run)
         if diag is None:
             continue
@@ -332,7 +449,19 @@ def harvest(runs_dir: str | Path, library, limit: int = 100) -> dict:
             Counter(d.signature for d in diagnoses if d.signature).most_common()
         ),
         "summaries": [d.summary() for d in diagnoses[-10:]],
+        "skipped": len(skipped),
+        "skipped_runs": skipped,
     }
+
+
+def skipped_runs(runs_dir: str | Path, limit: int = 100) -> list[str]:
+    """The runs `harvest(runs_dir, ..., limit)` would skip, one line each
+    (`"<run>: <reason>"`, `harvest_skip_reason`); nothing is diagnosed or written."""
+    root = Path(runs_dir).expanduser()
+    if not root.exists():
+        return []
+    return [f"{run.name}: {reason}" for run in _selected_runs(root, limit)
+            if (reason := harvest_skip_reason(run)) is not None]
 
 
 def retrieve(library, task: str, max_entries: int = 2, max_chars: int = 1400, *,

@@ -70,7 +70,8 @@ memory-embed = ["transformers>=4.45", "pillow>=10.0"]
 # cascade never imports torch for it. Without this extra the route refuses
 # (VLAUnavailable) -- never a silent analytic fallback.
 vla = ["websockets>=13.0", "msgpack>=1.0"]
-dev = ["pytest>=8.0"]
+# jinja2 renders the brain's chat templates in tests (scripts/chat_templates/).
+dev = ["pytest>=8.0", "jinja2>=3.1"]
 
 [project.scripts]
 cascade = "cascade.apps.demo:main"

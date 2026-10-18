@@ -402,9 +402,10 @@ re-anchor failure (`perception_refusal`) or `PlanningBudgetExceeded` / no feasib
 | next call with the same goal, slot `open` | it is THE retry; slot -> `used` before anything moves |
 | retry call | (1) if `arm_left_in_place` and no counted `move_home` / `move_to_rest` since: `skill_move_home(_halt_generation=g0)` first, `g0` taken at the retry's start; then `harness._check_halt_generation(g0)` (a halt ends the call with MotionHalted, never a pick); (2) the skill runs normally with the refused grasps excluded (every planned candidate that `_same_grasp` or `_near_copy` matches is dropped before selection); (3) its result never opens a new slot |
 | same-goal call, slot `used` | refused before any motion: `ok: false`, error "The one simulation retry for <goal> is used", FAILED line; arm command count unchanged |
-| confirmed success of the goal, `reset_scene` ok, or a motion call with another goal | slot(s) cleared |
-| halt / e-stop at any point | no slot opens; an open slot is cleared |
-| halt / e-stop after a refusal, before its retry (pending, or cleared again by Resume / `reset_estop`) | the open slot is `stopped`: the next same-goal call (the repeat R1 allows on the earlier result) and every later one, like a used slot, is refused before any motion until `reset_scene` succeeds, the slot's window ends or the goal succeeds: `ok: false`, error "No retry for <goal>: the operator stopped the arm after the refusal, so this repeat is refused until the scene is reset or the retry window ends in <seconds> s", FAILED line, then "The operator stopped the arm, so this repeat is refused: report it and wait. Never reset the scene on your own: a new order on this object needs a scene reset, which only the operator or the visitor can ask for (or the retry window's end)."; both fit the FAILED line's 240-character quote; no trigger, arm command count unchanged; `precheck` returns the same refusal (A8 fix, Critical 1; A8 fix 2; A8 fix 2 text) |
+| confirmed success of the goal, or the slot's window ends | the goal's slot(s) cleared (a used slot ends on success only when the call that used it succeeds); a call with another goal that meets no operator stop touches no other goal's slot (a stop: next row) (A8 follow-ups 4) |
+| `reset_scene` ok | EVERY slot cleared, of every goal: open, used, stopped or spent (`ledger.clear`) (A8 follow-ups fix) |
+| halt / e-stop at a call of ANY goal: it starts latched, or ends latched, with a halt since the skill started, or with another stop token than the one `begin` saw (R7: `halt()` and `estop()` raise it, so a stop cleared again by Resume / `reset_estop` during the call counts) | no slot opens; the call's own goal is spent (its calls run as without the ledger: no retry, no refusal; a halted retry keeps its used slot); every open slot, of every goal, becomes `stopped` (next row); a failed call's trace row gets `context.sim_retry.ended_in_stop` (ASPIRE never learns from it, §5.1) (A8 follow-ups 4; A8 follow-ups fix) |
+| halt / e-stop after a refusal, before its retry (pending, or cleared again by Resume / `reset_estop`) | the open slot is `stopped`: the next same-goal call (the repeat R1 allows on the earlier result) and every later one, like a used slot, is refused before any motion until `reset_scene` succeeds, the slot's window ends or the goal succeeds: `ok: false`, error "No retry for <goal>: the operator stopped the arm after the refusal, so this repeat is refused until the scene is reset or the retry window ends in <seconds> s", FAILED line, then "The operator stopped the arm, so this repeat is refused: report it and wait. Never reset the scene on your own: a new order on this object needs a scene reset, which only the operator or the visitor can ask for (or the retry window's end)."; both fit the FAILED line's 240-character quote; no trigger, arm command count unchanged; `precheck` returns the same refusal (A8 fix, Critical 1; A8 fix 2; A8 fix 2 text). Both refusals show at most 60 characters of the object's name (`SHOWN_GOAL_CHARS`; a longer one is cut and ends in "..."), so the FAILED line keeps "the retry window ends in <seconds> s" and "the retry window for this turn has passed" for any name (A8 follow-ups 3) |
 
 **Agent text** (only when a slot opens). The FAILED line stays first and unchanged (#342). The move_home hint stays
 when `arm_left_in_place`. `pick_and_place`'s failure guidance is replaced, on this result only, by:
@@ -424,16 +425,17 @@ internal bounds. Worst case per order: 2 x (1 + `OBSERVED_NEXT_CANDIDATES`) gras
 
 ### 4.6 Rules and recipes (exact texts)
 
-The visitor block stays <= 400 words (`tests/test_attendee_english.py` pins it; 324 before A8, 391 after), so R1, R3
-and R4 replace or compress existing sentences instead of only adding. Tests: `tests/test_aspire_rules.py`.
+The visitor block stays <= 400 words (`tests/test_attendee_english.py` pins it; 324 before A8, 391 after, 374 since
+R5's removal), so R1, R3 and R4 replace or compress existing sentences instead of only adding. Tests:
+`tests/test_aspire_rules.py`.
 
 - **R1, retry discipline** (as amended by preflight ruling R2: every absolute "one motion per order" rule gets the
-  same exception, and the block stays 391 words). Kitchen visitor block: "Use at most one motion action per order
+  same exception, and the block stayed 391 words, R5 included). Kitchen visitor block: "Use at most one motion action per order
   and wait for its real result; repeat it once only when its result says SIMULATION ONLY and allows one more
   attempt, with the same arguments. Report the final result briefly in English, then stop." (replaces "Use at most
   one motion action per order and wait for its real result. Report that result briefly in English, then stop.") and
   "Never retry otherwise, reset automatically or turn a failed result into success." (replaces "Do not retry, reset
-  automatically or turn a failed result into success."), R5 right after it. Plugin identity: "Use at most one motion
+  automatically or turn a failed result into success."). Plugin identity: "Use at most one motion
   action per order (repeat it once only when its result allows a SIMULATION ONLY retry), then report the final
   result and end the turn." and "never invent success or retry automatically" becomes "never invent success; retry
   only when a tool result allows it". Attendee `pick_and_place` description, last sentence: "Do not repeat the
@@ -455,7 +457,19 @@ and R4 replace or compress existing sentences instead of only adding. Tests: `te
   result the ledger did not grant, an operator's free-text halt reason included (A8 fix, Important 3), and from the
   status line and memory event of every call (MCP `world_state`, `task_memory`), read through NFKD, combining
   marks dropped, Cyrillic / Greek look-alikes, the digit 0, and format characters or spaces between the letters
-  (A8 fix 2).
+  (A8 fix 2). No tool result gives R5's reply line, so the same reading withholds R5's trigger words ("end your
+  reply" / "ends ..." / "ending ...", "end your answer" ..., "exact line", "exactly that line", "exactly this line";
+  "(reply-line wording withheld)") from EVERY result, a granted retry's too, and from the status line and memory
+  event (A8 follow-ups 5). Both rules' words are also withheld from the agent's own halt reason where it is shown:
+  `halt_motion`'s memory note, every call's arguments in its pre-call status line and memory event, and the recalled
+  step's head and frame captions (MCP `world_state` events and `agent_status`, `task_memory`, `recall_step`; the
+  harness keeps the reason whole) (A8 follow-ups fix). Every other line the runtime's episodic memory records
+  (about 30 notes quote the agent's own `{object!r}`, `{label!r}` or `{query!r}`: pick_and_place's "picking up ...",
+  search_for_object's "... not visible") passes one choke point: `SkillRuntime` sets `_without_rule_triggers` as the
+  memory's text filter (`EpisodicMemory.set_text_filter`), applied to every line and label it records (#388 re-review
+  Minor 2). These are listed words: small capitals, other look-alike
+  scripts (an Armenian o) and paraphrases ("Your final line must read: ...") pass, so the scrub is defence in depth
+  only; R5 itself is out of the rules (below).
 - **R2, set objects down** (`open_gripper` description, OpenShell route; RESULTS §4.9, o4): append "To set a
   held object down, use place_at (it lowers the object before opening). open_gripper releases the object where it is,
   in the air if the arm is raised." Added per config by `tool_specs_for_config`, only on a sim-class profile that
@@ -464,8 +478,12 @@ and R4 replace or compress existing sentences instead of only adding. Tests: `te
   first, call anything else 'also visible, not detected', and never describe what you cannot see."
 - **R4, placement recipe** (kitchen visitor block; replaces "If placement is failed, report the failure plainly."):
   "If placement failed, say 'I could not place the <object>:' and the reason from the result."
-- **R5, the learning line** (kitchen visitor block): "If a tool result gives a line to end your reply with, end with
-  exactly that line."
+- **R5, the learning line: removed until a tool result grants a line** (A8 follow-ups fix, Minor 1). A8 added "If a
+  tool result gives a line to end your reply with, end with exactly that line." to the visitor block, but no tool
+  result gives one, and no word list tells every paraphrase of such a line in a halt reason or other free text from
+  one a result grants. So no rule, identity or tool description asks for a reply line now; A9/A10 bring R5 back
+  together with the result that grants the line (§4.8). The runtime keeps withholding R5's listed words (above) and
+  the note lint keeps refusing them, as defence in depth.
 
 ### 4.7 Seeded `reset_scene` (simulation only)
 
@@ -484,7 +502,8 @@ and R4 replace or compress existing sentences instead of only adding. Tests: `te
 Switch `agent.learning_surface` (default false; true in `isaac_kitchen.yaml`; B7 decides `rebot_rs`).
 
 **Chat line.** A motion result may carry `learning_line` (one string) and the instruction "End your reply with this
-exact line: <line>". Only one line per result, priority:
+exact line: <line>". R5 returns to the visitor block in the same change, never before (§4.6; A8 follow-ups fix). Only
+one line per result, priority:
 1. a retry of this order placed the object: "Learning loop: my first grasp was refused, so I retried once in simulation
    with a different grasp."
 2. the call succeeded and a served note's `when` words overlap the goal words:
@@ -523,6 +542,14 @@ candidates, refuted}, last_event: {t, kind: retry|note, line, outcome} | null}`.
 
 - MCP runs have no task line in `summary.txt`, so today they never add a distinct task. `diagnose` uses
   `summary.txt`'s task when present, else the goal key `"<skill> <object> -> <destination|->"` of the failed call.
+- A call an operator stop ended (a halt, an e-stop or both) is never the failure a retry is credited to, never
+  teachable (`aspire.ended_in_stop`; A8 follow-ups 1-2): its signature is a stop, its error names a halt or the
+  e-stop's words, or, with a sim retry ledger (the gate-1 kitchen sim), its trace row carries the ledger's mark
+  `context.sim_retry.ended_in_stop` (§4.5; A8 follow-ups fix). Without a ledger (gate 0, every
+  hardware profile) nothing marks a stop the error does not name (the skill's own refusal after a halt or an e-stop),
+  so `harvest` skips every run whose `run.json` (and any earlier `run.<started>.json` kept beside it) does not show
+  `sim_retry: true`, with a one-line reason each, counted (`aspire.harvest_skip_reason`; #388 re-review Minor 1): only
+  the gate-1 kitchen sim, where the mark exists, is harvested.
 - `learned_in` comes from the source run's `run.json` `profile_class` (no file -> `unknown`). Merged notes: all sim ->
   `sim`, all real -> `real`, both -> `mixed`.
 - `distil` writes v2: advice from a template per refusal class, e.g. safety refusal + identical arguments: "If the

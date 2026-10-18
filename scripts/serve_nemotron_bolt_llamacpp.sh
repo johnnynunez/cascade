@@ -26,9 +26,18 @@
 # instead of memory-mapped: nothing stays mapped behind the GPU copy on the
 # Spark's unified memory, and nothing is paged in while serving.
 #
+# Chat template: scripts/chat_templates/nemotron-3.5-bolt-openclaw.jinja, the
+# GGUF's own template with OpenClaw's per-session system text (after its
+# prompt-cache boundary: date, directives, the Runtime line with the session
+# ids) moved after the tool block. The GGUF's template renders the whole system
+# text first, so every new chat diverged ~2.4k tokens in and re-prefilled all
+# ~13.6k tokens (25.9 s to the first token beside Isaac); now it reuses the
+# system text + tools from a context checkpoint. Other prompts render as before.
+#
 # Knobs: PORT (8080), API_KEY_FILE, CTX (65536 per slot), PARALLEL (2),
 # SPEC (dflash | none: the LiLiCorr drafter or none), NSPEC (7, drafted tokens),
-# ALIAS (nemotron-3.5-bolt), MODEL_ROOT, LLAMA_DIR / LLAMA_SERVER,
+# ALIAS (nemotron-3.5-bolt), CHAT_TEMPLATE_FILE (the template above; empty =
+# the GGUF's own), MODEL_ROOT, LLAMA_DIR / LLAMA_SERVER,
 # CASCADE_LLAMA_CUDA_ARCH, JOBS, CASCADE_MODEL_MIRROR_URL.
 set -euo pipefail
 
@@ -49,6 +58,7 @@ PARALLEL="${PARALLEL:-2}"
 SPEC="${SPEC:-dflash}"
 NSPEC="${NSPEC:-7}"
 ALIAS="${ALIAS:-nemotron-3.5-bolt}"
+CHAT_TEMPLATE_FILE="${CHAT_TEMPLATE_FILE-$REPO/scripts/chat_templates/nemotron-3.5-bolt-openclaw.jinja}"
 
 die() { printf 'serve_nemotron_bolt_llamacpp: %s\n' "$1" >&2; exit "${2:-1}"; }
 
@@ -85,6 +95,11 @@ cuda_arch() {
 
 check_assets() {
     "$PY" -B "$REPO/deploy/brev/fetch_models.py" --root "$MODEL_ROOT" --manifest "$MODEL_MANIFEST" --check
+}
+
+check_template() {
+    [[ -z "$CHAT_TEMPLATE_FILE" || -f "$CHAT_TEMPLATE_FILE" ]] || {
+        printf 'CHAT_TEMPLATE_FILE %s is missing (empty = the GGUF'"'"'s own template).\n' "$CHAT_TEMPLATE_FILE" >&2; return 1; }
 }
 
 check_source() {
@@ -129,7 +144,9 @@ check_server() {
     fi
     local help
     help="$("$LLAMA_SERVER" --help 2>&1)" || return 1
-    for flag in --alias --chat-template-kwargs --reasoning --mmproj --spec-draft-model draft-dflash --api-key-file --load-mode; do
+    local flags=(--alias --chat-template-kwargs --reasoning --mmproj --spec-draft-model draft-dflash --api-key-file --load-mode)
+    [[ -z "$CHAT_TEMPLATE_FILE" ]] || flags+=(--chat-template-file)
+    for flag in "${flags[@]}"; do
         [[ "$help" == *"$flag"* ]] || { printf 'llama-server lacks %s; select a compatible LLAMA_SERVER (v0.7.0).\n' "$flag" >&2; return 1; }
     done
 }
@@ -140,6 +157,7 @@ if [[ "$MODE" == setup ]]; then
     "$PY" -B "$REPO/deploy/brev/fetch_models.py" "$@"
 fi
 check_assets
+check_template
 if [[ "$MODE" == check ]]; then
     check_server
     printf 'Nemotron 3.5 Bolt GGUF, vision projector, LiLiCorr drafter and llama-server are prepared; no runtime proof performed.\n'
@@ -186,6 +204,7 @@ fi
 if [[ "$SPEC" == dflash ]]; then
     set -- "$@" --spec-type draft-dflash --spec-draft-model "$DRAFT_FILE" --spec-draft-n-max "$NSPEC" --spec-draft-ngl 999
 fi
+[[ -z "$CHAT_TEMPLATE_FILE" ]] || set -- "$@" --chat-template-file "$CHAT_TEMPLATE_FILE"
 # The model card's llama.cpp recipe (q8_0 KV; DFlash with the LiLiCorr GGUF
 # drafter when SPEC=dflash), loopback only, thinking off, one context of CTX
 # tokens per slot.

@@ -98,11 +98,20 @@ DERIVED_FEATURES: dict[str, tuple[str, ...]] = {
 
 #: The signature of the operator's halt (`safety/harness.SafetyHarness.halt`).
 HALT_SIGNATURE = "safety:halt"
+#: The e-stop's words: the taxonomy files a text by them as `safety:estop`, and
+#: `agent.aspire` reads them anywhere in an error (one pattern, so the two
+#: cannot drift apart).
+ESTOP_WORDS = r"e-?stop|emergency|stopped by operator"
 
 #: Failure taxonomy.  Ordered: first match wins.  Keep the patterns tied to
 #: what the harness / skills actually emit (see safety/harness.py, skills/
 #: runtime.py) -- a signature nobody produces is dead weight.
 _FAILURE_PATTERNS: tuple[tuple[str, str], ...] = (
+    # The people guard (safety/people_guard.py) and the harness's visitor
+    # zones: first, before the halt, because their text quotes the agent's own
+    # label and argument words ("halted", "keep-out", "not found" can be in
+    # them); a refusal that protects a person is never filed as anything else.
+    (r"^(?:\w+: )?people-safety refusal\b|\(people keep-out, safety\.people\.visitor_zones\b", "safety:people"),
     # The operator's halt is not how a primitive breaks: it matches first, so
     # its free-text reason (halt_motion's comes from the agent) never files
     # it as a breakage it names. A failed skill whose park, view-home return,
@@ -138,7 +147,7 @@ _FAILURE_PATTERNS: tuple[tuple[str, str], ...] = (
     (r"slip|dropped|lost the object", "contact:slip"),
     (r"never seen|not seen|no object|could not find|not found|unknown object", "perception:not_found"),
     (r"stale|watchdog|too old", "safety:stale_perception"),
-    (r"e-?stop|emergency|stopped by operator", "safety:estop"),
+    (ESTOP_WORDS, "safety:estop"),
     (r"velocity|too fast|jerk", "safety:velocity_cap"),
     (r"timeout|timed out", "runtime:timeout"),
     (r"bad arguments|unknown skill", "agent:bad_call"),

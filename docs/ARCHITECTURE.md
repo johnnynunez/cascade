@@ -327,7 +327,8 @@ completed physics snapshot.
 `agent/aspire.py` admits a failed-then-successful retry only when skill, goal
 parameters, resolved arm and pre-call held-object context match, the postcondition
 is measured and confirmed, and no reset/task-end intervenes.
-`scripts/learn_from_runs.py` harvests notes into `skills_library/*.md`, one per
+`scripts/learn_from_runs.py` harvests notes into `skills_library/*.md` from runs whose
+`run.json` shows the sim retry ledger on (the kitchen sim at gate 1; others are skipped), one per
 `(skill, signature)` counting `occurrences` and `source_tasks`; `retrieve()` loads
 keyword-matched notes into tier 3 **only once promoted** (≥ 2 distinct tasks:
 cascade's own rule; upstream ASPIRE v0.1 counts occurrences in any task, v1.0

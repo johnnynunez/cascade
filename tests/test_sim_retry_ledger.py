@@ -1047,12 +1047,12 @@ def test_the_stop_texts_grant_nothing():  # A8 fix, Critical 1; A8 fix 2; A8 fix
     instruction says to report and wait, never to reset the scene on its own: a new
     order on the object needs a reset only the operator or the visitor can ask for
     (the visitor rules: reset only on request), or the window's end."""
-    from cascade.skills.runtime import _without_retry_trigger
+    from cascade.skills.runtime import _without_rule_triggers
 
     error = RETRY_STOPPED.format(goal="green cube", seconds=300)
     for text in (error, RETRY_STOPPED_NEXT):
         assert "SIMULATION ONLY" not in text.upper() and "MORE ATTEMPT" not in text.upper()
-        assert _without_retry_trigger(text) is text
+        assert _without_rule_triggers(text) is text
         assert "operator stopped the arm" in text and "repeat is refused" in text
         assert "reset_scene" not in text  # names no tool to call
     assert error.endswith("until the scene is reset or the retry window ends in 300 s")
@@ -1074,6 +1074,54 @@ def test_the_stop_texts_fit_the_failed_line():  # A8 fix 2 text: the 240-charact
     assert len(error) <= _FAILED_ERROR_CHARS and len(RETRY_STOPPED_NEXT) <= _FAILED_ERROR_CHARS
     line = _with_failure_instruction({"ok": False, "error": error})["next_action"]
     assert line.startswith(f"This attempt FAILED: {error}. ") and "truncated" not in line
+
+
+#: a 200-character object name, past the FAILED line's 240-character quote (A8 follow-ups 3)
+LONG_NAME = ("green cube " * 20)[:200]
+LONG = {"object": LONG_NAME}
+
+
+def _failed_line(error: str) -> str:
+    from cascade.skills.runtime import _with_failure_instruction
+
+    return _with_failure_instruction({"ok": False, "error": error})["next_action"]
+
+
+def test_a_long_object_name_never_cuts_the_window_end_from_the_failed_line(ledger, clock):  # A8 follow-ups 3
+    """The stopped refusal shows at most 60 characters of the object's name (a longer
+    one is cut and ends in "..."), so the FAILED line still quotes until when the
+    repeat is refused, for a 200-character name; `precheck` and `begin` agree. The
+    goal itself is not cut: a renamed repeat is refused alike."""
+    assert len(LONG_NAME) == 200
+    _refused_first(ledger, clock, args=LONG, stop_token=(0,))
+    clock.advance(59.5)
+    refusal = _begin(ledger, args=LONG, stop_token=(1,))
+    assert refusal == ledger.precheck("pick_and_place", LONG)
+    shown = LONG_NAME[:57].rstrip() + "..."
+    assert refusal == _Stopped(goal=shown, seconds=301)
+    line = _failed_line(refusal["error"])
+    assert line.startswith(f"This attempt FAILED: {refusal['error']}. ") and "truncated" not in line
+    assert "or the retry window ends in 301 s." in line
+    assert _begin(ledger, args={"object": "the green cube"}, stop_token=(1,)) == refusal
+    # a name of 60 characters or fewer is shown whole
+    short = {"object": "g" * 60}
+    _refused_first(ledger, clock, args=short, stop_token=(1,))
+    assert _begin(ledger, args=short, stop_token=(2,)) == _Stopped(goal="g" * 60)
+
+
+def test_a_long_object_name_never_cuts_the_too_late_reason_from_the_failed_line(ledger, clock):  # A8 follow-ups 3
+    """The used refusal shows the same cut name: \"the retry window for this turn has
+    passed\" stays in the FAILED line's quote for a 200-character name."""
+    _refused_first(ledger, clock, args=LONG, took=10.0)
+    clock.advance(DEFAULT_WINDOW_S - 1)
+    refusal = _begin(ledger, args=LONG)
+    shown = LONG_NAME[:57].rstrip() + "..."
+    assert refusal == {**LATE, "error": f"The one simulation retry for {shown} is used: "
+                                        "the retry window for this turn has passed"}
+    assert refusal == ledger.precheck("pick_and_place", LONG)
+    line = _failed_line(refusal["error"])
+    assert line.endswith("is used: the retry window for this turn has passed. Tell the user it failed; never "
+                         "report a failed or refuted result as success.") and "truncated" not in line
 
 
 def test_a_renamed_repeat_after_a_stop_is_refused_too(ledger, clock):  # same goal, other words

@@ -21,6 +21,9 @@ scheduled job, or by hand between demo sessions:
 
 This runs as a separate process so harvesting does not change guidance
 mid-session. Better future performance still requires independent trials.
+Notes come only from runs whose run.json shows the sim retry ledger on (the
+kitchen sim at gate 1): gate-0 and hardware runs are skipped, each with a
+one-line reason, and counted (`aspire.harvest_skip_reason`).
 See docs/DREAM_RSI_ADAPTATION.md for admission rules, legacy traces and the
 separate envelope path. --report alone writes updates; --dry-run may create
 an empty library directory, and --export-md always writes its requested file.
@@ -36,9 +39,13 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "src"))
 
-from cascade.agent.aspire import harvest, report  # noqa: E402
+from cascade.agent.aspire import harvest, report, skipped_runs  # noqa: E402
 from cascade.memory.envelope import OperatingEnvelope  # noqa: E402
 from cascade.skills.library import PROMOTION_MIN_TASKS, SkillLibrary  # noqa: E402
+
+
+#: skipped runs the text output lists one per line (--json lists all)
+_SKIPPED_SHOWN = 10
 
 
 def main() -> int:
@@ -71,11 +78,12 @@ def main() -> int:
     ingested = envelope.ingest_runs(runs_dir, limit=args.limit)
 
     library = SkillLibrary(args.library, min_tasks=args.min_tasks)
-    learned = (
-        {"learned": 0, "entries": [], "note": "dry run", "library": library.summary()}
-        if args.dry_run
-        else harvest(runs_dir, library, limit=args.limit)
-    )
+    if args.dry_run:
+        skipped = skipped_runs(runs_dir, limit=args.limit)
+        learned = {"learned": 0, "entries": [], "note": "dry run", "library": library.summary(),
+                   "skipped": len(skipped), "skipped_runs": skipped}
+    else:
+        learned = harvest(runs_dir, library, limit=args.limit)
 
     out = {
         "runs_dir": str(runs_dir),
@@ -95,6 +103,12 @@ def main() -> int:
     print(f"runs dir      : {runs_dir}")
     print(f"traces folded : {ingested['traces']} traces, {ingested['records']} calls")
     print(f"skills learned: {learned.get('learned', 0)} {learned.get('entries', [])}")
+    skipped = learned.get("skipped_runs") or []
+    print(f"runs skipped  : {len(skipped)} (notes come only from runs with the sim retry ledger on)")
+    for line in skipped[:_SKIPPED_SHOWN]:
+        print(f"  {line}")
+    if len(skipped) > _SKIPPED_SHOWN:
+        print(f"  ... {len(skipped) - _SKIPPED_SHOWN} more (--json lists every one)")
     lib = learned.get("library") or {}
     if lib:
         print(f"skill library : {lib['entries']} notes, {lib['promoted']} promoted, "

@@ -64,5 +64,5 @@ TASKS=(
     sleep 5
   done
 ) | stdbuf -oL -eL "$PY" -m cascade.apps.demo \
-      --cameras isaac,isaac_side,isaac_wrist --arm isaac --llm local_qwen \
+      --cameras isaac,isaac_side,isaac_wrist --arm isaac --llm local_nemotron_bolt \
       --interactive --run-dir /tmp/wrc_night 2>&1

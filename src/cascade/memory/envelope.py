@@ -96,16 +96,39 @@ DERIVED_FEATURES: dict[str, tuple[str, ...]] = {
     "handover": _GRASP_DERIVED,
 }
 
+#: The signature of the operator's halt (`safety/harness.SafetyHarness.halt`).
+HALT_SIGNATURE = "safety:halt"
+
 #: Failure taxonomy.  Ordered: first match wins.  Keep the patterns tied to
 #: what the harness / skills actually emit (see safety/harness.py, skills/
 #: runtime.py) -- a signature nobody produces is dead weight.
 _FAILURE_PATTERNS: tuple[tuple[str, str], ...] = (
+    # The operator's halt is not how a primitive breaks: it matches first, so
+    # its free-text reason (halt_motion's comes from the agent) never files
+    # it as a breakage it names. A failed skill whose park, view-home return,
+    # recovery or retry the halt stopped afterwards is filed by its own
+    # error (`failure_signature`, `skill_error`), never here.
+    # "halt" / "halted" as words: the skill halt_motion is not a halt.
+    (r"\bhalt(ed)?\b", HALT_SIGNATURE),
+    # reset_scene's refusals for what the jaws may hold (#357, #359, #363,
+    # #367), filed by the jaws' state, never by the object's name in their
+    # first words. Next to the halt, before every pattern a label's own words
+    # could match ("stale bread"); an air grasp whose reopen could not read
+    # the jaws ("...: jaw state could not be read") stays an air grasp. The
+    # jaw state is unknown alike when the jaws could not be read, when their
+    # reading could not be judged against the interrupted grasp, and when an
+    # unfinished contact episode kept them from being read.
+    (r"\bholding [^;:]+: (?:place it first|call move_home first)", "state:holding"),
+    (r"\bthe jaw (?:state could not be read|reading could not be judged)\b"
+     r"|\bended in an unfinished contact episode, so the jaws were not read\b", "state:jaws_unreadable"),
     (r"would hit the table|below the table|link/joint \d+", "geometry:link_below_table"),
     (r"outside .*workspace|workspace aabb|out of workspace", "geometry:outside_workspace"),
     (r"keep-?out|keepout", "geometry:keep_out"),
     (r"no ik|ik failed|unreachable|no solution|could not solve", "kinematics:ik_unreachable"),
-    (r"jaw|too wide|max_width|width .*exceed", "geometry:object_too_wide"),
+    # Before `jaw`: an air grasp's own text can name the jaws ("the jaws
+    # were not confirmed open"), and it is still an air grasp.
     (r"air.?grasp|missed the object|closed on nothing|nothing in the", "contact:air_grasp"),
+    (r"jaw|too wide|max_width|width .*exceed", "geometry:object_too_wide"),
     (r"slip|dropped|lost the object", "contact:slip"),
     (r"never seen|not seen|no object|could not find|not found|unknown object", "perception:not_found"),
     (r"stale|watchdog|too old", "safety:stale_perception"),
@@ -131,6 +154,37 @@ def normalize_failure(error: str) -> str:
     stripped = re.sub(r"^(skillerror|safetyviolation|unexpected \w+)\s*:\s*", "", text)
     words = re.findall(r"[a-z_]+", stripped)[:3]
     return "other:" + "_".join(words) if words else "unknown"
+
+
+def failure_signature(result: dict) -> str:
+    """The failure signature of one failed skill result: what execute()
+    records in the envelope, and what ``ingest_trace`` and aspire read back
+    from a trace row's result.
+
+    A skill that failed and whose final park or view-home return the
+    operator's halt then stopped names that stop first in ``error`` (the
+    agent's FAILED line keeps only its start) and keeps its own error in
+    ``skill_error``. So does a skill the halt ended after a failure it had
+    already decided (an air grasp whose reopen or exit was halted, a retry
+    loop halted after a miss): its ``error`` is the halt's own text. The
+    skill broke before the halt, so its own error is the signature;
+    ``error`` stays whole for display. Without ``skill_error`` (a halt
+    alone, one that came before any failure was decided, any other
+    failure) it is ``error``'s.
+    """
+    return normalize_failure(str(result.get("skill_error") or result.get("error", "")))
+
+
+def refused_before_motion(context) -> bool:
+    """A trace row's ``context`` marks a call the ASPIRE sim retry ledger refused
+    before any motion (``sim_retry.refused``, skills/runtime.py
+    ``_sim_retry_refusal``): a used retry, or a repeat after the operator stopped
+    the arm. No primitive ran, so it is no outcome: execute() returns it before
+    the live envelope records anything, ``ingest_trace`` skips it, and ASPIRE
+    never credits a retry to it. The stopped refusal is the echo of an
+    operator's halt or e-stop, yet its text names no halt."""
+    mark = context.get("sim_retry") if isinstance(context, dict) else None
+    return isinstance(mark, dict) and mark.get("refused") is True
 
 
 def _numeric_features(args: dict, extra: dict | None = None) -> dict[str, float]:
@@ -240,6 +294,9 @@ class _SkillStats:
     #: calls on which an expected derived feature could not be measured.
     #: A count, never a value: the absence is the record.
     missing: dict[str, int] = field(default_factory=dict)
+    #: failures that were the operator's halt (safety:halt): not losses,
+    #: they touch nothing else here (see ``OperatingEnvelope.record``)
+    halts: int = 0
 
     @property
     def attempts(self) -> int:
@@ -259,6 +316,7 @@ class _SkillStats:
             "duration_ms_mean": round(self.duration_ms_mean, 1),
             "derived": sorted(self.derived),
             "missing": dict(self.missing),
+            "halts": self.halts,
         }
 
     @classmethod
@@ -272,6 +330,7 @@ class _SkillStats:
             duration_ms_mean=float(d.get("duration_ms_mean", 0.0)),
             derived=set(d.get("derived") or ()),
             missing={str(k): int(v) for k, v in (d.get("missing") or {}).items()},
+            halts=int(d.get("halts", 0)),
         )
 
 
@@ -318,6 +377,7 @@ class OperatingEnvelope:
         error: str = "",
         duration_ms: float = 0.0,
         measured: dict | None = None,
+        signature: str | None = None,
         **extra: Any,
     ) -> None:
         """Fold one primitive outcome into the model.
@@ -327,8 +387,23 @@ class OperatingEnvelope:
         values are learned like any other feature and tagged as derived,
         absent ones are counted as missing for this call. Raw args that
         reuse a derived feature's name are dropped -- an agent argument can
-        never pose as a measurement.
+        never pose as a measurement. ``signature`` files a failure
+        (``failure_signature`` of its result); None: ``error``'s.
+
+        A failure filed as the operator's halt is not a loss: it only adds
+        to ``halts``. An e-stop still counts, and so does a skill that
+        failed before the halt stopped its park, its return, its recovery
+        or its retry (filed by its own error, ``skill_error``).
         """
+        sig = "" if ok else (normalize_failure(error) if signature is None else signature)
+        if sig == HALT_SIGNATURE:
+            # The operator's decision, not how the primitive broke: no win
+            # or loss, no proven-range contradiction, no missing
+            # measurement, last error or duration from it.
+            with self._lock:
+                self._skills.setdefault(skill, _SkillStats()).halts += 1
+            self._save()
+            return
         reserved = DERIVED_FEATURES.get(skill, ())
         feats = {k: v for k, v in _numeric_features(args, extra).items() if k not in reserved}
         present, missing = _split_measured(skill, measured)
@@ -348,7 +423,6 @@ class OperatingEnvelope:
                         span.add(val)
             else:
                 st.losses += 1
-                sig = normalize_failure(error)
                 st.failures[sig] = st.failures.get(sig, 0) + 1
                 st.last_error = error or ""
                 # RPent contradiction signal: this failing call's feature
@@ -535,12 +609,14 @@ class OperatingEnvelope:
             skill = rec.get("skill")
             if not skill or skill == "task_done":
                 continue
-            result = rec.get("result") or {}
             # The runtime writes its call-time measurements into the trace
             # context (skills/runtime.py), so the OUTER loop learns the same
             # derived features the live envelope did. A record without the
             # key predates the channel: unknown, not missing.
             context = rec.get("context") or {}
+            if refused_before_motion(context):
+                continue  # no primitive ran; the live envelope never saw it
+            result = rec.get("result") or {}
             measured = context.get("measured") if isinstance(context, dict) else None
             self.record(
                 skill,
@@ -549,6 +625,7 @@ class OperatingEnvelope:
                 error=str(result.get("error", "")),
                 duration_ms=float(rec.get("duration_ms") or 0.0),
                 measured=measured if isinstance(measured, dict) else None,
+                signature=failure_signature(result),
             )
             n += 1
         return n
@@ -593,14 +670,19 @@ class OperatingEnvelope:
             pass
 
     def export_markdown(self) -> str:
-        """RPent-style MEMORY.md section."""
+        """RPent-style MEMORY.md section. A skill's operator halts are listed
+        apart (they are not losses); a skill with only halts so far gets no
+        win/loss header, since it has no success rate yet."""
         lines = ["# Primitive operating envelopes", ""]
         with self._lock:
             for skill, st in sorted(self._skills.items()):
-                lines.append(
-                    f"## {skill} — {st.wins}W/{st.losses}L "
-                    f"({st.success_rate*100:.0f}% success, ~{st.duration_ms_mean/1000:.1f}s)"
-                )
+                if st.attempts or not st.halts:
+                    lines.append(
+                        f"## {skill} — {st.wins}W/{st.losses}L "
+                        f"({st.success_rate*100:.0f}% success, ~{st.duration_ms_mean/1000:.1f}s)"
+                    )
+                else:
+                    lines.append(f"## {skill}")
                 for key, span in sorted(st.spans.items()):
                     conf = span.confidence(self.min_support)
                     contra = (
@@ -620,6 +702,8 @@ class OperatingEnvelope:
                     )
                 for sig, n in sorted(st.failures.items(), key=lambda kv: -kv[1]):
                     lines.append(f"- FAILURE `{sig}` x{n}")
+                if st.halts:
+                    lines.append(f"- operator halts: {st.halts} (not counted as losses)")
                 lines.append("")
         return "\n".join(lines)
 

@@ -1,7 +1,7 @@
 {
   "agents": {
     "defaults": {
-      "model": {"primary": "cascade/qwen3.8-27b"},
+      "model": {"primary": "cascade/nemotron-3.5-bolt"},
       "timeoutSeconds": 600,
       "skipBootstrap": true,
       "skills": [],
@@ -19,8 +19,8 @@
         "timeoutSeconds": 600,
         "models": [
           {
-            "id": "qwen3.8-27b",
-            "name": "Qwen3.8-27B (cascade brain)",
+            "id": "nemotron-3.5-bolt",
+            "name": "Nemotron 3.5 Bolt 74B-A9B (cascade brain)",
             "reasoning": false,
             "input": ["text", "image"],
             "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0},

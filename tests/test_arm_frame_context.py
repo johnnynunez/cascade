@@ -626,7 +626,7 @@ def test_arm_scoped_sections_cover_every_shipped_override_key():
 
     assert ARM_SCOPED_SECTIONS == ("arm", "grasp", "safety", "relative_motion")
     assert RIG_SCOPED_OVERRIDES == {"workspace_filter", "memory", "perception_loop", "detector",
-                                    "object_descriptions", "occupancy"}
+                                    "object_descriptions", "occupancy", "agent"}
     assert RIG_GRASP_SERVICE_KEYS == {"backend", "executor", "graspgenx", "hug", "vla"}
     seen, services = set(), {}
     for path in sorted((REPO / "configs" / "arms").glob("*.yaml")):

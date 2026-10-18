@@ -135,7 +135,7 @@ def test_demo_yaml_brain_detector_defaults(perception_env, home):
     det = load_demo_config().detector
     assert det.type == "brain"
     assert det.base_url == "http://127.0.0.1:8080/v1"
-    assert det.model == "qwen3.8-27b"
+    assert det.model == "nemotron-3.5-bolt"
     assert det.api_key_file == str(home / ".cascade" / "nemoclaw" / "llama.key")
 
 

@@ -37,6 +37,8 @@ def load_isaac_bridge_definitions(names, env):
         wanted.add("_gripper_joint_snapshot")
     if "Handler" in wanted:
         wanted.add("_attachment_state_snapshot")
+        # Boot state of every bridge: no seeded reset layout armed (ping reads it).
+        env.setdefault("_RESET_SEED", None)
     if "_refresh_frames" in wanted or "_settle_props" in wanted:
         wanted.add("_camera_capture_due")
     if "_refresh_frames" in wanted:
@@ -174,6 +176,36 @@ def _isolate_learned_memories(monkeypatch, tmp_path):
 
 
 @pytest.fixture(autouse=True)
+def _no_ambient_aspire_library(monkeypatch, tmp_path_factory):
+    """No test runtime serves a machine's own ASPIRE notes (preflight R24).
+
+    `build_runtime` reads the profile's note library once: the kitchen's
+    `${CASCADE_ASPIRE_LIBRARY:-~/.cascade/aspire/sim/library}`, fr3 (and its
+    mock / mujoco profiles) `${repo}/runs/fr3/skills_library`, every other
+    profile `<repo>/skills_library` (gitignored, filled by learn_from_runs on
+    dev and rig checkouts). All of them point at one directory that is never
+    created, so every runtime here reads an empty library unless a test hands
+    it one; and a shell's CASCADE_RUN_PURPOSE never relabels the suite's runs.
+    """
+    from cascade.config import PACKAGE_ROOT
+    from cascade.skills import notes
+
+    absent = tmp_path_factory.getbasetemp() / "no-aspire-library"
+    monkeypatch.setenv("CASCADE_ASPIRE_LIBRARY", str(absent))
+    monkeypatch.setattr(notes, "DEFAULT_LIBRARY", absent)
+    monkeypatch.delenv("CASCADE_RUN_PURPOSE", raising=False)
+    # libraries a shipped profile names inside the checkout (`${repo}/...`)
+    shipped = {PACKAGE_ROOT / "runs" / "fr3" / "skills_library"}
+    library_root = notes.library_root
+
+    def pinned_root(cfg):
+        root = library_root(cfg)
+        return absent if root in shipped else root
+
+    monkeypatch.setattr(notes, "library_root", pinned_root)
+
+
+@pytest.fixture(autouse=True)
 def _no_ambient_booth(monkeypatch):
     """A booth-day shell (CASCADE_BOOTH=1 exported) must not silently rerun the
     whole suite under booth tuning — a green run has to certify DEV
@@ -233,7 +265,9 @@ def _no_ambient_observed_finger_gate(monkeypatch):
     the grasp ("observed-finger gate currently requires calibrated Isaac
     reBot"). The suite certifies the gate-off default; gate-on tests set the
     gate themselves with monkeypatch.setenv (which overrides this scrub), so
-    they run gate-on in every shell."""
+    they run gate-on in every shell. pytest_configure below scrubs it for the
+    whole session too (import-time code, module and session fixtures); this
+    per-test scrub also undoes a test's direct os.environ write."""
     monkeypatch.delenv("CASCADE_OBSERVED_FINGER_GATE", raising=False)
 
 
@@ -274,25 +308,34 @@ def _no_live_graspgenx(monkeypatch):
 
 
 _GRASPGENX_ENV = ("CASCADE_GRASPGENX_PORT", "CASCADE_GRASPGENX_HOST")
+#: Spark defaults the suite certifies OFF for the whole session
+#: (`_no_ambient_observed_finger_gate` per test).
+_SCRUBBED_ENV = ("CASCADE_OBSERVED_FINGER_GATE",)
 
 
 def pytest_configure(config):
     """Session-wide B6 pin, set before collection: test modules' import-time
     code and module/session-scoped fixtures run before the per-test
     `_no_live_graspgenx`, so they get a held dead port of their own (held
-    until the session ends) and no ambient host. The ambient values come back
-    in pytest_unconfigure."""
+    until the session ends) and no ambient host. The same holds for an
+    ambient observed-finger gate (_SCRUBBED_ENV): scrubbed for the session.
+    The ambient values come back in pytest_unconfigure."""
     from owned_server import held_dead_port
 
     hold = held_dead_port()
     port = hold.__enter__()
-    config._cascade_graspgenx_pin = (hold, {name: os.environ.get(name) for name in _GRASPGENX_ENV})
+    # The held dead port and the ambient value of every variable pinned here
+    # (GraspGen-X's and the scrubbed Spark defaults), for pytest_unconfigure.
+    config._cascade_session_env_pin = (hold, {name: os.environ.get(name)
+                                              for name in _GRASPGENX_ENV + _SCRUBBED_ENV})
     os.environ.pop("CASCADE_GRASPGENX_HOST", None)
+    for name in _SCRUBBED_ENV:
+        os.environ.pop(name, None)
     os.environ["CASCADE_GRASPGENX_PORT"] = str(port)
 
 
 def pytest_unconfigure(config):
-    pin = getattr(config, "_cascade_graspgenx_pin", None)
+    pin = getattr(config, "_cascade_session_env_pin", None)
     if pin is None:
         return
     hold, ambient = pin

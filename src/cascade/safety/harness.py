@@ -1927,6 +1927,18 @@ class SafeArm:
                 "the contact monitor cannot watch a planner-bound stream; disable "
                 "safety.contact_monitor for this profile or drop its motion_planner; no motion sent")
 
+    def _check_route_halt(self, halt_generation) -> None:
+        """move_planned's route-planning halt check. With both stops (that
+        halt AND a latched e-stop) the e-stop wins, as in begin_motion and
+        set_gripper; an e-stop alone is still refused by the route planner,
+        as before."""
+        try:
+            self.harness._check_halt_generation(halt_generation)
+        except MotionHalted:
+            if self.harness.estopped:
+                raise SafetyViolation("e-stop latched") from None
+            raise
+
     def move_planned(self, q_target: np.ndarray, duration_s: float = 3.0, *,
                      _halt_generation=None, rate_hz=None) -> bool:
         """Execute a fully vetted deterministic route, retaining live gates."""
@@ -1942,9 +1954,9 @@ class SafeArm:
 
         self.harness.check_release_episode(target=q_target, duration=duration_s)
         halt_generation = self.harness._halt_generation if _halt_generation is None else _halt_generation
-        self.harness._check_halt_generation(halt_generation)
+        self._check_route_halt(halt_generation)
         start = self.get_state().q  # Materialize LazyArm before inspecting its rate.
-        self.harness._check_halt_generation(halt_generation)
+        self._check_route_halt(halt_generation)
         rate = resolve_motion_rate(self._arm, rate_hz)
         route = plan_route(self.harness, start, q_target, duration_s, rate_hz=rate)
         for index, goal in enumerate(route):
@@ -2054,9 +2066,11 @@ class SafeArm:
         self.harness.check_model_withdrawal(command=True, gripper=True, grip=pos, effort=effort)
         self.harness.check_release_episode(gripper=True, grip=pos)
         self.harness.check_contact_episode(gripper=True)
-        self.harness._check_halt_generation(_halt_generation)
+        # The e-stop first, as begin_motion does: with a newer halt as well,
+        # the refusal is the e-stop's (a loss), never the halt's.
         if self.harness.estopped:
             raise SafetyViolation("e-stop latched")
+        self.harness._check_halt_generation(_halt_generation)
         self._arm.set_gripper(pos, effort)
 
     def stop(self) -> None:

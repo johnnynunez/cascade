@@ -81,7 +81,7 @@ def test_demo_yaml_builds_the_brain_detector_with_sam_l(key_file):
     det = demo._make_detector(brain_cfg(), warm_up=False)
     assert type(det) is BrainDetector
     assert det._base_url == DEFAULT_PERCEPTION_URL
-    assert det._model == "qwen3.8-27b"
+    assert det._model == "nemotron-3.5-bolt"
     assert det._api_key == "sk-test-0123"
     assert (det._timeout_s, det._max_tokens) == (20.0, 1500)
     assert (det._refresh_s, det._max_cache_age_s, det._scene_change) == (4.0, 35.0, 6.0)
@@ -181,7 +181,7 @@ def test_a_bare_brain_block_takes_the_documented_defaults(env, tmp_path):
     key.parent.mkdir(parents=True)
     key.write_text("from-default-path")
     det = demo._make_detector(brain_cfg(type="brain"), warm_up=False)
-    assert (det._base_url, det._model, det._api_key) == (DEFAULT_PERCEPTION_URL, "qwen3.8-27b",
+    assert (det._base_url, det._model, det._api_key) == (DEFAULT_PERCEPTION_URL, "nemotron-3.5-bolt",
                                                          "from-default-path")
     assert (det._timeout_s, det._max_tokens, det._refresh_s, det._max_cache_age_s, det._scene_change) == (
         20.0, 1500, 4.0, 35.0, 6.0)
@@ -379,5 +379,5 @@ def test_mcp_server_no_longer_overrides_the_detector_model(env, key_file, monkey
     with pytest.raises(Built):
         McpSkillServer()._ensure_runtime(_poison=False)
     cfg, = built
-    assert cfg.detector.model == "qwen3.8-27b"
+    assert cfg.detector.model == "nemotron-3.5-bolt"
     assert cfg.detect_classes == ["paper cup", "red lobster"]

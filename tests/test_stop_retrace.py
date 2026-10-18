@@ -730,24 +730,29 @@ def test_on_a_real_gripper_a_failed_jaw_read_after_the_retrace_names_its_error_o
     assert res["next_action"] == UNKNOWN_NEXT + f". Error: {error or 'TimeoutError'}", res
 
 
-def nan_jaws(rt, monkeypatch):
+#: valid jaw readings that are no number (+inf once clipped to open, -inf to air)
+NON_FINITE = {"nan": float("nan"), "pinf": float("inf"), "ninf": float("-inf")}
+
+
+def bad_jaws(rt, monkeypatch, reading="nan"):
     """The driver reports the jaw reading valid, but it is no number."""
     real = mock_of(rt).get_state
-    monkeypatch.setattr(mock_of(rt), "get_state",
-                        lambda: dataclasses.replace(real(), gripper_valid=True, gripper_pos=float("nan")))
+    monkeypatch.setattr(mock_of(rt), "get_state", lambda: dataclasses.replace(
+        real(), gripper_valid=True, gripper_pos=NON_FINITE[reading]))
 
 
+@pytest.mark.parametrize("reading", sorted(NON_FINITE))
 @pytest.mark.parametrize("stall", [0.5, None], ids=["on-the-object", "at-the-seat"])
-def test_on_a_real_gripper_a_nan_jaw_reading_after_the_retrace_is_holding_unknown_never_empty(
-        rebot_real, monkeypatch, stall):
-    """#367's NaN rule on #359's path: the jaws read NaN once the retrace has
-    run. move_home reports `holding_unknown` (the hold kept, no jaw
-    command), never the empty-jaws result; the next reset refuses with 0
-    commands."""
+def test_on_a_real_gripper_a_nonfinite_jaw_reading_after_the_retrace_is_holding_unknown_never_empty(
+        rebot_real, monkeypatch, stall, reading):
+    """#367's NaN rule on #359's path, and +-inf alike: the jaws read no
+    number once the retrace has run. move_home reports `holding_unknown`
+    (the hold kept, no jaw command), never the empty-jaws result; the next
+    reset refuses with 0 commands."""
     rt = rebot_real
     mock_of(rt).object_stop_frac = stall
     stopped_at_the_object(rt, monkeypatch, skill=("grasp_object", {"label": "red cube"}))
-    arm_after_the_retrace(rt, monkeypatch, lambda: nan_jaws(rt, monkeypatch))
+    arm_after_the_retrace(rt, monkeypatch, lambda: bad_jaws(rt, monkeypatch, reading))
     jaws = jaw_commands(rt, monkeypatch)
     res = rt.execute("move_home", {})
     assert res["ok"] is True and res["stop_retrace"].startswith("completed") and at_home(rt), res
@@ -759,19 +764,21 @@ def test_on_a_real_gripper_a_nan_jaw_reading_after_the_retrace_is_holding_unknow
     assert commands(rt) == n0 and jaws == []
 
 
+@pytest.mark.parametrize("reading", sorted(NON_FINITE))
 @pytest.mark.parametrize("stall", [0.5, None], ids=["on-the-object", "at-the-seat"])
-def test_on_a_real_gripper_a_nan_jaw_reading_with_the_column_kept_sends_the_agent_to_move_home_first(
-        rebot_real, monkeypatch, stall):
-    """A NaN reading before the reset, with the column kept: refused with 0
-    commands (move_home first), never the empty-jaws reset that would
-    retrace, home and open the jaws on the object."""
+def test_on_a_real_gripper_a_nonfinite_jaw_reading_with_the_column_kept_sends_the_agent_to_move_home_first(
+        rebot_real, monkeypatch, stall, reading):
+    """A reading that is no number before the reset, with the column kept:
+    refused with 0 commands (move_home first), never the empty-jaws reset
+    that would retrace, home and open the jaws on the object (-inf, read as
+    air, did exactly that at 0.44 m)."""
     rt = rebot_real
     mock_of(rt).object_stop_frac = stall
     stopped_at_the_object(rt, monkeypatch, skill=("grasp_object", {"label": "red cube"}))
     from cascade.skills import stop_retrace
 
     kept = stop_retrace.kept(rt)
-    nan_jaws(rt, monkeypatch)
+    bad_jaws(rt, monkeypatch, reading)
     jaws, n0 = jaw_commands(rt, monkeypatch), commands(rt)
     res = rt.execute("reset_scene", {})
     assert res["ok"] is False and res["error"] == UNREADABLE_KEPT, res
@@ -809,6 +816,60 @@ def test_on_a_real_gripper_every_move_home_first_refusal_keeps_a_readable_label(
     assert res["ok"] is False and commands(rt) == n0 and len(error) <= 240, (len(error), error)
     assert sentence in error and "move_home first" in error and LONG_LABEL[:18] in error, error
     assert "(truncated; see error)" not in res["next_action"], res
+
+
+def test_on_a_real_gripper_a_label_that_fits_beside_a_short_error_is_kept_whole_with_the_column_kept(
+        rebot_real, monkeypatch):
+    """#367 review M3: the move_home-first unreadable form kept 40
+    characters for the driver's text even beside \"no valid jaw feedback\"
+    (29), so it cut every label over 25 characters where 36 fit. The label
+    now gives way only as far as the text needs: 36 characters stay whole,
+    one more is cut; 0 commands, the column kept."""
+    rt = rebot_real
+    mock_of(rt).object_stop_frac = 0.5
+    stopped_at_the_object(rt, monkeypatch, skill=("grasp_object", {"label": "red cube"}))
+    from cascade.skills import stop_retrace
+    from cascade.skills.runtime import ProvisionalHold
+
+    real = mock_of(rt).get_state
+    monkeypatch.setattr(mock_of(rt), "get_state", lambda: dataclasses.replace(real(), gripper_valid=False))
+    kept, jaws, n0 = stop_retrace.kept(rt), jaw_commands(rt, monkeypatch), commands(rt)
+    whole = UNREADABLE_KEPT.replace("red cube", "{}")
+    room = 240 - len(whole.format(""))
+    label = "the big green ceramic coffee mug with a chipped handle"[:room]
+    assert room == 36 and not label.endswith(" ")
+    prov = rt._held_provisional
+    for name, expected in ((label, label), (label + "s", label[:room - 3].rstrip() + "...")):
+        rt._held_provisional = ProvisionalHold((name, *prov[1:]), prov.commanded_open, prov.expected_open)
+        res = rt.execute("reset_scene", {})
+        assert res["ok"] is False and res["error"] == whole.format(expected), res
+        assert commands(rt) == n0 and jaws == [] and stop_retrace.kept(rt) is kept
+
+
+def test_on_a_real_gripper_a_failed_home_move_with_no_error_text_names_the_exception_type(
+        rebot_real, monkeypatch):
+    """#367 review M7: every jaw read after the retrace fails with an
+    exception that has no text; move_home's own home move fails on it and
+    execute()'s generic handler named it \"unexpected RuntimeError: \" (a
+    dangling colon). Now \"unexpected RuntimeError\"; the jaw report still
+    names the type too, and nothing moves after the failed read."""
+    rt = rebot_real
+    mock_of(rt).object_stop_frac = 0.5
+    stopped_at_the_object(rt, monkeypatch, skill=("grasp_object", {"label": "red cube"}))
+    raw = mock_of(rt)
+
+    def failing():
+        raise RuntimeError()
+
+    at = []
+    arm_after_the_retrace(rt, monkeypatch, lambda: (at.append(commands(rt)),
+                                                    monkeypatch.setattr(raw, "get_state", failing)))
+    res = rt.execute("move_home", {})
+    assert res["ok"] is False and res["error"] == "unexpected RuntimeError", res
+    assert res["holding_unknown"] is True and res["next_action"].startswith(
+        "This attempt FAILED: unexpected RuntimeError. Tell the user it failed"), res
+    assert UNKNOWN_NEXT + ". Error: RuntimeError" in res["next_action"], res
+    assert res["stop_retrace"].startswith("completed") and commands(rt) == at[0], res
 
 
 @pytest.mark.parametrize("stop", ["halt", "e-stop", "did not settle"])

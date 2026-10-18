@@ -5,12 +5,15 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
+import re
 import shutil
 import stat
 import sys
 import tempfile
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
@@ -19,25 +22,174 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "demo"))
 from scene_identity import (
     BUNDLE_MANIFEST, BUNDLE_ROOT, BUNDLE_URL, MANIFEST, MAX_ARCHIVE_BYTES,
     SCENE_NAME, bundle_manifest, bundle_problems, file_receipt, kitchen_manifest,
-    kitchen_problems, local_file, relative_name, source_manifest, source_problems,
+    kitchen_problems, local_file, relative_name, source_manifest, source_problems,  # noqa: F401 (re-exported)
     validate_bundle_manifest,
 )
 
 DOWNLOAD_BUDGET_S = 300
 CHUNK_BYTES = 1024 * 1024
+TIMEOUT_S = 30
+USER_AGENT = "CASCADE-kitchen-installer/1"
+GITHUB_API = "https://api.github.com"
+GITHUB_HOSTS = frozenset({"github.com", "api.github.com", "release-assets.githubusercontent.com",
+                          "objects.githubusercontent.com"})
+# A private repository answers anonymous release downloads with 404; a token
+# in either variable switches the installer to the authenticated API route.
+TOKEN_VARIABLES = ("GH_TOKEN", "GITHUB_TOKEN")
+# Any printable, space-free ASCII: GitHub App installation tokens (the Actions
+# job token) are ~520 characters in the stateless format.
+TOKEN_SHAPE = re.compile(r"[\x21-\x7e]{1,4096}")
+RELEASE_METADATA_BYTES = 1024 * 1024
+REDIRECT_CODES = frozenset({301, 302, 303, 307, 308})
 
 
-def download(url: str, output: Path, expected: dict) -> None:
-    """Bound both network time and bytes; never retain an unverified download."""
+def github_token() -> str | None:
+    """The first non-empty GH_TOKEN / GITHUB_TOKEN, refused unless header-safe.
+
+    The shape check keeps the value out of http.client's "Invalid header value"
+    errors (CR/LF), which would otherwise quote it.
+    """
+    for name in TOKEN_VARIABLES:
+        value = os.environ.get(name, "").strip()
+        if value:
+            if not TOKEN_SHAPE.fullmatch(value):
+                raise ValueError(f"{name} is not a well-formed GitHub token")
+            return value
+    return None
+
+
+def redact(text: str) -> str:
+    """Remove every configured token value from text bound for a log."""
+    for name in TOKEN_VARIABLES:
+        value = os.environ.get(name, "").strip()
+        if value:
+            text = text.replace(value, "[redacted]")
+    return text
+
+
+def release_asset(url: str) -> tuple[str, str, str, str]:
+    """Owner, repository, tag and asset name of a github.com release download URL."""
+    parts = urllib.parse.urlsplit(url)
+    segments = parts.path.split("/")
+    if (parts.scheme != "https" or parts.hostname != "github.com" or parts.port not in (None, 443)
+            or parts.username or parts.query or parts.fragment or len(segments) != 7 or segments[0]
+            or segments[3:5] != ["releases", "download"] or not all(segments[1:3] + segments[5:])):
+        raise ValueError("Kitchen release URL is not a github.com release download")
+    return segments[1], segments[2], segments[5], segments[6]
+
+
+def require_github_https(url: str) -> None:
+    final = urllib.parse.urlsplit(url)
+    if (final.scheme != "https" or final.username or final.password or final.port not in (None, 443)
+            or final.hostname not in GITHUB_HOSTS):
+        raise ValueError("Kitchen release redirected outside GitHub HTTPS")
+
+
+class ApiRefused(RuntimeError):
+    """The GitHub API answered the authenticated release lookup with an HTTP error."""
+
+
+class _KeepRedirect(urllib.request.HTTPRedirectHandler):
+    """Surface a redirect as an HTTPError instead of following it.
+
+    A followed urllib redirect copies the request's headers, so an API request
+    never follows one: the storage host must not receive the token.
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _api_request(url: str, token: str, accept: str) -> urllib.request.Request:
+    request = urllib.request.Request(url, headers={
+        "User-Agent": USER_AGENT, "Accept": accept, "X-GitHub-Api-Version": "2022-11-28"})
+    # Belt and braces: urllib never copies an unredirected header onto a redirect.
+    request.add_unredirected_header("Authorization", f"Bearer {token}")
+    return request
+
+
+def _open_api(request: urllib.request.Request):
+    return urllib.request.build_opener(_KeepRedirect).open(request, timeout=TIMEOUT_S)
+
+
+def _open_public(url: str, *, token_tried: bool = False):
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    try:
+        return urllib.request.urlopen(request, timeout=TIMEOUT_S)
+    except urllib.error.HTTPError as exc:
+        exc.close()
+        owner, repo, tag, name = release_asset(url)
+        advice = "" if token_tried else (
+            f" If {owner}/{repo} is private, set GH_TOKEN (or GITHUB_TOKEN) to a token that can read"
+            f" it, or fetch the archive with `gh release download {tag} -R {owner}/{repo} -p {name}`"
+            f" and install it with --archive {name}.")
+        raise RuntimeError(f"Kitchen release download failed: HTTP {exc.code} from {url}.{advice}") from None
+
+
+def _open_with_token(url: str, token: str, expected: dict, deadline: float):
+    """Resolve the asset through the API; fetch its signed storage URL without the token."""
+    owner, repo, tag, name = release_asset(url)
+    base = (f"{GITHUB_API}/repos/{urllib.parse.quote(owner, safe='')}/"
+            f"{urllib.parse.quote(repo, safe='')}/releases")
+    step = f"{base}/tags/{urllib.parse.quote(tag, safe='')}"
+    try:
+        with _open_api(_api_request(step, token, "application/vnd.github+json")) as response:
+            raw = response.read(RELEASE_METADATA_BYTES + 1)
+        if len(raw) > RELEASE_METADATA_BYTES:
+            raise ValueError("GitHub release metadata exceeded its byte budget")
+        release = json.loads(raw)
+        assets = release.get("assets") if isinstance(release, dict) else None
+        matches = [asset for asset in assets if isinstance(asset, dict) and asset.get("name") == name
+                   ] if isinstance(assets, list) else []
+        if len(matches) != 1 or type(matches[0].get("id")) is not int or matches[0]["id"] < 1:
+            raise ValueError(f"GitHub release {tag} has no single asset named {name}")
+        if matches[0].get("size") != expected["size_bytes"]:
+            raise ValueError("Kitchen release asset size differs from its pinned size")
+        if time.monotonic() >= deadline:
+            raise TimeoutError("Kitchen release download exceeded 300 seconds")
+        step = f"{base}/assets/{matches[0]['id']}"
+        try:
+            # 200 means the API streamed the bytes itself (final URL api.github.com).
+            return _open_api(_api_request(step, token, "application/octet-stream"))
+        except urllib.error.HTTPError as exc:
+            location = exc.headers.get("Location") if exc.code in REDIRECT_CODES else None
+            if not location:
+                raise
+            exc.close()
+    except urllib.error.HTTPError as exc:
+        exc.close()
+        raise ApiRefused(f"Kitchen release lookup through the GitHub API failed: HTTP {exc.code} for "
+                         f"{step}; check that GH_TOKEN/GITHUB_TOKEN can read {owner}/{repo}.") from None
+    target = urllib.parse.urljoin(step, location)
+    require_github_https(target)
+    # A fresh request: the signed URL is the storage credential; the token stays behind.
+    return urllib.request.urlopen(urllib.request.Request(target, headers={"User-Agent": USER_AGENT}),
+                                  timeout=TIMEOUT_S)
+
+
+def download(url: str, output: Path, expected: dict, *, token: str | None = None) -> None:
+    """Bound both network time and bytes; never retain an unverified download.
+
+    Without a token this fetches the anonymous public URL. With one, the asset
+    is resolved through the GitHub API, which also serves a private repository;
+    if the API refuses the token, the anonymous URL is still tried, so a stale
+    token cannot break a public repository's install.
+    """
     deadline = time.monotonic() + DOWNLOAD_BUDGET_S
     digest, size = hashlib.sha256(), 0
-    request = urllib.request.Request(url, headers={"User-Agent": "CASCADE-kitchen-installer/1"})
-    with urllib.request.urlopen(request, timeout=30) as response, output.open("xb") as stream:
-        final = urllib.parse.urlsplit(response.geturl())
-        if (final.scheme != "https" or final.username or final.password
-                or final.hostname not in {"github.com", "release-assets.githubusercontent.com",
-                                          "objects.githubusercontent.com"}):
-            raise ValueError("Kitchen release redirected outside GitHub HTTPS")
+    if token:
+        print("[cascade-install] Fetching the Cocina Asier release through the authenticated GitHub API.")
+        try:
+            opened = _open_with_token(url, token, expected, deadline)
+        except ApiRefused as refused:
+            try:
+                opened = _open_public(url, token_tried=True)
+            except RuntimeError as anonymous:
+                raise RuntimeError(f"{refused} {anonymous}") from None
+    else:
+        opened = _open_public(url)
+    with opened as response, output.open("xb") as stream:
+        require_github_https(response.geturl())
         length = response.headers.get("Content-Length")
         if length is not None and int(length) != expected["size_bytes"]:
             raise ValueError("Kitchen release Content-Length differs from its pinned size")
@@ -124,7 +276,7 @@ def prepare_kitchen(repo: Path, *, check: bool = False, archive: Path | None = N
                 temporary = Path(temporary)
                 if archive is None:
                     archive = temporary / "release.zip"
-                    download(data["archive"]["url"], archive, data["archive"])
+                    download(data["archive"]["url"], archive, data["archive"], token=github_token())
                 elif archive.is_symlink() or not archive.is_file():
                     raise ValueError("Supplied kitchen archive must be a regular local file")
                 if (archive.stat().st_size != data["archive"]["size_bytes"]
@@ -228,7 +380,9 @@ def main(argv=None) -> int:
         prepare_kitchen(args.repo, check=args.check or args.write_manifest or bool(args.package_bundle),
                         archive=args.archive)
     except (OSError, ValueError, RuntimeError, zipfile.BadZipFile) as exc:
-        print(str(exc), file=sys.stderr)
+        # The token is never formatted into a message; redact anyway, in case a
+        # library error ever quotes a request header.
+        print(redact(str(exc)), file=sys.stderr)
         return 1
     return 0
 

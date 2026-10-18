@@ -1675,6 +1675,20 @@ def test_a_long_label_never_cuts_the_refusals_way_out(make_runtime, gate_off, st
     assert error.startswith("SkillError: 'the long-named"), error
 
 
+def test_the_possible_hold_refusal_names_the_arm_whose_close_left_it(make_runtime, gate_off):  # noqa: F811
+    """#379's entry refusal (`_possible_hold_refusal`, the skills that open the
+    jaws first) on this arm while ANOTHER arm's close left the provisional hold
+    (R5): it names that arm and the way out on it, never this arm's jaws, and
+    fits the agent's failure line with execute()'s "SkillError: "."""
+    rt = make_runtime(_pair_world_rig())
+    _stalled_provisional(rt, "so101_right", label="red cube")
+    refusal = _in_bound_call(rt, "so101_left", rt._possible_hold_refusal)
+    assert "'red cube' may be held by arm 'so101_right'" in refusal and "not 'so101_left'" in refusal, refusal
+    assert refusal.endswith("then try again; no motion was sent") and len("SkillError: " + refusal) <= 240, refusal
+    # on the arm whose close left it: #379's own refusal (its jaws, unreconciled here)
+    assert _in_bound_call(rt, "so101_right", rt._possible_hold_refusal).startswith("the jaw state could not be read")
+
+
 def test_already_holding_on_a_single_arm_reads_as_before(make_runtime, gate_off):  # noqa: F811
     rt = make_runtime(_world_object_rig())
     assert rt.execute("grasp_object", {"label": "red cube"})["held"] == "red cube"
@@ -1885,10 +1899,15 @@ def test_a_stop_column_is_forgotten_only_by_its_own_arm(make_runtime, gate_off):
     assert rt._stop_retraces == {}, result
 
 
-def test_a_point_at_refusal_quotes_table_frame_heights(make_runtime, gate_off):  # noqa: F811
+def test_a_point_at_refusal_quotes_table_frame_heights(make_runtime, gate_off, monkeypatch):  # noqa: F811
     """#369's ceiling refusal on a RAISED so101_right (base 3 cm above the
     table): the heights it quotes are table-frame (the cube's top 0.05 m,
-    the ceiling 0.07 m), not the arm frame's (0.02 m, 0.04 m)."""
+    the ceiling 0.07 m), not the arm frame's (0.02 m, 0.04 m). Since #378 a
+    pose that clears from above is no longer the only one: point_at leans in
+    on this rig, so the lean-in finds no pose here and the refusal names both."""
+    from cascade.skills import pointing
+
+    monkeypatch.setattr(pointing, "lean_in", lambda *a, **k: pointing.LeanIn(q=None))
     rt = make_runtime(raised_table(moved_cfg("so101_right", RAISED, move_cameras=False, shift_xy=(0.0, -0.10))))
     raw = raw_arm(rt.arm)
     n0 = len(raw.commands)

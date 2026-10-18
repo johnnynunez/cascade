@@ -14,9 +14,10 @@ source-level health checks are shared. Upstream's Cosmos3-Edge profile is separa
 uncertified here.
 
 Tested machine: AWS `g7e.2xlarge`, one RTX PRO 6000 Blackwell Server Edition (97,887 MiB VRAM),
-8 vCPUs, 62.27 GiB RAM, a separate 1.7 TB NVMe volume. Isaac Sim 6.1 runs CUDA PhysX; the brain
-is Qwen3.8-27B Q8_0 with its BF16 vision projector, fully on the GPU (one Qwen/Isaac run used
-36,590 MiB with video off).
+8 vCPUs, 62.27 GiB RAM, a separate 1.7 TB NVMe volume. Isaac Sim 6.2 (`nvcr.io/nvidia/isaac-sim:6.2.0`)
+runs CUDA PhysX; the brain is Qwen3.8-27B Q8_0 with its BF16 vision projector, fully on the GPU (one
+Qwen/Isaac run on the earlier image used 36,590 MiB with video off). No Brev deployment check has
+run on the 6.2 image yet.
 
 ## Choose and connect a machine
 
@@ -72,7 +73,9 @@ python3 deploy/brev/build_bundle.py --assets /srv/cascade/assets \
 
 `scripts/kitchen_assets.py` fetches the audited `Cocina_Asier_01` release and verifies the
 archive and every unpacked file (`--check` verifies offline; an offline source machine passes
-the ZIP with `--archive /srv/cascade/cocina-asier-v1.zip`). The orange and bowl are generated
+the ZIP with `--archive /srv/cascade/cocina-asier-v1.zip`). While the repository is private,
+the anonymous release URL answers 404: run it with `GH_TOKEN` (or `GITHUB_TOKEN`) set to a
+token that can read the repository, and it resolves the asset through the GitHub API. The orange and bowl are generated
 from the checkout. Assembly and admission are offline.
 
 **Operations:** `deploy.sh {prepare,install,access,preflight,start,status,restart,stop}

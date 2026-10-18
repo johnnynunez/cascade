@@ -288,16 +288,16 @@ def _configure_newton_before_play() -> None:
     cfg.solver_cfg.nconmax = 32768
     cfg.solver_cfg.njmax = 4 * 32768 + 1200
     cfg.collision_cfg.rigid_contact_max = 32768
-    # Isaac's NewtonStage.simulate() (isaacsim.physics.newton; identical in
-    # 6.1.0 GA, 7.0.0a1 and internal develop of 2026-09-29) swaps state_0 and
-    # state_1 after every substep and, with the CUDA graph on, copies back
-    # only on the LAST substep. The captured graph always reads the buffer
-    # that was state_0 at capture, so the loop is only correct for an ODD
-    # substep count with the graph on (an even one with it off). Otherwise
-    # every frame replays one substep, physics runs at (N-1)/N speed (0.75x
-    # at the old N=4), and every supported-API write (RigidPrim teleports,
-    # prop resets) is overwritten on the next frame. Measured on a free-fall
-    # cube, docs/NEWTON_ENGINE.md "Isaac's Newton stepping bug".
+    # Substep parity guard. Before Isaac Sim 6.2, NewtonStage.simulate()
+    # (isaacsim.physics.newton) swapped state_0 and state_1 after every
+    # substep and, with the CUDA graph on, copied back only on the LAST
+    # substep, so the loop was only correct for an ODD substep count with the
+    # graph on (an even one with it off): otherwise physics ran at (N-1)/N
+    # speed and every supported-API write (RigidPrim teleports, prop resets)
+    # was overwritten on the next frame. Isaac Sim 6.2.0 copies the newest
+    # state back into the pinned buffer for any count; the guard stays until
+    # an even count is measured on 6.2. docs/NEWTON_ENGINE.md "Isaac's Newton
+    # stepping bug".
     _graph = bool(getattr(cfg, "use_cuda_graph", True))
     _n = int(args.newton_substeps)
     if _n < 1 or (_n % 2 == 1) != _graph:
@@ -537,6 +537,7 @@ _STATIC_PROPS: list[str] = []
 
 _SCENE_PROP_SPECS = []
 _SCENE_IDENTITY = {"scene_config": None, "scene_config_sha256": None}
+_scene_config = None  # the kitchen config; seeded resets need its layout
 if args.scene_config:
     # Pure USD scene authoring: completed before play, with unchanged helpers.
     sys.path.insert(0, os.path.join(_REPO_ROOT, "demo"))
@@ -1023,6 +1024,15 @@ print(f"[bridge] arm idx {ARM_IDX} grip idx {GRIP_IDX} "
 # presses Stop/Play in the editor (physics re-parse scatters them).
 _PROP_SPAWNS = {name: tuple(pos) for name, pos, *_ in PROPS}
 
+# Seeded reset layouts (op set_reset_seed, simulation verifier scenes). None,
+# the boot state of every live demo, keeps today's reset on _PROP_SPAWNS. The
+# pure layout code is pinned with this file in demo/scene/own_assets.json.
+if os.path.join(_REPO_ROOT, "src") not in sys.path:
+    sys.path.insert(0, os.path.join(_REPO_ROOT, "src"))
+from cascade.sim.scene_seed import kitchen_layout, seeded_spawns, validate_reset_seed  # noqa: E402
+
+_RESET_SEED = None
+
 _state_lock = threading.Lock()
 _motion_clock_epoch = uuid.uuid4().hex
 _target_receipts = None
@@ -1323,7 +1333,10 @@ class Handler(socketserver.StreamRequestHandler):
     def _dispatch(self, req: dict) -> dict:
         op = req.get("op")
         if op == "ping":
-            return {"ok": True, "engine": engine, "dofs": names, **self.scene_identity}
+            reply = {"ok": True, "engine": engine, "dofs": names, **self.scene_identity}
+            if _RESET_SEED is not None:  # a seeded layout is armed (set_reset_seed)
+                reply["reset_seed"] = _RESET_SEED
+            return reply
         if op == "frame":
             cached = _frames.get(req.get("camera", "cam0"))
             if cached is None:
@@ -1387,6 +1400,9 @@ class Handler(socketserver.StreamRequestHandler):
                     _targets["receipt_sequence"] = None
                     _target_receipts.stop()
             return {"ok": True}
+        if op == "set_reset_seed":
+            # Stores the layout seed of the NEXT reset_props; moves nothing.
+            return _set_reset_seed(req)
         if op == "reset_props":
             # Both settling and read-back run between sim steps on Kit's
             # MAIN thread. Return the measured result, not exec's generic
@@ -1922,8 +1938,11 @@ def _newton_teleport(name, pos) -> bool:
     return True
 
 
-def _settle_props() -> None:
+def _settle_props(spawns=None) -> None:
     """Deterministically settle every dynamic prop onto the table.
+
+    `spawns` (name -> base-frame position) defaults to _PROP_SPAWNS; a seeded
+    reset passes its layout.
 
     Props authored with their bottom face exactly on the table plane are
     born in contact, and PhysX occasionally resolves that first-tick contact
@@ -1997,10 +2016,12 @@ def _settle_props() -> None:
         _d = float(np.linalg.norm(np.asarray(_p) - np.asarray(_want)))
         return _d > 0.02
 
-    names = [n for n in _PROP_SPAWNS if stage.GetPrimAtPath(f"/World_Props/{n}")]
+    if spawns is None:
+        spawns = _PROP_SPAWNS
+    names = [n for n in spawns if stage.GetPrimAtPath(f"/World_Props/{n}")]
     for _attempt in range(4):
         for _n in names:
-            _place(_n, _PROP_SPAWNS[_n], 0.03)
+            _place(_n, spawns[_n], 0.03)
         for _ in range(120):
             _step()
         # re-zero velocity mid-settle to kill any contact runaway early
@@ -2009,7 +2030,7 @@ def _settle_props() -> None:
         for _ in range(60):
             _step()
         stragglers = [n for n in names
-                      if _escaped(RigidPrim(f"/World_Props/{n}"), _PROP_SPAWNS[n])]
+                      if _escaped(RigidPrim(f"/World_Props/{n}"), spawns[n])]
         if not stragglers:
             print(f"[bridge] props settled cleanly (attempt {_attempt + 1})",
                   flush=True)
@@ -2019,11 +2040,45 @@ def _settle_props() -> None:
     # final hard clamp: park stragglers exactly on their spot, zero velocity
     for _n in names:
         _rp = RigidPrim(f"/World_Props/{_n}")
-        if _escaped(_rp, _PROP_SPAWNS[_n]):
-            _place(_n, _PROP_SPAWNS[_n], 0.0)
+        if _escaped(_rp, spawns[_n]):
+            _place(_n, spawns[_n], 0.0)
             print(f"[bridge] settle: {_n} hard-clamped onto table", flush=True)
     for _ in range(30):
         _step()
+
+
+def _reset_spawns(seed):
+    """(spawns, fallbacks) a reset places and verifies: _PROP_SPAWNS for no seed,
+    else the seeded kitchen layout of exactly these props. Raises ValueError
+    when no such layout exists (no kitchen config, other props, bad seed)."""
+    if seed is None:
+        return _PROP_SPAWNS, []
+    if _scene_config is None:
+        raise ValueError("a seeded reset needs the kitchen scene (--scene-config)")
+    layout, footprints, keepouts = kitchen_layout(_scene_config)
+    if layout != _PROP_SPAWNS:
+        raise ValueError("the kitchen config's spawns differ from this bridge's props")
+    return seeded_spawns(_PROP_SPAWNS, seed, footprints=footprints, keepouts=keepouts)
+
+
+def _set_reset_seed(req: dict) -> dict:
+    """Op set_reset_seed {seed: int|null}: the layout of every later reset_props.
+
+    Null restores today's fixed spawns. A refused request keeps the previous
+    seed; the layout is built once here so a seed it cannot place is refused now.
+    `ping` reports an armed seed as `reset_seed`. Harnesses set seeds only
+    through `cascade.sim.isaac_reset.seeded_reset`, which always clears them.
+    """
+    global _RESET_SEED
+    if "seed" not in req:
+        return {"ok": False, "error": "set_reset_seed needs seed: an integer or null"}
+    try:
+        seed = validate_reset_seed(req["seed"])
+        _reset_spawns(seed)
+    except (TypeError, ValueError) as exc:
+        return {"ok": False, "error": f"set_reset_seed refused: {exc}"}
+    _RESET_SEED = seed
+    return {"ok": True, "seed": seed}
 
 
 def _reset_props_verified() -> dict:
@@ -2031,20 +2086,25 @@ def _reset_props_verified() -> dict:
 
     Positions are physics RigidPrim read-backs in metres, converted from
     world to robot-base frame. The 2 cm tolerance matches _settle_props;
-    this wrapper changes no controller, contacts or settle tuning.
+    this wrapper changes no controller, contacts or settle tuning. With a
+    reset seed set, the props go to (and are verified on) the seeded layout,
+    and the reply adds `seed` and `seed_fallbacks`; without one, the reply is
+    unchanged.
     """
     from isaacsim.core.experimental.prims import RigidPrim
 
     if not _tl.is_playing():
         raise RuntimeError("reset requires a playing physics timeline")
-    if not _PROP_SPAWNS:
+    seed = _RESET_SEED  # read once: a set_reset_seed during this reset applies to the next
+    spawns, fallbacks = _reset_spawns(seed)
+    if not spawns:
         raise RuntimeError("reset has no configured prop spawns to verify")
-    missing = [n for n in _PROP_SPAWNS if not stage.GetPrimAtPath(f"/World_Props/{n}")]
+    missing = [n for n in spawns if not stage.GetPrimAtPath(f"/World_Props/{n}")]
     if missing:
         raise RuntimeError(f"reset missing required props: {missing}")
     errors = []
     try:
-        _settle_props()
+        _settle_props(spawns)
     except Exception as exc:
         # Preserve measured evidence even when a compatibility teleport is
         # rejected. A failed settle must never become a successful reset.
@@ -2053,7 +2113,7 @@ def _reset_props_verified() -> dict:
         raise RuntimeError("physics timeline stopped during reset; read-back is unverified")
     checks = {}
     tolerance_m = 0.02
-    for name, spawn in _PROP_SPAWNS.items():
+    for name, spawn in spawns.items():
         positions = RigidPrim(f"/World_Props/{name}").get_world_poses()[0]
         position = np.asarray(positions.numpy(), dtype=float).reshape(3).copy()
         position[2] -= BASE_Z
@@ -2073,6 +2133,9 @@ def _reset_props_verified() -> dict:
         "channel": "physics", "frame": "robot_base", "tolerance_m": tolerance_m,
         "props": checks,
     }}
+    if seed is not None:
+        result["seed"] = seed
+        result["seed_fallbacks"] = list(fallbacks)
     if errors:
         result["error"] = "reset verification failed: " + "; ".join(errors)
     return result

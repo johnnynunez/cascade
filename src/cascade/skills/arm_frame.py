@@ -30,9 +30,10 @@ from ..types import SkillError
 
 #: Sections a non-primary arm reads from its own resolved view (D3).
 ARM_SCOPED_SECTIONS: tuple[str, ...] = ("arm", "grasp", "safety", "relative_motion")
-#: Profile `overrides:` keys that describe the whole rig and stay top-level.
+#: Profile `overrides:` keys that describe the whole rig and stay top-level
+#: (`agent`: the ASPIRE sim retry ledger is built once per runtime).
 RIG_SCOPED_OVERRIDES: frozenset[str] = frozenset({
-    "workspace_filter", "memory", "perception_loop", "detector", "object_descriptions", "occupancy"})
+    "workspace_filter", "memory", "perception_loop", "detector", "object_descriptions", "occupancy", "agent"})
 #: `grasp` keys naming services the rig builds ONCE from the primary's view
 #: (GraspGen-X, HUG, the VLA executor; apps/demo.py): every arm's view keeps
 #: the top-level values, so no arm names a service the rig never built (R13).

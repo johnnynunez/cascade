@@ -4,6 +4,9 @@
     Match a failed call to a later measured-confirmed retry within a bounded
     trace window. Require the same goal, resolved arm and pre-call possession;
     explicit reset/task-end rows stop matching. Unknown context is rejected.
+    An operator halt is never that failed call: it is not how a primitive
+    broke, so a retry after it teaches nothing. Nor is a call the sim retry
+    ledger refused before any motion (nothing ran).
 
 ``distil(diagnosis, library)`` / ``harvest(runs_dir, library)``
     Recheck eligibility and persist the error, context, argument delta and
@@ -35,7 +38,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ..memory.envelope import normalize_failure
+from ..memory.envelope import HALT_SIGNATURE, failure_signature, refused_before_motion
 from .effects import CONFIRMED, POSTCONDITIONS
 
 #: A repair is only credited when the same primitive later succeeded within
@@ -107,8 +110,11 @@ class Diagnosis:
 
     @property
     def teachable(self) -> bool:
-        """Only scoped, measured-confirmed retry associations become notes."""
+        """Only scoped, measured-confirmed retry associations become notes.
+        An operator halt is not how the primitive broke: a retry after one
+        repaired nothing."""
         return (self.repaired and bool(self.failed_skill) and bool(self.signature)
+                and self.signature != HALT_SIGNATURE
                 and self.repair_skill == self.failed_skill
                 and _same_goal(self.failed_args, self.repair_args)
                 and _same_context(self.failed_skill, self.failed_context, self.repair_context)
@@ -186,9 +192,17 @@ def diagnose(run_dir: str | Path) -> Diagnosis | None:
         return diag
 
     # Select the LAST failure with a matching confirmed retry, or the first
-    # failure when no eligible retry was recorded.
+    # failure when no eligible retry was recorded. An operator halt is never
+    # that failure (a retry after it repaired nothing), so a real failure
+    # earlier in the run can still be learned; a run whose only failures
+    # are halts reports its first halt. Nor is a call the sim retry ledger
+    # refused before any motion (`refused_before_motion`: nothing ran; a
+    # stopped one is a halt's or an e-stop's echo).
+    breakages = [(i, r) for i, r in failures
+                 if failure_signature(r.get("result") or {}) != HALT_SIGNATURE
+                 and not refused_before_motion(r.get("context"))]
     chosen = None
-    for idx, rec in failures:
+    for idx, rec in breakages:
         skill = rec.get("skill", "")
         for later in records[idx + 1: idx + 1 + REPAIR_WINDOW]:
             result = later.get("result") or {}
@@ -203,12 +217,12 @@ def diagnose(run_dir: str | Path) -> Diagnosis | None:
                     and _confirmed_postcondition(skill, postcondition)):
                 chosen = (rec, later)
                 break
-    rec, fix = chosen if chosen is not None else (failures[0][1], None)
+    rec, fix = chosen if chosen is not None else ((breakages or failures)[0][1], None)
     diag.failed_skill = rec.get("skill", "")
     diag.failed_args = rec.get("args") or {}
     diag.failed_context = copy.deepcopy(rec.get("context") or {})
     diag.error = str((rec.get("result") or {}).get("error", ""))
-    diag.signature = normalize_failure(diag.error)
+    diag.signature = failure_signature(rec.get("result") or {})
     diag.keyframe = rec.get("keyframe_after") or ""
     if fix is None:
         return diag
@@ -331,7 +345,18 @@ def retrieve(library, task: str, max_entries: int = 2, max_chars: int = 1400, *,
     #7, opt-in) the promoted notes are ranked by text-embedding similarity
     and each block says so; without it the text is exactly the pre-embedder
     text.
+
+    A run's snapshot view (``skills.notes.served_library``, the demo CLI's
+    library) renders its own text, ``block_for``: the served notes this task
+    matches exactly as the prompt block renders them (title, advice,
+    provenance tag), never a note's body.
     """
+    block_for = getattr(library, "block_for", None)
+    if callable(block_for):
+        try:
+            return block_for(task, max_entries, max_chars, embedder=embedder)
+        except Exception:  # noqa: BLE001 -- fail closed: a library that cannot be read gives no note
+            return ""
     try:
         if embedder is None:
             entries = library.relevant_entries(task, max_entries=max_entries, promoted_only=True)

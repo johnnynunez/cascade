@@ -838,7 +838,7 @@ def create_overview_sensor(stage, camera, sensor_factory, *, sync_renderer, rgbd
                            shape=OVERVIEW_SHAPE):
     """Author a stable product for CameraSensor's supported asset-RP path.
 
-    Isaac Sim 6.1 SensorRuntime._find_asset_render_product discovers a
+    Isaac Sim's SensorRuntime._find_asset_render_product discovers a
     RenderProduct outside /Render with a camera relationship to this sensor.
     CameraSensor adopts its authored resolution. Its default creation path
     instead embeds hash(self), making otherwise identical scene hashes vary.
@@ -1394,7 +1394,7 @@ class KitNewtonBackend:
                             lambda: self.readback.detach_annotators(
                                 ['rgb', 'distance_to_image_plane'] if self._calibration_reader else ['rgb']),
                             self.readback._invalidate_sensor):
-                # CameraSensor 6.1 has no public close: its own destructor calls
+                # CameraSensor has no public close: its own destructor calls
                 # _invalidate_sensor (subscription + render product teardown).
                 try:
                     cleanup()

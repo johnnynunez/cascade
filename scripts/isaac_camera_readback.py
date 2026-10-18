@@ -2,7 +2,7 @@
 
 CameraSensor's public ``out`` argument selects CPU readback in Replicator.
 This avoids converting a borrowed CUDA render buffer after get_data returns;
-that conversion segfaulted in depth_data.numpy() on controller/Isaac 6.1.
+that conversion segfaulted in depth_data.numpy() on the controller.
 Rendering and simulation still execute on their selected GPU device.
 """
 from __future__ import annotations

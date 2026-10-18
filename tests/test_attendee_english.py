@@ -60,7 +60,8 @@ def test_attendee_guidance_is_short_english_and_uses_only_attendee_tools():
     assert "Answer attendees in English." in instructions
     assert len(instructions.split()) <= 400
     names = set(re.findall(r"cascade__([a-z_]+)", instructions))
-    assert names <= {"describe_scene", "localize_object", "pick_and_place", "reset_scene", "camera_snapshot", "world_state"}
+    assert names <= {"describe_scene", "localize_object", "pick_and_place", "reset_scene", "camera_snapshot", "world_state",
+                     "robot_knowledge"}
     assert "clarification" in instructions and "ambiguous" in instructions
     assert "verified" in instructions and "failed" in instructions
 

@@ -17,9 +17,11 @@ import logging
 from contextlib import nullcontext
 import math
 import os
+import re
 import sys
 import threading
 import time
+import unicodedata
 
 import cv2
 import numpy as np
@@ -155,21 +157,33 @@ def _pregrasp_min_z(gcfg, harness, fix) -> float | tuple[float, float] | None:
     hover = top + float(clear_top)
     if not bool(gcfg.get("pregrasp_map_top", False)):
         return hover
+    lift = _map_top_lift(gcfg, harness, fix, top)
+    if not lift > 0.0:
+        return hover
+    return (hover + lift, hover)
+
+
+def _map_top_lift(gcfg, harness, fix, top: float) -> float:
+    """How far the occupancy map's top of the target raises its observed
+    `top`: the top face of the highest occupied voxel in the target's own
+    column (`_column_geometry` around the fix XY) above `top`, at most
+    MAP_TOP_RAISE_CAP_M, plus half a voxel (at most
+    MAP_TOP_HALF_VOXEL_CAP_M). 0.0 without a map, for a stale or failed map,
+    an empty column or a non-finite answer. The pregrasp hover
+    (`_pregrasp_min_z`) and point_at's object top read it the same way."""
     column_top = getattr(getattr(harness, "occupancy", None), "column_top", None)
     if not callable(column_top):
-        return hover
+        return 0.0
     column = _column_geometry(gcfg, harness, fix.position[:2], fix.points)
     if column is None:
-        return hover
+        return 0.0
     found = _map_column_top(harness, column_top, column)
     if found is None:
-        return hover
+        return 0.0
     map_top, voxel = found
     lift = (min(max(float(map_top) - top, 0.0), MAP_TOP_RAISE_CAP_M)
             + min(float(voxel) / 2.0, MAP_TOP_HALF_VOXEL_CAP_M))
-    if not lift > 0.0:   # also NaN: a non-finite map answer keeps today's hover
-        return hover
-    return (hover + lift, hover)
+    return lift if lift > 0.0 else 0.0   # also NaN: a non-finite map answer is no lift
 
 
 def _map_column_top(harness, column_top, column) -> tuple[float, float] | None:
@@ -202,32 +216,69 @@ POINT_AT_IK_SLACK_M = 0.001
 
 def _pointing_tool_points(gcfg, axis_order: str) -> np.ndarray:
     """(N, 3) TCP-frame points that bound the gripper's lower end in a
-    pointing pose: the TCP and the 8 corners of the profile's open-jaw sweep
-    box (`grasp.graspgenx.sweep`: origin at the TCP, +X closing, +Y third, +Z
-    approach), the jaws box the harness's tool volume samples. It bounds the
-    closed jaws too: the SO-101 box reaches 15 mm past the TCP, the closed
-    beak's MuJoCo collision geometry 6.6 mm; the reBot's ends at the TCP (its
-    fingertip plane). No sweep: the TCP alone. A malformed sweep raises
-    SkillError before any motion."""
-    from .relative_motion import _TOOL_COLUMNS
+    top-down pointing pose: the TCP and the 8 corners of the profile's
+    open-jaw sweep box (`safety.tool_volume.jaw_box`, the box the harness's
+    tool volume samples). It bounds the closed jaws too: the SO-101 box
+    reaches 15 mm past the TCP, the closed beak's MuJoCo collision geometry
+    6.6 mm; the reBot's ends at the TCP (its fingertip plane). No sweep: the
+    TCP alone. A malformed sweep raises SkillError before any motion."""
+    from ..safety import tool_volume
 
-    graspgenx = gcfg.get("graspgenx") or {}
-    sweep = graspgenx.get("sweep") or {}
+    sweep = (gcfg.get("graspgenx") or {}).get("sweep") or {}
+    if sweep.get("extents_open") is None:
+        sweep = {"extents_open": [0.0, 0.0, 0.0], "offset_open": sweep.get("offset_open", [0.0, 0.0, 0.0])}
     try:
-        ext = np.asarray(sweep.get("extents_open", [0.0, 0.0, 0.0]), dtype=float).reshape(3)
-        off = np.asarray(sweep.get("offset_open", [0.0, 0.0, 0.0]), dtype=float).reshape(3)
-    except (TypeError, ValueError):
-        ext = off = np.full(3, np.nan)
-    if not (np.all(np.isfinite(ext)) and np.all(ext >= 0) and np.all(np.isfinite(off))):
-        raise SkillError(f"grasp.graspgenx.sweep open jaws must be finite, got "
-                         f"{sweep.get('extents_open')!r}, {sweep.get('offset_open')!r}; nothing was moved")
-    if axis_order not in _TOOL_COLUMNS:
-        raise SkillError(f"unknown tool_axis_order {axis_order!r}; nothing was moved")
-    a_col, j_col, t_col = _TOOL_COLUMNS[axis_order]
-    axes = np.eye(3)[:, [j_col, t_col, a_col]]
-    corners = np.array([[sx, sy, sz] for sx in (-1, 1) for sy in (-1, 1) for sz in (-1, 1)],
-                       dtype=float) * (ext / 2.0) + off
-    return np.vstack([np.zeros(3), corners @ axes.T])
+        centre, axes, half = tool_volume.jaw_box(sweep, axis_order)
+    except ValueError as exc:
+        raise SkillError(f"{exc}; nothing was moved") from None
+    signs = np.array([[sx, sy, sz] for sx in (-1, 1) for sy in (-1, 1) for sz in (-1, 1)], dtype=float)
+    return np.vstack([np.zeros(3), centre + (signs * half) @ axes.T])
+
+
+def _belief_footprint(belief) -> tuple[np.ndarray, float]:
+    """A remembered object's prism for point_at: (xy footprint polygon, top).
+
+    The top is its remembered `top_z`, else its centre plus half its
+    largest extent. The footprint covers its remembered points' xy and a
+    square around its position whose half-side is half the diagonal of its
+    two HORIZONTAL extents (any yaw fits in it). Extents are eigenvalue-
+    ordered, not axis-aligned: the vertical one is the extent closest to its
+    height (twice its top above its centre), so a 20 cm bottle's footprint is
+    its 6 cm girth, not its height. Raises ValueError when its position, top
+    or extents (or points) are not finite, or when it has neither extents
+    nor points: an object point_at cannot place is never skipped."""
+    name = f"the {belief.color + ' ' if getattr(belief, 'color', None) else ''}{belief.label}"
+    position = np.asarray(belief.position, dtype=float).reshape(-1)
+    ext = getattr(belief, "extent", None)
+    ext = None if ext is None else np.asarray(ext, dtype=float).reshape(-1)
+    pts = getattr(belief, "points", None)
+    pts = None if pts is None or not len(pts) else np.asarray(pts, dtype=float).reshape(-1, 3)
+    top = getattr(belief, "top_z", None)
+    if top is None and ext is not None and ext.size:
+        top = float(position[2] + np.max(ext) / 2.0) if position.size == 3 else math.nan
+    if top is None and pts is not None:
+        top = float(pts[:, 2].max())
+    top = math.nan if top is None else float(top)
+    if not (position.size == 3 and np.isfinite(position).all() and math.isfinite(top)
+            and (ext is None or (ext.size == 3 and np.isfinite(ext).all()))
+            and (pts is None or np.isfinite(pts).all()) and (ext is not None or pts is not None)):
+        raise ValueError(f"{name}'s remembered box is not finite")
+    xy = [] if pts is None else [pts[:, :2]]
+    if ext is not None:
+        height = 2.0 * max(top - float(position[2]), 0.0)
+        horizontal = np.delete(np.abs(ext), int(np.argmin(np.abs(np.abs(ext) - height))))
+        half = float(np.hypot(*horizontal)) / 2.0
+        xy.append(position[:2] + half * np.array([[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]]))
+    return np.vstack(xy), top
+
+
+def _raise_if_estopped(harness) -> None:
+    """A latched e-stop vetoes every route the harness vets: when point_at
+    finds no route, an e-stop is reported as the e-stop, never as the
+    geometry it made fail. (An operator halt since the skill started is
+    reported as the halt by `execute`.)"""
+    if getattr(harness, "estopped", False):
+        raise SafetyViolation("e-stop latched")
 
 
 def _lowest_tool_z(T, tool_points) -> float:
@@ -387,6 +438,10 @@ class _HoldNotJudged(Exception):
 #: refusal needs room for the label within the agent's 240 characters.
 _JAWS_NOT_READ = "the jaw state could not be read"
 _JAWS_NOT_JUDGED = "the jaw reading could not be judged"
+#: Why a persistence loop stops after a failed attempt that left an
+#: interrupted grasp's provisional hold (`_grasp_retry_verdict`): the next
+#: grasp would refuse it (`_possible_hold_refusal`); the ask names the way out.
+_POSSIBLE_HOLD_STOP = "the jaws may still hold an object; not retrying"
 
 
 def _error_text(exc: BaseException) -> str:
@@ -397,15 +452,51 @@ def _error_text(exc: BaseException) -> str:
 
 def _cut_text(text: str, limit: int) -> str:
     """`text` within `limit` characters; a cut ends in "..." (the failure
-    line keeps that marker, `_with_failure_instruction`)."""
-    return text if len(text) <= limit else text[:max(limit - 3, 0)].rstrip() + "..."
+    line keeps that marker, `_with_failure_instruction`). A limit too small
+    for the marker keeps that many of its dots (none below 1): never more
+    than `limit` characters."""
+    limit = max(int(limit), 0)
+    if len(text) <= limit:
+        return text
+    return text[:limit - 3].rstrip() + "..." if limit >= 3 else "." * limit
+
+
+#: The fewest characters a refusal leaves a label: 18 of its own plus "...".
+#: Every shipped template leaves at least this; a longer template keeps the
+#: label readable and runs past the 240 characters instead.
+_MIN_LABEL_ROOM = 21
 
 
 def _fit_label(template: str, label, *, keep: int = 0) -> str:
     """`template` with `label` in its `{}`, the label shortened so the text
     plus `keep` more characters fits the error the agent's failure line quotes
-    (_FAILED_ERROR_CHARS): a long name is cut, never the sentence."""
-    return template.format(_cut_text(str(label), _FAILED_ERROR_CHARS - keep - len(template.format(""))))
+    (_FAILED_ERROR_CHARS): a long name is cut, never the sentence. A template
+    that leaves less than _MIN_LABEL_ROOM still gets that much of the label
+    (the failure line then marks the text truncated), never a bare "..."."""
+    room = _FAILED_ERROR_CHARS - keep - len(template.format(""))
+    return template.format(_cut_text(str(label), max(room, _MIN_LABEL_ROOM)))
+
+
+def _unread_hold_refusal(label, *, column_kept: bool, then: str, judged: bool = False,
+                         error: BaseException | None = None, prefix: str = "") -> str:
+    """The refusal for an interrupted grasp's provisional hold whose jaws
+    could not be read (`judged`: read, but the hold could not be judged
+    against the reading): the way out first -- move_home first while the
+    approach column is kept, then the object out by hand, open_gripper and
+    `then` -- and the driver's text after it (" Error: ..."). reset_scene
+    (`then` reset_scene) and every skill whose first jaw command opens the
+    jaws (`SkillRuntime._possible_hold_refusal`) share it. The text, after
+    `prefix` (the exception name execute() puts first), fits the 240
+    characters the agent's failure line quotes: a long label is shortened,
+    never the sentence, and gives way to the driver's text only as far as it
+    needs (at most _REFUSAL_ERROR_ROOM characters)."""
+    way = ("call move_home first (it raises the gripper up its approach column), then, if {} is in the "
+           "jaws, take it out by hand, open_gripper, %s." if column_kept else
+           "if {} is in the jaws, take it out by hand, then open_gripper, then %s.") % then
+    head = (_JAWS_NOT_JUDGED if judged else _JAWS_NOT_READ) + ": " + way
+    tail = " Error: " + ("no valid jaw feedback" if error is None else _error_text(error))
+    way_out = _fit_label(head, label, keep=len(prefix) + min(_REFUSAL_ERROR_ROOM, len(tail)))
+    return way_out + _cut_text(tail, _FAILED_ERROR_CHARS - len(prefix) - len(way_out))
 
 
 def _air_grasp_stop(harness, generation) -> str | None:
@@ -547,6 +638,12 @@ class _ObservedSelection:
     def refused(self):
         return sum(1 for a in self.attempts if a["outcome"].startswith("refused before contact"))
 
+    def refused_grasps(self) -> tuple:
+        """The candidates this grasp attempted that did not end grasped: what
+        the sim retry must not try again (`_without_refused`)."""
+        return tuple(self.candidates[a["candidate"]] for a in self.attempts
+                     if a["candidate"] is not None and a["outcome"] != "grasped")
+
     def note(self, why_not=None):
         """Suffix of a failure after candidates of this plan were refused
         before contact and withdrew (empty when none was: the message then
@@ -589,7 +686,10 @@ class _ObservedSelection:
 def _observed_selection_on_failure(function):
     """Every exception leaving `skill_grasp_object` once its observed-finger
     choice record exists carries that record (`exc.observed_selection`), so
-    the grasp_object / pick_and_place failure results can report it."""
+    the grasp_object / pick_and_place failure results can report it, and
+    leaves the attempted candidates that did not grasp on the call's sim
+    retry state (`_SimRetryState.refused_grasps`: the retry excludes them,
+    spec §4.5; nothing without a ledger)."""
     @functools.wraps(function)
     def wrapped(self, *args, **kwargs):
         record = kwargs.get("_observed_record")
@@ -601,8 +701,86 @@ def _observed_selection_on_failure(function):
             selection = record.get("selection")
             if selection is not None:
                 selection.annotate(exc)
+                state = _sim_retry_state(self)
+                if state is not None:
+                    state.refused_grasps = selection.refused_grasps()
             raise
     return wrapped
+
+
+class _SimRetryState:
+    """THE sim retry's per-call state (spec §4.5) for one outermost motion call
+    of a runtime with a ledger. It lives on the calling thread's motion scope
+    (`_sim_retry_state`), so another thread (the MCP read-only lane, a stop
+    frame) never reads or writes it, whatever lock it holds.
+    `exclude`: the grasps THE retry must not repeat (empty unless the call is
+    the retry); `refused_grasps`: the attempted candidates of the call's last
+    refused observed-finger grasp; `refusal_exc_type`: the class NAME of the
+    exception that refused pick_and_place's grasp stage (pick_and_place folds
+    that refusal into a result, R6)."""
+
+    __slots__ = ("exclude", "refused_grasps", "refusal_exc_type")
+
+    def __init__(self, exclude=()):
+        self.exclude = tuple(exclude)
+        self.refused_grasps: tuple = ()
+        self.refusal_exc_type: str | None = None
+
+
+def _sim_retry_state(runtime) -> _SimRetryState | None:
+    """This thread's sim retry state, bound by `_execute_skill` on the runtime's
+    thread-local motion scope for an outermost motion call of a runtime with a
+    ledger; None anywhere else (also for a runtime double without a scope)."""
+    return getattr(getattr(runtime, "_motion_scope", None), "sim_retry", None)
+
+
+def _without_refused(grasps, excluded):
+    """`grasps` without every candidate that repeats one of `excluded` (the
+    refused attempt's grasps): the same candidate or its jaws-swapped twin
+    (`_same_grasp`), or a near-copy (`_near_copy`). Nothing excluded: `grasps`
+    itself."""
+    if not excluded:
+        return grasps
+    return [grasp for grasp in grasps
+            if not any(_same_grasp(refused, grasp) or _near_copy(refused, grasp) for refused in excluded)]
+
+
+#: The sim retry's plan holds only grasps the refused attempt already tried.
+_NO_DIFFERENT_GRASP = "no different grasp candidate: every planned grasp repeats the refused one"
+
+
+class _OtherThanRefused:
+    """THE sim retry's planned batches (spec §4.5), each one `_without_refused`.
+    A batch the exclusion empties is an empty batch: the feasibility search
+    goes on to its next batch (A7 review Minor 1). `only_repeats`: a batch was
+    emptied and none kept a grasp, so the plan is "no different grasp
+    candidate", not a planning failure of the object. `last_emptied`: the
+    latest batch was one the exclusion emptied (a search that ends on it ends
+    with the last vetted batch's refusal; A7 re-review Minor 1). Nothing
+    excluded: every batch as planned, `only_repeats` and `last_emptied` never
+    true."""
+
+    def __init__(self, excluded):
+        self.excluded = tuple(excluded)
+        self.emptied = self.kept = self.last_emptied = False
+
+    def __call__(self, grasps):
+        kept = _without_refused(grasps, self.excluded)
+        self.last_emptied = bool(grasps) and not kept
+        self.emptied = self.emptied or self.last_emptied
+        self.kept = self.kept or bool(kept)
+        return kept
+
+    @property
+    def only_repeats(self) -> bool:
+        return self.emptied and not self.kept
+
+
+def _episode_pending(harness) -> bool:
+    """A contact or a release episode this harness still holds open (its
+    explicit recovery is pending). Registry read only: never a backend."""
+    return (getattr(harness, "_pending_contact_episode", None) is not None
+            or getattr(harness, "_pending_release_episode", None) is not None)
 
 
 class _ObservedNextCandidate:
@@ -1170,6 +1348,17 @@ class SkillRuntime:
     #: LinkSelfMask | None (B39): set by the app wiring when
     #: `workspace_filter.link_self_mask` is on; see perception/link_mask.py.
     _link_self_mask: "LinkSelfMask | None" = None
+    #: ASPIRE note library snapshot (`skills.notes.LibrarySnapshot`), taken once
+    #: by `apps.demo.build_runtime`; None for runtimes built any other way (bare
+    #: `__new__` fixtures, MCP fakes), which serve no note (preflight R29).
+    learned = None
+    #: ASPIRE sim retry ledger (`agent.sim_retry.SimRetryLedger`): built by
+    #: `apps.demo.build_runtime` only for a sim profile with every switch on
+    #: (`ledger_for`); None everywhere else (preflight R29). With None nothing
+    #: of the sim retry runs and every call runs exactly as before. Its per-call
+    #: state is `_SimRetryState`, on the calling thread's motion scope.
+    sim_retry = None
+
     #: The PRIMARY arm's Kinematics and Cfg (the `kin` / `cfg` setters write
     #: these), and the other arms' bindings by rig name (build_runtime's
     #: `register_arm_bindings`). Class defaults for `__new__` runtimes.
@@ -1506,6 +1695,13 @@ class SkillRuntime:
                 return f"halted: {halted}" if halted else "halt received during route planning or execution"
         return None
 
+    @staticmethod
+    def _skill_halt_estopped(baselines) -> bool:
+        """A harness that took a halt since the skill started
+        (`_skill_halt_reason`) also has its e-stop latched: both stops came."""
+        return any(harness._halt_generation != generation and getattr(harness, "estopped", False)
+                   for harness, generation in baselines)
+
     def _select_arm(self, name):
         """Resolve an arm name to a SafeArm, or raise SkillError.
 
@@ -1531,6 +1727,72 @@ class SkillRuntime:
             return self.arm_rig.get(str(name))
         except KeyError as e:
             raise SkillError(str(e)) from e
+
+    # ── ASPIRE sim retry (spec §4.5) ─────────────────────────────────────
+
+    def _sim_retry_ledger(self, name):
+        """This call's retry ledger: the runtime's (None on any profile that
+        built none), for a motion skill only, and only for the outermost motion
+        call of this thread (a nested call runs inside the outer one's)."""
+        ledger = self.sim_retry
+        if ledger is None or name not in _MOTION_SKILLS:
+            return None
+        scope = getattr(self, "_motion_scope", None)
+        if getattr(scope, "context", None) is not None:
+            return None
+        return ledger
+
+    def _stop_token(self) -> tuple:
+        """The rig's stop token (R7): every arm harness's halt / e-stop count
+        (`_observation_cancel_generation`: `halt()` and `estop()` raise it, a
+        Resume or `reset_estop` never lowers it). Registry reads only (the
+        harnesses `_arm_harnesses` lists), never a backend."""
+        return tuple(getattr(harness, "_observation_cancel_generation", None)
+                     for harness in self._arm_harnesses())
+
+    def _sim_retry_refusal(self, name, args, refusal: dict, trace_context: dict) -> dict:
+        """The refusal `begin` returned (the dict `precheck` returns): a used retry
+        (RETRY_USED) or a stopped one (the operator stopped the arm after the
+        refusal: RETRY_STOPPED_NEXT), after the FAILED line, with its own trace
+        row (R28: acceptance, admission and grading count it), returned before
+        any status line, keyframe or motion."""
+        result = _with_retry_text(_with_failure_instruction(_normalize_outcome(dict(refusal), name)), name)
+        mark = {"refused": True}
+        if (refusal.get("sim_retry") or {}).get("stopped") is True:
+            mark["stopped"] = True
+        self.trace.record(name, args, result, 0.0, tier=self.current_tier,
+                          context={**trace_context, "sim_retry": mark})
+        return result
+
+    def _home_before_retry(self, generation) -> None:
+        """THE retry's first step when the refused attempt left the arm in
+        place: the agent-callable move_home with all its gates, carrying the
+        skill's halt baseline `generation`; a halt since then (during or right
+        after the home) ends the call as MotionHalted before any pick."""
+        self.skill_move_home(_halt_generation=generation)
+        self.arm.harness._check_halt_generation(generation)
+
+    def _sim_retry_finish(self, ledger, name, args, result, trace_context, *, retry, retry_home, exc_type, state,
+                          arm, harness, baselines) -> dict:
+        """Hand the finished call to the ledger, read at the END of the call (the
+        hold, a latch, a halt since the skill started, a pending episode, the
+        rig's stop token), then compose the agent text and mark the trace row
+        (the retry, its home, a ledger that switched itself off)."""
+        result = ledger.finish(name, args, result, exc_type=exc_type, held=bool(self._jaws_may_hold()),
+                               latched=self._stop_latched(arm), halted=self._halted_since_skill_start(baselines),
+                               episode_pending=_episode_pending(harness),
+                               refused_grasps=state.refused_grasps, retry=retry, stop_token=self._stop_token())
+        ok = isinstance(result, dict) and result.get("ok") is True
+        ledger.note_motion(name, ok)
+        if name == "reset_scene" and ok:
+            ledger.clear("reset_scene")
+        result = _with_retry_text(result, name)
+        mark = {"retry": True, "auto_home": retry_home} if retry is not None else {}
+        if ledger.off:
+            mark["off"] = True
+        if mark:
+            trace_context["sim_retry"] = mark
+        return result
 
     def attach_verifier(self, object_pose=None) -> None:
         """Enable postcondition checking (Pigey closed loop).
@@ -1962,12 +2224,14 @@ class SkillRuntime:
         if narrator is None or name not in _MOTION_SKILLS:
             # Every failed result tells the agent so, including the ones the
             # dispatcher refuses before the skill runs (idempotent: results
-            # that went through the full fold already carry it).
-            return _with_failure_instruction(self._execute_with_obligations(name, args))
+            # that went through the full fold already carry it). Every result
+            # passes `_with_retry_text`, with or without a retry ledger: only a
+            # retry the ledger granted may carry the rules' retry trigger.
+            return _with_retry_text(_with_failure_instruction(self._execute_with_obligations(name, args)), name)
         owns = narrator.begin(self, name, args)
         result = None
         try:
-            result = _with_failure_instruction(self._execute_with_obligations(name, args))
+            result = _with_retry_text(_with_failure_instruction(self._execute_with_obligations(name, args)), name)
             return result
         finally:
             if owns:
@@ -2007,6 +2271,7 @@ class SkillRuntime:
         # to change. Resolved before anything else -- an unknown name must
         # fail before a keyframe, a pre-state snapshot or a watcher pause
         # implies the motion is under way.
+        requested_args = args  # as the caller sent them, `arm` included (the sim retry's goal)
         args = dict(args)
         arm_name = args.pop("arm", None)
         try:
@@ -2112,6 +2377,39 @@ class SkillRuntime:
                         raise ValueError("home_q must contain one finite value per arm joint")
                 except (TypeError, ValueError) as exc:
                     return {"ok": False, "error": f"cannot start {name}: {exc}"}
+            # ASPIRE sim retry (spec §4.5; preflight R7, R28; A6-fix rulings): only
+            # a runtime that built a ledger (a sim profile with every switch on), only
+            # for the outermost motion call, before the status line, any keyframe or
+            # motion. The ledger sees the caller's arguments with the RESOLVED arm, at
+            # begin and at finish alike. A used retry is refused right here, by
+            # `begin` alone: it returns the refusal `precheck` would, and under a
+            # pending stop it also spends every other open slot (A7 ruling).
+            ledger = self._sim_retry_ledger(name)
+            retry = retry_g0 = ledger_args = effective_harness = retry_state = None
+            if ledger is not None:
+                ledger_args = (dict(requested_args) if resolved_arm is None
+                               else {**requested_args, "arm": resolved_arm})
+                effective_harness = (getattr(effective_arm, "__dict__", None) or {}).get("harness")
+                raw = getattr(selected if selected is not None else self.arm, "raw", None)
+                # R7: the rig's stop token too: a halt or e-stop since the refusal, even
+                # one cleared again, spends the slot (no retry, no automatic home)
+                step = ledger.begin(name, ledger_args, held=self._jaws_may_hold(),
+                                    latched=self._stop_latched(effective_arm),
+                                    episode_pending=_episode_pending(effective_harness),
+                                    motion_blocked=getattr(raw, "_stopped", False) is True,
+                                    stop_token=self._stop_token())
+                if isinstance(step, dict):
+                    return self._sim_retry_refusal(name, args, step, trace_context)
+                retry = step
+                # this call's own state, on this thread's motion scope (bound below)
+                retry_state = _SimRetryState(() if retry is None else retry.refused_grasps)
+                if retry is not None:
+                    # R7c: the halt baseline of the harness the retry's home will use,
+                    # taken when this skill started (execute()'s skill baseline)
+                    retry_g0 = next((generation for harness, generation in skill_halt if harness is effective_harness),
+                                    getattr(effective_harness, "_halt_generation", None))
+            retry_home = False
+            refused_by = None  # the exact class name of the exception that ended the skill (R6)
             self._show_status(f"{name}({_short(args)})")
             # BEFORE keyframe. `last_frame` is only set by observe(), so the first
             # skill of a run used to record `keyframe_before: null` -- exactly the
@@ -2229,6 +2527,11 @@ class SkillRuntime:
                 if self._motion_scope is None:
                     self._motion_scope = threading.local()
                 scope = self._motion_scope
+                # THE sim retry's per-call state rides on this thread's motion scope
+                # (never a runtime attribute: another thread never sees it)
+                prev_retry_state = getattr(scope, "sim_retry", None)
+                if ledger is not None:
+                    scope.sim_retry = retry_state
                 previous_context = getattr(scope, "context", None)
                 owns_motion_scope = name in _MOTION_SKILLS and previous_context is None
                 if owns_motion_scope:
@@ -2253,6 +2556,14 @@ class SkillRuntime:
                             with selection, self._skill_halt_scope(skill_halt):
                                 if name in _MOTION_SKILLS:
                                     carry_attachment.check(self)
+                                if retry is not None and retry.arm_left_in_place:
+                                    # THE retry starts where the refused attempt
+                                    # left the arm: home first (spec §4.5)
+                                    retry_home = True
+                                    self._home_before_retry(retry_g0)
+                                    if arm_motions_before is not None:
+                                        # the grasp's move_home step counts its own motions only
+                                        arm_motions_before = self._arm_motions_counted()
                                 result = fn(**args)
                                 halted_in_skill = self._skill_halt_reason(skill_halt)
                         except BaseException as exc:
@@ -2284,6 +2595,8 @@ class SkillRuntime:
                 finally:
                     if owns_motion_scope:
                         scope.context = previous_context
+                    if ledger is not None:
+                        scope.sim_retry = prev_retry_state
                     if owns_epoch:
                         self._motion_t0 = None
                         self._last_reobserve_t = None
@@ -2295,10 +2608,16 @@ class SkillRuntime:
                     # what it moved): never report that as a success (A3 review).
                     # Every other field stays; an object still in the jaws is named.
                     result["ok"] = False
-                    result["error"] = f"MotionHalted: {halted_in_skill}"
+                    # With both stops (that halt AND a latched e-stop) the e-stop
+                    # wins, as in begin_motion and `_end_on_halt`: a sort that
+                    # kept what it moved after `_end_on_halt` named the e-stop is
+                    # filed `safety:estop`, never as the halt.
+                    result["error"] = ("SafetyViolation: e-stop latched" if self._skill_halt_estopped(skill_halt)
+                                       else f"MotionHalted: {halted_in_skill}")
                     if self.held_object:
                         result.setdefault("holding", self.held_object)
             except (SkillError, SafetyViolation) as e:
+                refused_by = type(e).__name__
                 if isinstance(e, SkillStuck):
                     # The skill ran out of what it can do on its own and names
                     # what the human should change. Normalised below (ok=false).
@@ -2315,15 +2634,20 @@ class SkillRuntime:
                         # candidates of the failed choice (grasp_object).
                         result["observed_selection"] = e.observed_selection
                 _with_retrace_result(result, e)
+                _with_skill_error(result, e)
             except TypeError as e:
+                refused_by = type(e).__name__
                 result = {"ok": False, "error": f"bad arguments for {name}: {e}"}
             except Exception as e:  # camera dropouts, CAN loss, ... : the agent
                 # loop must survive and report, not crash mid-task.
                 import traceback
 
+                refused_by = type(e).__name__
+
                 result = {
                     "ok": False,
-                    "error": f"unexpected {type(e).__name__}: {e}",
+                    # An exception without text is named by its type alone.
+                    "error": f"unexpected {type(e).__name__}" + (f": {e}" if str(e).strip() else ""),
                     "hint": "hardware/runtime fault; consider task_done(success=false)",
                 }
                 _with_retrace_result(result, e)
@@ -2343,7 +2667,7 @@ class SkillRuntime:
                       and _home_return_halted(home_return)):
                     # The skill failed, then the operator's halt stopped (or
                     # skipped) its return: the error names that halt first.
-                    result["error"] = _stop_first(returned, result.get("error"))
+                    _stop_first(result, returned)
             if name in _MOTION_SKILLS:
                 # Readiness can fail DURING a motion as well as before it. A
                 # trajectory abort latches STOP; handing that failure back to
@@ -2393,7 +2717,7 @@ class SkillRuntime:
             perception_timings = None
             if owns_perception_timings:
                 perception_timings, self._call_perception_timings = self._call_perception_timings, None
-            from ..memory.envelope import DERIVED_FEATURES
+            from ..memory.envelope import DERIVED_FEATURES, failure_signature
             if name not in DERIVED_FEATURES:
                 measured = None
             if measured is not None:
@@ -2452,12 +2776,7 @@ class SkillRuntime:
             own = str(result.get("next_action") or "").strip()
             if own == _PICK_REPORT_NEXT_ACTION:
                 own = ""
-            result["next_action"] = (
-                (f"{own} " if own else "")
-                + "If the user said 'then stop', report this failure and end the turn. "
-                "Do not start another pick, rename the requested object or destination, "
-                "or invent a placement using manual coordinates."
-            )
+            result["next_action"] = (f"{own} " if own else "") + _PICK_FAILED_GUIDANCE
         elif name == "pick_and_place" and result.get("verified") is False:
             result["next_action"] = (
                 "Start the reply with 'Placement unverified.' Explain the verification_note. "
@@ -2494,7 +2813,7 @@ class SkillRuntime:
             self.envelope.record(
                 name, args, ok=bool(result.get("ok")),
                 error=str(result.get("error", "")), duration_ms=dur,
-                measured=measured,
+                measured=measured, signature=failure_signature(result),
             )
         except Exception:
             pass
@@ -2551,15 +2870,24 @@ class SkillRuntime:
                 mine = [t for t in perception_timings if t.get("query") == first]
             result["perception_timing"] = dict(mine[-1])
             trace_context["perception_timings"] = [dict(t) for t in perception_timings]
+        if ledger is not None:
+            # after every verdict and the FAILED line, before the trace row (which
+            # carries the ledger's verdict)
+            result = self._sim_retry_finish(
+                ledger, name, ledger_args, result, trace_context, retry=retry, retry_home=retry_home,
+                exc_type=refused_by if refused_by is not None else retry_state.refusal_exc_type, state=retry_state,
+                arm=effective_arm, harness=effective_harness, baselines=skill_halt)
         self.trace.record(name, args, result, dur, before, after,
                           tier=self.current_tier, context=trace_context,
                           keyframe_before_wrists=before_wrists, keyframe_after_wrists=after_wrists)
         err = str(result.get("error", "failed"))
         stuck = result.get("outcome") == OUTCOME_STUCK
-        # one tail for the status line and the memory event: ok / the ask / the error
-        tail = ("ok" if result["ok"]
-                else f"stuck -- {str(result.get('ask', ''))}" if stuck
-                else err)
+        # one tail for the status line and the memory event: ok / the ask / the error,
+        # the retry trigger withheld (A8 fix 2, Minor 2: MCP world_state and task_memory
+        # show both to the agent, and only a granted result's next_action may carry it)
+        tail = _without_retry_trigger("ok" if result["ok"]
+                                      else f"stuck -- {str(result.get('ask', ''))}" if stuck
+                                      else err)
         self._show_status(f"{name} -> {tail[:60]}")
         # Vesta memory tuple <step, time, observation, action, verdict>: the
         # action event carries the AFTER frame (what the world looked like
@@ -2867,9 +3195,9 @@ class SkillRuntime:
         (c) Thin objects: the held width MEASURED when the object was taken
         (jaw stall after the lift) decides whether a closed-jaw reading can
         mean a slip at all; see below.
-        A provisional hold's reading that is no number (a NaN the driver
-        reports as valid) is unknown feedback, never a width that reads empty
-        (`_finite_width_frac`); a held flag already keeps such a reading.
+        A reading that is no number (NaN or +-inf the driver reports as
+        valid) is unknown feedback, never a width that reads empty or open
+        (`_finite_width_frac`): a provisional hold and a held flag stay.
         """
         if getattr(self, "_contact_episode", None) is not None:
             return  # only explicit contact recovery may finish this failed close
@@ -2926,8 +3254,8 @@ class SkillRuntime:
             # R5 / D9: only the holding arm's jaws can say the object slipped;
             # this arm's (shut, open or stalled) say nothing about it.
             return
-        wf = self._gripper_width_frac()
-        if wf is None:  # unknown feedback: keep the cautious assumption
+        wf = self._finite_width_frac()
+        if wf is None:  # unknown feedback, or no number: keep the cautious assumption
             return
         thin = float((self.cfg.arm.get("gripper") or {}).get("min_object_m", 0.0) or 0.0)
         # #2.5: a legitimately held VERY thin object (a card, a cable) stalls
@@ -2959,17 +3287,59 @@ class SkillRuntime:
             self._held_color = None
             self._held_width_m = None
 
+    def _possible_hold_refusal(self) -> str | None:
+        """Why a skill whose first jaw command opens the jaws (a grasp's
+        pre-grasp opening, turn_screw's at home) refuses before any command,
+        or None. An interrupted grasp's provisional hold that survived the
+        skill's entry reconcile (`_reconcile_held`: the jaws gave no valid
+        reading, or one that is no number) may still be in the jaws: opening
+        them would drop it, from about 0.44 m at home on the reBot (#373
+        review A). move_home's `holding_unknown` asks for the gripper to be
+        checked first; this enforces it, on every arm type, in reset_scene's
+        words (`_unread_hold_refusal`), fitted for execute()'s "SkillError: "
+        in front. Its move_home-first form needs an approach column that still
+        applies: execute() forfeits a kept one before every motion skill but
+        move_home and reset_scene, so only a direct caller can meet it.
+        None with a held flag (its own "already holding" refusal) and during
+        an unfinished contact episode: the reconcile never reads those jaws,
+        and the harness refuses every command until reset_scene's recovery.
+        Jaws that read again are judged by the reconcile as before."""
+        provisional = getattr(self, "_held_provisional", None)
+        if provisional is None or self.held_object or getattr(self, "_contact_episode", None) is not None:
+            return None
+        if SkillRuntime._provisional_on_another_arm(self, provisional):
+            # R5: another arm's close left it; only that arm's jaws may hold it,
+            # so the refusal names that arm and the way out on it (#374 + #379)
+            return SkillRuntime._held_elsewhere_refusal(
+                self, provisional[0], SkillRuntime._arm_name_of(self, provisional.arm), provisional=True,
+                then="try again", keep=len("SkillError: "))
+        return _unread_hold_refusal(provisional[0], column_kept=stop_retrace.live(self) is not None,
+                                    then="try again", prefix="SkillError: ")
+
+    def _raise_on_a_possible_hold(self) -> None:
+        """`_possible_hold_refusal` as the SkillError a skill's entry raises."""
+        refusal = SkillRuntime._possible_hold_refusal(self)
+        if refusal is not None:
+            raise SkillError(refusal)
+
     def _grasp_retry_verdict(self, object: str, attempt: int, last_err: str) -> str | None:
         """Why persistence should STOP retrying a grasp, or None to keep going.
 
         Shared by pick_and_place, handover and sort_by_color so the three
-        agree on what a retry cannot cure: an e-stop, an object the world
-        model has never seen after re-scans (a typo, or not on the table),
-        and an object wider than the jaws (re-scanning cannot shrink it)."""
+        agree on what a retry cannot cure: an e-stop, jaws that may still
+        hold an object but cannot be read, an object the world model has
+        never seen after re-scans (a typo, or not on the table), and an
+        object wider than the jaws (re-scanning cannot shrink it)."""
         if getattr(self, "_contact_episode", None) is not None:
             return "unfinished contact episode; explicit reset_scene recovery required"
         if self.arm.harness.estopped:
             return "e-stop latched; not retrying"
+        if getattr(self, "_held_provisional", None) is not None and not self.held_object:
+            # The attempt ended after its close and the jaws cannot be read
+            # (`_held_after_failed_attempt` kept the hold): every next grasp
+            # refuses before its first command (`_possible_hold_refusal`), so
+            # a re-home and re-scan would only carry the object about.
+            return _POSSIBLE_HOLD_STOP
         if _is_contact(last_err):
             # The arm hit something the cameras did not see. Re-homing,
             # re-scanning and planning again would drive it back there.
@@ -2993,7 +3363,7 @@ class SkillRuntime:
         skill takes at its start for `_end_on_halt`."""
         return getattr(getattr(self.arm, "harness", None), "_halt_generation", None)
 
-    def _end_on_halt(self, halt_generation) -> None:
+    def _end_on_halt(self, halt_generation, failure: str | None = None) -> None:
         """Raise MotionHalted if the operator's halt arrived since
         `halt_generation` (taken when a composite grasp skill started).
 
@@ -3003,15 +3373,25 @@ class SkillRuntime:
         and the halt reaches execute() (A3 review). Their re-home's
         begin_motion used to clear the halt, so the arm went on after an
         operator STOP. The generation also catches a halt cleared again (a
-        Resume) and an air grasp whose exit the halt skipped. An e-stop needs
-        no check here: `_grasp_retry_verdict` stops on the latch, and the
-        harness refuses every command under it."""
+        Resume) and an air grasp whose exit the halt skipped. An e-stop alone
+        needs no check here: `_grasp_retry_verdict` stops on the latch, and
+        the harness refuses every command under it. When both came (a newer
+        halt AND a latched e-stop) the e-stop wins, as in begin_motion and the
+        release recovery: it is raised as itself, never as a halt, and
+        carries no `failure` (an e-stop is filed `safety:estop`, a loss).
+        `failure`: the last attempt's own failure, decided before the halt;
+        the halt carries it (`_keep_decided_failure`), so the call is filed
+        as that failure."""
         harness = getattr(self.arm, "harness", None)
         if halt_generation is None or getattr(harness, "_halt_generation", None) == halt_generation:
             return
+        if getattr(harness, "estopped", False):
+            raise SafetyViolation("e-stop latched; not retrying")
         reason = getattr(harness, "halted", None)
-        raise MotionHalted(f"motion halted: {reason}; not retrying" if reason
-                           else "halt received during the grasp; not retrying")
+        halted = MotionHalted(f"motion halted: {reason}; not retrying" if reason
+                              else "halt received during the grasp; not retrying")
+        _keep_decided_failure(halted, failure)
+        raise halted
 
     def _held_after_failed_attempt(self, object: str) -> tuple[bool, str] | None:
         """B36: after a grasp attempt FAILED, ask the jaws whether the close
@@ -3076,6 +3456,9 @@ class SkillRuntime:
         attempt = 0
         stop = None  # why the loop stopped early (None = budget spent)
         halt_generation = self._halt_generation_now()  # an operator halt since now ends it
+        # The last failed attempt's own error: a halt after it (in the re-home,
+        # the next attempt) carries it, so the call is filed as that miss.
+        decided = None
         while attempt < max_attempts:
             attempt += 1
             if attempt > 1:
@@ -3086,14 +3469,15 @@ class SkillRuntime:
                 self.memory.add("note", f"not giving up: attempt {attempt}/{max_attempts} on {object!r}")
                 try:
                     self.skill_move_home()
-                except MotionHalted:
+                except MotionHalted as halted:
+                    _keep_decided_failure(halted, decided)
                     raise  # STOP during the re-home ends this skill: no re-scan, no retry
                 except (SkillError, SafetyViolation):
                     pass
                 self._reobserve()
                 # A halt the re-home skipped on, or one raised after it or
                 # during the re-scan, ends the loop before the next attempt.
-                self._end_on_halt(halt_generation)
+                self._end_on_halt(halt_generation, failure=decided)
             # Arm motions counted before this attempt: only an attempt that
             # moved the arm can have left it at a refused grasp pose.
             motions_before = self._arm_motions_counted()
@@ -3101,14 +3485,15 @@ class SkillRuntime:
                 res = self.skill_grasp_object(object, material=material,
                     **({"_planning_deadline": deadline}
                        if os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1" else {}))
-            except MotionHalted:
+            except MotionHalted as halted:
+                _keep_decided_failure(halted, decided)
                 raise  # the operator's halt ends this skill: no re-home, no retry
             except (SkillError, SafetyViolation) as e:
                 note = _perception_stop(e, attempt)
                 if note is not None:
                     # An operator halt since the loop started ends it as the
                     # halt, not as this refusal (A3: `_end_on_halt`).
-                    self._end_on_halt(halt_generation)
+                    self._end_on_halt(halt_generation, failure=decided)
                     # Same rule as pick_and_place: an expired analysis, a scene
                     # that changed under the two-phase localization (already
                     # retried once) or a re-anchor that failed again after a
@@ -3120,7 +3505,8 @@ class SkillRuntime:
             if res.get("ok", True) and res.get("held"):
                 res["grasp_attempts"] = attempt
                 return res
-            self._end_on_halt(halt_generation)
+            decided = res.get("error") or decided   # this attempt's miss, decided before any later halt
+            self._end_on_halt(halt_generation, failure=decided)
             last_err = str(res.get("error", "grasp failed"))
             if os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1":
                 out = {**res, "ok": False, "home_skipped": True, "grasp_attempts": attempt,
@@ -3183,9 +3569,10 @@ class SkillRuntime:
         wf = self._gripper_width_frac()
         return None if wf is None else float(wf) * float(self._max_width)
 
-    def _gripper_width_frac(self) -> float | None:
-        """0 = fully closed, 1 = fully open (from motor angle, linear map).
-        None when the gripper position is unknown (feedback failure)."""
+    def _jaw_state(self):
+        """One read of the arm state for its jaw reading; an active carry
+        attachment observes it, and a failed read rejects that attachment
+        before it raises."""
         try:
             state = self.arm.get_state()
             carry_attachment.observe(self, state)
@@ -3193,16 +3580,27 @@ class SkillRuntime:
             if carry_attachment.active(self) is not None:
                 carry_attachment.active(self).reject("jaw feedback unavailable: " + str(exc))
             raise
+        return state
+
+    def _gripper_width_frac(self) -> float | None:
+        """0 = fully closed, 1 = fully open (from motor angle, linear map).
+        None when the gripper position is unknown (feedback failure)."""
+        state = self._jaw_state()
         if not getattr(state, "gripper_valid", True):
             return None
         return self._open_frac_of(state.gripper_pos)
 
     def _finite_width_frac(self) -> float | None:
-        """`_gripper_width_frac` for the held-state reconcile: a reading that
-        is no number (a NaN the driver reports as valid) is unknown (None),
-        never a width that reads empty."""
-        wf = self._gripper_width_frac()
-        return wf if wf is not None and math.isfinite(wf) else None
+        """`_gripper_width_frac` for the held-state reconcile, from one read:
+        a reading that is no number (NaN or +-inf the driver reports as
+        valid) is unknown (None), never a width. It is judged on the raw
+        position, before the travel map clips +inf to open and -inf to
+        closed (air) and the reconcile drops a hold the jaws may still have."""
+        state = self._jaw_state()
+        if not getattr(state, "gripper_valid", True):
+            return None
+        pos = float(state.gripper_pos)
+        return self._open_frac_of(pos) if math.isfinite(pos) else None
 
     # ── language -> world resolution ─────────────────────────────────────
 
@@ -4504,6 +4902,8 @@ class SkillRuntime:
         self._reconcile_held()
         if self.held_object:
             raise SkillError(self._already_holding_refusal("grasp_object"))
+        # Before any command: the pre-grasp opening would drop a possible hold.
+        SkillRuntime._raise_on_a_possible_hold(self)
         self._held_support_offset_m = None
         gcfg = self.cfg.grasp
         if _fix is not None and _frame is not None:
@@ -4658,10 +5058,14 @@ class SkillRuntime:
                      else _ObservedSelection() if scene_enabled else None)
         if selection is not None and _observed_record is not None:
             _observed_record["selection"] = selection
+        # THE sim retry (spec §4.5) plans without the grasps its refused attempt
+        # tried; outside it nothing is excluded and every plan stays as it was.
+        retry_state = _sim_retry_state(self)
+        others = _OtherThanRefused(() if retry_state is None else retry_state.exclude)
         if _next_candidate is not None:
             grasps = list(_next_candidate.remaining)  # no new plan: the next vetted candidate
         else:
-            grasps = generate_batch(0)
+            grasps = others(generate_batch(0))
             if selection is not None:
                 selection.add_batch(grasps)
 
@@ -4936,6 +5340,7 @@ class SkillRuntime:
         # hover is a ladder (map hover, today's hover): never executed lower
         # than today's. See select_grasp(pregrasp_min_z=...) and _pregrasp_min_z.
         pregrasp_min_z = _pregrasp_min_z(gcfg, harness, fix)
+        vetted = None  # (refusal, grasps) of the latest batch the selector vetted
         try:
             for batch in range(1 if search is None else search.max_batches):
                 if batch:
@@ -4948,7 +5353,7 @@ class SkillRuntime:
                         conflict = _scene_path(state.q, _seed, 1.5)
                         if conflict:
                             raise SafetyViolation(f"home finger trajectory intersects observed surface: {conflict}")
-                    grasps = generate_batch(batch)
+                    grasps = others(generate_batch(batch))
                     if selection is not None:
                         selection.add_batch(grasps)
                 selecting, exhausted = time.monotonic(), False
@@ -4982,7 +5387,16 @@ class SkillRuntime:
                         raise
                     search.check()
                     grasp_evidence.event("planning_batch_rejected", batch=batch + 1, reason=str(exc))
+                    if grasps:
+                        vetted = exc, grasps
                     if batch + 1 == search.max_batches:
+                        if others.last_emptied and vetted is not None:
+                            # THE sim retry's last batch held only repeats of
+                            # its refused attempt: the search ends with the
+                            # last vetted batch's refusal, reason and grasps
+                            # (grasp memory records the vet's own bucket).
+                            exc, grasps = vetted
+                            raise exc
                         raise
                 finally:
                     if selection is not None:
@@ -4991,6 +5405,11 @@ class SkillRuntime:
                         # of the batch failed.
                         selection.end_select(time.monotonic() - selecting, exhausted=exhausted)
         except (SkillError, SafetyViolation) as e:
+            if isinstance(e, NoExecutableGrasp) and others.only_repeats:
+                # THE sim retry planned nothing but repeats of its refused
+                # attempt: no different grasp, and no planning failure of this
+                # object for the grasp memory to learn
+                raise SkillError(_NO_DIFFERENT_GRASP) from e
             # No candidate survived IK + harness vetting. Log it against the
             # object profile so the fake-RL memory learns to bias future
             # candidates (raise z, prefer top-down) for this object.
@@ -5165,13 +5584,20 @@ class SkillRuntime:
                     self, profile, hold_squeeze,
                     **({"_halt_generation": scene_halt_generation,
                         "_before_close": close_guard} if scene_enabled else {}))
-            except GraspFailed:
+            except GraspFailed as failed:
                 if not self._force_contact_close_enabled() or episode is not None:
                     raise
                 # Native Grasp completed without securing an object. Retrace
                 # its vetted descent, with the original contact exemption;
                 # preserve jaws/provisional state and let STOP/fault checks win.
-                if not self._move_joints(q_pre, duration_s=float(gcfg.get("descend_duration_s", 2.0))):
+                # The grasp had already failed: a halt in the retreat carries
+                # that failure (`_keep_decided_failure`).
+                try:
+                    settled = self._move_joints(q_pre, duration_s=float(gcfg.get("descend_duration_s", 2.0)))
+                except MotionHalted as halted:
+                    _keep_decided_failure(halted, f"{type(failed).__name__}: {failed}")
+                    raise
+                if not settled:
                     self.arm.stop()
                     raise SkillError("did not settle while retreating after failed grasp")
                 raise
@@ -5265,13 +5691,15 @@ class SkillRuntime:
                         settled = self._move_planned(
                             q_pre, duration_s=float(gcfg.get("descend_duration_s", 2.0)))
                     recovery = "completed" if settled else "did not settle"
-                except MotionHalted:
+                except MotionHalted as halted:
                     # An operator halt during the withdrawal ends the skill as
                     # the halt it is, never folded into the veto's text (the
-                    # e-stop and every other refusal are reported below).
+                    # e-stop and every other refusal are reported below). The
+                    # descent had already failed: the halt carries that failure.
                     self.memory.add("outcome", f"grasp descent failed: {exc}; pre-close retreat halted")
                     if selection is not None:
                         selection.finish(f"failed: {str(exc)[:200]}; pre-close retreat halted")
+                    _keep_decided_failure(halted, f"{type(exc).__name__}: {exc}")
                     raise
                 except (SkillError, SafetyViolation) as retreat_error:
                     recovery = f"refused: {retreat_error}"
@@ -5371,6 +5799,7 @@ class SkillRuntime:
                     return self._move_planned(q, duration_s=descend_s,
                                               _halt_generation=scene_halt_generation)
 
+                error = "air grasp: gripper closed fully, object not held"
                 try:
                     reopen = self._air_grasp_reopen(open_pos, scene_gate,
                                                     halt_generation=scene_halt_generation)
@@ -5382,9 +5811,9 @@ class SkillRuntime:
                                                         halt_generation=scene_halt_generation)
                 except SafetyViolation as exc:
                     grasp_evidence.event("exit_withdrawal", outcome=f"stopped: {type(exc).__name__}: {exc}")
+                    _keep_decided_failure(exc, error)   # a halt in the recovery: still this air grasp
                     raise
                 grasp_evidence.event("exit_withdrawal", outcome=recovery)
-                error = "air grasp: gripper closed fully, object not held"
                 if reopen.startswith("refused"):
                     # never "did not open": a jaw command may have moved them
                     error += f"; the jaws were not confirmed open: {reopen.removeprefix('refused: ')}"
@@ -5497,7 +5926,10 @@ class SkillRuntime:
                                     + selection.note(f"next candidate: {none_left}"))
             failure._observed_noted = True
             raise failure from none_left
-        except MotionHalted:
+        except MotionHalted as halted:
+            # The veto was decided before the halt: the halt carries it,
+            # unless the next candidate's own failure came later.
+            _keep_decided_failure(halted, f"{type(refusal).__name__}: {refusal}")
             raise
         except (SkillError, SafetyViolation) as failed:
             if not getattr(failed, "_observed_noted", False):
@@ -6806,6 +7238,9 @@ class SkillRuntime:
                 raise SkillError(
                     f"already holding {self.held_object!r}; place it first"
                 )
+        # Nothing moves while an interrupted grasp's provisional hold survives
+        # that reconcile: the grasp stage would open the jaws on it.
+        self._raise_on_a_possible_hold()
         t0 = time.monotonic()
         timings: dict[str, float] = {}
         gcfg = self.cfg.grasp
@@ -6879,6 +7314,10 @@ class SkillRuntime:
         p_attempt = 0
         tp = t0
         stop = None  # why the grasp loop stopped early (None = budget spent)
+        # The last failed attempt's own error (a grasp miss, a failed place),
+        # until an attempt holds: a halt after it (in the re-home, the next
+        # attempt) carries it, so the call is filed as that failure.
+        decided = None
         while placed is None:
             # ── grasp stage (skipped when re-entering after a mid-carry slip
             # left something verified in the jaws -- cannot happen today, but
@@ -6902,7 +7341,8 @@ class SkillRuntime:
                     )
                     try:  # clear the camera view so the re-scan actually sees
                         self.skill_move_home()
-                    except MotionHalted:
+                    except MotionHalted as halted:
+                        _keep_decided_failure(halted, decided)
                         raise  # STOP during the re-home ends this skill: no re-scan, no retry
                     except (SkillError, SafetyViolation):
                         pass
@@ -6913,9 +7353,15 @@ class SkillRuntime:
                     res = self.skill_grasp_object(object, material=material,
                         **({"_planning_deadline": deadline}
                            if os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1" else {}))
-                except MotionHalted:
+                except MotionHalted as halted:
+                    _keep_decided_failure(halted, decided)
                     raise  # the operator's halt ends this skill: no re-home, no retry
                 except (SkillError, SafetyViolation) as e:
+                    # the sim retry classifies a refusal by its exact class (R6):
+                    # this result keeps only the text (a perception stop has no prefix)
+                    retry_state = _sim_retry_state(self)
+                    if retry_state is not None:
+                        retry_state.refusal_exc_type = type(e).__name__
                     if isinstance(e, carry_attachment.AttachmentInvalid):
                         return carry_attachment.failure_result(self, e,
                             **failure_destination, grasp_attempts=attempt, place_attempts=0)
@@ -6923,7 +7369,7 @@ class SkillRuntime:
                     if note is not None:
                         # An operator halt since the skill started ends it as
                         # the halt, not as this refusal (A3: `_end_on_halt`).
-                        self._end_on_halt(halt_generation)
+                        self._end_on_halt(halt_generation, failure=decided)
                         return {**failure_destination, "ok": False, "stage": "grasp",
                                 "error": str(e), "home_skipped": True,
                                 "grasp_attempts": attempt, "note": note}
@@ -6933,8 +7379,10 @@ class SkillRuntime:
                 timings[f"grasp_attempt{attempt}_s"] = round(time.monotonic() - tg, 2)
                 if res.get("ok", True) and res.get("held"):
                     grasp = res
+                    decided = None   # held: the earlier misses no longer decide this call
                     break
-                self._end_on_halt(halt_generation)
+                decided = res.get("error") or decided   # this attempt's miss, decided before any later halt
+                self._end_on_halt(halt_generation, failure=decided)
                 last_err = str(res.get("error", "grasp failed"))
                 if os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1":
                     out = {**failure_destination, "ok": False, "stage": "grasp",
@@ -6964,6 +7412,7 @@ class SkillRuntime:
                         )
                         grasp = {"held": held_label, "grip_verified": None, "grip_profile": None,
                                  "recovered_after": last_err}
+                        decided = None
                         break
                     last_err += f" (holding {held_label!r}, not {object!r}; a new grasp cannot start)"
                     stop = "holding another object"
@@ -6996,7 +7445,7 @@ class SkillRuntime:
                     "suggestion": "check world_state / camera_snapshot; the object may be unreachable or mis-detected",
                 }
                 if park_halt is not None:
-                    out["error"] = _stop_first(_halted_text("final park", park_halt), out["error"])
+                    _stop_first(out, _halted_text("final park", park_halt))
                 # The robot did everything it can on its own: the budget is
                 # spent, or the stop reason is one no retry cures (never
                 # seen, too wide). That is STUCK -- a request to the human,
@@ -7023,7 +7472,8 @@ class SkillRuntime:
                     )
                     try:  # carry it home first: clears the view of the arm
                         self.skill_move_home()  # + held object for the re-scan
-                    except MotionHalted:
+                    except MotionHalted as halted:
+                        _keep_decided_failure(halted, decided)
                         raise  # STOP during the re-home ends this skill: no re-scan, no retry
                     except (SkillError, SafetyViolation):
                         pass
@@ -7067,7 +7517,9 @@ class SkillRuntime:
                 except (SkillError, SafetyViolation) as e:
                     place_err = f"{type(e).__name__}: {e}"
                     if isinstance(e, MotionHalted):
+                        _keep_decided_failure(e, decided)
                         raise  # the operator's halt ends this skill: no re-home, no place retry
+                    decided = place_err   # this place failed before any later halt
                     if isinstance(e, carry_attachment.AttachmentInvalid):
                         return carry_attachment.failure_result(self, e,
                             **failure_destination, grasp_attempts=attempt, place_attempts=p_attempt)
@@ -7240,34 +7692,45 @@ class SkillRuntime:
         }
 
     def skill_point_at(self, label: str) -> dict:
-        """Deictic gesture: hover the closed gripper above the object for a
-        moment ("this one!"), then return. Answers 'which one is X?'.
+        """Deictic gesture: hold the closed gripper over the object for a
+        moment ("this one!") and stay there. Answers 'which one is X?'.
 
-        The TCP and the jaws stay `safety.min_clearance_m` above the object's
-        observed top on every pose it commands (checked on the solved pose).
-        A profile whose top-down ceiling is below that refuses before any arm
-        or jaw command: the SO-101's 0.04 m ceiling once put the closed jaws
-        2.5 cm into a 5 cm cube."""
+        The pointing pose keeps the TCP and the jaws `safety.min_clearance_m`
+        from the object, checked on the solved pose: today's top-down hover
+        when one clears the object's top; otherwise a lean-in pose that aims
+        the tilted gripper at the centre of the top from the arm's side
+        (`skills/pointing.py`: tilt 15-45 deg, 4-10 cm from the top, the
+        jaws sampled at <= 5 mm, the joints too), keeping the same margin
+        from every other known object. The route there is checked as well:
+        the straight joint segment from where the arm is, else one rise-first
+        waypoint (which also keeps every known object's margin, and on which
+        the jaws never come closer to the target). The jaws close only where
+        everything a close sweeps (the profile's `gripper.jaw_volume`) keeps
+        the margin from the target, every known object and the table: where
+        the arm starts, else at the waypoint or the pointing pose. While
+        holding an object it never leans in and never closes the jaws. No
+        clear pose, route or close refuses before any arm or jaw command. The
+        object top is the observed top raised to the occupancy map's column
+        top (capped as the pregrasp reads it) and to the top of an object
+        standing over it (a cup over the cube)."""
         _, fix = self._localize(label)
         gcfg = self.cfg.grasp
+        harness = getattr(self.arm, "harness", None)
+        margin = float(self.cfg.safety.get("min_clearance_m", 0.03))
+        top, occluders, neighbours = self._pointing_top(label, fix, harness)
         hover = fix.position.copy()
-        top = float(fix.points[:, 2].max())
         # Strict top-down poses only solve below ~0.15 m on the B601-RS
         # (wrist limits); clamp the hover or tall objects become unpointable.
         z_max = float(gcfg.get("topdown_z_max", 0.15)) - 0.01
-        hover[2] = min(
-            float(fix.points[:, 2].max()) + float(gcfg.get("pregrasp_offset_m", 0.08)),
-            z_max,
-        )
+        hover[2] = min(top + float(gcfg.get("pregrasp_offset_m", 0.08)), z_max)
         from ..grasping.obb_grasp import _yaw_rotation
+        from . import pointing
 
-        # Never into the object: the lowest tool point (TCP or jaws) keeps the
-        # occupancy margin above the top. `need` is the TCP height that gives
-        # that for a strict top-down pose; a lower hover rises to it within
-        # the ceiling, a rung below it is never tried, the ceiling below it
-        # refuses before any command.
+        # Top-down first: the lowest tool point (TCP or jaws) keeps the
+        # margin above the top. `need` is the TCP height that gives that for
+        # a strict top-down pose; a lower hover rises to it within the
+        # ceiling, a rung below it is never tried.
         tool = _pointing_tool_points(gcfg, self._tool_axis_order)
-        margin = float(self.cfg.safety.get("min_clearance_m", 0.03))
         clear_z = top + margin
         reach = max(0.0, -_lowest_tool_z(make_transform(_yaw_rotation(0.0, axis_order=self._tool_axis_order),
                                                         [0.0, 0.0, 0.0]), tool))
@@ -7275,16 +7738,9 @@ class SkillRuntime:
         if not hover[2] >= need:
             hover[2] = min(need + POINT_AT_IK_SLACK_M, z_max)
         rungs = [z for z in (hover[2], z_max - 0.02) if z >= need]
-        # Agent text quotes TABLE-frame heights (Q1 a); the checks above and
-        # below stay in the arm frame.
-        world_z = self._height_to_world
-        if not rungs:
-            raise SkillError(
-                f"cannot point at {label!r} from above on this arm: its top-down ceiling is {world_z(z_max):.3f} m, "
-                f"below the object top + margin ({world_z(need):.3f} m: top {world_z(top):.3f} m + clearance "
-                f"{margin:.3f} m + {reach:.3f} m of jaw below the TCP); nothing was moved")
 
-        q_now = self.arm.get_state().q
+        state = self.arm.get_state()
+        q_now = state.q
         ik = None
         too_low = None     # the highest lowest-tool-point among rejected solutions
         for z in rungs:
@@ -7303,20 +7759,135 @@ class SkillRuntime:
                 break
             if ik is not None:
                 break
+
+        table_z = float(getattr(getattr(harness, "limits", None), "table_z",
+                                self.cfg.safety.get("table_z", 0.0)))
+        from .relative_motion import _TOOL_COLUMNS
+
+        approach_col = _TOOL_COLUMNS[self._tool_axis_order][0]
+        sweep = (gcfg.get("graspgenx") or {}).get("sweep")
+        held = self.held_object
+        try:
+            column = pointing.object_column(fix, table_z, top, occluders)
+            near = tuple(pointing.neighbour_column(poly, n_top, table_z, name) for poly, n_top, name in neighbours)
+            opening = state.gripper_pos if getattr(state, "gripper_valid", True) else None
+            jaws = pointing.jaw_samples(sweep, self.cfg.arm.get("gripper"), self._tool_axis_order, opening)
+        except ValueError as exc:
+            raise SkillError(f"cannot point at {label!r}: {exc}; nothing was moved") from None
+        vet = getattr(harness, "vet_pose", None)
+        lean = None
+        # Agent text quotes TABLE-frame heights (Q1 a); the checks above and
+        # below stay in the arm frame.
+        world_z = self._height_to_world
         if ik is None:
-            if too_low is not None:
+            if not rungs:
+                from_above = (f"from above, its top-down ceiling is {world_z(z_max):.3f} m, below the object top + "
+                              f"margin ({world_z(need):.3f} m: top {world_z(top):.3f} m + clearance {margin:.3f} m + "
+                              f"{reach:.3f} m of jaw below the TCP)")
+            elif too_low is not None:
+                from_above = (f"from above, the best solved pose put the closed jaws at {world_z(too_low):.3f} m, "
+                              f"less than {margin:.3f} m above its top ({world_z(top):.3f} m)")
+            else:
+                from_above = "from above, no pose solved"
+            if held:
+                # the payload is not modelled: no new motion with it in the jaws (main's top-down rule)
+                raise SkillError(f"cannot point at {label!r} while holding {held!r}: {from_above}; it leans in "
+                                 f"only with empty jaws; nothing was moved")
+            lean = pointing.lean_in(self.kin, column, jaws.closed, approach_col, q_now, margin=margin,
+                                    table_z=table_z, vet=vet, neighbours=near)
+            if lean.q is None:
+                best = "" if lean.clearance is None else f" (the best solved pose had {lean.clearance.worst(margin)})"
                 raise SkillError(
-                    f"cannot reach a pointing pose above {label!r} that keeps the closed jaws {margin:.3f} m "
-                    f"above its top ({world_z(top):.3f} m): the best solved pose put them at "
-                    f"{world_z(too_low):.3f} m; nothing was moved")
-            raise SkillError(f"cannot reach a pointing pose above {label!r}")
-        if not self.held_object:
+                    f"cannot point at {label!r} on this arm: {from_above}; leaning in "
+                    f"{pointing.LEAN_IN_TILTS_DEG[0]:.0f}-{pointing.LEAN_IN_TILTS_DEG[-1]:.0f} deg, no pose "
+                    f"keeps the TCP, the jaws and the arm {margin:.3f} m from it, every known object and the "
+                    f"table{best}; nothing was moved")
+            target = lean.q
+        else:
+            target = ik.q
+
+        def preflight(q_from, q_to):
+            if harness is None or not callable(getattr(harness, "vet_step", None)):
+                return None
+            from ..safety import trajectory
+
+            try:
+                with trajectory.geometry_guard(harness):
+                    return trajectory.vet_segment(harness, q_from, q_to, 2.0)
+            except SkillError as exc:
+                return str(exc)
+
+        try:
+            route = pointing.plan_route(self.kin, q_now, target, column, jaws, approach_col, margin=margin,
+                                        table_z=table_z, neighbours=near, direct_neighbours=lean is not None,
+                                        close=not held, vet=vet,
+                                        preflight=preflight, preflight_direct=lean is not None)
+        except pointing.RouteRefused as exc:
+            _raise_if_estopped(harness)
+            raise SkillError(f"cannot reach the pointing pose over {label!r} keeping {margin:.3f} m from it: "
+                             f"{exc}; nothing was moved") from None
+        legs = ("did not settle at the rise-first waypoint", "did not settle at the pointing pose")
+        for i, q in enumerate(route.targets):
+            if route.close_at == i:
+                self._set_gripper(self._grip_closed, effort=0.6)
+            if not self._move_joints(q, duration_s=2.0):
+                raise SkillError(legs[i == len(route.targets) - 1])
+        if route.close_at == len(route.targets):
             self._set_gripper(self._grip_closed, effort=0.6)
-        if not self._move_joints(ik.q, duration_s=2.0):
-            raise SkillError("did not settle at the pointing pose")
         time.sleep(float(self.cfg.get("gesture", {}).get("point_hold_s", 1.2)))
         self.memory.add("action", f"pointed at {label!r}")
-        return {"pointed_at": label, "position": [round(float(x), 3) for x in self._to_world(fix.position)]}
+        out = {"pointed_at": label, "position": [round(float(x), 3) for x in self._to_world(fix.position)]}
+        if lean is not None:
+            out["lean_deg"] = int(round(lean.tilt_deg))
+        if len(route.targets) > 1:
+            out["rose_first"] = True
+        return out
+
+    def _pointing_top(self, label: str, fix, harness) -> tuple[float, list, list]:
+        """point_at's object top, computed once, the objects standing over
+        the target ((xy footprint, top) each) and every other known object
+        ((xy footprint, top, name) each, `_belief_footprint`).
+
+        The observed top (the fix's highest point; not finite -> refuse),
+        raised by the occupancy map's column top as the pregrasp reads it
+        (`_map_top_lift`), then to the top of any OTHER remembered object
+        whose footprint covers the target's centre and whose top is higher:
+        the booth's "point at where it was" points at the cup that now hides
+        the cube, and the cup is part of what the jaws must clear. The target's
+        own belief and the object in the jaws are neither. A remembered object
+        whose box is not finite refuses (nothing was moved): point_at cannot
+        tell whether it stands over the target or in the way."""
+        from .pointing import _footprint_distance, _hull_xy
+
+        pts = np.asarray(fix.points, dtype=float).reshape(-1, 3)
+        observed = float(pts[:, 2].max()) if len(pts) else float("nan")
+        if not math.isfinite(observed):
+            raise SkillError(f"cannot point at {label!r}: its observed top is not a finite height "
+                             f"({observed} m over {len(pts)} points); nothing was moved")
+        top = observed + _map_top_lift(self.cfg.grasp, harness, fix, observed)
+        target = self.beliefs.find(label)
+        in_jaws = self.beliefs.find(self.held_object) if self.held_object else None
+        centre = np.asarray(fix.position, dtype=float)[:2]
+        occluders, neighbours = [], []
+        for b in self.beliefs.all():
+            if b is target or b is in_jaws:
+                continue
+            try:
+                # beliefs are table-frame memory; the fix and the checks are in
+                # the running arm's frame (spec D4; level mounts: point_at is
+                # refused on a tilted one)
+                poly, b_top = _belief_footprint(self._belief_to_arm(b))
+            except ValueError as exc:
+                raise SkillError(f"cannot point at {label!r}: {exc}; nothing was moved") from None
+            hull = _hull_xy(poly)
+            covers = len(hull) >= 3 and float(_footprint_distance(centre[None, :], hull)[0]) <= 0.0
+            if covers and b_top > top:
+                occluders.append((hull, b_top))
+            else:
+                neighbours.append((hull, b_top, f"the {b.color + ' ' if b.color else ''}{b.label}"))
+        if occluders:
+            top = max(top, max(t for _, t in occluders))
+        return top, occluders, neighbours
 
     def skill_wave(self, cycles: int = 2) -> dict:
         """Greeting gesture: wag the base + wrist around home. Every
@@ -7493,6 +8064,12 @@ class SkillRuntime:
         joint = self._screw_joint
         if not 0 <= joint < int(self.cfg.arm.get("n_joints", 6)):
             raise SkillError("screw_joint is outside the configured arm joints")
+        # The first jaw command opens the jaws at home: never on an object
+        # the jaws hold, or may hold after an interrupted grasp.
+        self._reconcile_held()
+        if self.held_object:
+            raise SkillError(f"already holding {self.held_object!r}; place it first")
+        self._raise_on_a_possible_hold()
 
         _, fix = self._localize(label)
         gcfg = self.cfg.grasp
@@ -7576,32 +8153,45 @@ class SkillRuntime:
                 break
             q_end[joint] += sign * stroke
             if not self._move_joints(q_end, duration_s=max(0.8, stroke / 1.5)):
-                self._set_gripper(self._grip_open, effort=0.8)
-                raise SkillError("stroke did not settle; stopping the screw task")
+                unsettled = "stroke did not settle; stopping the screw task"
+                try:  # disengage: a halt here carries the stroke's failure
+                    self._set_gripper(self._grip_open, effort=0.8)
+                except MotionHalted as halted:
+                    _keep_decided_failure(halted, f"SkillError: {unsettled}")
+                    raise
+                raise SkillError(unsettled)
             # 4) disengage
             self._set_gripper(self._grip_open, effort=0.8)
             done += stroke
             strokes += 1
 
+        applied = done / (2.0 * np.pi)
+        # The shortfall is decided here, before the retreat: a halt in the
+        # retreat carries it (`_keep_decided_failure`), so the call is filed
+        # as the shortfall, not as the halt.
+        shortfall = None
+        if applied <= 0.0:
+            shortfall = (f"no roll travel available to {direction} {label!r} "
+                         f"(joint {joint} pinned by its limits at this pose)")
+        elif done < want - 1e-6:
+            shortfall = f"only {applied:.2f} of {turns:.2f} requested wrist turns completed"
         # retreat to hover, then home so the camera view clears
-        self._move_joints(ik_hover.q, duration_s=1.0)
+        try:
+            self._move_joints(ik_hover.q, duration_s=1.0)
+        except MotionHalted as halted:
+            _keep_decided_failure(halted, shortfall and f"SkillError: {shortfall}")
+            raise
         try:
             self.skill_move_home()
         except (SkillError, SafetyViolation):
             pass
-        applied = done / (2.0 * np.pi)
         self.memory.add(
             "action",
             f"commanded {direction} wrist travel for {label!r}: {applied:.2f} turns "
             f"({strokes} strokes); fastener outcome not measured",
         )
-        if applied <= 0.0:
-            raise SkillError(
-                f"no roll travel available to {direction} {label!r} "
-                f"(joint {joint} pinned by its limits at this pose)"
-            )
-        if done < want - 1e-6:
-            raise SkillError(f"only {applied:.2f} of {turns:.2f} requested wrist turns completed")
+        if shortfall is not None:
+            raise SkillError(shortfall)
         return {
             "screw": label,
             "direction": direction,
@@ -7623,6 +8213,12 @@ class SkillRuntime:
         # (verified against the RS URDF); stay within +-0.20.
         zones_y = (-0.20, -0.10, 0.0, 0.10, 0.20)
         zone_x = float(self.cfg.grasp.get("drop_zone", [0.30, -0.20])[0])
+        if getattr(self, "_held_provisional", None) is not None and not self.held_object:
+            # An interrupted grasp's provisional hold: judged here, as the first
+            # object's grasp entry would, and refused before anything moves
+            # while it survives (every grasp would open the jaws on it).
+            self._reconcile_held()
+            self._raise_on_a_possible_hold()
         colors: dict[str, tuple[float, float]] = {}
         moved, failed = [], []
         left_in_place, left_by = False, None  # the last grasp attempt left the arm where it stopped
@@ -7823,7 +8419,9 @@ class SkillRuntime:
 
         An operator halt that ends the grasp's persistence loop (raised in a
         grasp attempt, its re-home or its re-scan) or a clear-view home here
-        raises MotionHalted, so the caller's loop ends too. A halt in the
+        raises MotionHalted, so the caller's loop ends too; after a failed
+        grasp, the halt in its clear-view home carries that failure
+        (`skill_error`, filed as it). A halt in the
         place call comes back as the place's failure in the record
         (`holding` names what the jaws still hold; the caller stops on it).
         Under execute() the skill's halt baseline refuses every later motion
@@ -7852,7 +8450,9 @@ class SkillRuntime:
             elif not self._estopped():  # the operator stopped the arm: no re-home (A3 review)
                 try:  # never leave the arm over the table after a failed attempt
                     self.skill_move_home()
-                except MotionHalted:
+                except MotionHalted as halted:
+                    # this failed grasp's own re-home: the halt carries the failure
+                    _keep_decided_failure(halted, res.get("error") or rec["error"])
                     raise  # the caller's next step would clear the halt and move
                 except (SkillError, SafetyViolation):
                     pass
@@ -8029,6 +8629,7 @@ class SkillRuntime:
         self._reconcile_held()
         if self.held_object:
             raise SkillError(self._already_holding_refusal("restore_scene"))
+        self._raise_on_a_possible_hold()   # every move starts with a grasp
         tolerance_m = float(np.clip(float(tolerance_m), 0.02, 0.15))
         max_moves = int(np.clip(int(max_moves), 1, 8))
         budget_s = float(self.cfg.grasp.get("restore_object_persist_seconds", 40.0))
@@ -8068,7 +8669,15 @@ class SkillRuntime:
                 skip.add(step["label"])
                 plan = self._restore_plan(snap, tolerance_m, skip, seen_after)
                 continue
-            rec = self._move_object_to(step["query"], step["to"], budget_s=budget_s, kind=step["kind"])
+            try:
+                rec = self._move_object_to(step["query"], step["to"], budget_s=budget_s, kind=step["kind"])
+            except MotionHalted as halted:
+                # An earlier object that failed already fixed this call's
+                # ok=False: a halt in a later object's move carries that
+                # failure (`_keep_decided_failure`; a failure the move itself
+                # had decided rides on it already and wins).
+                _keep_decided_failure(halted, _restore_failures(failed))
+                raise
             rec["label"] = step["label"]
             moves.append(rec)
             left_in_place, left_by = bool(rec.get("home_skipped")), rec
@@ -8103,11 +8712,17 @@ class SkillRuntime:
             error = (f"{len(final['missing'])} remembered object(s) not visible: {final['missing']}; "
                      "use search_for_object before restoring them")
         if error is None and failed:
-            error = "; ".join(f"{f['label']}: {str(f.get('error', '?'))[:60]}" for f in failed[:3])
+            error = _restore_failures(failed)
         if error is None and still:
             error = f"still displaced after the restore: {still}"
         if error is not None:
             result.update(ok=False, error=error)
+            from ..memory.envelope import HALT_SIGNATURE, normalize_failure
+            if failed and normalize_failure(error) == HALT_SIGNATURE:
+                # A halted place came back as the place's error (`holding` /
+                # `stop`) after an earlier object had failed: that failure,
+                # decided first, files the call (`failure_signature`).
+                result["skill_error"] = _restore_failures(failed)
             if stage is not None:
                 result["stage"] = stage
             if self.held_object:
@@ -8157,6 +8772,7 @@ class SkillRuntime:
         self._reconcile_held()
         if self.held_object:
             raise SkillError(self._already_holding_refusal("search_for_object"))
+        self._raise_on_a_possible_hold()   # lifting an occluder starts with a grasp
         max_occluders = int(np.clip(int(max_occluders), 1, 4))
         gcfg = self.cfg.grasp
         budget_s = float(gcfg.get("search_occluder_persist_seconds", 40.0))
@@ -8565,8 +9181,16 @@ class SkillRuntime:
                 if self.arm.harness.estopped:
                     raise SafetyViolation("e-stop latched during scene recovery")
             except SafetyViolation as exc:
-                out.update(ok=False, stage="reset_recovery", recovery_error=str(exc),
-                           error=f"Scene recovery cancelled: {exc}")
+                out.update(ok=False, stage="reset_recovery", recovery_error=str(exc))
+                stop = f"Scene recovery cancelled: {exc}"
+                if isinstance(exc, MotionHalted) and out.get("error"):
+                    # The reset had already failed (the Isaac prop reset, the
+                    # observation): the halt is named first and that failure
+                    # files the call (`skill_error`), as a halted park keeps
+                    # its skill's failure. An e-stop names itself alone.
+                    _stop_first(out, stop)
+                else:
+                    out["error"] = stop
                 out.setdefault("beliefs_forgotten", 0)
                 return True
             return False
@@ -8707,6 +9331,8 @@ class SkillRuntime:
                 reset = validate_isaac_reset(raw.reset_props())
                 out["props_reset"] = reset["props_reset"]
                 out["reset_verification"] = reset["reset_verification"]
+                if reset.get("seed") is not None:  # seeded layout (bridge set_reset_seed)
+                    out["scene_seed"] = reset["seed"]
             except Exception as e:  # noqa: BLE001
                 out["world_error"] = str(e)
                 out["error"] = f"Isaac prop reset failed: {e}"
@@ -8837,8 +9463,10 @@ class SkillRuntime:
         longer raise the gripper. (A contact episode is never such a column.)
         Each refusal's sentence comes first and fits the 240 characters the
         agent's failure line quotes: a long label is shortened, never the
-        sentence, and the driver's text after it is cut to the room left. A
-        held flag is never reconciled here: it refuses as it is.
+        sentence, and the driver's text after it is cut to the room left; the
+        label gives way to that text only as far as it needs (at most
+        _REFUSAL_ERROR_ROOM characters). A held flag is never reconciled
+        here: it refuses as it is.
         A provisional hold another arm's close left (R5) is never judged by
         this arm's jaws: refused naming that arm, the one that must settle it."""
         provisional = getattr(self, "_held_provisional", None)
@@ -8846,7 +9474,8 @@ class SkillRuntime:
             return self._held_elsewhere_refusal(provisional[0], self._arm_name_of(provisional.arm), provisional=True)
         contact = getattr(self, "_contact_episode", None) is not None
         read_error = judge_error = None
-        if not self.held_object and provisional is not None:
+        if not self.held_object:
+            # Judges a provisional hold; without one it reads nothing.
             try:
                 self._reconcile_held(seat_aware=True)
             except _HoldNotJudged as exc:
@@ -8865,14 +9494,9 @@ class SkillRuntime:
         if contact:
             return _fit_label("the grasp of {} ended in an unfinished contact episode, so the jaws were not "
                               "read and it may be in them: a person must check the gripper.", provisional[0])
-        head = ((_JAWS_NOT_JUDGED if judge_error is not None else _JAWS_NOT_READ)
-                + (": call move_home first (it raises the gripper up its approach column), then, if {} is in "
-                   "the jaws, take it out by hand, open_gripper, reset_scene." if column_kept else
-                   ": if {} is in the jaws, take it out by hand, then open_gripper, then reset_scene."))
-        way_out = _fit_label(head, provisional[0], keep=_REFUSAL_ERROR_ROOM)
-        exc = judge_error if judge_error is not None else read_error
-        why = "no valid jaw feedback" if exc is None else _error_text(exc)
-        return way_out + _cut_text(f" Error: {why}", _FAILED_ERROR_CHARS - len(way_out))
+        return _unread_hold_refusal(provisional[0], column_kept=column_kept, then="reset_scene",
+                                    judged=judge_error is not None,
+                                    error=judge_error if judge_error is not None else read_error)
 
     def _arm_name_of(self, arm) -> str | None:
         """The rig name of the SafeArm `arm` (identity search), or None."""
@@ -8884,7 +9508,7 @@ class SkillRuntime:
     def _held_elsewhere_refusal(self, label, holder, *, provisional: bool = False, then: str = "reset_scene",
                                 keep: int = 0) -> str:
         """The refusal of a call on this arm while ANOTHER arm holds the
-        object (R5), or may hold it (its grasp stopped after the close):
+        object (R5), or may hold it (its grasp stopped after its close):
         reset_scene's, and a grasp skill's (`then`: the call to make once that
         arm settled it). It names that arm and the way out on it, never this
         arm's jaws. Fits the agent's failure line with `keep` characters to
@@ -8893,7 +9517,7 @@ class SkillRuntime:
         arm = repr(holder).replace("{", "{{").replace("}", "}}")
         here = repr(self._running_arm_name()).replace("{", "{{").replace("}", "}}")
         if provisional:
-            template = ("{} may be held by arm " + arm + " (its grasp stopped after the close), not " + here
+            template = ("{} may be held by arm " + arm + " (stopped after its close), not " + here
                         + ": settle it with arm=" + arm + " first (move_home, then place_at or open_gripper), "
                         "then " + then + "; no motion was sent")
         else:
@@ -9225,9 +9849,11 @@ class SkillRuntime:
         tier = str(row.get("tier") or "unknown")
         skill = str(row.get("skill") or "?")
         head = f"step {step}: {skill}({_short(args)})"
-        tail = ("ok" if outcome == OUTCOME_OK
-                else f"stuck -- {result.get('ask', '')}" if outcome == OUTCOME_STUCK
-                else f"failed: {str(result.get('error', ''))[:120]}")
+        # the frames' captions reach the agent outside this result (MCP recall_step): the
+        # trace row's own text, so the retry trigger is withheld here too (A8 fix 2)
+        tail = _without_retry_trigger("ok" if outcome == OUTCOME_OK
+                                      else f"stuck -- {result.get('ask', '')}" if outcome == OUTCOME_STUCK
+                                      else f"failed: {str(result.get('error', ''))[:120]}")
         caption = f"{head} -> {tail} [verdict: {verdict.upper()}; via {tier}]"
         frames: list[dict] = []
         for tag in ("before", "after"):
@@ -9572,13 +10198,19 @@ def _normalize_outcome(result: dict, name: str) -> dict:
 FAILED_INSTRUCTION = "This attempt FAILED"
 #: Error text quoted in that instruction; the full text stays in `error`.
 _FAILED_ERROR_CHARS = 240
-#: Room a reset hold refusal keeps after its sentence for " Error: <driver
-#: text>" (`_reset_real_hold_refusal`): a longer label is shortened instead.
+#: Most room a hold refusal for unread jaws keeps after its sentence for
+#: " Error: <driver text>" (`_unread_hold_refusal`; a shorter text keeps only
+#: its own length): a longer label is shortened instead.
 _REFUSAL_ERROR_ROOM = 40
 #: pick_and_place's next_action for a completed routine. A failure (including a
 #: refuted placement) gets the failure instructions instead, never this.
 _PICK_REPORT_NEXT_ACTION = ("Report this result, including any return_home failure, and await the next "
                             "user order. Do not add another movement to this request.")
+#: pick_and_place's guidance on a failed or refuted pick. On a result that grants
+#: the sim retry (`_with_retry_text`) RETRY_ALLOWED stands in its place.
+_PICK_FAILED_GUIDANCE = ("If the user said 'then stop', report this failure and end the turn. "
+                         "Do not start another pick, rename the requested object or destination, "
+                         "or invent a placement using manual coordinates.")
 #: A failed grasp that did not withdraw (an observed-finger refusal returns
 #: without the automatic home, which is not geometrically checked; a refused
 #: grasp_object never goes home on a rig without return_home_after_motion)
@@ -9670,11 +10302,17 @@ def _halted_text(move: str, halt: str) -> str:
     return f"{move} {halt}" if halt.startswith("halted: ") else f"{move} halted: {halt}"
 
 
-def _stop_first(stop: str, error) -> str:
-    """The operator's stop that also ended a failed skill, then the skill's
-    own `error`: outcome first, as `_reset_release_failed` does, because the
-    agent's FAILED line keeps only the first 240 characters of the error."""
-    return f"{stop}; {error}" if error else stop
+def _stop_first(result: dict, stop: str) -> None:
+    """Name the operator's stop that also ended a failed skill first in its
+    `error`, then the skill's own error: outcome first, as
+    `_reset_release_failed` does, because the agent's FAILED line keeps only
+    the first `_FAILED_ERROR_CHARS` characters of the error. The skill's own
+    error stays in `skill_error`: it broke before the stop, so that error,
+    not the stop, files the call (`memory.envelope.failure_signature`)."""
+    error = result.get("error")
+    if error:
+        result.setdefault("skill_error", error)
+    result["error"] = f"{stop}; {error}" if error else stop
 
 
 def _with_retrace_result(result: dict, exc: BaseException) -> None:
@@ -9687,6 +10325,40 @@ def _with_retrace_result(result: dict, exc: BaseException) -> None:
     kept = getattr(exc, "retrace_result", None)
     if isinstance(kept, dict):
         result.update(kept)
+
+
+def _keep_decided_failure(exc: BaseException, failure: str | None) -> None:
+    """An operator halt that stopped the recovery or the retry after a
+    failure the skill had already decided (an air grasp's reopen or exit, the
+    pre-close retreat after a failed descent or a native Grasp that missed,
+    the next candidate after a withdrawn veto, a persistence loop's re-home or
+    next attempt after a miss, turn_screw's retreat after its strokes fell
+    short or its disengage after a stroke that did not settle, restore_scene's
+    later objects after one failed) carries that
+    failure as `skill_error`, the way skill_move_home attaches
+    `retrace_result`. execute() keeps it in the failed result, so the call is
+    filed as that failure (`memory.envelope.failure_signature`), not as the
+    halt; the error stays the halt's own text. Only a halt: an e-stop is filed
+    as the e-stop. The innermost failure wins (an attempt's own air grasp over
+    the loop's earlier miss)."""
+    if isinstance(exc, MotionHalted) and failure and getattr(exc, "skill_error", None) is None:
+        exc.skill_error = str(failure)
+
+
+def _with_skill_error(result: dict, exc: BaseException) -> None:
+    """A skill a halt ended after its own decided failure
+    (`_keep_decided_failure`): the failed result keeps that failure in
+    `skill_error`, as `_stop_first` does for a halted park or return."""
+    failure = getattr(exc, "skill_error", None)
+    if failure:
+        result.setdefault("skill_error", failure)
+
+
+def _restore_failures(failed: list[dict]) -> str | None:
+    """restore_scene's summary of the objects it could not restore (up to
+    three): its error when nothing else stopped it, and the failure a later
+    halt carries (`skill_error`). None when no object failed."""
+    return "; ".join(f"{f['label']}: {str(f.get('error', '?'))[:60]}" for f in failed[:3]) or None
 
 
 def _left_in_place(result: dict) -> bool:
@@ -9725,6 +10397,133 @@ def _with_failure_instruction(result: dict) -> dict:
     return result
 
 
+#: The kitchen rules' retry trigger (A8 R1: repeat a motion order once only when ITS
+#: result says SIMULATION ONLY and allows one more attempt; the note lint's
+#: `rule_trigger` words): only a retry the ledger granted may carry it (A8 fix,
+#: Important 3). Read as a reader reads it (`_trigger_reading`; A8 fix 2): in any
+#: case, across any separator, also between its letters ("Simulation-only", "ONE  more
+#: attempt", "S I M U L A T I O N  O N L Y", a zero-width or other format character
+#: inside a word), with the digit 0 for the letter o.
+_RETRY_TRIGGER_PHRASES = ("simulation only", "one more attempt", "another attempt", "second attempt")
+_RETRY_TRIGGER_RE = re.compile(
+    r"(?<![a-z0-9])(?:" + "|".join(r"[\W_]*".join("[o0]" if ch == "o" else ch for ch in phrase.replace(" ", ""))
+                                   for phrase in _RETRY_TRIGGER_PHRASES) + ")", re.IGNORECASE)
+#: what stands in a trigger's place in a result the ledger did not grant
+_RETRY_TRIGGER_WITHHELD = "(retry wording withheld)"
+#: Cyrillic, Greek and Latin look-alikes of the trigger's letters, read as those letters
+_TRIGGER_LOOKALIKES = str.maketrans({
+    "\u0430": "a", "\u0410": "a", "\u0391": "a", "\u03b1": "a", "\u0251": "a", "\u0441": "c", "\u0421": "c",
+    "\u03f2": "c", "\u0501": "d", "\u0435": "e", "\u0415": "e", "\u0395": "e", "\u03b5": "e", "\u04bb": "h",
+    "\u041d": "h", "\u0397": "h", "\u0456": "i", "\u0406": "i", "\u0399": "i", "\u03b9": "i", "\u0131": "i",
+    "\u04cf": "l", "\u04c0": "l", "\u043c": "m", "\u041c": "m", "\u039c": "m", "\u039d": "n", "\u043e": "o",
+    "\u041e": "o", "\u039f": "o", "\u03bf": "o", "\u03c3": "o", "\u0440": "p", "\u0420": "p", "\u03a1": "p",
+    "\u03c1": "p", "\u0433": "r", "\u0455": "s", "\u0405": "s", "\u0442": "t", "\u0422": "t", "\u03a4": "t",
+    "\u03c4": "t", "\u03c5": "u", "\u0443": "y", "\u0423": "y", "\u03a5": "y", "\u04af": "y"})
+#: the trigger squeezed (no separators, lower case, 0 read as o): a cheap first look, a
+#: superset of `_RETRY_TRIGGER_RE` (no word-start guard) on bytes
+_TRIGGER_SQUEEZED = tuple(phrase.replace(" ", "").encode() for phrase in _RETRY_TRIGGER_PHRASES)
+_TRIGGER_SQUEEZE = bytes.maketrans(b"ABCDEFGHIJKLMNOPQRSTUVWXYZ0", b"abcdefghijklmnopqrstuvwxyzo")
+_TRIGGER_SEPARATORS = bytes(byte for byte in range(128) if not chr(byte).isalnum())
+
+
+def _trigger_reading(text: str) -> str:
+    """`text` as the trigger is read: NFKD, combining marks dropped, look-alike letters
+    as Latin letters (`_TRIGGER_LOOKALIKES`). Format characters stay: they are separators
+    to `_RETRY_TRIGGER_RE` like any other non-letter."""
+    decomposed = unicodedata.normalize("NFKD", text)
+    hidden = {ord(ch): None for ch in set(decomposed)
+              if not ch.isascii() and unicodedata.category(ch) in ("Mn", "Me")}
+    return decomposed.translate({**_TRIGGER_LOOKALIKES, **hidden} if hidden else _TRIGGER_LOOKALIKES)
+
+
+def _may_carry_trigger(reading: str) -> bool:
+    """A cheap first look (C-level byte ops): False only when `reading` cannot match
+    `_RETRY_TRIGGER_RE` (its letters, squeezed, contain no trigger phrase)."""
+    squeezed = reading.encode("ascii", "ignore").translate(_TRIGGER_SQUEEZE, _TRIGGER_SEPARATORS)
+    return any(phrase in squeezed for phrase in _TRIGGER_SQUEEZED)
+
+
+def _withhold_spans(text: str) -> str:
+    """`text` with each span that reads as the trigger replaced by `_RETRY_TRIGGER_WITHHELD`
+    (the rest kept as written: other scripts, accents, numbers), read character by
+    character so every match maps back to its own characters (the same reading as
+    `_trigger_reading` of the whole text: NFKD decomposes each character on its own,
+    and the marks it could reorder are dropped)."""
+    pieces, origin = [], []
+    for i, ch in enumerate(text):
+        reading = ch if ch.isascii() else _trigger_reading(ch)
+        pieces.append(reading)
+        origin.extend([i] * len(reading))
+    out, last = [], 0
+    for match in _RETRY_TRIGGER_RE.finditer("".join(pieces)):
+        start, end = origin[match.start()], origin[match.end() - 1] + 1
+        while end < len(text) and not pieces[end]:  # marks that only decorate the last letter
+            end += 1
+        out += [text[last:start], _RETRY_TRIGGER_WITHHELD]
+        last = end
+    out.append(text[last:])
+    return "".join(out)
+
+
+def _without_retry_trigger(value):
+    """`value` with every span that reads as a retry trigger (`_RETRY_TRIGGER_RE` on
+    `_trigger_reading`) withheld from every string in it: dicts, lists and tuples are
+    walked, and a container is copied only where a string changed (shared objects are
+    never edited). A plain-ASCII string skips the Unicode reading (A8 fix 2, Minor 6:
+    no mark, compatibility form or look-alike can be in it); a string without a trigger
+    comes back as it was, the same object, and so does any other value."""
+    if isinstance(value, str):
+        reading = value if value.isascii() else _trigger_reading(value)
+        if not _may_carry_trigger(reading) or not _RETRY_TRIGGER_RE.search(reading):
+            return value
+        return _RETRY_TRIGGER_RE.sub(_RETRY_TRIGGER_WITHHELD, value) if reading is value else _withhold_spans(value)
+    if isinstance(value, dict):
+        changed = {key: new for key, item in value.items() if (new := _without_retry_trigger(item)) is not item}
+        return {**value, **changed} if changed else value
+    if isinstance(value, (list, tuple)):
+        items = [_without_retry_trigger(item) for item in value]
+        if all(new is old for new, old in zip(items, value)):
+            return value
+        return items if isinstance(value, list) else tuple(items)
+    return value
+
+
+def _with_retry_text(result: dict, skill: str) -> dict:
+    """Spec §4.5's agent text on a result the sim retry ledger marked
+    (`sim_retry`): a granted retry puts RETRY_ALLOWED where the failure
+    guidance stood (only pick_and_place's results carry it; else appended), a used one appends
+    RETRY_USED, a stopped one RETRY_STOPPED_NEXT. The FAILED line and any move_home step stay
+    in front. The single choke point of the retry trigger: every result execute() returns
+    passes here, with or without a ledger, and only a granted one keeps the trigger -- every
+    other has it withheld from all its text (`_without_retry_trigger`: an operator's halt
+    reason, an error, a nested step's reason). Idempotent."""
+    from ..agent.sim_retry import RETRY_ALLOWED, RETRY_STOPPED_NEXT, RETRY_USED
+
+    if not isinstance(result, dict):
+        return result
+    state = result.get("sim_retry")
+    state = state if isinstance(state, dict) else {}
+    own = str(result.get("next_action") or "").strip()
+    if state.get("allowed") is True:
+        text = RETRY_ALLOWED.format(skill=skill)
+        if text in own:
+            return result
+        if _PICK_FAILED_GUIDANCE in own:
+            own = own.replace(_PICK_FAILED_GUIDANCE, text)
+        else:
+            own = f"{own} {text}" if own else text
+        result["next_action"] = own
+        return result
+    added = (RETRY_STOPPED_NEXT if state.get("stopped") is True
+             else RETRY_USED if state.get("used") is True else None)
+    if added is not None and added not in own:
+        result["next_action"] = f"{own} {added}" if own else added
+    for key, value in list(result.items()):
+        if (new := _without_retry_trigger(value)) is not value:
+            result[key] = new
+    return result
+
+
 def _stuck_ask(object: str, last_err: str, attempts: int, *, stage: str = "grasp",
                destination: str | None = None, holding: bool = False) -> str:
     """The human-actionable request for a persistence loop that gave up.
@@ -9737,6 +10536,9 @@ def _stuck_ask(object: str, last_err: str, attempts: int, *, stage: str = "grasp
     err = str(last_err or "").lower()
     obj = f"{object!r}" if object else "the object"
     n = max(int(attempts), 1)
+    if _POSSIBLE_HOLD_STOP in err:
+        return ("My jaws may still hold an object, and I cannot read whether they do. If one is in them, "
+                "take it out by hand, then say 'open the gripper' (open_gripper), and ask again.")
     if _is_gripper_fault(err):
         return (f"My gripper stopped itself while handling {obj}: "
                 + ("something is between the jaws, so I cannot find their closed position. "
@@ -10593,9 +11395,18 @@ for _spec in TOOL_SPECS:
 del _spec
 
 
+#: Rule R2 of the ASPIRE demo port (spec §4.6): appended to `open_gripper`'s
+#: description on a sim-class profile that offers place_at (the OpenShell route);
+#: a real robot's catalogue stays main's, byte for byte (spec §6.3)
+_SET_DOWN_WITH_PLACE_AT = ("To set a held object down, use place_at (it lowers the object before opening). "
+                           "open_gripper releases the object where it is, in the air if the arm is raised.")
+
+
 def tool_specs_for_config(cfg=None):
     """Independent schemas for the selected rig; never mutate the shared catalog."""
     import copy
+
+    from .. import sim_profile
     from ..robot_context import arm_profiles
 
     specs = copy.deepcopy(TOOL_SPECS)
@@ -10609,7 +11420,11 @@ def tool_specs_for_config(cfg=None):
     home_arms = [a.get("name", "primary") for a in arms if a.get("return_home_after_motion")]
     summary = "; ".join(f"{a.get('name', 'primary')}: {a.get('display_name', a.get('name', 'arm'))}, "
                         f"{a['n_joints']}-DOF, TCP {a.get('ee_frame')}" for a in arms)
+    set_down = (any(s["name"] == "place_at" for s in specs)
+                and sim_profile.profile_class(cfg) == "sim")
     for spec in specs:
+        if set_down and spec["name"] == "open_gripper":
+            spec["description"] += " " + _SET_DOWN_WITH_PLACE_AT
         if home_arms and len(home_arms) == len(arms) and spec["name"] == "move_home":
             spec["description"] = (
                 "Return the arm to the saved operator camera-view home, preserving the gripper "

@@ -33,6 +33,52 @@ class EndpointUnavailable(ProofError):
     """Connection failed, unlike an answering endpoint with the wrong model."""
 
 
+class ModelNotServed(ProofError):
+    """The endpoint answers, but not with the requested model."""
+
+
+#: Nemotron 3.5 Bolt, the default brain (scripts/serve_nemotron_bolt_vllm.sh).
+NEMOTRON_BOLT_MODEL = "nemotron-3.5-bolt"
+
+#: The readiness turn. OpenClaw's agent prompt says "Nothing to say: entire
+#: reply exactly NO_REPLY" (its silent-reply rule, which no config switch
+#: removes) and then drops that token, so a brain that reads "reply with
+#: exactly OK and nothing else" as nothing to say leaves an empty payload:
+#: Nemotron 3.5 Bolt does. Its question states that a reply is required.
+#: Both are judged by the same brain_said_ok; Qwen keeps its proven wording.
+READINESS_PROMPT = "Reply with exactly OK and nothing else. Do not call tools."
+READINESS_PROMPTS = {
+    NEMOTRON_BOLT_MODEL: ("Readiness check: a visible reply is required, so NO_REPLY or an empty reply fails it. "
+                          "Reply with exactly OK and nothing else. Do not call tools."),
+}
+
+
+def readiness_prompt(model: str) -> str:
+    """The readiness question for OpenClaw's `<provider>/<served id>`."""
+    return READINESS_PROMPTS.get(model.partition("/")[2], READINESS_PROMPT)
+
+
+#: The robot proof's world and reset turns must reach the robot's world_state
+#: tool. Asked "What is the session status?", Nemotron 3.5 Bolt answered from
+#: that tool's description without calling it (launch beside Isaac Newton,
+#: 2026-10-18): no toolSummary, NOT READY. Bolt's questions name the tool. The
+#: judge (the tools the turn executed) is the same for every brain, and every
+#: other brain keeps main's wording.
+WORLD_PROMPT = "What is the session status?"
+RESET_PROMPT = "Let's start over, then show the session status."
+TOOL_NAMING_PROMPTS = {
+    NEMOTRON_BOLT_MODEL: {
+        WORLD_PROMPT: "What is the session status? Read it with the world_state tool.",
+        RESET_PROMPT: "Let's start over, then show the session status with the world_state tool.",
+    },
+}
+
+
+def proof_prompt(model: str, prompt: str) -> str:
+    """The proof's `prompt` as asked of OpenClaw's `<provider>/<served id>`."""
+    return TOOL_NAMING_PROMPTS.get(model.partition("/")[2], {}).get(prompt, prompt)
+
+
 def oc_command(*args: str) -> list[str]:
     """The OpenClaw CLI the proof drives. On the OpenShell route (Linux) it is
     the sandbox's own CLI, given as a JSON argv prefix in
@@ -80,6 +126,12 @@ def request_json(url: str, payload: dict | None = None, timeout: float = 5) -> d
     opener = build_opener(ProxyHandler({})) if parsed.hostname in ("localhost", "127.0.0.1", "::1") else build_opener()
     headers = {"Accept": "application/json"}
     key = os.environ.get("CASCADE_MODEL_API_KEY", "")
+    if not key and os.environ.get("CASCADE_MODEL_API_KEY_FILE"):
+        # The launcher that started the brain names its 0600 key FILE.
+        try:
+            key = Path(os.environ["CASCADE_MODEL_API_KEY_FILE"]).expanduser().read_text().strip()
+        except OSError as exc:
+            raise ProofError(f"cannot read CASCADE_MODEL_API_KEY_FILE ({type(exc).__name__})") from exc
     if key:
         headers["Authorization"] = f"Bearer {key}"
     data = None
@@ -104,7 +156,7 @@ def local_brain(base: str, expected: str | None) -> dict:
     data = request_json(base.rstrip("/") + "/models")
     ids = [row.get("id") or row.get("model") for row in data.get("data", data.get("models", [])) if isinstance(row, dict)]
     if not ids or (expected and expected not in ids):
-        raise ProofError(f"model {expected or '<any>'} not served at {base}; available={ids}")
+        raise ModelNotServed(f"model {expected or '<any>'} not served at {base}; available={ids}")
     return {"base_url": base, "model": expected or ids[0]}
 
 
@@ -171,22 +223,32 @@ def probe_native_tools(base: str, model: str) -> dict:
 
 def check_brain(brain: str) -> dict:
     endpoints = {
+        # Both serve scripts default to :8080, so the Qwen endpoint is Bolt's too.
+        "nemotron-bolt": (os.environ.get("CASCADE_NEMOTRON_BOLT_BASE_URL")
+                          or os.environ.get("CASCADE_QWEN_BASE_URL", "http://127.0.0.1:8080/v1"),
+                          NEMOTRON_BOLT_MODEL),
         "cosmos": (os.environ.get("CASCADE_COSMOS_BASE_URL", "http://127.0.0.1:8082/v1"), "cosmos3-edge"),
         "cosmos-sglang": (os.environ.get("CASCADE_COSMOS_SGLANG_BASE_URL", "http://127.0.0.1:8083/v1"), "cosmos3-edge"),
         "qwen": (os.environ.get("CASCADE_QWEN_BASE_URL", "http://127.0.0.1:8080/v1"),
                  "Qwen/Qwen3.8-27B" if os.environ.get("CASCADE_INSTALL_PROFILE") == "spark" else None),
     }
     if brain in endpoints:
-        context = 32768 if os.environ.get("CASCADE_INSTALL_PROFILE") == "spark" else (65536 if brain == "qwen" else 32768)
+        context = 32768 if os.environ.get("CASCADE_INSTALL_PROFILE") == "spark" else (
+            65536 if brain in ("qwen", "nemotron-bolt") else 32768)
         return {**local_brain(*endpoints[brain]), "brain": brain, "context_window": context}
     if brain not in ("auto", "keep"):
         raise ProofError(f"unknown brain: {brain}")
     if brain == "auto":
-        for name in ("cosmos", "qwen"):
+        # A local Cosmos, else the brain on :8080: the default Nemotron 3.5
+        # Bolt when it serves that id, else Qwen's first-served-id rule.
+        for name in ("cosmos", "nemotron-bolt", "qwen"):
             try:
                 return check_brain(name)
             except EndpointUnavailable:
                 pass
+            except ModelNotServed:
+                if name != "nemotron-bolt":
+                    raise
     p = subprocess.run(oc_command("models", "status", "--json"), capture_output=True, text=True, timeout=30)
     if p.returncode:
         raise ProofError("OpenClaw model configuration is unavailable")
@@ -386,6 +448,11 @@ def make_spark_witness(repo, evidence, *, object_name, destination_name):
         port=int(os.environ.get("CASCADE_BRIDGE_PORT", "8611")))
 
 
+#: the attendee tools that only inspect (attendee-tools.json minus pick_and_place and
+#: reset_scene): a Spark proof turn may call any of them besides its expected action
+SPARK_READ_TOOLS = ("describe_scene", "localize_object", "camera_snapshot", "world_state", "robot_knowledge")
+
+
 def _run_spark_cases(repo, state_dir, evidence, report, owner, baseline, *, persistent=False):
     """Native OpenClaw orders, each followed by an observed same-world reset."""
     from pathlib import Path
@@ -411,8 +478,7 @@ def _run_spark_cases(repo, state_dir, evidence, report, owner, baseline, *, pers
         # visitor's message or constrain native model selection.
         result = agent_turn(session, model, message, output, timeout, tool)
         summary = result["meta"]["toolSummary"]
-        read_tools = {prefix + name for name in
-                      ("describe_scene", "localize_object", "camera_snapshot", "world_state")}
+        read_tools = {prefix + name for name in SPARK_READ_TOOLS}
         if not set(summary["tools"]).issubset(read_tools | {prefix + tool}):
             raise ProofError("Spark acceptance used an unexpected action or non-attendee tool")
         # Current owner-bound trace validators count motion/reset calls. A
@@ -495,14 +561,14 @@ def run_proof(repo, state_dir, sim: str, robot_turn: bool = True, *, spark_case_
         (evidence / "proof.json").write_text(json.dumps(report, indent=2) + "\n")
         _write_receipt(report, state_dir)
         return report
-    brain = agent_turn(session, model, "Reply with exactly OK and nothing else. Do not call tools.", evidence / "01-brain.json", 120)
+    brain = agent_turn(session, model, readiness_prompt(model), evidence / "01-brain.json", 120)
     text = " ".join(p.get("text", "") for p in brain.get("payloads", [])).strip()
     if not brain_said_ok(text):
         raise ProofError(f"brain did not answer OK (first line {_first_line(text)[:80]!r}); see {evidence}")
     if robot_turn and sim != "none":
         target = "pink cube" if sim == "isaac" else "red cube"
         agent_turn(session, model,
-                   "What is the session status?", evidence / "02-world.json", 150, "world_state")
+                   proof_prompt(model, WORLD_PROMPT), evidence / "02-world.json", 150, "world_state")
         process = _bound_world(state_dir, owner, baseline, report["started_at"], persistent=persistent_mcp)
         trace = Path(process["run_dir"]) / "trace.jsonl"
         report["process"] = process
@@ -516,7 +582,7 @@ def run_proof(repo, state_dir, sim: str, robot_turn: bool = True, *, spark_case_
         reset_started = time.time()
         print("[proof] resetting the SAME world", file=sys.stderr, flush=True)
         agent_turn(session, model,
-                   "Let's start over, then show the session status.",
+                   proof_prompt(model, RESET_PROMPT),
                    evidence / "04-reset.json", 150, ("reset_scene", "world_state"))
         _bound_world(state_dir, owner, baseline, report["started_at"], process, persistent=persistent_mcp)
         props = validate_reset_trace(trace, reset_started, sim, target)
@@ -535,7 +601,7 @@ def main() -> int:
 
     p = argparse.ArgumentParser(description=__doc__)
     mode = p.add_mutually_exclusive_group(required=True)
-    mode.add_argument("--check-brain", choices=["auto", "keep", "cosmos", "cosmos-sglang", "qwen"])
+    mode.add_argument("--check-brain", choices=["auto", "keep", "cosmos", "cosmos-sglang", "qwen", "nemotron-bolt"])
     mode.add_argument("--run", action="store_true")
     mode.add_argument("--probe-native", metavar="BASE_URL")
     mode.add_argument("--wait-gateway", type=float, metavar="SECONDS")

@@ -280,6 +280,26 @@ def open_wait_timeout_s(grasp_cfg) -> float | None:
     return float(timeout)
 
 
+class ProvisionalHold(tuple):
+    """The `_held_provisional` marker a grasp's close leaves: (label, detector
+    label, colour), unpacked like the plain tuple, plus what the grasp's own
+    verify (`SkillRuntime._air_grasp`) judges the jaws against, as open
+    fractions of jaw travel: `commanded_open`, the opening the close last
+    commanded (its seat), and `expected_open`, where the object should stop
+    the jaws. reset_scene on a real gripper classifies an interrupted grasp's
+    jaws with them (`_reconcile_held(seat_aware=True)`); a marker without
+    them (None, or a plain tuple) keeps the old rule."""
+
+    commanded_open: float | None
+    expected_open: float | None
+
+    def __new__(cls, marker, commanded_open: float | None = None, expected_open: float | None = None):
+        hold = super().__new__(cls, marker)
+        hold.commanded_open = commanded_open
+        hold.expected_open = expected_open
+        return hold
+
+
 def _air_grasp_stop(harness, generation) -> str | None:
     """Why the recovery after an air grasp (the jaws' reopen, the exit
     withdrawal) must not act: a latched e-stop, a pending operator halt, or
@@ -2362,7 +2382,7 @@ class SkillRuntime:
         extents = proj.max(axis=0) - proj.min(axis=0)
         return float(np.min(extents))
 
-    def _reconcile_held(self) -> None:
+    def _reconcile_held(self, *, seat_aware: bool = False) -> None:
         """Reconcile the held flag with the jaws, in BOTH directions.
 
         (a) Stale held-state: we believe we hold something but the jaws report
@@ -2377,6 +2397,12 @@ class SkillRuntime:
         Jaws closed on air -> drop the marker. Jaws AT the open position
         (the close never landed, or `open_gripper` ran since) -> drop it
         too: open jaws are not an invented hold.
+        With `seat_aware` (reset_scene on a real gripper) a marker that
+        carries its close's commanded opening (`ProvisionalHold`) is judged
+        exactly like the grasp's own verify (`_air_grasp`): jaws at or
+        through that seat closed on air (the reBot's rigid close on air stops
+        at 85 % of travel, short of closed) -> drop it; stalled short of it
+        -> promote it.
         (c) Thin objects: the held width MEASURED when the object was taken
         (jaw stall after the lift) decides whether a closed-jaw reading can
         mean a slip at all; see below.
@@ -2388,6 +2414,7 @@ class SkillRuntime:
         if prov is not None and not self.held_object:
             wf = self._gripper_width_frac()
             if wf is not None:
+                seat = getattr(prov, "commanded_open", None) if seat_aware else None
                 # Jaws AT the open position (within the same tolerance that
                 # separates a closed jaw from air) cannot be stalled on
                 # anything: the close never landed (refused before its first
@@ -2398,6 +2425,12 @@ class SkillRuntime:
                         "outcome",
                         f"the jaws are open; the interrupted grasp of {prov[0]!r} "
                         "did not land -- nothing is held",
+                    )
+                elif seat is not None and self._air_grasp(wf, seat, prov.expected_open):
+                    self.memory.add(
+                        "outcome",
+                        f"the jaws closed on air at the opening the interrupted grasp of {prov[0]!r} "
+                        "commanded -- nothing is held",
                     )
                 elif wf >= air:
                     label, det_label, color = prov
@@ -4550,8 +4583,13 @@ class SkillRuntime:
             # the jaws on it as "not holding anything". Record a provisional
             # marker first; `_reconcile_held` promotes it (jaws stalled on
             # something) or clears it (jaws closed on air) on the next call.
-            provisional = (label, fix.detection.label,
-                           detection_color(frame.rgb, fix.detection))
+            # It carries the opening this close commands and the one the
+            # object should stop the jaws at: reset_scene judges the jaws of
+            # an interrupted grasp with them, as the verify below does.
+            provisional = ProvisionalHold(
+                (label, fix.detection.label, detection_color(frame.rgb, fix.detection)),
+                commanded_open=SkillRuntime._close_commanded_open(self, profile),
+                expected_open=min(grasp.width_m / self._max_width, 1.0))
             grasp_evidence.phase("close")
             close_guard = None
             if scene_gate is not None:
@@ -4604,6 +4642,9 @@ class SkillRuntime:
                     self.arm.stop()
                     raise SkillError("did not settle while retreating after failed grasp")
                 raise
+            if close_hold_open is not None:
+                # The post-contact hold is the opening the close commanded last.
+                provisional.commanded_open = SkillRuntime._close_commanded_open(self, profile, close_hold_open)
             contact_episode.wait_geometry(self, episode)
             self._held_support_offset_m = None
             # Approximate aiming compensation uses the closed grasp pose,
@@ -4748,9 +4789,7 @@ class SkillRuntime:
             # the hold opening, not the stage-2 one; an object lost in the lift
             # leaves them THERE, so that is the opening "nothing resisted" is
             # judged against (else the hold would blind this check).
-            commanded_open = (0.0 if self._force_contact_close_enabled()
-                              else close_hold_open if close_hold_open is not None
-                              else max(1.0 - profile.close_frac_stage2, 0.0))
+            commanded_open = SkillRuntime._close_commanded_open(self, profile, close_hold_open)
             expected_open = min(grasp.width_m / self._max_width, 1.0)
             air_grasp = self._air_grasp(width_after_lift, commanded_open, expected_open)
             if air_grasp:
@@ -4923,6 +4962,15 @@ class SkillRuntime:
             # The first call localized by description; its resolution stands.
             result = {**result, **self._target_resolution(label, frame, fix)}
         return result
+
+    def _close_commanded_open(self, profile, hold_open: float | None = None) -> float:
+        """The open fraction a grasp's close last commanded, the opening its
+        verify (`_air_grasp`) judges the jaws against: fully closed for a
+        force-contact close, the post-contact hold's opening when one was
+        commanded (`hold_open`), else the stage-2 seat."""
+        return (0.0 if self._force_contact_close_enabled()
+                else hold_open if hold_open is not None
+                else max(1.0 - profile.close_frac_stage2, 0.0))
 
     def _air_grasp(self, width_after: float, commanded_open: float, expected_open: float) -> bool:
         """ASPIRE jaw-travel heuristic, shared by both executors: jaws nearly
@@ -8073,19 +8121,29 @@ class SkillRuntime:
 
     def _reset_real_hold_refusal(self) -> str | None:
         """Why reset_scene on a real gripper refuses before any motion, or
-        None. A held object refuses (#357). An operator STOP late in the grasp
-        lift leaves only the close's provisional hold: it is reconciled with
-        the jaws first, as every grasp skill's entry does (`_reconcile_held`),
-        so jaws stalled on the object promote it and the reset refuses
-        instead of homing with the object and forgetting it (a later
-        open_gripper dropped it). Jaws that read open or closed on air clear
-        it (nothing is held). A provisional hold the jaws could not settle
-        (unknown feedback, a failed read) refuses too: fail closed. A held
-        flag is never reconciled here: it refuses as it is."""
+        None. A held object refuses (#357). A grasp ended after its close and
+        before its held flag (an operator STOP right after the close or in
+        the lift, a lift that did not settle, a contact) leaves only the
+        close's provisional hold. It is classified with the jaws first,
+        exactly like the grasp's own verify (`_reconcile_held(seat_aware=
+        True)`, `_air_grasp` against the opening the close commanded):
+        - stalled short of that seat: the hold is promoted and the reset
+          refuses instead of homing with the object (a later open_gripper
+          dropped it);
+        - at or through the seat (the reBot's rigid close on air stops at
+          85 % of travel, 0.93 rad), closed or open: nothing is held, the
+          hold is cleared and the reset runs as for empty jaws;
+        - unreadable (unknown feedback, a failed read): refused too (fail
+          closed), naming the way out. On the reBot only a jaw command
+          restores a lost turn reference, and it closes first: an object
+          still in the jaws must come out by hand before open_gripper.
+        The hold sentence comes first and the driver's text is shortened, so
+        the refusal fits the 240 characters of the agent's failure line. A
+        held flag is never reconciled here: it refuses as it is."""
         read_error = None
         if not self.held_object and getattr(self, "_held_provisional", None) is not None:
             try:
-                self._reconcile_held()
+                self._reconcile_held(seat_aware=True)
             except Exception as exc:  # noqa: BLE001 -- unknown jaws: refused below
                 read_error = exc
         if self.held_object:
@@ -8093,9 +8151,11 @@ class SkillRuntime:
         provisional = getattr(self, "_held_provisional", None)
         if provisional is None:
             return None
+        way_out = (f"the jaw state could not be read: if {provisional[0]} is in the jaws, take it out by "
+                   "hand, then open_gripper, then reset_scene.")
         why = read_error if read_error is not None else "no valid jaw feedback"
-        return (f"jaw state could not be read: {provisional[0]} may still be held after the interrupted "
-                f"grasp; check the gripper, then reset. Error: {why}")
+        error, room = f" Error: {why}", _FAILED_ERROR_CHARS - len(way_out)
+        return way_out + (error if len(error) <= room else error[:max(room - 3, 0)].rstrip() + "...")
 
     def _forget_held_object(self) -> None:
         """The jaws let the held object go: clear every held-object field."""

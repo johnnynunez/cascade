@@ -167,9 +167,12 @@ move on, win or lose (exit lines in §8). One `pick_and_place` per group, ever.
    restores SIM props, opens closed empty jaws, clears the world model and task-memory frames
    and takes one fresh observation. In SIM a held object is released at home. On the real rig
    (the reBot) it refuses before any motion while the jaws hold something, also an object
-   they stalled on when a STOP interrupted the grasp: place it first (`place_at`). After such
-   a STOP it also refuses when the jaws cannot be read: check the gripper. Real props do not
-   teleport (`props_reset: []`): put them back on the tape.
+   they stalled on when a STOP interrupted the grasp: place it first (`place_at`). Jaws that
+   closed on air after such a STOP (the rigid close stops at 85 % of travel, 15 % open) hold
+   nothing: the reset runs and opens them at home. After such a STOP it also refuses when the
+   jaws cannot be read: if the object is in the jaws, take it out by hand, then
+   `open_gripper`, then `reset_scene`. Real props do not teleport (`props_reset: []`): put
+   them back on the tape.
 2. Run `scripts/booth_reset.sh` (keeps the learned brain). It prints the physical checklist
    (park → props to tape → `/clear` the chat) and verifies every prop shows LIVE in the world
    model before you seat anyone: a "remembered" ghost row at minute 0 is a mystery failure at

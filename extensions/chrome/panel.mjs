@@ -1,4 +1,4 @@
-import {cameraNames, MJPEGParser, freshness} from './core.mjs';
+import {cameraNames, MJPEGParser, freshness, frameAgeNote, frameAgeNow} from './core.mjs';
 import {bootstrap,discover,LABELS} from './discovery.mjs';
 import {cameraZoom} from './zoom.mjs';
 // Keep references when the existing camera UI moves into its larger window.
@@ -11,6 +11,8 @@ if (!embedded) { document.body.classList.add('side'); for(const id of ['move','s
 else if (!chrome.permissions) $('side').hidden=true;
 let config,hint, generation=0, controllers=[], timers=[], imageURL=null, selected='', paused=false, collapsed=false, left=false;
 let lastFrame=0,lastState=0,lastAdvance=0,hasAdvanced=false,lastId=null,cameraError=false,networkError='',retryAt=0;
+// X-Frame-Age of the frame on screen (Spark camera viewer only), null = unknown.
+let frameAge=null;
 let authorized=false;
 const zoom=cameraZoom({viewer:$('viewer'),companion:document.querySelector('.companion'),embedded,
  resizeEmbedded:enlarged=>chrome.runtime.sendMessage({type:'enlarge-camera',enlarged}),window,document});
@@ -19,12 +21,19 @@ let wasOutOfView=outOfView();
 function later(fn,ms){ const t=setTimeout(()=>{timers=timers.filter(id=>id!==t);fn();},ms);timers.push(t);return t; }
 function cancel(){generation++;controllers.forEach(c=>c.abort());controllers=[];timers.forEach(clearTimeout);timers=[];}
 function forgetFrame(){if(imageURL)URL.revokeObjectURL(imageURL);imageURL=null;$('camera-image').removeAttribute('src');$('camera-image').hidden=true;$('empty').hidden=false;$('viewer').disabled=true;lastFrame=0;}
-function state(kind,title,detail){$('retry').hidden=!['offline','stale'].includes(kind);$('status').dataset.state=kind;$('status').textContent=title;$('detail').textContent=detail;$('viewer').dataset.stale=String(kind!=='live');$('frame-note').hidden=!lastFrame||kind==='live';$('frame-note').textContent=kind==='paused'?'Video paused · last frame':'Last frame · freshness unconfirmed';}
+// Write only changed text: an unchanged rewrite of a live region can be announced again.
+function put(id,text){if($(id).textContent!==text)$(id).textContent=text;}
+// The badge counts a held frame's age every second; screen readers hear only the
+// state changes (Live, Last frame, Not updating, ...) from #status-live.
+function state(kind,title,detail){$('retry').hidden=!['offline','stale'].includes(kind);$('status').dataset.state=kind;put('status',title);put('status-live',kind==='held'?'Last frame':title);put('detail',detail);$('viewer').dataset.stale=String(kind!=='live');$('frame-note').hidden=!lastFrame||kind==='live';put('frame-note',kind==='paused'?'Video paused · last frame':kind==='held'?title:'Last frame · freshness unconfirmed');}
 function refresh(){
  if(paused||collapsed||outOfView()){state('paused','Paused','The connection pauses while the camera is out of view.');return;}
  if(networkError){const sec=Math.max(1,Math.ceil((retryAt-Date.now())/1000));state(lastFrame?'stale':'offline',lastFrame?'Not updating':'Offline',`${networkError} Retrying in ${sec} s.`);return;}
- const f=freshness({now:performance.now(),lastFrame,lastState,lastAdvance,hasAdvanced,error:cameraError});
- if(f==='live')state('live','Live',`The image is updating live.`);
+ const now=performance.now(),f=freshness({now,lastFrame,lastState,lastAdvance,hasAdvanced,error:cameraError});
+ // The age keeps growing once parts stop: the 1 s tick ages the frame of a stream that stopped.
+ const held=f==='live'&&frameAgeNote(frameAgeNow(frameAge,now-lastFrame));
+ if(held)state('held',held,'No new image from the camera yet. This is the last one it sent.');
+ else if(f==='live')state('live','Live',`The image is updating live.`);
  else if(f==='stale')state('stale','Not updating','A recent image could not be confirmed. The last frame may be frozen.');
  else if(f==='unverified')state('unverified','Checking','Image received. Checking that the video is advancing.');
  else state('connecting','Connecting','Waiting for the first frame from the server…');
@@ -60,10 +69,10 @@ function updateCameras(data){
  if(Number.isFinite(id)&&id>0){if(lastId!==null&&id!==lastId){lastAdvance=performance.now();hasAdvanced=true;}lastId=id;}
  else {lastId=null;hasAdvanced=false;}
 }
-async function renderFrame(bytes,gen){
+async function renderFrame(bytes,gen,age=null){
  const url=URL.createObjectURL(new Blob([bytes],{type:'image/jpeg'}));
  const probe=new Image();probe.src=url;
- try {await probe.decode();if(gen!==generation){URL.revokeObjectURL(url);return;}const old=imageURL;imageURL=url;$('camera-image').src=url;$('camera-image').hidden=false;$('empty').hidden=true;$('viewer').disabled=false;lastFrame=performance.now();if(old)URL.revokeObjectURL(old);refresh();}
+ try {await probe.decode();if(gen!==generation){URL.revokeObjectURL(url);return;}const old=imageURL;imageURL=url;$('camera-image').src=url;$('camera-image').hidden=false;$('empty').hidden=true;$('viewer').disabled=false;lastFrame=performance.now();frameAge=age;if(old)URL.revokeObjectURL(old);refresh();}
  catch(e){URL.revokeObjectURL(url);throw new Error('The JPEG frame could not be decoded.');}
 }
 async function run(gen,attempt=0){
@@ -84,7 +93,7 @@ async function run(gen,attempt=0){
    if(item.done)throw new Error('The server closed the video stream.');
    const frames=parser.push(item.value);
    // Drop superseded frames if network buffering delivers multiple at once.
-   if(frames.length){await renderFrame(frames[frames.length-1],gen);attempt=0;}
+   if(frames.length){await renderFrame(frames[frames.length-1],gen,parser.age);attempt=0;}
   }
  }catch(e){
   if(gen!==generation)return;

@@ -720,11 +720,16 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
     # of closed jaws before a grasp, an air grasp's reopen): a bad value
     # fails the build here, before any arm exists, never first after a
     # grasp's close (PR-A jaws round 2, M6).
-    from ..skills.runtime import open_wait_timeout_s
+    from ..skills.runtime import close_stall_band, open_wait_timeout_s
     from ..types import SkillError
 
     try:
         open_wait_timeout_s(cfg.get("grasp") or _empty_cfg())
+        # The close-feedback stall band (`gripper.close_stall_band`) of the
+        # primary arm, which the close reads, and of every arm in the rig.
+        for acfg in (cfg.get("arm"), *(cfg.get("arms") or ())):
+            if acfg is not None:
+                close_stall_band(acfg.get("gripper"))
     except SkillError as exc:
         raise ValueError(str(exc)) from None
 

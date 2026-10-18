@@ -20,6 +20,24 @@ Click the image (or Tab to it and press **Enter** / **Space**) to enlarge; click
 **Escape** to return. In the side panel it opens a larger window (closing it returns the
 camera); in **Show in chat** it expands in the tab. The stream keeps running across sizes.
 
+The badge says **Live** while the camera advances. The Spark camera server
+(`scripts/spark_cameras.py`) keeps serving its last image for up to 5 s when the simulator skips
+frames and marks each image with its `X-Frame-Age` (seconds since the server received it). Once
+that age passes 1 s the badge reads **Last frame · N s old**; when the stream sends nothing for over
+1 s, the time on screen is added, so the count goes up every second. **Live** returns with the next
+fresh image; after 5 s without one the badge reads **Not updating**. An image can read **Live** up
+to about 2 s old: counting the time on screen sooner flashed **Last frame** on slowly changing
+images. Other servers send no age, so their badge is unchanged; the visitor proxy
+(`deploy/brev/visitor.py`) does not forward the header, so visitors see no change.
+
+Screen readers hear two status regions, each only when its text changes:
+
+1. The state word (Live, Last frame, Not updating) from a hidden region; never the count.
+2. The sentence under the image (e.g. "The image is updating live."), once per state change.
+
+Known gap, older than the age label: during a network error that sentence ends "Retrying in N s."
+and changes every second, so it is announced every second.
+
 ## Discovery
 
 1. The page may advertise its status endpoint with

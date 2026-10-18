@@ -321,6 +321,29 @@ def test_a_reset_refused_for_the_jaws_is_filed_by_their_state_not_the_object(rig
     assert r.runtime.envelope.stats()["reset_scene"]["failures"] == {signature: 1}
 
 
+@pytest.mark.parametrize("label", ["short", "long"])
+@pytest.mark.parametrize("case", ["unjudged", "contact"])
+def test_a_reset_refused_for_an_unjudged_or_unread_hold_is_filed_by_the_jaw_state(rig, case, label):
+    """The jaw reading that could not be judged, and the unfinished contact
+    episode whose jaws were never read (#367), file under the jaw state too:
+    never an object too wide for the jaws (`jaw`), never the label's first
+    words (`other:the_grasp_of`), whatever the label's length."""
+    r = rig("rebot_rs")
+    if label == "long":
+        sentence = _long_label_case(r, case)
+    else:
+        _stop_in_the_grasp(r, stall=0.5)
+        if case == "unjudged":
+            _malform(r.runtime, "label_only")
+            sentence = UNJUDGED
+        else:
+            r.runtime._contact_episode = {"unfinished": True}
+            sentence = CONTACT
+    out = r.runtime.execute("reset_scene", {})
+    assert out["ok"] is False and sentence in out["error"] and r.log == [], (out, r.log)
+    assert r.runtime.envelope.stats()["reset_scene"]["failures"] == {"state:jaws_unreadable": 1}
+
+
 def test_open_gripper_after_unreadable_jaws_clears_the_hold_and_the_reset_runs(rig):
     """The refusal's own way out, with the jaws still unreadable: the object
     taken out by hand, open_gripper drops the provisional hold, and the reset

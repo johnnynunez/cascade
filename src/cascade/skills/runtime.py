@@ -1212,6 +1212,13 @@ class SkillRuntime:
                 return f"halted: {halted}" if halted else "halt received during route planning or execution"
         return None
 
+    @staticmethod
+    def _skill_halt_estopped(baselines) -> bool:
+        """A harness that took a halt since the skill started
+        (`_skill_halt_reason`) also has its e-stop latched: both stops came."""
+        return any(harness._halt_generation != generation and getattr(harness, "estopped", False)
+                   for harness, generation in baselines)
+
     def _select_arm(self, name):
         """Resolve an arm name to a SafeArm, or raise SkillError.
 
@@ -1974,7 +1981,12 @@ class SkillRuntime:
                 # what it moved): never report that as a success (A3 review).
                 # Every other field stays; an object still in the jaws is named.
                 result["ok"] = False
-                result["error"] = f"MotionHalted: {halted_in_skill}"
+                # With both stops (that halt AND a latched e-stop) the e-stop
+                # wins, as in begin_motion and `_end_on_halt`: a sort that
+                # kept what it moved after `_end_on_halt` named the e-stop is
+                # filed `safety:estop`, never as the halt.
+                result["error"] = ("SafetyViolation: e-stop latched" if self._skill_halt_estopped(skill_halt)
+                                   else f"MotionHalted: {halted_in_skill}")
                 if self.held_object:
                     result.setdefault("holding", self.held_object)
         except (SkillError, SafetyViolation) as e:
@@ -2661,14 +2673,20 @@ class SkillRuntime:
         and the halt reaches execute() (A3 review). Their re-home's
         begin_motion used to clear the halt, so the arm went on after an
         operator STOP. The generation also catches a halt cleared again (a
-        Resume) and an air grasp whose exit the halt skipped. An e-stop needs
-        no check here: `_grasp_retry_verdict` stops on the latch, and the
-        harness refuses every command under it. `failure`: the last attempt's
-        own failure, decided before the halt; the halt carries it
-        (`_keep_decided_failure`), so the call is filed as that failure."""
+        Resume) and an air grasp whose exit the halt skipped. An e-stop alone
+        needs no check here: `_grasp_retry_verdict` stops on the latch, and
+        the harness refuses every command under it. When both came (a newer
+        halt AND a latched e-stop) the e-stop wins, as in begin_motion and the
+        release recovery: it is raised as itself, never as a halt, and
+        carries no `failure` (an e-stop is filed `safety:estop`, a loss).
+        `failure`: the last attempt's own failure, decided before the halt;
+        the halt carries it (`_keep_decided_failure`), so the call is filed
+        as that failure."""
         harness = getattr(self.arm, "harness", None)
         if halt_generation is None or getattr(harness, "_halt_generation", None) == halt_generation:
             return
+        if getattr(harness, "estopped", False):
+            raise SafetyViolation("e-stop latched; not retrying")
         reason = getattr(harness, "halted", None)
         halted = MotionHalted(f"motion halted: {reason}; not retrying" if reason
                               else "halt received during the grasp; not retrying")
@@ -4806,13 +4824,20 @@ class SkillRuntime:
                     self, profile, hold_squeeze,
                     **({"_halt_generation": scene_halt_generation,
                         "_before_close": close_guard} if scene_enabled else {}))
-            except GraspFailed:
+            except GraspFailed as failed:
                 if not self._force_contact_close_enabled() or episode is not None:
                     raise
                 # Native Grasp completed without securing an object. Retrace
                 # its vetted descent, with the original contact exemption;
                 # preserve jaws/provisional state and let STOP/fault checks win.
-                if not self._move_joints(q_pre, duration_s=float(gcfg.get("descend_duration_s", 2.0))):
+                # The grasp had already failed: a halt in the retreat carries
+                # that failure (`_keep_decided_failure`).
+                try:
+                    settled = self._move_joints(q_pre, duration_s=float(gcfg.get("descend_duration_s", 2.0)))
+                except MotionHalted as halted:
+                    _keep_decided_failure(halted, f"{type(failed).__name__}: {failed}")
+                    raise
+                if not settled:
                     self.arm.stop()
                     raise SkillError("did not settle while retreating after failed grasp")
                 raise
@@ -7271,32 +7296,45 @@ class SkillRuntime:
                 break
             q_end[joint] += sign * stroke
             if not self._move_joints(q_end, duration_s=max(0.8, stroke / 1.5)):
-                self._set_gripper(self._grip_open, effort=0.8)
-                raise SkillError("stroke did not settle; stopping the screw task")
+                unsettled = "stroke did not settle; stopping the screw task"
+                try:  # disengage: a halt here carries the stroke's failure
+                    self._set_gripper(self._grip_open, effort=0.8)
+                except MotionHalted as halted:
+                    _keep_decided_failure(halted, f"SkillError: {unsettled}")
+                    raise
+                raise SkillError(unsettled)
             # 4) disengage
             self._set_gripper(self._grip_open, effort=0.8)
             done += stroke
             strokes += 1
 
+        applied = done / (2.0 * np.pi)
+        # The shortfall is decided here, before the retreat: a halt in the
+        # retreat carries it (`_keep_decided_failure`), so the call is filed
+        # as the shortfall, not as the halt.
+        shortfall = None
+        if applied <= 0.0:
+            shortfall = (f"no roll travel available to {direction} {label!r} "
+                         f"(joint {joint} pinned by its limits at this pose)")
+        elif done < want - 1e-6:
+            shortfall = f"only {applied:.2f} of {turns:.2f} requested wrist turns completed"
         # retreat to hover, then home so the camera view clears
-        self._move_joints(ik_hover.q, duration_s=1.0)
+        try:
+            self._move_joints(ik_hover.q, duration_s=1.0)
+        except MotionHalted as halted:
+            _keep_decided_failure(halted, shortfall and f"SkillError: {shortfall}")
+            raise
         try:
             self.skill_move_home()
         except (SkillError, SafetyViolation):
             pass
-        applied = done / (2.0 * np.pi)
         self.memory.add(
             "action",
             f"commanded {direction} wrist travel for {label!r}: {applied:.2f} turns "
             f"({strokes} strokes); fastener outcome not measured",
         )
-        if applied <= 0.0:
-            raise SkillError(
-                f"no roll travel available to {direction} {label!r} "
-                f"(joint {joint} pinned by its limits at this pose)"
-            )
-        if done < want - 1e-6:
-            raise SkillError(f"only {applied:.2f} of {turns:.2f} requested wrist turns completed")
+        if shortfall is not None:
+            raise SkillError(shortfall)
         return {
             "screw": label,
             "direction": direction,
@@ -7765,7 +7803,15 @@ class SkillRuntime:
                 skip.add(step["label"])
                 plan = self._restore_plan(snap, tolerance_m, skip, seen_after)
                 continue
-            rec = self._move_object_to(step["query"], step["to"], budget_s=budget_s, kind=step["kind"])
+            try:
+                rec = self._move_object_to(step["query"], step["to"], budget_s=budget_s, kind=step["kind"])
+            except MotionHalted as halted:
+                # An earlier object that failed already fixed this call's
+                # ok=False: a halt in a later object's move carries that
+                # failure (`_keep_decided_failure`; a failure the move itself
+                # had decided rides on it already and wins).
+                _keep_decided_failure(halted, _restore_failures(failed))
+                raise
             rec["label"] = step["label"]
             moves.append(rec)
             left_in_place, left_by = bool(rec.get("home_skipped")), rec
@@ -7800,11 +7846,17 @@ class SkillRuntime:
             error = (f"{len(final['missing'])} remembered object(s) not visible: {final['missing']}; "
                      "use search_for_object before restoring them")
         if error is None and failed:
-            error = "; ".join(f"{f['label']}: {str(f.get('error', '?'))[:60]}" for f in failed[:3])
+            error = _restore_failures(failed)
         if error is None and still:
             error = f"still displaced after the restore: {still}"
         if error is not None:
             result.update(ok=False, error=error)
+            from ..memory.envelope import HALT_SIGNATURE, normalize_failure
+            if failed and normalize_failure(error) == HALT_SIGNATURE:
+                # A halted place came back as the place's error (`holding` /
+                # `stop`) after an earlier object had failed: that failure,
+                # decided first, files the call (`failure_signature`).
+                result["skill_error"] = _restore_failures(failed)
             if stage is not None:
                 result["stage"] = stage
             if self.held_object:
@@ -8233,8 +8285,16 @@ class SkillRuntime:
                 if self.arm.harness.estopped:
                     raise SafetyViolation("e-stop latched during scene recovery")
             except SafetyViolation as exc:
-                out.update(ok=False, stage="reset_recovery", recovery_error=str(exc),
-                           error=f"Scene recovery cancelled: {exc}")
+                out.update(ok=False, stage="reset_recovery", recovery_error=str(exc))
+                stop = f"Scene recovery cancelled: {exc}"
+                if isinstance(exc, MotionHalted) and out.get("error"):
+                    # The reset had already failed (the Isaac prop reset, the
+                    # observation): the halt is named first and that failure
+                    # files the call (`skill_error`), as a halted park keeps
+                    # its skill's failure. An e-stop names itself alone.
+                    _stop_first(out, stop)
+                else:
+                    out["error"] = stop
                 out.setdefault("beliefs_forgotten", 0)
                 return True
             return False
@@ -9324,9 +9384,12 @@ def _with_retrace_result(result: dict, exc: BaseException) -> None:
 def _keep_decided_failure(exc: BaseException, failure: str | None) -> None:
     """An operator halt that stopped the recovery or the retry after a
     failure the skill had already decided (an air grasp's reopen or exit, the
-    pre-close retreat after a failed descent, the next candidate after a
-    withdrawn veto, a persistence loop's re-home or next attempt after a miss)
-    carries that failure as `skill_error`, the way skill_move_home attaches
+    pre-close retreat after a failed descent or a native Grasp that missed,
+    the next candidate after a withdrawn veto, a persistence loop's re-home or
+    next attempt after a miss, turn_screw's retreat after its strokes fell
+    short or its disengage after a stroke that did not settle, restore_scene's
+    later objects after one failed) carries that
+    failure as `skill_error`, the way skill_move_home attaches
     `retrace_result`. execute() keeps it in the failed result, so the call is
     filed as that failure (`memory.envelope.failure_signature`), not as the
     halt; the error stays the halt's own text. Only a halt: an e-stop is filed
@@ -9343,6 +9406,13 @@ def _with_skill_error(result: dict, exc: BaseException) -> None:
     failure = getattr(exc, "skill_error", None)
     if failure:
         result.setdefault("skill_error", failure)
+
+
+def _restore_failures(failed: list[dict]) -> str | None:
+    """restore_scene's summary of the objects it could not restore (up to
+    three): its error when nothing else stopped it, and the failure a later
+    halt carries (`skill_error`). None when no object failed."""
+    return "; ".join(f"{f['label']}: {str(f.get('error', '?'))[:60]}" for f in failed[:3]) or None
 
 
 def _left_in_place(result: dict) -> bool:

@@ -110,13 +110,17 @@ _FAILURE_PATTERNS: tuple[tuple[str, str], ...] = (
     # error (`failure_signature`, `skill_error`), never here.
     # "halt" / "halted" as words: the skill halt_motion is not a halt.
     (r"\bhalt(ed)?\b", HALT_SIGNATURE),
-    # reset_scene's refusals for what the jaws may hold (#357, #359, #363),
-    # filed by the jaws' state, never by the object's name in their first
-    # words. Next to the halt, before every pattern a label's own words could
-    # match ("stale bread"); an air grasp whose reopen could not read the jaws
-    # ("...: jaw state could not be read") stays an air grasp.
+    # reset_scene's refusals for what the jaws may hold (#357, #359, #363,
+    # #367), filed by the jaws' state, never by the object's name in their
+    # first words. Next to the halt, before every pattern a label's own words
+    # could match ("stale bread"); an air grasp whose reopen could not read
+    # the jaws ("...: jaw state could not be read") stays an air grasp. The
+    # jaw state is unknown alike when the jaws could not be read, when their
+    # reading could not be judged against the interrupted grasp, and when an
+    # unfinished contact episode kept them from being read.
     (r"\bholding [^;:]+: (?:place it first|call move_home first)", "state:holding"),
-    (r"\bthe jaw state could not be read\b", "state:jaws_unreadable"),
+    (r"\bthe jaw (?:state could not be read|reading could not be judged)\b"
+     r"|\bended in an unfinished contact episode, so the jaws were not read\b", "state:jaws_unreadable"),
     (r"would hit the table|below the table|link/joint \d+", "geometry:link_below_table"),
     (r"outside .*workspace|workspace aabb|out of workspace", "geometry:outside_workspace"),
     (r"keep-?out|keepout", "geometry:keep_out"),

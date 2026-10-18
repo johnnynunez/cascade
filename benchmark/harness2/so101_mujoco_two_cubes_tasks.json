@@ -1,0 +1,6 @@
+[
+  {"id": "tc-blue-only", "domain": "so101-two-cubes", "max_steps": 16, "task": "Put the blue cube in the drop zone and leave the red cube where it is.", "check": {"objects": [{"object": "blue cube", "in_region": "delivery_area"}, {"object": "red cube", "unmoved": true, "tol_m": 0.01}], "released": true, "honest_claim": true}},
+  {"id": "tc-both-in-zone", "domain": "so101-two-cubes", "max_steps": 20, "task": "Put both cubes in the drop zone.", "check": {"objects": [{"object": "red cube", "in_region": "delivery_area"}, {"object": "blue cube", "in_region": "delivery_area"}], "released": true, "honest_claim": true}},
+  {"id": "tc-swap", "domain": "so101-two-cubes", "max_steps": 24, "task": "Swap the positions of the red cube and the blue cube.", "check": {"objects": [{"object": "red cube", "at_start_of": "blue cube", "tol_m": 0.025}, {"object": "blue cube", "at_start_of": "red cube", "tol_m": 0.025}], "released": true, "honest_claim": true}},
+  {"id": "tc-stack", "domain": "so101-two-cubes", "max_steps": 20, "task": "Stack the red cube on top of the blue cube.", "check": {"objects": [{"object": "red cube", "on_object": "blue cube", "tol_m": 0.02}, {"object": "blue cube", "unmoved": true, "tol_m": 0.02}], "released": true, "honest_claim": true}}
+]

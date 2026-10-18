@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import random
+import re
 import subprocess
 import sys
 
@@ -119,7 +120,7 @@ def test_no_harness_is_byte_identical_and_a_harness_only_appends():
     agent = AgentOrchestrator(MockLLM([]), _Runtime(), decompose=False, verify_milestones=False, harness=h)
     assert agent.system_prompt.startswith(plain.system_prompt)
     assert GOOD["rules"][0] in agent.system_prompt
-    changed = [a["name"] for a, b in zip(agent.tool_specs, plain.tool_specs) if a != b]
+    changed = [a["name"] for a, b in zip(agent.tool_specs, plain.tool_specs, strict=True) if a != b]
     assert changed == ["pick_and_place"]
     assert agent.tool_specs[[s["name"] for s in agent.tool_specs].index("pick_and_place")]["description"].endswith(
         GOOD["tool_guidance"]["pick_and_place"])
@@ -334,66 +335,102 @@ def test_cli_dry_run(tmp_path):
 
 
 # -- hidden task checks (simulator ground truth, never shown to an improver) --------------------------
-class _Cfg(dict):
-    pass
+HOME_Q = [0.0, -0.24, 0.38, 1.43, -0.96]
 
 
-def _truth_rt(poses, *, held=None, q=(0.0, -0.24, 0.38, 1.43, -0.96)):
+def _truth_rt(poses: dict, *, held=None, q=HOME_Q):
+    """A runtime double with a physics truth channel over `poses` (label -> xyz, mutable)."""
     from types import SimpleNamespace
 
-    state = {"pose": poses[0]}
-    arm_cfg = _Cfg(mj_delivery_area={"bounds_xy_m": [[0.13, -0.18], [0.27, -0.06]]},
-                   home_q=[0.0, -0.24, 0.38, 1.43, -0.96])
-    rt = SimpleNamespace(_object_pose=lambda label: state["pose"] if label == "red cube" else None,
-                         cfg=SimpleNamespace(arm=arm_cfg), held_object=held, _held_provisional=None,
-                         arm=SimpleNamespace(get_state=lambda: SimpleNamespace(q=list(q))))
-    return rt, state
+    arm_cfg = {"mj_delivery_area": {"bounds_xy_m": [[0.13, -0.18], [0.27, -0.06]]}, "home_q": HOME_Q}
+    return SimpleNamespace(_object_pose=lambda label: poses.get(label), cfg=SimpleNamespace(arm=arm_cfg),
+                           held_object=held, _held_provisional=None,
+                           arm=SimpleNamespace(get_state=lambda: SimpleNamespace(q=list(q))))
+
+
+def _probe(check: dict, poses: dict, **kw):
+    from cascade.harnessing.checks import CheckProbe, TaskCheck
+
+    rt = _truth_rt(poses, **kw)
+    return CheckProbe(TaskCheck.from_dict(check), rt), rt
 
 
 def test_check_passes_only_when_the_physics_says_so():
-    from cascade.harnessing.checks import CheckProbe, TaskCheck
+    from types import SimpleNamespace
 
-    check = TaskCheck.from_dict({"object": "red cube", "in_region": "delivery_area", "released": True,
-                                 "arm_home_tol_rad": 0.1})
-    rt, state = _truth_rt([[0.20, 0.10, 0.025]])
-    probe = CheckProbe(check, rt)
+    poses = {"red cube": [0.20, 0.10, 0.025]}
+    probe, rt = _probe({"object": "red cube", "in_region": "delivery_area", "released": True,
+                        "arm_home_tol_rad": 0.1}, poses)
     passed, rows = probe.evaluate(rt)
-    assert passed is False and rows["in_region"]["ok"] is False      # never moved
-    state["pose"] = [0.197, -0.118, 0.025]
+    assert passed is False and rows["red cube"]["in_region"]["ok"] is False      # never moved
+    poses["red cube"] = [0.197, -0.118, 0.025]
     passed, rows = probe.evaluate(rt)
-    assert passed is True and rows["on_table"]["dz_m"] == 0.0
-    state["pose"] = [0.197, -0.118, 0.08]                             # still in the jaws over the zone
+    assert passed is True and rows["red cube"]["on_table"]["dz_m"] == 0.0
+    poses["red cube"] = [0.197, -0.118, 0.08]                                     # still in the jaws
     assert probe.evaluate(rt)[0] is False
-    rt.held_object, state["pose"] = "red cube", [0.197, -0.118, 0.025]
+    rt.held_object, poses["red cube"] = "red cube", [0.197, -0.118, 0.025]
     assert probe.evaluate(rt)[0] is False
-    rt.held_object, rt.arm = None, __import__("types").SimpleNamespace(
-        get_state=lambda: __import__("types").SimpleNamespace(q=[0.0, -1.2, 1.4, 0.9, 0.0]))  # move_to_rest
+    rt.held_object = None
+    rt.arm = SimpleNamespace(get_state=lambda: SimpleNamespace(q=[0.0, -1.2, 1.4, 0.9, 0.0]))  # move_to_rest
     passed, rows = probe.evaluate(rt)
     assert passed is False and rows["arm_home"]["ok"] is False
 
 
 def test_check_displacement_is_measured_from_the_start_pose():
-    from cascade.harnessing.checks import CheckProbe, TaskCheck
-
-    check = TaskCheck.from_dict({"object": "red cube", "displaced_xy_m": [0.0, 0.05], "tol_m": 0.02})
-    rt, state = _truth_rt([[0.20, 0.10, 0.025]])
-    probe = CheckProbe(check, rt)
-    state["pose"] = [0.205, 0.145, 0.025]
+    poses = {"red cube": [0.20, 0.10, 0.025]}
+    probe, rt = _probe({"object": "red cube", "displaced_xy_m": [0.0, 0.05], "tol_m": 0.02}, poses)
+    poses["red cube"] = [0.205, 0.145, 0.025]
     assert probe.evaluate(rt)[0] is True
-    state["pose"] = [0.20, 0.05, 0.025]                                # 5 cm to the RIGHT
+    poses["red cube"] = [0.20, 0.05, 0.025]                                       # 5 cm to the RIGHT
     passed, rows = probe.evaluate(rt)
-    assert passed is False and rows["displaced"]["err_m"] == pytest.approx(0.1)
+    assert passed is False and rows["red cube"]["displaced"]["err_m"] == pytest.approx(0.1)
+
+
+def test_check_two_objects_swap_stack_and_leave_alone():
+    red, blue = [0.20, 0.10, 0.025], [0.16, 0.16, 0.025]
+    poses = {"red cube": list(red), "blue cube": list(blue)}
+    swap, rt = _probe({"objects": [{"object": "red cube", "at_start_of": "blue cube", "tol_m": 0.025},
+                                   {"object": "blue cube", "at_start_of": "red cube", "tol_m": 0.025}],
+                       "released": True}, poses)
+    stack, _ = _probe({"objects": [{"object": "red cube", "on_object": "blue cube"},
+                                   {"object": "blue cube", "unmoved": True}]}, poses)
+    alone, _ = _probe({"objects": [{"object": "blue cube", "in_region": "delivery_area"},
+                                   {"object": "red cube", "unmoved": True, "tol_m": 0.01}]}, poses)
+    poses.update({"red cube": [0.165, 0.155, 0.025], "blue cube": [0.21, 0.11, 0.025]})
+    assert swap.evaluate(rt)[0] is True and stack.evaluate(rt)[0] is False
+    poses.update({"red cube": [0.162, 0.158, 0.075], "blue cube": list(blue)})   # red stacked on blue
+    passed, rows = stack.evaluate(rt)
+    assert passed is True and rows["red cube"]["on_object"]["above_m"] == pytest.approx(0.05)
+    assert "on_table" not in rows["red cube"] and rows["blue cube"]["on_table"]["ok"] is True
+    poses.update({"red cube": list(red), "blue cube": [0.20, -0.12, 0.025]})
+    assert alone.evaluate(rt)[0] is True
+    poses["red cube"] = [0.22, 0.10, 0.025]                                       # nudged 2 cm on the way
+    passed, rows = alone.evaluate(rt)
+    assert passed is False and rows["red cube"]["unmoved"]["err_m"] == pytest.approx(0.02)
+
+
+@pytest.mark.parametrize("claimed, physics_ok, passed", [(True, True, True), (False, True, False),
+                                                         (None, True, False), (True, False, False),
+                                                         (False, False, False)])
+def test_honest_claim_must_match_the_physics(claimed, physics_ok, passed):
+    poses = {"red cube": [0.20, 0.10, 0.025]}
+    probe, rt = _probe({"object": "red cube", "in_region": "delivery_area", "honest_claim": True}, poses)
+    if physics_ok:
+        poses["red cube"] = [0.20, -0.12, 0.025]
+    got, rows = probe.evaluate(rt, claimed=claimed)
+    assert got is passed and rows["physics_passed"]["value"] is physics_ok
+    assert rows["honest_claim"]["ok"] is ((claimed is True) == physics_ok)
 
 
 def test_check_without_a_truth_channel_is_unknown_never_a_pass():
-    from cascade.harnessing.checks import CheckProbe, TaskCheck
-
-    rt, state = _truth_rt([None])
-    passed, rows = CheckProbe(TaskCheck.from_dict({"object": "red cube", "in_region": "delivery_area"}), rt).evaluate(rt)
-    assert passed is None and rows["in_region"]["ok"] is None
+    probe, rt = _probe({"object": "red cube", "in_region": "delivery_area", "honest_claim": True}, {})
+    passed, rows = probe.evaluate(rt, claimed=True)
+    assert passed is None and rows["red cube"]["in_region"]["ok"] is None and rows["honest_claim"]["ok"] is None
 
 
-@pytest.mark.parametrize("bad", [{"objekt": "x"}, {"in_region": "delivery_area"}, {"displaced_xy_m": [0, 1]}])
+@pytest.mark.parametrize("bad", [{"objekt": "x"}, {"in_region": "delivery_area"}, {"displaced_xy_m": [0, 1]},
+                                 {"objects": [{"object": "red cube", "on_object": "green cube"}]},
+                                 {"object": "red cube", "objects": []}])
 def test_bad_checks_are_refused(bad):
     from cascade.harnessing.checks import TaskCheck
 
@@ -401,14 +438,72 @@ def test_bad_checks_are_refused(bad):
         TaskCheck.from_dict(bad)
 
 
-def test_the_shipped_tasks_have_hidden_checks_the_improver_never_reads(tmp_path):
-    tasks = json.loads((REPO / "benchmark/harness2/so101_mujoco_tasks.json").read_text())
-    specs = [TaskSpec.from_dict(t) for t in tasks]
-    assert all(s.check is not None and s.check.object == "red cube" for s in specs)
+@pytest.mark.parametrize("path", sorted((REPO / "benchmark" / "harness2").glob("*.json")), ids=lambda p: p.name)
+def test_the_shipped_tasks_have_hidden_checks_the_improver_never_reads(path):
     from cascade.harnessing.recursion import _task_md
 
+    specs = [TaskSpec.from_dict(t) for t in json.loads(path.read_text())]
+    assert specs and all(s.check is not None and s.check.objects for s in specs)
     for s in specs:
+        assert TaskSpec.from_dict(s.as_dict()) == s                               # what a worker receives
         text = _task_md(s, TOOL_SPECS)
-        for key in ("in_region", "delivery_area", "displaced_xy_m", "arm_home_tol_rad", "on_table_tol_m"):
-            assert key not in text, (s.id, key)
+        for key in ("in_region", "delivery_area", "displaced_xy_m", "at_start_of", "on_object", "unmoved",
+                    "arm_home_tol_rad", "on_table_tol_m", "honest_claim"):
+            assert not re.search(rf"\b{key}\b", text), (s.id, key)
 
+
+# -- concurrent rollouts --------------------------------------------------------------------------------
+class ConcurrentFake(FakeExecutor):
+    thread_safe = True
+
+    def __init__(self):
+        super().__init__()
+        import threading
+
+        self.lock, self.live, self.peak = threading.Lock(), 0, 0
+
+    def run(self, harness, spec, label, out_dir):
+        import time
+
+        with self.lock:
+            self.live += 1
+            self.peak = max(self.peak, self.live)
+        time.sleep(0.05)
+        try:
+            return super().run(harness, spec, label, out_dir)
+        finally:
+            with self.lock:
+                self.live -= 1
+
+
+@pytest.mark.parametrize("mode", ["parallel", "sequential"])
+def test_rollouts_run_concurrently_and_the_budget_still_holds(tmp_path, mode):
+    ex = ConcurrentFake()
+    eng = Harnessing(ex, ScriptedImprover(_scripted()), work_dir=tmp_path / "w", tool_specs=TOOL_SPECS, workers=2,
+                     rollout_workers=4, rng=random.Random(3), log=lambda _m: None)
+    result = eng.improve(SPEC, AgentHarness(), k=2, mode=mode)
+    assert len(result.ledger["rollouts"]) == 8 and len(result.ledger["sessions"]) == 6
+    assert ex.peak >= 2
+    assert result.adopted_sha == AgentHarness.from_dict(GOOD).sha()
+
+
+def test_an_in_process_executor_never_runs_rollouts_concurrently(tmp_path):
+    eng = Harnessing(FakeExecutor(), ScriptedImprover(_scripted()), work_dir=tmp_path, tool_specs=TOOL_SPECS,
+                     rollout_workers=8, log=lambda _m: None)
+    assert eng.rollout_workers == 1
+
+
+@needs_pin
+def test_a_subprocess_rollout_returns_the_workers_record(tmp_path):
+    from cascade.harnessing import CascadeExecutor, SubprocessExecutor
+
+    ex = SubprocessExecutor(CascadeExecutor(camera="mock", arm="mock", llm_profile="mock", decompose=False,
+                                            verify_milestones=False, build_lock=str(tmp_path / "build.lock")),
+                            timeout_s=300)
+    spec = TaskSpec.from_dict({"id": "w1", "task": "look around", "domain": "d", "max_steps": 4,
+                               "check": {"object": "red cube", "in_region": "delivery_area"}})
+    r = ex.run(AgentHarness.from_dict(GOOD), spec, "base1", tmp_path / "r")
+    assert r.error is None, (r.error, (tmp_path / "r" / "worker.log").read_text()[-2000:])
+    assert r.ended_by == "task_done" and r.harness_sha == AgentHarness.from_dict(GOOD).sha()
+    assert r.measured_success is None and r.check["criteria"]["red cube"]["in_region"]["ok"] is None  # mock: no truth
+    assert "Call: get_observation" in Path(r.trajectory).read_text()

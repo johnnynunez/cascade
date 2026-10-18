@@ -149,7 +149,7 @@ class Harnessing:
     """One Propose–Probe–Compose step per task, with a persistent per-family library."""
 
     def __init__(self, executor: Executor, improver: Improver, *, work_dir: Path, tool_specs: list[dict],
-                 library: Library | None = None, workers: int = 2, gate: str = "verified",
+                 library: Library | None = None, workers: int = 2, gate: str = "verified", rollout_workers: int = 1,
                  rng: random.Random | None = None, log: Callable[[str], None] | None = None):
         if gate not in ("verified", "none"):
             raise ValueError("gate must be 'verified' or 'none'")
@@ -160,6 +160,9 @@ class Harnessing:
         self.tool_names = {s.get("name") for s in tool_specs}
         self.library = library
         self.workers = max(1, int(workers))
+        #: concurrent rollouts; only for an executor that declares itself thread-safe
+        #: (`SubprocessExecutor`: one process per rollout)
+        self.rollout_workers = max(1, int(rollout_workers)) if getattr(executor, "thread_safe", False) else 1
         self.gate = gate
         self.rng = rng or random.Random(0)
         self.log = log or (lambda message: print(message, flush=True))
@@ -174,6 +177,14 @@ class Harnessing:
         self.log(f"[harness2]   {label}: ended by {rollout.ended_by}, {rollout.steps} steps, "
                  f"{rollout.duration_s:.0f} s")
         return rollout
+
+    def _roll_many(self, ledger: Ledger, jobs: list[tuple[AgentHarness, str]], spec: TaskSpec, root: Path,
+                   out: dict) -> list[Rollout]:
+        """Roll every (harness, label) out; concurrently up to `rollout_workers`. Results keep job order."""
+        if self.rollout_workers == 1 or len(jobs) == 1:
+            return [self._roll(ledger, h, spec, label, root, out) for h, label in jobs]
+        with ThreadPoolExecutor(max_workers=min(self.rollout_workers, len(jobs))) as pool:
+            return list(pool.map(lambda job: self._roll(ledger, job[0], spec, job[1], root, out), jobs))
 
     def _context(self, root: Path, label: str, spec: TaskSpec, harness: AgentHarness,
                  evidence: dict[str, Rollout], candidates: dict[str, Stage] | None = None,
@@ -263,8 +274,7 @@ class Harnessing:
         rollouts: dict[str, Rollout] = {}
         result = StepResult(spec.id, mode, k, base.sha())
         base_labels = [f"base{i}" for i in range(1, k + 1)]
-        for label in base_labels:
-            self._roll(ledger, base, spec, label, root, rollouts)
+        self._roll_many(ledger, [(base, label) for label in base_labels], spec, root, rollouts)
         stages: list[Stage] = []
         finals: list[str] = []
         harness_of: dict[str, AgentHarness] = {lbl: base for lbl in base_labels}
@@ -281,7 +291,7 @@ class Harnessing:
             stages += proposals
             for stage in proposals:
                 harness_of[stage.label] = stage.harness
-                self._roll(ledger, stage.harness, spec, stage.label, root, rollouts)
+            self._roll_many(ledger, [(s.harness, s.label) for s in proposals], spec, root, rollouts)
             pool_evidence = {lbl: rollouts[lbl] for lbl in base_labels + [s.label for s in proposals]}
             cands = {s.label: s for s in proposals}
             jobs = []
@@ -294,8 +304,8 @@ class Harnessing:
             stages += aggs
             for stage in aggs:
                 harness_of[stage.label] = stage.harness
-                self._roll(ledger, stage.harness, spec, stage.label, root, rollouts)
                 finals.append(stage.label)
+            self._roll_many(ledger, [(s.harness, s.label) for s in aggs], spec, root, rollouts)
             result.identical_finals = len({harness_of[f].sha() for f in finals}) == 1
         else:
             current = base
@@ -310,7 +320,9 @@ class Harnessing:
                 stages += proposals
                 for stage in proposals:
                     harness_of[stage.label] = stage.harness
-                    evidence[stage.label] = self._roll(ledger, stage.harness, spec, stage.label, root, rollouts)
+                rolled = self._roll_many(ledger, [(s.harness, s.label) for s in proposals], spec, root, rollouts)
+                for stage, rollout in zip(proposals, rolled, strict=True):
+                    evidence[stage.label] = rollout
                 label = f"c{t}"
                 ctx = self._context(root, label, spec, current, evidence, {s.label: s for s in proposals})
                 comp = self._session(ledger, label, "COMPOSE", P.compose_round(spec.task, spec.domain, t=t, k=k),

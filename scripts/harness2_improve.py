@@ -31,7 +31,7 @@ sys.path.insert(0, str(REPO / "src"))
 
 from cascade.config import load_demo_config  # noqa: E402
 from cascade.harnessing import (  # noqa: E402
-    AgentHarness, CascadeExecutor, Harnessing, Library, TaskSpec, make_improver, scope_key,
+    AgentHarness, CascadeExecutor, Harnessing, Library, SubprocessExecutor, TaskSpec, make_improver, scope_key,
 )
 from cascade.skills.runtime import tool_specs_for_config  # noqa: E402
 
@@ -54,6 +54,8 @@ def main(argv=None) -> int:
     ap.add_argument("--out", type=Path, default=None, help="run directory (default runs/harness2/<stamp>)")
     ap.add_argument("--library", type=Path, default=Path("~/.cascade/harness2/library").expanduser())
     ap.add_argument("--workers", type=int, default=2, help="concurrent improver sessions")
+    ap.add_argument("--rollout-workers", type=int, default=1,
+                    help="concurrent rollouts, each in its own process (1: in this process, one at a time)")
     ap.add_argument("--no-decompose", action="store_true", help="skip the milestone decomposition turn")
     ap.add_argument("--dry-run", action="store_true", help="validate tasks and the base harness; run nothing")
     args = ap.parse_args(argv)
@@ -96,9 +98,11 @@ def main(argv=None) -> int:
             raise SystemExit("--improver llm needs --improver-llm <profile>")
         improver_llm = make_llm(load_demo_config(camera=args.camera, arm=args.arm, llm=args.improver_llm).llm)
     improver = make_improver(args.improver, model=args.improver_model, llm=improver_llm)
-    executor = CascadeExecutor(camera=args.camera, arm=args.arm, llm_profile=args.llm,
-                               decompose=not args.no_decompose)
     out.mkdir(parents=True, exist_ok=True)
+    executor = CascadeExecutor(camera=args.camera, arm=args.arm, llm_profile=args.llm,
+                               decompose=not args.no_decompose, build_lock=str(out.resolve() / ".build.lock"))
+    if args.rollout_workers > 1:
+        executor = SubprocessExecutor(executor)
     (out / "config.json").write_text(json.dumps({**vars(args), "tasks": str(args.tasks), "out": str(out),
                                                  "library": str(args.library), "scope": scope,
                                                  "env": {k: v for k, v in os.environ.items()
@@ -112,7 +116,7 @@ def main(argv=None) -> int:
             continue
         library = Library(args.library, scope, spec.domain)
         engine = Harnessing(executor, improver, work_dir=out, tool_specs=tool_specs, library=library,
-                            workers=args.workers, gate=args.gate)
+                            workers=args.workers, gate=args.gate, rollout_workers=args.rollout_workers)
         result = engine.improve(spec, base_for(spec.domain), k=args.k, mode=args.mode)
         summary.append(result.as_dict())
         print(f"[harness2] {spec.id}: adopted {result.adopted_sha[:12]} from {result.adopted_from}; "

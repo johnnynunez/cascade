@@ -18,9 +18,13 @@ rollout: the harness is the only learned text, so a contrast between rollouts is
 """
 from __future__ import annotations
 
+import contextlib
 from dataclasses import asdict, dataclass, field
 import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 import time
 import traceback
 from typing import Any, Callable, Protocol
@@ -49,6 +53,12 @@ class TaskSpec:
         return cls(str(data["id"]), str(data["task"]), str(data.get("domain") or domain or "default"),
                    int(data.get("max_steps", 20)), TaskCheck.from_dict(data.get("check")))
 
+    def as_dict(self) -> dict:
+        out = {"id": self.id, "task": self.task, "domain": self.domain, "max_steps": self.max_steps}
+        if self.check is not None:
+            out["check"] = self.check.as_dict()
+        return out
+
 
 @dataclass
 class Rollout:
@@ -72,6 +82,10 @@ class Rollout:
 
     def as_dict(self) -> dict:
         return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Rollout":
+        return cls(**{k: data.get(k) for k in cls.__dataclass_fields__ if k in data})
 
 
 class Executor(Protocol):
@@ -167,6 +181,60 @@ def _task_done(tool_log: list[dict]) -> tuple[bool | None, str]:
     return None, ""
 
 
+@contextlib.contextmanager
+def _file_lock(path: str | None):
+    if not path:
+        yield
+        return
+    import fcntl
+
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "a") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
+
+
+@dataclass
+class SubprocessExecutor:
+    """Runs each rollout of `base` in its own Python process (`python -m cascade.harnessing.worker`),
+    so several rollouts can run at once: a runtime is never shared between threads."""
+
+    base: CascadeExecutor
+    timeout_s: float = 1800.0
+    python: str = sys.executable
+    thread_safe: bool = True
+
+    def run(self, harness: AgentHarness, spec: TaskSpec, label: str, out_dir: Path) -> Rollout:
+        out_dir = Path(out_dir).resolve()
+        out_dir.mkdir(parents=True, exist_ok=True)
+        job = out_dir / "job.json"
+        job.write_text(json.dumps({"executor": self.base.worker_kwargs(), "harness": harness.as_dict(),
+                                   "spec": spec.as_dict(), "label": label, "out_dir": str(out_dir)}))
+        src = str(Path(__file__).resolve().parents[2])
+        env = dict(os.environ)
+        env["PYTHONPATH"] = src + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+        t0 = time.monotonic()
+        try:
+            with open(out_dir / "worker.log", "w") as log:
+                proc = subprocess.run([self.python, "-m", "cascade.harnessing.worker", str(job)], stdout=log,
+                                      stderr=subprocess.STDOUT, env=env, timeout=self.timeout_s)
+            error = None if proc.returncode == 0 else f"worker exited {proc.returncode} (see worker.log)"
+        except subprocess.TimeoutExpired:
+            error = f"worker timed out after {self.timeout_s:.0f} s"
+        result = out_dir / "rollout.json"
+        if result.is_file():  # the worker's own record, a failed rollout included
+            return Rollout.from_dict(json.loads(result.read_text()))
+        traj = out_dir / "TRAJECTORY.md"
+        if not traj.is_file():
+            traj.write_text(f"# Execution {label}\n\nTask: {spec.task}\nHarness: {harness.sha()[:12]}\n\n"
+                            f"The execution failed before finishing.\n")
+        return Rollout(label, spec.id, harness.sha(), None, None, 0, round(time.monotonic() - t0, 1),
+                       "executor error", "", error=error or "worker wrote no rollout.json", trajectory=str(traj))
+
+
 def isolated_config(cfg, out_dir: Path):
     """The configured stack with every learned store private to this rollout."""
     from ..config import Cfg
@@ -195,6 +263,17 @@ class CascadeExecutor:
     verify_milestones: bool = True
     runtime_hook: Callable[[Any, Any], None] | None = None
     env: dict = field(default_factory=dict)
+    #: a file every concurrent rollout locks while it builds its runtime: the MuJoCo scene writer
+    #: regenerates one shared XML next to the robot model (`sim.demo_scene`)
+    build_lock: str | None = None
+
+    def worker_kwargs(self) -> dict:
+        """What a rollout worker process needs to rebuild this executor (no callables)."""
+        if self.llm_factory is not None or self.runtime_hook is not None:
+            raise ValueError("an executor with an llm_factory or runtime_hook cannot run in a worker process")
+        return {"camera": self.camera, "arm": self.arm, "llm_profile": self.llm_profile,
+                "decompose": self.decompose, "verify_milestones": self.verify_milestones,
+                "env": dict(self.env), "build_lock": self.build_lock}
 
     def _config(self):
         from ..config import load_demo_config
@@ -217,7 +296,8 @@ class CascadeExecutor:
         llm = None
         try:
             cfg = isolated_config(self._config(), out_dir)
-            runtime, arm = build_runtime(cfg, out_dir / "run")
+            with _file_lock(self.build_lock):
+                runtime, arm = build_runtime(cfg, out_dir / "run")
             if self.runtime_hook is not None:
                 self.runtime_hook(runtime, arm)
             probe = CheckProbe(spec.check, runtime, arm) if spec.check is not None else None
@@ -240,8 +320,8 @@ class CascadeExecutor:
             check = None
             measured = verifier
             if probe is not None:
-                measured, rows = probe.evaluate(runtime, arm)
-                check = {"passed": measured, "criteria": rows}
+                measured, rows = probe.evaluate(runtime, arm, claimed=claimed)
+                check = {"passed": measured, "physics": rows.pop("physics_passed")["value"], "criteria": rows}
             rollout = Rollout(label, spec.id, harness.sha(), measured, claimed, report.steps,
                               round(time.monotonic() - t0, 1), ended_by, summary, verification,
                               trajectory=str(out_dir / "TRAJECTORY.md"), verifier_success=verifier, check=check)

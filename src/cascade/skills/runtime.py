@@ -4216,7 +4216,9 @@ class SkillRuntime:
             frame, fix = _frame, _fix
         else:
             frame, fix = self._localize(label, spatial_hint=spatial_hint)
-        grasp_evidence.localized(frame, fix, getattr(self, "extrinsics", None), T_world_base=self.T_world_base)
+        # A runtime double without the arm frame (no base_pose) records as before.
+        grasp_evidence.localized(frame, fix, getattr(self, "extrinsics", None),
+                                 T_world_base=getattr(self, "T_world_base", None))
         # Derived envelope features from the fix (memory/envelope.py #4):
         # the object's top above its support plane -- a top-down camera
         # never sees the sides, so the cloud's z-span is NOT a height -- and

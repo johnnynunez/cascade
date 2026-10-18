@@ -10,6 +10,7 @@ import time
 import numpy as np
 import pytest
 
+from base_pose_oracle import bind_like_primary
 from cascade.agent.trace import TraceLogger
 from cascade.config import load_demo_config
 from cascade.memory import BeliefStore, EpisodicMemory
@@ -365,6 +366,7 @@ def test_selected_arm_uses_its_saved_home_and_restores_primary(tmp_path):
     selected = _Arm(events, q=np.ones(7) * .1)
     runtime.arm_rig = SimpleNamespace(get=lambda name: selected,
                                       arms={"primary_arm": primary, "secondary_arm": selected})
+    bind_like_primary(runtime, "secondary_arm")  # execute(arm=) refuses an arm with no binding
 
     def action():
         assert runtime.arm is selected

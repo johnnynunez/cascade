@@ -179,6 +179,8 @@ class PostconditionChecker:
         placement_check: Callable[[str, str | None], dict | None] | None = None,
         actuation: Callable[[], dict | None] | None = None,
         holding: Callable[[], bool | None] | None = None,
+        table_z_fn: Callable[[], float] | None = None,
+        air_grasp_frac_fn: Callable[[], float] | None = None,
     ):
         self._object_pose = object_pose
         self._belief_pose = belief_pose
@@ -187,12 +189,38 @@ class PostconditionChecker:
         #: CaP-X visual differencing (source_xyz, target_xyz) -> DiffVerdict.
         #: The only actuator-independent channel available on real hardware.
         self._visual_diff = visual_diff
-        self.table_z = float(table_z)
-        self.air_grasp_frac = float(air_grasp_frac)
+        self._table_z = float(table_z)
+        #: The table height read per check (the runtime's running arm, in the
+        #: frame the poses are in); None = the fixed `table_z`.
+        self._table_z_fn = table_z_fn
+        self._air_grasp_frac = float(air_grasp_frac)
+        #: The air-grasp threshold read per check (the runtime's running
+        #: arm); None = the fixed `air_grasp_frac`.
+        self._air_grasp_frac_fn = air_grasp_frac_fn
         self._placement_check = placement_check
         self._actuation = actuation
         self._holding = holding
         self.history: list[Postcondition] = []
+
+    @property
+    def table_z(self) -> float:
+        """The table height the lift check falls back to (no start pose)."""
+        fn = self._table_z_fn
+        return self._table_z if fn is None else float(fn())
+
+    @table_z.setter
+    def table_z(self, value) -> None:
+        self._table_z, self._table_z_fn = float(value), None
+
+    @property
+    def air_grasp_frac(self) -> float:
+        """The jaw open-fraction at or below which a close is on empty air."""
+        fn = self._air_grasp_frac_fn
+        return self._air_grasp_frac if fn is None else float(fn())
+
+    @air_grasp_frac.setter
+    def air_grasp_frac(self, value) -> None:
+        self._air_grasp_frac, self._air_grasp_frac_fn = float(value), None
 
     # ── snapshots ────────────────────────────────────────────────────────
 

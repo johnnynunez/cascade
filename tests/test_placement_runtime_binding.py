@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from base_pose_oracle import bind_like_primary
 from cascade.apps.demo import _truth_pose_fn
 from cascade.control.arm_rig import ArmRig
 from cascade.sim import placement
@@ -144,6 +145,7 @@ def test_multi_arm_execution_cannot_confirm_with_primary_arms_placement_reader(r
     # the independent-reader boundary and tracing, with a mock motion body.
     with monkeypatch.context() as patch:
         patch.setattr(runtime, "arm_rig", rig)
+        bind_like_primary(runtime, "second")  # execute(arm=) refuses an arm with no binding
         patch.setitem(runtime.cfg._data, "arms", [
             {**runtime.cfg.arm.as_dict(), "name": name} for name in ("first", "second")
         ])

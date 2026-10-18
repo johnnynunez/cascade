@@ -6000,15 +6000,21 @@ class SkillRuntime:
         return self._hold_after_contact(profile, squeeze, 1.0 - profile.close_frac_stage2, **close_kw)
 
     def _close_two_stage(self, profile, *, _halt_generation=None, _before_close=None,
-                         _never_past=None) -> int:
+                         _never_past=None) -> int | None:
         """The two-stage close (scout stage, then seat). A close never opens
         the jaws: a stage more open than `_never_past` (the jaw position the
         caller read before the close; None = not read) or than the stage
         before it is skipped (`closing_stages`), and so is the backend's own
         two-stage close when every stage would be (that driver skips by its
-        own reading too). Returns how many stages were skipped. The grasp's
-        and the screw stroke's closes start from jaws they just opened and
-        pass no reading: every stage goes, exactly as before."""
+        own reading too). Returns how many stages were skipped when the
+        caller passed a reading, else None as before. The grasp's and the
+        screw stroke's closes start from jaws they just opened and pass no
+        reading: every stage goes, exactly as before."""
+        skipped = self._close_stages(profile, _halt_generation=_halt_generation,
+                                     _before_close=_before_close, _never_past=_never_past)
+        return None if _never_past is None else skipped
+
+    def _close_stages(self, profile, *, _halt_generation, _before_close, _never_past) -> int:
         # Some hardware drivers expose a raw two-stage escape hatch. It may
         # not bypass a retained model-backed empty-tool withdrawal either.
         check = getattr(self.arm.harness, "check_model_withdrawal", None)
@@ -6023,16 +6029,17 @@ class SkillRuntime:
                               **({"_halt_generation": _halt_generation} if _halt_generation is not None else {}))
             self._gripper_closes_commanded += 1
             return 0
+        raw = self.arm.raw
+        bulk = hasattr(raw, "close_gripper_two_stage")
+        if bulk and _before_close is not None:
+            raise SafetyViolation("observed-finger closing requires individually guarded stages")
         span = self._grip_closed - self._grip_open
         stages = tuple((self._grip_open + span * frac, eff, frac) for frac, eff in (
             (profile.close_frac_stage1, profile.effort * 0.7),
             (profile.close_frac_stage2, profile.effort),
         ))
         kept = closing_stages(stages, _never_past, self._grip_open, self._grip_closed)
-        raw = self.arm.raw
-        if hasattr(raw, "close_gripper_two_stage"):
-            if _before_close is not None:
-                raise SafetyViolation("observed-finger closing requires individually guarded stages")
+        if bulk:
             if not kept:
                 return len(stages)
             # The backend's own close bypasses SafeArm.set_gripper: a halt

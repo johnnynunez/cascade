@@ -2069,6 +2069,7 @@ def _make_brain_detector(cfg, dcfg, *, warm_up: bool):
         idle_refresh_s=float(dcfg.get("idle_refresh_s", 30.0)),
         reanchor_local_diff=float(dcfg.get("reanchor_local_diff", 8.0)),
         reanchor_mask_agreement=float(dcfg.get("reanchor_mask_agreement", 0.95)),
+        reply_guards=_reply_guards(dcfg.get("reply_guards", "auto")),
     )
     if warm_up and segmenter is not None:
         # Handed to the detector: its close() (a shutdown stage) joins it and
@@ -2078,6 +2079,16 @@ def _make_brain_detector(cfg, dcfg, *, warm_up: bool):
                                                    name="sam-warm-up", daemon=True)
         detector.warm_up_thread.start()
     return detector
+
+
+def _reply_guards(value) -> bool | None:
+    """`detector.reply_guards`: auto (absent) = by the brain's served id
+    (brain_detector.GUARDED_REPLY_MODELS: Nemotron 3.5 Bolt), or true / false."""
+    if value is None or value == "auto":
+        return None
+    if isinstance(value, bool):
+        return value
+    raise ValueError(f"detector.reply_guards must be auto, true or false (got {value!r})")
 
 
 def _warm_box_segmenter(segmenter) -> None:

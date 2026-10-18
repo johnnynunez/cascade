@@ -36,7 +36,7 @@ CASES = (
     ("pink_cube", "green square"), ("lemon", "open box"),
     ("tomato_can", "green square"),
 )
-READ_TOOLS = {"describe_scene", "localize_object", "camera_snapshot", "world_state"}
+READ_TOOLS = {"describe_scene", "localize_object", "camera_snapshot", "world_state", "robot_knowledge"}
 ORIGIN = "http://127.0.0.1:8092"
 
 

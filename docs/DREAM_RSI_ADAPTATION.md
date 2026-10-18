@@ -91,6 +91,35 @@ occurrences in any task, and v1.0 promotes on a blind verifier's verdict.
 Promotion counts distinct task strings, not distinct scenes, objects or calibrations, and is not
 evidence that a note causes success.
 
+## Simulation-only retry (`agent.sim_retry`)
+
+1. **What:** after a refused `pick_and_place` / `grasp_object` (a safety gate, slow or changed
+   perception, no plannable grasp) the agent may call it ONCE more; the result says so in
+   `sim_retry` and in `next_action`, after the FAILED line.
+2. **Where:** only a sim profile (every arm type `isaac` / `mujoco` / `mock`, booth off) with
+   `agent.sim_retry: true` (the kitchen profile), `CASCADE_SIM_RETRY` not `0` and
+   `CASCADE_OBSERVED_FINGER_GATE=1`. A hardware profile never builds the ledger; `run.json`
+   `sim_retry` says whether this runtime has one.
+3. **The retry:** homes the arm first when the refused attempt left it in place (`move_home` with
+   all its gates; a halt ends the call before any pick), looks again and never tries a grasp the
+   refused attempt tried. A third call for the same order is refused before any motion.
+4. **Never after a stop:** a halt, an e-stop, a hold or a pending contact episode grants no retry.
+   A halt or an e-stop on any arm after the refused call started, even one cleared again
+   (Resume, `reset_estop`), stops it: the agent's repeat and every later call for the same
+   object are refused before any motion ("the operator stopped the arm, so this repeat is
+   refused: report it and wait"), until `reset_scene` succeeds or the retry window ends (the
+   refusal says when). The agent never resets the scene on its own: only the operator or the
+   visitor asks for that reset. A hold or a pending episode spends it: the next call runs
+   as without the ledger, with no automatic home. Only a granted retry's result carries the
+   "SIMULATION ONLY ... one more attempt" wording; every other result has it withheld, an
+   operator's halt reason included. A call the ledger refused ran nothing: like an operator
+   halt (`safety:halt`), it is no loss in the operating envelope (live or replayed from the
+   trace) and never the failure ASPIRE credits a retry to (`refused_before_motion`).
+5. **Off:** `CASCADE_SIM_RETRY=0`. Code: `agent/sim_retry.py` (ledger), `SkillRuntime._execute_skill`
+   (wiring); tests: `tests/test_sim_retry_ledger.py tests/test_sim_retry_runtime.py`. `run.json`'s
+   `sim_retry` is written once at build: if the ledger later switches itself off after an internal
+   fault, only the trace rows (`context.sim_retry = {"off": true}`) and its `last_event` show it.
+
 ## Verify the contract
 
 ```bash

@@ -142,6 +142,35 @@ gripper:
   # jaws omit both keys. DERIVED from the model, not measured on hardware.
   jaw_fixed_tip_m: [0.0002, 0.0002, 0.0005]
   jaw_close_dir: [-0.995, -0.004, -0.098]
+  # The jaws' REAL geometry for point_at (skills/pointing.py `jaw_samples`):
+  # the 55 x 16 x 30 mm sweep box below is centred on the TCP, but this beak
+  # opens to ONE side: at open_pos the moving jaw's tip is 63 mm along -X
+  # and its body reaches 65 mm out, 25 mm behind the TCP. TOOL frame in the
+  # sweep's convention (+X this arm's col0, the jaw opening axis; +Y the
+  # hinge axis; +Z approach; origin at the TCP), boxes {extents, offset}:
+  #   fixed:  the fixed jaw and the gripper body, tips to the wrist;
+  #   moving: the moving jaw at the gripper's closed stop `stop_rad`,
+  #           turned about `hinge` (right-hand rule, larger angle opens) to
+  #           any gripper angle.
+  # MEASURED on the Menagerie collision geometry (assets/mjcf/so101, every
+  # collision geom of `gripper` and `moving_jaw_so101_v1`, surface-sampled
+  # at 1 mm), the hinge from the MuJoCo joint (turning the stop pose about it
+  # reproduces every angle exactly), every face rounded OUT to 5 mm.
+  # tests/test_point_at_lean_in.py re-measures it against MuJoCo and fails if
+  # the jaws outgrow a box at any angle from the stop to 1.0 rad.
+  jaw_volume:
+    stop_rad: -0.1745
+    hinge: {point: [-0.0281, 0.0190, -0.0747], axis: [0.0, -1.0, 0.0]}
+    fixed:
+      - {extents: [0.020, 0.020, 0.020], offset: [0.005, 0.0, 0.0]}
+      - {extents: [0.020, 0.020, 0.015], offset: [0.010, 0.0, -0.0175]}
+      - {extents: [0.030, 0.030, 0.025], offset: [0.015, 0.0, -0.0375]}
+      - {extents: [0.070, 0.040, 0.070], offset: [-0.005, 0.0, -0.085]}
+    moving:
+      - {extents: [0.020, 0.020, 0.020], offset: [-0.010, 0.0, 0.0]}
+      - {extents: [0.025, 0.020, 0.015], offset: [-0.0175, 0.0, -0.0175]}
+      - {extents: [0.025, 0.030, 0.025], offset: [-0.0225, 0.0, -0.0375]}
+      - {extents: [0.030, 0.040, 0.025], offset: [-0.025, 0.0, -0.0625]}
 
 # ── rig geometry this arm implies ────────────────────────────────────────
 # Deep-merged over demo.yaml by load_demo_config. demo.yaml describes a reBot

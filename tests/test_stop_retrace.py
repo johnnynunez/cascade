@@ -743,7 +743,7 @@ def bad_jaws(rt, monkeypatch, reading="nan"):
 
 @pytest.mark.parametrize("reading", sorted(NON_FINITE))
 @pytest.mark.parametrize("stall", [0.5, None], ids=["on-the-object", "at-the-seat"])
-def test_on_a_real_gripper_a_nan_jaw_reading_after_the_retrace_is_holding_unknown_never_empty(
+def test_on_a_real_gripper_a_nonfinite_jaw_reading_after_the_retrace_is_holding_unknown_never_empty(
         rebot_real, monkeypatch, stall, reading):
     """#367's NaN rule on #359's path, and +-inf alike: the jaws read no
     number once the retrace has run. move_home reports `holding_unknown`
@@ -766,7 +766,7 @@ def test_on_a_real_gripper_a_nan_jaw_reading_after_the_retrace_is_holding_unknow
 
 @pytest.mark.parametrize("reading", sorted(NON_FINITE))
 @pytest.mark.parametrize("stall", [0.5, None], ids=["on-the-object", "at-the-seat"])
-def test_on_a_real_gripper_a_nan_jaw_reading_with_the_column_kept_sends_the_agent_to_move_home_first(
+def test_on_a_real_gripper_a_nonfinite_jaw_reading_with_the_column_kept_sends_the_agent_to_move_home_first(
         rebot_real, monkeypatch, stall, reading):
     """A reading that is no number before the reset, with the column kept:
     refused with 0 commands (move_home first), never the empty-jaws reset

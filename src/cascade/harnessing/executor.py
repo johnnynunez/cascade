@@ -163,6 +163,7 @@ def isolated_config(cfg, out_dir: Path):
     """The configured stack with every learned store private to this rollout."""
     from ..config import Cfg
 
+    out_dir = Path(out_dir).resolve()  # the note library path must be absolute (skills.notes)
     data = cfg.as_dict()
     memory = data.setdefault("memory", {})
     memory.update(persist_beliefs=False, beliefs_path=str(out_dir / "beliefs.json"),
@@ -170,7 +171,7 @@ def isolated_config(cfg, out_dir: Path):
                   envelope_path=str(out_dir / "envelope.json"), action_objects=False,
                   skill_library_path=str(out_dir / "skills_library"))
     data.setdefault("grasp", {})["memory_path"] = str(out_dir / "grasp_memory.json")
-    data.setdefault("agent", {})["programs"] = False
+    data.setdefault("agent", {}).update(programs=False, sim_retry=False, harness_path=None)
     return Cfg(data)
 
 

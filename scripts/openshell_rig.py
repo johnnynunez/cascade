@@ -107,7 +107,11 @@ MCP_TOKEN_ENV = "CASCADE_MCP_TOKEN"
 DEFAULT_BRAIN_PORT = 8081   # the authenticated brain (docs/OPENSHELL.md)
 DEFAULT_MCP_PORT = 18741    # loopback, plain HTTP + bearer (NemoClaw's TLS listener is 18740)
 DEFAULT_CHAT_PORT = 18799   # NemoClaw's dashboard forward holds 18789
-DEFAULT_MODEL = "qwen3.8-27b"
+DEFAULT_MODEL = "nemotron-3.5-bolt"   # scripts/serve_nemotron_bolt_llamacpp.sh's served id
+#: The local brains whose served id also identifies objects for the robot
+#: server (configs/demo.yaml `detector: type: brain`): the default brain and
+#: Qwen3.8-27B (`--model qwen3.8-27b`, scripts/serve_qwen_vllm.sh).
+LOCAL_BRAIN_MODELS = (DEFAULT_MODEL, "qwen3.8-27b")
 DEFAULT_CONTEXT_WINDOW = 65536   # deploy/openshell/openclaw.json's contextWindow
 DEFAULT_SANDBOX = "cascade-agent"   # NemoClaw's sandbox is `cascade`
 SANDBOX_CHAT_PORT = 18789   # OpenClaw's gateway, on the sandbox's own loopback
@@ -481,14 +485,14 @@ def serve_mcp_env(base: dict | None = None, cfg: Settings = Settings(),
     and no CASCADE_MCP_TOKEN, so the token file is the only source.
 
     The server identifies objects with the brain (configs/demo.yaml
-    `detector: type: brain`). When this instance's saved brain is the Qwen
-    served id (`cfg.model == DEFAULT_MODEL`), it asks that brain:
-    `cfg.brain_port`, the Qwen model id and the brain key FILE, each unless
-    the launcher or the operator named it (an empty value counts as unset,
-    as in demo.yaml). Any other saved brain (Cosmos, ...) sets none of the
-    three, so demo.yaml's defaults apply and that brain never gets the Qwen
-    grounding prompt; an operator's own values still reach the server. The
-    key itself never enters the environment."""
+    `detector: type: brain`). When this instance's saved brain is a local
+    brain (`LOCAL_BRAIN_MODELS`: Nemotron 3.5 Bolt, the default, or Qwen3.8),
+    it asks that brain: `cfg.brain_port`, its served id and the brain key
+    FILE, each unless the launcher or the operator named it (an empty value
+    counts as unset, as in demo.yaml). Any other saved brain (Cosmos, ...)
+    sets none of the three, so demo.yaml's defaults apply and that brain
+    never gets the grounding prompt; an operator's own values still reach
+    the server. The key itself never enters the environment."""
     env = dict(os.environ if base is None else base)
     env.pop(MCP_TOKEN_ENV, None)
     env["PYTHONPATH"] = os.pathsep.join(p for p in (str(REPO / "src"), env.get("PYTHONPATH", "")) if p)
@@ -498,10 +502,10 @@ def serve_mcp_env(base: dict | None = None, cfg: Settings = Settings(),
     # pops an OpenCV window next to the demo. The demo's screen is OpenClaw's
     # web UI with the camera extension (`open`), fed by the live-view server.
     env.setdefault("CASCADE_VIEW", "0")
-    if cfg.model != DEFAULT_MODEL:
+    if cfg.model not in LOCAL_BRAIN_MODELS:
         return env
     brain = {"CASCADE_PERCEPTION_URL": f"http://127.0.0.1:{cfg.brain_port}/v1",
-             "CASCADE_PERCEPTION_MODEL": DEFAULT_MODEL,
+             "CASCADE_PERCEPTION_MODEL": cfg.model,
              "CASCADE_PERCEPTION_KEY_FILE": str(brain_key_file or default_brain_key_file())}
     for name, value in brain.items():
         if not env.get(name):
@@ -984,7 +988,8 @@ def cmd_up(inst: Instance, home: Path, args) -> int:
     brain = _check_brain(cfg, read_secret(brain_key_file))
     if brain != 200:
         raise SystemExit(f"brain on 127.0.0.1:{cfg.brain_port} answered {brain} with {brain_key_file}; "
-                         "start it (scripts/serve_qwen_vllm.sh or serve_qwen_llamacpp.sh) with that key")
+                         "start it (scripts/serve_nemotron_bolt_llamacpp.sh, or serve_qwen_vllm.sh for --model "
+                         "qwen3.8-27b) with that key")
     mcp = _check_mcp(cfg, read_secret(token_file) if token_file.exists() else "")
     if mcp != 200:
         raise SystemExit(f"cascade MCP on 127.0.0.1:{cfg.mcp_port} answered {mcp}; start "

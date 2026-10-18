@@ -41,7 +41,20 @@ if (fs.existsSync(out) && env.CASCADE_OPENCLAW_FORCE !== "1") {
 const brain = port("CASCADE_BRAIN_PORT", 8081);
 const mcp = port("CASCADE_MCP_PORT", 18741);
 const chat = port("CASCADE_CHAT_PORT", 18789);
-const model = env.CASCADE_MODEL || "qwen3.8-27b";
+const model = env.CASCADE_MODEL || "nemotron-3.5-bolt";
+// What the chat shows and sends for the brain actually served (CASCADE_MODEL
+// is the id that server reports). Nemotron's ultra_v3 reasoning parser ignores
+// the server's default thinking-off for non-streaming requests, so OpenClaw
+// sends {"enable_thinking": false} with every request to it. A brain missing
+// here is shown by its own id, never under another model's name.
+const BRAINS = {
+  "nemotron-3.5-bolt": {
+    name: "Nemotron 3.5 Bolt 74B-A9B (cascade brain)",
+    params: { chat_template_kwargs: { enable_thinking: false } },
+  },
+  "qwen3.8-27b": { name: "Qwen3.8-27B (cascade brain)" },
+};
+const known = Object.hasOwn(BRAINS, model) ? BRAINS[model] : null;
 // The brain's context window: OpenClaw sizes every prompt from it, so a 32k
 // brain (Cosmos, the Spark's Qwen) declared as the template's 64k overflows.
 const rawWindow = env.CASCADE_CONTEXT_WINDOW;
@@ -57,8 +70,10 @@ const cfg = JSON.parse(fs.readFileSync(template, "utf8"));
 const provider = cfg.models.providers.cascade;
 provider.baseUrl = `http://host.openshell.internal:${brain}/v1`;
 provider.models[0].id = model;
+provider.models[0].name = known ? known.name : `${model} (cascade brain)`;
 if (contextWindow !== null) provider.models[0].contextWindow = contextWindow;
 cfg.agents.defaults.model.primary = `cascade/${model}`;
+if (known && known.params) cfg.agents.defaults.models = { [`cascade/${model}`]: { params: known.params } };
 cfg.mcp.servers.cascade.url = `http://host.openshell.internal:${mcp}/mcp`;
 cfg.gateway.auth.token = crypto.randomBytes(24).toString("hex");
 cfg.gateway.controlUi.allowedOrigins = [`http://127.0.0.1:${chat}`, `http://localhost:${chat}`];

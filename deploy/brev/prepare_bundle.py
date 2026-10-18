@@ -27,6 +27,7 @@ ASSET_MANIFEST = Path(__file__).with_name("bundle_assets.json")
 KITCHEN_SOURCE_FILES = (
     "scripts/isaac_bridge.py",
     "src/cascade/sim/target_receipts.py",
+    "src/cascade/sim/scene_seed.py",
     "scripts/isaac_ovrtx.py",
     "src/cascade/sim/ovrtx_renderer.py", "src/cascade/sim/ovrtx_masks.py",
     "src/cascade/sim/ovrtx_process.py", "src/cascade/sim/ovrtx_worker.py",

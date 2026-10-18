@@ -82,6 +82,6 @@ def test_the_session_never_sees_an_ambient_observed_finger_gate_and_gives_it_bac
     result = subprocess.run(
         [sys.executable, "-m", "pytest", "-q", "--no-header", "-p", "no:cacheprovider", "-p", "conftest",
          "-p", "gate_after", f"--basetemp={tmp_path / 'child'}", str(tmp_path / "probe")],
-        cwd=tmp_path, env=env, capture_output=True, text=True, timeout=300)
+        cwd=tmp_path, env=env, capture_output=True, text=True, timeout=300, check=False)
     assert result.returncode == 0 and "2 passed" in result.stdout, result.stdout + result.stderr
     assert out.read_text() == repr(ambient)

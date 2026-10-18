@@ -486,6 +486,15 @@ agent:
   # keyword overlap. false = the pre-tier CLI and MCP server exactly.
   programs: false
   program_min_tasks: 2
+  # ASPIRE sim retry (docs/superpowers/specs/2026-10-17-aspire-demo-design.md
+  # §4.5). SIMULATION ONLY: after a refused pick_and_place / grasp_object the
+  # agent may repeat that call ONCE; the repeat homes the arm first and never
+  # reuses a refused grasp. A runtime builds the retry ledger only when every arm
+  # type is isaac / mujoco / mock, the booth is off, CASCADE_SIM_RETRY is not 0
+  # and CASCADE_OBSERVED_FINGER_GATE=1: a real profile never gets it, whatever
+  # this says. Optional: sim_retry_window_s (>= 360) and sim_retry_reserve_s
+  # (< 300). The kitchen profile (configs/arms/isaac_kitchen.yaml) turns it on.
+  sim_retry: false
   # Harness² agent harness (docs/AGENT_HARNESSING.md): advice text (rules, tool guidance,
   # triggered skills) learned by scripts/harness2_improve.py and validated before use. null = the
   # built-in agent's prompt and tool specs exactly. CASCADE_AGENT_HARNESS overrides.
@@ -581,16 +590,19 @@ viewer:
 verify_effects: true
 
 detector:
-  # The brain identifies, SAM masks: the local vision LLM (Qwen3.8 behind an
-  # OpenAI-compatible server) names and boxes each object on the table, and the
-  # SAM of `segmenter:` below masks the boxes. Bake-off evidence:
-  # docs/evidence/perception-bakeoff-20261015/. The api key is read from
+  # The brain identifies, SAM masks: the local vision LLM (Nemotron 3.5 Bolt,
+  # the default brain, behind an OpenAI-compatible server; Qwen3.8 with
+  # CASCADE_PERCEPTION_MODEL=qwen3.8-27b / launch.sh --brain qwen) names and
+  # boxes each object on the table, and the SAM of `segmenter:` below masks
+  # the boxes. Bake-off evidence: docs/evidence/perception-bakeoff-20261015/,
+  # docs/evidence/brain-nemotron-bolt-2026-10-18/. The api key is read from
   # api_key_file (a missing file sends none); CASCADE_PERCEPTION_* override.
-  # Default :8080 = the PORT both scripts/serve_qwen_*.sh start on; the rig's
-  # OpenShell instance sets CASCADE_PERCEPTION_URL to its own brain (:8081).
+  # Default :8080 = the PORT every scripts/serve_{nemotron_bolt,qwen}_*.sh
+  # starts on; the rig's OpenShell instance sets CASCADE_PERCEPTION_URL to its
+  # own brain (:8081).
   type: brain
   base_url: ${CASCADE_PERCEPTION_URL:-http://127.0.0.1:8080/v1}
-  model: ${CASCADE_PERCEPTION_MODEL:-qwen3.8-27b}
+  model: ${CASCADE_PERCEPTION_MODEL:-nemotron-3.5-bolt}
   api_key_file: ${CASCADE_PERCEPTION_KEY_FILE:-~/.cascade/nemoclaw/llama.key}
   timeout_s: 20
   # Background (watcher) requests, streamed: an open-world inventory decodes

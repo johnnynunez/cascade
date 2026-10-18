@@ -44,7 +44,7 @@ print(d["brain"], d["base_url"], d["model"], d["context_window"], u.port if loop
 ')" || die "unexpected brain resolution: $BRAIN_INFO"
 read -r RESOLVED_BRAIN BRAIN_BASE BRAIN_MODEL BRAIN_CTX BRAIN_PORT <<<"$BRAIN_FIELDS"
 [[ "$RESOLVED_BRAIN" != keep ]] \
-    || die "the agent's sandbox reaches only a model served on this host: pass --brain qwen|cosmos|cosmos-sglang (a cloud model OpenClaw is logged into never enters the sandbox)"
+    || die "the agent's sandbox reaches only a model served on this host: pass --brain nemotron-bolt|qwen|cosmos|cosmos-sglang (a cloud model OpenClaw is logged into never enters the sandbox)"
 [[ -n "$BRAIN_PORT" && "$BRAIN_PORT" != - ]] \
     || die "brain $BRAIN_BASE is not http://127.0.0.1:<port>/v1; the sandbox reaches only this host's loopback"
 [[ "$BRAIN_MODEL" != */* ]] \

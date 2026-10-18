@@ -1856,10 +1856,11 @@ def _program_tier(cfg, is_mock: bool):
 
 
 #: `detector.type: brain` defaults, also used for keys the block omits:
-#: the local vision LLM on :8080 (the PORT both scripts/serve_qwen_*.sh start
-#: on, = configs/demo.yaml's default) and the key file the launcher writes.
+#: the local vision LLM on :8080 (the PORT every scripts/serve_*_vllm.sh /
+#: _llamacpp.sh brain starts on, = configs/demo.yaml's default), the default
+#: brain's served id (Nemotron 3.5 Bolt) and the key file the launcher writes.
 BRAIN_BASE_URL = "http://127.0.0.1:8080/v1"
-BRAIN_MODEL = "qwen3.8-27b"
+BRAIN_MODEL = "nemotron-3.5-bolt"
 BRAIN_KEY_FILE = "~/.cascade/nemoclaw/llama.key"
 
 #: Blank frame of the SAM warm-up (shape only; the result is discarded).
@@ -2047,8 +2048,8 @@ def main(argv: list[str] | None = None) -> int:
                    help="llm profile, or `auto` (default): Hermes/Nous Portal, "
                         "then Anthropic, then OpenAI, whichever has its key in "
                         "the environment, else mock. Name one explicitly to "
-                        "pin it (mock|hermes|anthropic|openai|local_qwen|"
-                        "local_cosmos)")
+                        "pin it (mock|hermes|anthropic|openai|local_nemotron_bolt|"
+                        "local_qwen|local_cosmos)")
     p.add_argument("--max-steps", type=int, default=30)
     p.add_argument("--run-dir", default=None, help="trace output dir")
     p.add_argument("--interactive", action="store_true", help="multi-task REPL")

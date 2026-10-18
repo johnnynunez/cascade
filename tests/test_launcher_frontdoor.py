@@ -364,11 +364,13 @@ def test_reused_isaac_bridge_is_probed_not_accepted_on_port_alone(launcher_bound
 # configs/demo.yaml: `detector: type: brain` at ${CASCADE_PERCEPTION_URL:-...}.
 # `--brain qwen` points it at the Qwen brain the launch resolves (the
 # CASCADE_QWEN_BASE_URL endpoint, the bare served id qwen3.8-27b, the brain
-# key FILE); any other brain leaves perception on the configured Qwen brain and
-# says so. Only a path to the key ever travels.
+# key FILE); `--brain nemotron-bolt` at the default brain (served id
+# nemotron-3.5-bolt, CASCADE_NEMOTRON_BOLT_BASE_URL else the same endpoint);
+# any other brain leaves perception on the configured default brain (Nemotron
+# 3.5 Bolt) and says so. Only a path to the key ever travels.
 
 PERCEPTION = ("CASCADE_PERCEPTION_URL", "CASCADE_PERCEPTION_MODEL", "CASCADE_PERCEPTION_KEY_FILE")
-PERCEPTION_NOTE = "object identification uses the local Qwen3.8 brain at"
+PERCEPTION_NOTE = "object identification uses the local Nemotron 3.5 Bolt brain at"
 
 
 def _with_brain(h: dict, brain: str, home: Path) -> tuple[list[str], dict]:
@@ -426,6 +428,59 @@ def test_linux_other_brain_exports_no_perception_endpoint_and_says_where_it_goes
     assert sorted(set(PERCEPTION) & set(_seen_robot_env(h))) == []
     [note] = [line for line in result.stderr.splitlines() if PERCEPTION_NOTE in line]
     assert "http://127.0.0.1:8080/v1" in note and "must be running" in note
+
+
+def test_linux_brain_nemotron_bolt_points_the_agent_and_perception_at_bolt(linux_launcher, tmp_path):
+    h = linux_launcher
+    h["http"]["model"] = "nemotron-3.5-bolt"
+    command, env = _with_brain(h, "nemotron-bolt", tmp_path / "home")
+    result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=120)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert {name: _seen_robot_env(h).get(name) for name in PERCEPTION} == {
+        "CASCADE_PERCEPTION_URL": h["http"]["base_url"], "CASCADE_PERCEPTION_MODEL": "nemotron-3.5-bolt",
+        "CASCADE_PERCEPTION_KEY_FILE": str(tmp_path / "home" / ".cascade" / "nemoclaw" / "llama.key")}
+    assert PERCEPTION_NOTE not in result.stderr
+    [up] = [c for c in map(json.loads, Path(h["env"]["RIG_LOG"]).read_text().splitlines()) if "up" in c]
+    assert up[up.index("--model") + 1] == "nemotron-3.5-bolt" and up[up.index("--context-window") + 1] == "65536"
+    probe = [r for r in h["http"]["requests"] if isinstance(r, dict) and r.get("tools")]
+    assert probe and probe[-1]["model"] == "nemotron-3.5-bolt"
+    assert probe[-1]["chat_template_kwargs"] == {"enable_thinking": False}
+
+
+def test_linux_brain_nemotron_bolt_prefers_its_own_endpoint_and_names_only_the_key_file(linux_launcher, tmp_path):
+    h = linux_launcher
+    h["http"]["model"] = "nemotron-3.5-bolt"
+    command, env = _with_brain(h, "nemotron-bolt", tmp_path / "home")
+    key = tmp_path / "brain.key"
+    key.write_text("bolt-brain-key-5d2\n")
+    key.chmod(0o600)
+    env.update(CASCADE_BRAIN_KEY_FILE=str(key), CASCADE_NEMOTRON_BOLT_BASE_URL=h["http"]["base_url"],
+               CASCADE_QWEN_BASE_URL="http://127.0.0.1:0/v1")
+    env.pop("CASCADE_MODEL_API_KEY", None)
+    env.pop("CASCADE_MODEL_API_KEY_FILE", None)
+    result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=120)
+    assert result.returncode == 0, result.stdout + result.stderr
+    seen = _seen_robot_env(h)
+    assert {name: seen.get(name) for name in PERCEPTION} == {
+        "CASCADE_PERCEPTION_URL": h["http"]["base_url"], "CASCADE_PERCEPTION_MODEL": "nemotron-3.5-bolt",
+        "CASCADE_PERCEPTION_KEY_FILE": str(key)}
+    for text in (json.dumps(seen), Path(h["env"]["RIG_LOG"]).read_text(), result.stdout, result.stderr):
+        assert "bolt-brain-key-5d2" not in text
+
+
+def test_the_dry_run_plan_names_bolts_perception_endpoint(linux_launcher, tmp_path):
+    h = linux_launcher
+    command, env = _with_brain(h, "nemotron-bolt", tmp_path / "home")
+    result = subprocess.run([*command, "--dry-run"], env=env, capture_output=True, text=True, timeout=60)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert f"perception: nemotron-3.5-bolt at {h['http']['base_url']}" in result.stdout
+
+
+def test_an_unknown_brain_is_refused(linux_launcher, tmp_path):
+    h = linux_launcher
+    command, env = _with_brain(h, "nemotron", tmp_path / "home")
+    result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=60)
+    assert result.returncode == 2 and "unknown --brain nemotron" in result.stderr
 
 
 def test_host_route_brain_qwen_registers_the_perception_endpoint(launcher_boundary, tmp_path):

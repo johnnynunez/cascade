@@ -65,11 +65,16 @@ TLS from a private CA).
 ```bash
 # 0. the brain on 127.0.0.1:8081 with a bearer key read from a 0600 file (default
 #    ~/.cascade/nemoclaw/llama.key, or --brain-key-file / $CASCADE_BRAIN_KEY_FILE)
-#    and the bare served id qwen3.8-27b. vLLM, Qwen3.8 NVFP4 + DFlash2 (measured 2-3x
-#    llama.cpp on the Spark); the key goes to VLLM_API_KEY, never argv:
+#    and the bare served id nemotron-3.5-bolt: Nemotron 3.5 Bolt 74B-A9B 24GB in the
+#    model card's vLLM container (Docker CDI GPU, LiLiCorr DFlash drafter, ~53 GiB at
+#    GPU_UTIL 0.45); the key goes to VLLM_API_KEY, passed to docker by name, never argv.
+#    Once per host: scripts/serve_nemotron_bolt_vllm.sh --setup-only (pinned image + b12x,
+#    pinned weights, 24 GB). Restart this unit after pulling a new revision.
 systemd-run --user --unit=cascade-brain-vllm --collect -p MemoryMax=infinity \
     -E PORT=8081 -E API_KEY_FILE="$HOME/.cascade/nemoclaw/llama.key" \
-    "$PWD/scripts/serve_qwen_vllm.sh"
+    "$PWD/scripts/serve_nemotron_bolt_vllm.sh"
+#    Qwen3.8 NVFP4 + DFlash2 instead: the same unit with scripts/serve_qwen_vllm.sh, and
+#    `scripts/openshell_rig.py up --model qwen3.8-27b` (or launch.sh --brain qwen);
 #    or llama.cpp: PORT=8081 ALIAS=qwen3.8-27b API_KEY_FILE=... scripts/serve_qwen_llamacpp.sh
 
 # 1. OpenShell 0.1.3: downloaded, sha256-checked against the pinned digests, extracted
@@ -180,7 +185,7 @@ sidecars start as before; steps 4-6 are [`scripts/launch_openshell.sh`](../scrip
 | | what happens |
 |---|---|
 | instance | `sim` for a simulator, the default instance (the real rig's) for `--sim none`; `CASCADE_OPENSHELL_INSTANCE` overrides |
-| brain | a model on this host's loopback (`--brain qwen\|cosmos\|cosmos-sglang`); `keep` (a cloud model) is refused. The served id must be bare (no `/`); its context window reaches the sandbox (`--context-window`) |
+| brain | a model on this host's loopback (`--brain nemotron-bolt\|qwen\|cosmos\|cosmos-sglang`; `auto` finds a local Cosmos, else the brain on :8080, Nemotron 3.5 Bolt by default); `keep` (a cloud model) is refused. The served id must be bare (no `/`); its context window reaches the sandbox (`--context-window`) |
 | brain key | `CASCADE_BRAIN_KEY_FILE`, else `CASCADE_MODEL_API_KEY` written to a 0600 file in the launch state, else a minted one (a server without `--api-key` ignores it) |
 | robot server | built once (`runtime_check`), then `openshell_rig.py mcp-start`: `serve-mcp` as the instance's unit, bound to this launch's owner, env from a 0600 file. A simulator learns into the launch state's `memory/` (grasp memory, envelope, beliefs, episodic), never `~/.cascade`, and starts empty every launch; explicit `CASCADE_*_PATH` values win |
 | sandbox | `openshell_rig.py up`: a simulator starts with motion allowed for 12 h; the real robot starts observe-only (`motion unlock`) |
@@ -226,7 +231,12 @@ same interpreter; `uv run` would re-sync the live `.venv`):
 4. `.venv/bin/python scripts/nemoclaw_mcp.py register --sandbox <name>`, then
    `configure-agent --sandbox <name>`.
 
-Keep the model id bare (`qwen3.8-27b`): OpenClaw splits provider/model on `/`.
+Keep the model id bare (`nemotron-3.5-bolt`, `qwen3.8-27b`): OpenClaw splits provider/model on `/`.
+The chat's model label comes from the served id (`deploy/openshell/render-config.mjs`):
+"Nemotron 3.5 Bolt 74B-A9B (cascade brain)", "Qwen3.8-27B (cascade brain)", or the id itself
+for any other brain. For Nemotron the sandbox's OpenClaw also sends
+`chat_template_kwargs: {enable_thinking: false}` with every request: the model card's ultra_v3
+reasoning parser ignores the server's default for non-streaming requests.
 
 ## Files
 

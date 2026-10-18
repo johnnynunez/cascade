@@ -91,11 +91,7 @@ def rig(monkeypatch, tmp_path):
     from cascade.apps import demo
     from cascade.apps.demo import shutdown_runtime
     from cascade.config import load_demo_config
-    from cascade.skills import pointing
 
-    # the suite runs on slower, loaded CI runners: the planning budget's own
-    # tests set it back to the shipped 3 s and drive it with a fake clock
-    monkeypatch.setattr(pointing, "PLAN_BUDGET_S", 30.0)
     built = []
 
     def build(profile, camera="mock_small", prop=None):

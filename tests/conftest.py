@@ -206,6 +206,17 @@ def _no_ambient_aspire_library(monkeypatch, tmp_path_factory):
 
 
 @pytest.fixture(autouse=True)
+def _point_at_budget_for_slow_runners(monkeypatch):
+    """point_at plans against a 3 s wall-clock budget (`pointing.PLAN_BUDGET_S`).
+    CI runners running ~19k tests are slower and loaded: a test about a refusal
+    reason must not see the budget's refusal instead. The budget's own tests set
+    the shipped 3 s back and drive a fake clock (`pointing._clock`)."""
+    from cascade.skills import pointing
+
+    monkeypatch.setattr(pointing, "PLAN_BUDGET_S", 30.0)
+
+
+@pytest.fixture(autouse=True)
 def _no_ambient_booth(monkeypatch):
     """A booth-day shell (CASCADE_BOOTH=1 exported) must not silently rerun the
     whole suite under booth tuning — a green run has to certify DEV

@@ -102,7 +102,8 @@ def _hull_xy(xy: np.ndarray) -> np.ndarray:
 
 
 def _footprint_distance(xy: np.ndarray, poly: np.ndarray) -> np.ndarray:
-    """Horizontal distance from points to a convex polygon (0 inside)."""
+    """Horizontal distance from points to a convex polygon: positive
+    outside, minus the distance to the nearest edge inside."""
     v0 = poly
     edge = np.roll(poly, -1, axis=0) - v0
     length2 = (edge * edge).sum(axis=1)
@@ -112,7 +113,7 @@ def _footprint_distance(xy: np.ndarray, poly: np.ndarray) -> np.ndarray:
     if len(poly) < 3:
         return to_edge
     inside = ((edge[None, :, 0] * rel[..., 1] - edge[None, :, 1] * rel[..., 0]) >= 0.0).all(axis=1)
-    return np.where(inside, 0.0, to_edge)
+    return np.where(inside, -to_edge, to_edge)
 
 
 @dataclass(frozen=True)
@@ -130,14 +131,19 @@ class ObjectColumn:
         return max(self.tops)
 
     def distance(self, points: np.ndarray) -> np.ndarray:
-        """Distance from each point to the column (0 inside; NaN for a
-        non-finite point, which every `>= margin` test refuses)."""
+        """Signed distance from each point to the column: positive outside,
+        minus the depth to the nearest side or the top inside (the table is
+        no way out), so going deeper shows; NaN for a non-finite point, which
+        every `>= margin` test refuses."""
         points = np.asarray(points, dtype=float).reshape(-1, 3)
         out = np.full(len(points), np.inf)
         for poly, top in zip(self.footprints, self.tops):
             dxy = _footprint_distance(points[:, :2], poly)
-            dz = np.maximum(0.0, np.maximum(points[:, 2] - top, self.z_lo - points[:, 2]))
-            out = np.minimum(out, np.hypot(dxy, dz))
+            above = points[:, 2] - top
+            dz = np.maximum(0.0, np.maximum(above, self.z_lo - points[:, 2]))
+            outside = np.hypot(np.maximum(dxy, 0.0), dz)
+            inside = (dxy <= 0.0) & (dz <= 0.0)
+            out = np.minimum(out, np.where(inside, np.maximum(dxy, above), outside))
         out[~np.isfinite(points).all(axis=1)] = np.nan
         return out
 
@@ -276,22 +282,32 @@ def _score(c: PoseClearance) -> float:
 # ── the route ──────────────────────────────────────────────────────────────
 
 
-def _sample_clearance(kin, q, column: ObjectColumn, tool: np.ndarray, table_z: float) -> tuple[float, str]:
-    """The smallest of the three clearances at q (tool samples from the
-    column, the lowest tool sample above the table, joint origins from the
-    column) and its words."""
+_WORDS = ("the jaws {} m from it", "the jaws {} m above the table", "a joint {} m from it")
+
+
+def _pair_clearances(kin, q, column: ObjectColumn, tool: np.ndarray, table_z: float):
+    """The clearances at q, one per pair that must not close in, and which
+    kind each is (an index into _WORDS): the jaws (every tool sample) from
+    the column (signed: negative inside), the jaws above the table, then each
+    joint origin from the column (signed)."""
     T = np.asarray(kin.fk(q), dtype=float)
     world = tool @ T[:3, :3].T + T[:3, 3]
     links = _link_points(kin, q)
-    found = [(float(column.distance(world).min()), "the jaws {} m from it"),
-             (float(world[:, 2].min()) - float(table_z), "the jaws {} m above the table")]
-    if len(links):
-        found.append((float(column.distance(links).min()), "a joint {} m from it"))
-    for value, words in found:
-        if not math.isfinite(value):
-            return math.nan, words.format("nan")
-    value, words = min(found, key=lambda f: f[0])
-    return value, words.format(f"{value:.3f}")
+    values = np.concatenate([[column.distance(world).min(), world[:, 2].min() - float(table_z)],
+                             column.distance(links) if len(links) else np.empty(0)]).astype(float)
+    kinds = np.concatenate([[0, 1], np.full(len(links), 2)]).astype(int)
+    values[~np.isfinite(values)] = np.nan
+    return values, kinds
+
+
+def _sample_clearance(kin, q, column: ObjectColumn, tool: np.ndarray, table_z: float) -> tuple[float, str]:
+    """The smallest clearance at q (the jaws from the column and above the
+    table, the joint origins from the column) and its words."""
+    values, kinds = _pair_clearances(kin, q, column, tool, table_z)
+    if np.isnan(values).any():
+        return math.nan, _WORDS[int(kinds[np.flatnonzero(np.isnan(values))[0]])].format("nan")
+    i = int(np.argmin(values))
+    return float(values[i]), _WORDS[int(kinds[i])].format(f"{values[i]:.3f}")
 
 
 def segment_violation(kin, q_from, q_to, column: ObjectColumn, tool: np.ndarray, margin: float,
@@ -300,41 +316,65 @@ def segment_violation(kin, q_from, q_to, column: ObjectColumn, tool: np.ndarray,
     (the first failing FK sample), or None. Samples at most `step_rad`
     apart, both ends included.
 
-    `from_inside`: q_from is where the arm IS. An arm already inside the
-    margin (the SO-101's home holds the jaw box 1 cm over the mock cube, or
-    into a 5 cm one) may only move away until it is out: its clearance never
-    shrinks (beyond float noise, ESCAPE_TOL_M) at any sample while inside,
-    and once out the segment never comes back in. Every other segment keeps
-    the margin at every sample."""
+    `from_inside`: q_from is where the arm IS. Pair by pair (the jaws and
+    the object, the jaws and the table, each joint and the object): a pair
+    already inside the margin (the SO-101's home holds its jaw box 5 mm into
+    the mock_small cube's top) may only separate, never close in (beyond
+    float noise, ESCAPE_TOL_M), until it is out; a pair out of the margin
+    never comes in. The object distance is signed, so deeper is closer, and
+    one pair's slack never covers another closing in. Every other segment
+    keeps the margin for every pair at every sample. MEASURED: an escape
+    can still dip between two samples (densely resampled: 0.25 mm below its
+    best so far on the Piper's escape from home, whose jaw box starts
+    11.5 mm inside the mock box's hull)."""
     q_from = np.asarray(q_from, dtype=float)
     q_to = np.asarray(q_to, dtype=float)
     span = float(np.max(np.abs(q_to - q_from))) if q_from.size else 0.0
     if not math.isfinite(span):
         return "the joint targets are not finite"
     n = max(1, int(math.ceil(span / step_rad)))
-    escaping, previous = bool(from_inside), None
+    previous = None
     for i in range(n + 1):
         s = i / n
-        value, words = _sample_clearance(kin, q_from + s * (q_to - q_from), column, tool, table_z)
-        if value >= margin:
-            escaping = False
-        elif not (escaping and (previous is None or value >= previous - ESCAPE_TOL_M)):   # NaN fails too
+        values, kinds = _pair_clearances(kin, q_from + s * (q_to - q_from), column, tool, table_z)
+        if from_inside and previous is None:
+            previous = values                # where the arm is: judged by where it goes
+            continue
+        was_in = np.zeros(len(values), dtype=bool) if previous is None else ~(previous >= margin)
+        # written so that NaN refuses; `previous` is only kept from_inside
+        floor = np.where(was_in, (previous if previous is not None else values) - ESCAPE_TOL_M, margin)
+        bad = ~(values >= floor)
+        if bad.any():
+            j = int(np.flatnonzero(bad)[np.argmin(np.nan_to_num(values[bad], nan=-np.inf))])
+            text = "nan" if np.isnan(values[j]) else f"{values[j]:.3f}"
             where = "where it starts" if i == 0 else f"{100.0 * s:.0f}% of the way"
-            return f"{words} {where}" + (", closing in from inside the margin" if escaping else "")
-        previous = value
+            return f"{_WORDS[int(kinds[j])].format(text)} {where}" + (
+                ", closing in from inside the margin" if was_in[j] else "")
+        previous = values if from_inside else None
     return None
 
 
 def plan_route(kin, q_start, q_goal, column: ObjectColumn, tool: np.ndarray, approach_col: int, *,
-               margin: float, table_z: float, vet=None) -> list:
+               margin: float, table_z: float, vet=None, preflight=None, preflight_direct: bool = False) -> list:
     """The joint targets to command, in order, to reach `q_goal`: [q_goal]
     when the straight segment keeps the margin, else [rise waypoint, q_goal].
     An arm that starts inside the margin may only move away until it is out
     (`segment_violation(from_inside=True)`). Raises RouteRefused (nothing is
-    commanded) when no rise-first waypoint clears it."""
+    commanded) when no rise-first waypoint clears it.
+
+    `vet(q)` (the harness's static `vet_pose`) vetoes a waypoint;
+    `preflight(q_from, q_to)` (the harness's static route vet,
+    `safety.trajectory.vet_segment`) vetoes a leg the harness would stop
+    mid-way (a TCP leaving the workspace box between two vetted ends). Every
+    rise leg is preflighted; the direct leg only with `preflight_direct` (a
+    new pose: the lean-in), so a top-down route that main streamed is
+    streamed exactly as before."""
     q_start = np.asarray(q_start, dtype=float)
     q_goal = np.asarray(q_goal, dtype=float)
     direct = segment_violation(kin, q_start, q_goal, column, tool, margin, table_z, from_inside=True)
+    if direct is None and preflight_direct and preflight is not None:
+        harness = preflight(q_start, q_goal)
+        direct = None if harness is None else f"the harness would stop it ({harness})"
     if direct is None:
         return [q_goal]
     T0 = np.asarray(kin.fk(q_start), dtype=float)
@@ -354,7 +394,9 @@ def plan_route(kin, q_start, q_goal, column: ObjectColumn, tool: np.ndarray, app
                     continue
                 if (segment_violation(kin, q_start, waypoint, column, tool, margin, table_z,
                                       from_inside=True) is None
-                        and segment_violation(kin, waypoint, q_goal, column, tool, margin, table_z) is None):
+                        and segment_violation(kin, waypoint, q_goal, column, tool, margin, table_z) is None
+                        and (preflight is None or (preflight(q_start, waypoint) is None
+                                                   and preflight(waypoint, q_goal) is None))):
                     return [waypoint, q_goal]
     raise RouteRefused(f"going straight, {direct}, and no rise-first waypoint clears it")
 

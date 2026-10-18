@@ -6836,9 +6836,22 @@ class SkillRuntime:
             target = lean.q
         else:
             target = ik.q
+
+        def preflight(q_from, q_to):
+            if harness is None or not callable(getattr(harness, "vet_step", None)):
+                return None
+            from ..safety import trajectory
+
+            try:
+                with trajectory.geometry_guard(harness):
+                    return trajectory.vet_segment(harness, q_from, q_to, 2.0)
+            except SkillError as exc:
+                return str(exc)
+
         try:
             route = pointing.plan_route(self.kin, q_now, target, column, samples, approach_col,
-                                        margin=margin, table_z=table_z, vet=vet)
+                                        margin=margin, table_z=table_z, vet=vet, preflight=preflight,
+                                        preflight_direct=lean is not None)
         except pointing.RouteRefused as exc:
             raise SkillError(f"cannot reach the pointing pose over {label!r} keeping {margin:.3f} m from it: "
                              f"{exc}; nothing was moved") from None

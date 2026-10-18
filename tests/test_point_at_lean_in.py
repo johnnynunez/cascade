@@ -313,6 +313,44 @@ def test_the_lean_in_family_runs_smallest_tilt_first(rig, monkeypatch):
     assert asked[0][0] == pytest.approx(15.0)
 
 
+@needs_pin
+def test_a_lean_in_pose_the_harness_would_refuse_is_skipped(rig, monkeypatch):
+    """`SafetyHarness.vet_pose` vetoes the first admissible candidate (the
+    15 deg one); point_at takes the next, never the vetoed pose."""
+    r = rig("mock", camera="mock", prop=(0.30, 0.0, 0.06, 0.15))
+    harness = r.runtime.arm.harness
+    real = harness.vet_pose
+    vetoed = []
+
+    def vet(q, *a, **k):
+        T = r.runtime.kin.fk(q)
+        tilt = float(np.degrees(np.arccos(-T[2, _approach_col(r.cfg)])))
+        if abs(tilt - 15.0) < 0.5:
+            vetoed.append(np.asarray(q, float).copy())
+            return "test veto: keep-out"
+        return real(q, *a, **k)
+
+    monkeypatch.setattr(harness, "vet_pose", vet)
+    out = r.runtime.execute("point_at", {"label": "red cube"})
+
+    assert out["ok"] is True and out["lean_deg"] == 25, out
+    assert vetoed and not any(np.allclose(c, v) for c in _commands(r) for v in vetoed)
+
+
+@needs_pin
+def test_a_rise_waypoint_the_harness_would_refuse_is_skipped(rig, monkeypatch):
+    """Every waypoint vetoed: no rise, so the route through the object is
+    refused before any command."""
+    r = rig("mock", camera="mock", prop=(0.30, 0.0, 0.06, 0.10))
+    _park(r, [0.18, 0.0, 0.06], yaw=math.pi / 2)
+    monkeypatch.setattr(r.runtime.arm.harness, "vet_pose", lambda q, *a, **k: "test veto")
+
+    out = r.runtime.execute("point_at", {"label": "red cube"})
+
+    _refused_untouched(r, out)
+    assert "no rise-first waypoint clears it" in out["error"], out
+
+
 # ── the acceptance rule, one condition at a time ───────────────────────────
 
 
@@ -358,9 +396,11 @@ def test_the_column_extrudes_the_box_to_the_table_and_covers_the_points():
                           axes=np.eye(3), points=np.array([[0.3, 0.05, 0.11], [0.3, 0.0, 0.09]]))
     column = pointing.object_column(fix, table_z=0.0, top=0.11)
     # under the box, down to the table, is inside
-    assert column.distance(np.array([[0.3, 0.0, 0.001]]))[0] == 0.0
+    assert column.distance(np.array([[0.3, 0.0, 0.001]]))[0] <= 0.0
+    # the box's own corners count where no point was observed
+    assert column.distance(np.array([[0.318, -0.018, 0.05]]))[0] <= 0.0
     # a stray point outside the box widens the footprint
-    assert column.distance(np.array([[0.3, 0.05, 0.05]]))[0] == 0.0
+    assert column.distance(np.array([[0.3, 0.05, 0.05]]))[0] <= 0.0
     # above the top by 2 cm
     assert column.distance(np.array([[0.3, 0.0, 0.13]]))[0] == pytest.approx(0.02)
     np.testing.assert_allclose(column.aim, [0.3, 0.0, 0.11])
@@ -497,6 +537,11 @@ def _box_column():
     ([-0.1, 0.0, 0.07], [0.1, 0.0, 0.07], True, False),    # the same from where the arm is
     ([-0.1, 0.0, 0.09], [0.1, 0.0, 0.09], False, True),    # 4 cm over the top all the way
     ([0.0, 0.0, 0.06], [0.0, 0.0, 0.20], True, True),
+    # starting INSIDE the object: deeper is closing in, out is escaping
+    ([0.0, 0.0, 0.04], [0.0, 0.0, 0.03], True, False),     # 1 cm deep, going 2 cm deep
+    ([0.015, 0.0, 0.03], [0.0, 0.0, 0.03], True, False),   # inside, sliding to the middle
+    ([0.0, 0.0, 0.04], [0.0, 0.0, 0.10], True, True),      # inside, straight up and out
+    ([0.015, 0.0, 0.03], [0.1, 0.0, 0.03], True, True),    # inside, sideways out
 ])
 def test_the_route_rule_on_a_straight_segment(start, goal, from_inside, ok):
     from cascade.skills import pointing
@@ -504,6 +549,89 @@ def test_the_route_rule_on_a_straight_segment(start, goal, from_inside, ok):
     reason = pointing.segment_violation(_SlideKin(), np.array(start), np.array(goal), _box_column(),
                                         np.zeros((1, 3)), MARGIN, 0.0, from_inside=from_inside)
     assert (reason is None) is ok, reason
+
+
+def test_the_column_distance_is_signed_inside():
+    """Inside the object the distance is minus the depth to its nearest side
+    or top (the table is no way out): going deeper is visible."""
+    col = _box_column()
+    d = col.distance(np.array([[0.0, 0.0, 0.04], [0.0, 0.0, 0.01], [0.015, 0.0, 0.03], [0.0, 0.0, 0.08]]))
+    assert d == pytest.approx([-0.01, -0.02, -0.005, 0.03])
+
+
+def test_escaping_is_judged_pair_by_pair():
+    """Two tool samples: A at the TCP holds 5 mm under the table (the
+    smallest clearance, flat); B, 6 cm behind and 4 cm above it, starts 2 cm
+    from the object and slides to touch it. The smallest clearance never
+    shrinks, yet the jaws close in on the object: refused, that pair named."""
+    from cascade.skills import pointing
+
+    tool = np.array([[0.0, 0.0, 0.0], [-0.06, 0.0, 0.04]])
+    start, goal = np.array([0.10, 0.0, -0.005]), np.array([0.08, 0.0, -0.005])
+    reason = pointing.segment_violation(_SlideKin(), start, goal, _box_column(), tool, MARGIN, 0.0,
+                                        from_inside=True)
+    assert reason is not None and reason.startswith("the jaws 0.0") and "from it" in reason, reason
+    assert "closing in from inside the margin" in reason, reason
+
+
+class _SlideIK(_SlideKin):
+    """_SlideKin that solves any TCP position (orientation ignored)."""
+
+    def ik(self, T, q0, *a, **k):
+        return SimpleNamespace(q=np.asarray(T, float)[:3, 3].copy(), success=True)
+
+    def ik_approach(self, position, approach, q0, axis, *a, **k):
+        return SimpleNamespace(q=np.asarray(position, float).copy(), success=True)
+
+
+def test_every_rise_leg_is_preflighted_by_the_harness():
+    """Going straight dips 2.6 cm over the top's edge; the lowest rise (TCP
+    0.07 m) clears the object but the harness's route vet refuses legs ending
+    under 0.095 m (a stand-in for a workspace box it would stop mid-way): the
+    waypoint is the first one both accept, and both legs were asked."""
+    from cascade.skills import pointing
+
+    asked = []
+
+    def preflight(a, b):
+        asked.append((np.round(a, 3).tolist(), np.round(b, 3).tolist()))
+        return "TCP outside workspace" if b[2] < 0.095 and not np.allclose(b, goal) else None
+
+    start, goal = np.array([-0.1, 0.0, 0.04]), np.array([0.0, 0.0, 0.085])
+    route = pointing.plan_route(_SlideIK(), start, goal, _box_column(), np.zeros((1, 3)), 2, margin=MARGIN,
+                                table_z=0.0, preflight=preflight)
+
+    assert len(route) == 2 and route[0][2] == pytest.approx(0.10), route
+    assert [start.tolist(), np.round(route[0], 3).tolist()] in [list(x) for x in asked]
+    assert [np.round(route[0], 3).tolist(), goal.tolist()] in [list(x) for x in asked]
+    # without the harness the lowest clear rise would have been taken
+    assert pointing.plan_route(_SlideIK(), start, goal, _box_column(), np.zeros((1, 3)), 2, margin=MARGIN,
+                               table_z=0.0)[0][2] == pytest.approx(0.07)
+
+
+@needs_pin_so101
+def test_a_lean_in_route_the_harness_would_stop_is_refused_before_any_command(rig, monkeypatch):
+    """The lean-in is a new motion: its direct leg (and any rise) goes
+    through the harness's static route vet first."""
+    r = rig("so101_mock", prop=(*at(0.22, 0.0), 0.035, 0.035))
+    monkeypatch.setattr(r.runtime.arm.harness, "vet_step", lambda *a, **k: "test: outside the workspace")
+
+    out = r.runtime.execute("point_at", {"label": "red cube"})
+
+    _refused_untouched(r, out)
+    assert "the harness would stop it (test: outside the workspace)" in out["error"], out
+
+
+@needs_pin
+def test_a_top_down_route_is_streamed_as_before_without_the_static_vet(rig, monkeypatch):
+    """Byte-identity guard: today's top-down pose keeps today's single leg,
+    vetted step by step while it streams, never by the static route vet."""
+    r = rig("mock", camera="mock")
+    monkeypatch.setattr(r.runtime.arm.harness, "vet_step", lambda *a, **k: "test: never asked")
+
+    out = r.runtime.execute("point_at", {"label": "red cube"})
+
+    assert out["ok"] is True and "rose_first" not in out, out
 
 
 # ── halts and e-stops: zero further commands, at every point ──────────────
@@ -705,6 +833,30 @@ def test_an_object_under_another_is_pointed_at_over_the_top_one(rig, monkeypatch
         lo = np.array([*(cup - 0.045), 0.0])
         hi = np.array([*(cup + 0.045), cup_top])
         assert _box_distance(tool, lo, hi).min() >= MARGIN - 1e-6
+
+
+@needs_pin
+def test_the_target_is_not_its_own_occluder(rig, monkeypatch):
+    """The cube's own belief remembers a 5 cm top; the fix (moved 2 cm down
+    here) says 3 cm. The cube does not stand over itself: 0.03 + 0.04."""
+    r = rig("mock", camera="mock")
+    orig = r.runtime._localize
+
+    def localize(label, *a, **k):
+        frame, fix = orig(label, *a, **k)
+        return frame, dataclasses.replace(fix, points=fix.points - [0.0, 0.0, 0.02],
+                                          position=fix.position - [0.0, 0.0, 0.02])
+
+    monkeypatch.setattr(r.runtime, "_localize", localize)
+    assert r.runtime.beliefs.find("red cube").top_z == pytest.approx(0.05, abs=1e-6)
+    asked = []
+    real_ik = r.runtime.kin.ik
+    monkeypatch.setattr(r.runtime.kin, "ik", lambda T, *a, **k: (asked.append(float(T[2, 3])), real_ik(T, *a, **k))[1])
+
+    out = r.runtime.execute("point_at", {"label": "red cube"})
+
+    assert out["ok"] is True, out
+    assert asked[0] == pytest.approx(0.03 + 0.04, abs=1e-6)
 
 
 @needs_pin

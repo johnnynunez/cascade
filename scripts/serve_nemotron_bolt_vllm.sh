@@ -1,18 +1,23 @@
 #!/usr/bin/env bash
-# Serve the cascade brain: NVIDIA Nemotron 3.5 Bolt 74B-A9B 24GB (IQ2 QAT,
+# Serve the cascade brain NVIDIA Nemotron 3.5 Bolt 74B-A9B 24GB (IQ2 QAT,
 # Mamba-2/Transformer hybrid LatentMoE VLM) with vLLM, in the model card's
 # container (nightly 77154ca6 + b12x 1.5.1). SPEC=dflash adds the LiLiCorr
 # DFlash drafter (7 speculative tokens).
-# Measured on the DGX Spark (GB10), docs/evidence/brain-nemotron-bolt-2026-10-18:
-# the agent and perception both run on it; ~53 GiB at GPU_UTIL 0.45.
 #
-# Why the card's container and not the vLLM 0.32.0 release from a uv venv
-# (serve_qwen_vllm.sh's route): the release is not a descendant of the card's
-# nightly (it lacks 100 of its commits), and Bolt on it faulted the GPU (Xid 31,
-# MMU FAULT_PDE write, the engine dies) three times beside Isaac Newton under
-# agent + perception load, on torch cu132 (2) and cu130 (1). Alone it survived
-# 55 min of stress, so the fault needs that contention. The card's image ran the
-# same load and the end-to-end pick without one (evidence section 9).
+# OPT-IN, NOT THE DEFAULT. The default Bolt server is llama.cpp v0.7.0
+# (scripts/serve_nemotron_bolt_llamacpp.sh). WARNING: every vLLM build tried
+# for Bolt faulted the GPU beside Isaac Sim (Newton) under agent + perception
+# load on the DGX Spark: kernel `NVRM: Xid 31 ... VLLM::EngineCor ... MMU Fault
+# FAULT_PDE ACCESS_TYPE_VIRT_WRITE`, then "illegal memory access" and
+# EngineDeadError (docs/evidence/brain-nemotron-bolt-2026-10-18, section 9):
+#   12:39  vLLM 0.32.0 uv venv, torch cu132  mixed replay beside Isaac
+#   13:49  vLLM 0.32.0, torch cu132          e2e pick beside Isaac (host hard-reset 13:56)
+#   15:37  vLLM 0.32.0, torch cu130          e2e pick beside Isaac
+#   16:20  this container (nightly 77154ca6) soak beside Isaac, after a passing e2e
+# and a host hard-reset at ~17:07 (no kernel log) 26 min into a soak of vLLM
+# 0.32.0 cu130 with CUDA graphs off beside Isaac. Alone, Bolt on vLLM survived
+# 55 min of stress (0 Xid). Do not run it beside Isaac Sim on a host that also
+# drives a real robot.
 #
 # Same contract as serve_qwen_vllm.sh, so every route (OpenShell, NemoClaw,
 # stdio OpenClaw) is engine-agnostic: OpenAI /v1, a BARE served id
@@ -112,6 +117,8 @@ for knob in CTX MAX_SEQS NSPEC PREFIX_MATCH MEM_FLOOR_GB; do
 done
 [[ "$GPU_UTIL" =~ ^0?\.[0-9]+$ ]] || die "GPU_UTIL must be a fraction such as 0.45 (got '$GPU_UTIL')" 2
 [[ "$CONTAINER" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]] || die "CONTAINER must be a docker container name (got '$CONTAINER')" 2
+[[ "$MODE" == setup ]] || log "WARNING: opt-in route. Bolt on vLLM faulted the GPU (Xid 31) beside Isaac Sim on the" \
+    "DGX Spark; the default Bolt server is scripts/serve_nemotron_bolt_llamacpp.sh (see this script's header)."
 
 # ── key: a private file, never argv ──────────────────────────────────────
 KEY_ENV=()

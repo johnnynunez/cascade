@@ -46,6 +46,13 @@ Visual recall v2 (B43, both opt-in, both need an embedder):
   refused (vectors of two models are not comparable). Restored entries keep
   their own ring, pruned at the load's max age rather than the task horizon,
   and every restored hit carries ``restored: True, state: "remembered"``.
+
+Text filter (``set_text_filter``): one choke point for every line and label the
+memory records (``add``, ``add_detection_crop``, ``load_visual``, and what it
+already holds when the filter is set). ``SkillRuntime`` sets the kitchen rules'
+scrub, so the agent's own free text in a note (an object name, a query, a halt
+reason) never reads back to it as a rule trigger; without a filter text is
+recorded as given.
 """
 
 from __future__ import annotations
@@ -60,7 +67,7 @@ import weakref
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import cv2
 import numpy as np
@@ -188,6 +195,9 @@ class EpisodicMemory:
     #: Entry kinds whose vectors the embedder produced: only these persist (a
     #: caller-supplied ``embedding=`` lives in a space nobody declared).
     PERSISTED_KINDS = ("frame", "object", "detection")
+    #: Applied to every line and label the memory records; None records them as
+    #: given. Set it with `set_text_filter`, which also filters what is already held.
+    text_filter: Callable[[str], str] | None = None
 
     def __init__(
         self,
@@ -246,6 +256,23 @@ class EpisodicMemory:
 
     # ── recording ────────────────────────────────────────────────────────
 
+    def _filtered(self, text):
+        """`text` (a line or a label) as the memory records it: through `text_filter`."""
+        return text if self.text_filter is None else self.text_filter(text)
+
+    def set_text_filter(self, text_filter: Callable[[str], str] | None) -> None:
+        """Filter every line and label recorded from now on, and those already held
+        (entries `load_visual` restored before the owner set its filter)."""
+        with self._lock:
+            self.text_filter = text_filter
+            events = {id(ev): ev for ev in (*self._events, *self._frames)}
+            for entry in (*self._visual, *self._detections, *self._restored):
+                events.setdefault(id(entry.event), entry.event)
+                if entry.label is not None:
+                    entry.label = self._filtered(entry.label)
+            for ev in events.values():
+                ev.text = self._filtered(ev.text)
+
     def add(
         self,
         kind: str,
@@ -284,12 +311,12 @@ class EpisodicMemory:
                     errors += 1
             for label, crop in (crops or {}).items():
                 try:
-                    vectors.append(("object", str(label), self.embedder.embed_image(crop)))
+                    vectors.append(("object", self._filtered(str(label)), self.embedder.embed_image(crop)))
                 except Exception:  # noqa: BLE001
                     errors += 1
         if embedding is not None:
             vectors.append(("event", None, embedding))
-        ev = MemoryEvent(t=now, kind=kind, text=text, data=data or {}, thumb_jpeg=thumb)
+        ev = MemoryEvent(t=now, kind=kind, text=self._filtered(text), data=data or {}, thumb_jpeg=thumb)
         with self._lock:
             self._events.append(ev)
             if thumb is not None:
@@ -329,8 +356,8 @@ class EpisodicMemory:
             with self._lock:
                 self.embed_errors += 1
             return False
-        entry = VisualEntry(t=now, kind="detection", label=str(label),
-                            event=MemoryEvent(t=now, kind="observation", text=str(text)))
+        entry = VisualEntry(t=now, kind="detection", label=self._filtered(str(label)),
+                            event=MemoryEvent(t=now, kind="observation", text=self._filtered(str(text))))
         with self._lock:
             if self._det_index is None:
                 self._det_index = self._new_index()
@@ -580,11 +607,11 @@ class EpisodicMemory:
                 # clock that went backwards into "just saved", never the future
                 age = max(age, self.LOADED_MIN_AGE_S)
                 verdict = str(r.get("verdict") or "")
-                event = MemoryEvent(t=now - age, kind="observation", text=str(r.get("text") or ""),
+                event = MemoryEvent(t=now - age, kind="observation", text=self._filtered(str(r.get("text") or "")),
                                     data={"verdict": verdict} if verdict else {})
                 label = r.get("label")
                 loaded.append((VisualEntry(t=now - age, kind=kind,
-                                           label=None if label is None else str(label),
+                                           label=None if label is None else self._filtered(str(label)),
                                            event=event, restored=True), vec))
             except Exception:  # noqa: BLE001 - skip a bad record, keep the rest
                 continue

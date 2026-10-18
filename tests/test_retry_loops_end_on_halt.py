@@ -29,7 +29,6 @@ import pytest
 
 from cascade.agent.aspire import diagnose
 from cascade.control.mock_arm import MockArm
-from cascade.memory.envelope import normalize_failure
 from cascade.types import MotionHalted, SkillError
 
 HALT = "halted: operator: stop"
@@ -396,10 +395,11 @@ def _one_marked_miss(r, monkeypatch):
 def test_a_failed_pick_and_place_park_error_names_a_halt_but_not_an_estop(rig, monkeypatch, profile, kind):
     """After its last missed attempt pick_and_place parks the arm (rigs
     without the view-home return). A halt that stops that park is named
-    first in the error, before the grasp failure it keeps, and the failure
-    is filed as the halt. An e-stop there (the harness's, or
-    `SafeArm.stop()`) is not the operator's halt: the error stays the grasp
-    failure, filed as one, and the e-stop stays latched."""
+    first in the error, before the grasp failure it keeps; the call is
+    filed as that grasp failure (`skill_error`), which came first, as on an
+    e-stop. An e-stop there (the harness's, or `SafeArm.stop()`) is not the
+    operator's halt: the error stays the grasp failure and the e-stop stays
+    latched."""
     r = rig(profile)
     _one_marked_miss(r, monkeypatch)
     _stop_in_rehome(r, monkeypatch, kind=kind)      # the 1st home move: the final park
@@ -408,13 +408,14 @@ def test_a_failed_pick_and_place_park_error_names_a_halt_but_not_an_estop(rig, m
 
     assert r.at_stop is not None and r.sends == r.at_stop, "an arm command went out after the stop"
     assert out["ok"] is False and out["stage"] == "grasp", out
+    assert _filed_as(r, "pick_and_place") == ({"other:grasp_failed_after": 1}, "other:grasp_failed_after")
     if kind == "halt":
         assert _scrub_time(out["error"]) == f"final park {HALT}; {PICK_MISSED}", out["error"]
-        assert _filed_as(r, "pick_and_place") == ({"safety:halt": 1}, "safety:halt")
+        assert _scrub_time(out["skill_error"]) == PICK_MISSED, out
         assert not r.runtime.arm.harness.estopped
     else:
         assert _scrub_time(out["error"]) == PICK_MISSED, out["error"]
-        assert _filed_as(r, "pick_and_place") == ({"other:grasp_failed_after": 1}, "other:grasp_failed_after")
+        assert "skill_error" not in out, out
         assert r.runtime.arm.harness.estopped
 
 
@@ -453,16 +454,17 @@ VIEW_HOME_HALTED = {"route": f"return to saved home {HALT}",
 
 
 @pytest.mark.parametrize("where", sorted(VIEW_HOME_HALTED))
-@pytest.mark.parametrize("skill, args, missed", [
-    ("pick_and_place", {"object": "red cube"}, PICK_MISSED),
-    ("handover", {"label": "red cube"}, HANDOVER_MISSED),
+@pytest.mark.parametrize("skill, args, missed, signature", [
+    ("pick_and_place", {"object": "red cube"}, PICK_MISSED, "other:grasp_failed_after"),
+    ("handover", {"label": "red cube"}, HANDOVER_MISSED, "other:could_not_grasp"),
 ], ids=["pick_and_place", "handover"])
 def test_a_halt_in_fr3_view_home_return_after_a_failed_skill_is_named_in_its_error(
-        rig, monkeypatch, skill, args, missed, where):
+        rig, monkeypatch, skill, args, missed, signature, where):
     """fr3 returns to its camera-view home after every motion skill. When the
     skill failed and the operator's halt stops (or skips) that return, the
     error names the halt first, before the skill's own failure, not only in
-    `return_home.status`."""
+    `return_home.status`. The call is filed as the skill's own failure
+    (`skill_error`): it came before the halt."""
     r = rig("fr3")
     _one_marked_miss(r, monkeypatch)
     _stop_in_view_home_return(r, monkeypatch, where)
@@ -473,7 +475,8 @@ def test_a_halt_in_fr3_view_home_return_after_a_failed_skill_is_named_in_its_err
     assert out["ok"] is False, out
     assert out["return_home"]["status"] == ("halted" if where == "route" else "skipped"), out["return_home"]
     assert _scrub_time(out["error"]) == f"{VIEW_HOME_HALTED[where]}; {missed}", out["error"]
-    assert _filed_as(r, skill) == ({"safety:halt": 1}, "safety:halt")
+    assert _filed_as(r, skill) == ({signature: 1}, signature)
+    assert _scrub_time(out["skill_error"]) == missed, out
     assert not r.runtime.arm.harness.estopped
 
 
@@ -513,7 +516,8 @@ def test_a_halt_inside_an_fr3_skill_is_not_named_again_by_its_return(rig, monkey
     assert r.sends == r.at_stop, "an arm command went out after the halt"
     assert out["return_home"]["reason"] == "motion halted: operator: stop", out["return_home"]
     assert out["error"] == f"MotionHalted: {HALT}", out["error"]
-    assert normalize_failure(out["error"]) == "safety:halt"
+    assert "skill_error" not in out, out
+    assert _filed_as(r, "grasp_object") == ({"safety:halt": 1}, "safety:halt")
 
 
 # ── the stop leads a long error: the agent's FAILED line keeps 240 characters ──
@@ -564,7 +568,7 @@ def _stop_on_entry(r, monkeypatch, name):
 def test_the_stop_leads_a_long_failed_skill_error(rig, monkeypatch, profile, skill, args, failure, stop):
     """The stop comes first, so the FAILED line keeps it when the error is
     longer than the 240 characters that line keeps (appended at the end it
-    was cut off)."""
+    was cut off). The call is filed as the skill's own air grasp."""
     r = rig(profile)
     _one_air_grasp_unread_reopen(r, monkeypatch)
     _stop_on_entry(r, monkeypatch, "skill_move_home" if profile == "rebot_rs" else "_return_to_view_home")
@@ -577,7 +581,8 @@ def test_the_stop_leads_a_long_failed_skill_error(rig, monkeypatch, profile, ski
     assert len(out["error"]) > 240, out["error"]
     kept = out["next_action"].split(" (truncated; see error)")
     assert len(kept) == 2 and f"This attempt FAILED: {stop}; " in kept[0], out["next_action"]
-    assert normalize_failure(out["error"]) == "safety:halt", out["error"]
+    assert _filed_as(r, skill) == ({"contact:air_grasp": 1}, "contact:air_grasp")
+    assert _scrub_time(out["skill_error"]) == failure, out
     assert not r.runtime.arm.harness.estopped
 
 
@@ -597,4 +602,5 @@ def test_a_failed_skill_with_no_error_of_its_own_gets_the_stop_alone(rig, monkey
 
     assert r.at_stop is not None and r.sends == r.at_stop, "an arm command went out after the halt"
     assert out["ok"] is False and out["error"] == VIEW_HOME_HALTED["entry"], out
-    assert normalize_failure(out["error"]) == "safety:halt"
+    assert "skill_error" not in out, out
+    assert _filed_as(r, "grasp_object") == ({"safety:halt": 1}, "safety:halt")

@@ -96,15 +96,20 @@ DERIVED_FEATURES: dict[str, tuple[str, ...]] = {
     "handover": _GRASP_DERIVED,
 }
 
+#: The signature of the operator's halt (`safety/harness.SafetyHarness.halt`).
+HALT_SIGNATURE = "safety:halt"
+
 #: Failure taxonomy.  Ordered: first match wins.  Keep the patterns tied to
 #: what the harness / skills actually emit (see safety/harness.py, skills/
 #: runtime.py) -- a signature nobody produces is dead weight.
 _FAILURE_PATTERNS: tuple[tuple[str, str], ...] = (
     # The operator's halt is not how a primitive breaks: it matches first, so
-    # neither its free-text reason nor the failure a halted park or view-home
-    # return follows ("final park halted: ...; grasp failed ...") files it as
-    # one. "halt" / "halted" as words: the skill halt_motion is not a halt.
-    (r"\bhalt(ed)?\b", "safety:halt"),
+    # its free-text reason (halt_motion's comes from the agent) never files
+    # it as a breakage it names. A failed skill whose park or view-home
+    # return the halt stopped afterwards names that stop first in its error,
+    # but is filed by its own error (`failure_signature`), never here.
+    # "halt" / "halted" as words: the skill halt_motion is not a halt.
+    (r"\bhalt(ed)?\b", HALT_SIGNATURE),
     (r"would hit the table|below the table|link/joint \d+", "geometry:link_below_table"),
     (r"outside .*workspace|workspace aabb|out of workspace", "geometry:outside_workspace"),
     (r"keep-?out|keepout", "geometry:keep_out"),
@@ -138,6 +143,22 @@ def normalize_failure(error: str) -> str:
     stripped = re.sub(r"^(skillerror|safetyviolation|unexpected \w+)\s*:\s*", "", text)
     words = re.findall(r"[a-z_]+", stripped)[:3]
     return "other:" + "_".join(words) if words else "unknown"
+
+
+def failure_signature(result: dict) -> str:
+    """The failure signature of one failed skill result: what execute()
+    records in the envelope, and what ``ingest_trace`` and aspire read back
+    from a trace row's result.
+
+    A skill that failed and whose final park or view-home return the
+    operator's halt then stopped names that stop first in ``error`` (the
+    agent's FAILED line keeps only its start) and keeps its own error in
+    ``skill_error``. The skill broke before the halt, so its own error is the
+    signature; ``error`` stays whole for display. Without ``skill_error``
+    (a halt alone, one the skill met itself, any other failure) it is
+    ``error``'s.
+    """
+    return normalize_failure(str(result.get("skill_error") or result.get("error", "")))
 
 
 def _numeric_features(args: dict, extra: dict | None = None) -> dict[str, float]:
@@ -325,6 +346,7 @@ class OperatingEnvelope:
         error: str = "",
         duration_ms: float = 0.0,
         measured: dict | None = None,
+        signature: str | None = None,
         **extra: Any,
     ) -> None:
         """Fold one primitive outcome into the model.
@@ -334,7 +356,8 @@ class OperatingEnvelope:
         values are learned like any other feature and tagged as derived,
         absent ones are counted as missing for this call. Raw args that
         reuse a derived feature's name are dropped -- an agent argument can
-        never pose as a measurement.
+        never pose as a measurement. ``signature`` files a failure
+        (``failure_signature`` of its result); None: ``error``'s.
         """
         reserved = DERIVED_FEATURES.get(skill, ())
         feats = {k: v for k, v in _numeric_features(args, extra).items() if k not in reserved}
@@ -355,7 +378,7 @@ class OperatingEnvelope:
                         span.add(val)
             else:
                 st.losses += 1
-                sig = normalize_failure(error)
+                sig = normalize_failure(error) if signature is None else signature
                 st.failures[sig] = st.failures.get(sig, 0) + 1
                 st.last_error = error or ""
                 # RPent contradiction signal: this failing call's feature
@@ -556,6 +579,7 @@ class OperatingEnvelope:
                 error=str(result.get("error", "")),
                 duration_ms=float(rec.get("duration_ms") or 0.0),
                 measured=measured if isinstance(measured, dict) else None,
+                signature=failure_signature(result),
             )
             n += 1
         return n

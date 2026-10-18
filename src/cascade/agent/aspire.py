@@ -35,7 +35,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ..memory.envelope import normalize_failure
+from ..memory.envelope import failure_signature
 from .effects import CONFIRMED, POSTCONDITIONS
 
 #: A repair is only credited when the same primitive later succeeded within
@@ -208,7 +208,7 @@ def diagnose(run_dir: str | Path) -> Diagnosis | None:
     diag.failed_args = rec.get("args") or {}
     diag.failed_context = copy.deepcopy(rec.get("context") or {})
     diag.error = str((rec.get("result") or {}).get("error", ""))
-    diag.signature = normalize_failure(diag.error)
+    diag.signature = failure_signature(rec.get("result") or {})
     diag.keyframe = rec.get("keyframe_after") or ""
     if fix is None:
         return diag

@@ -1903,7 +1903,7 @@ class SkillRuntime:
                   and _home_return_halted(home_return)):
                 # The skill failed, then the operator's halt stopped (or
                 # skipped) its return: the error names that halt first.
-                result["error"] = _stop_first(returned, result.get("error"))
+                _stop_first(result, returned)
         if name in _MOTION_SKILLS:
             # Readiness can fail DURING a motion as well as before it. A
             # trajectory abort latches STOP; handing that failure back to
@@ -1953,7 +1953,7 @@ class SkillRuntime:
         perception_timings = None
         if owns_perception_timings:
             perception_timings, self._call_perception_timings = self._call_perception_timings, None
-        from ..memory.envelope import DERIVED_FEATURES
+        from ..memory.envelope import DERIVED_FEATURES, failure_signature
         if name not in DERIVED_FEATURES:
             measured = None
         if measured is not None:
@@ -2051,7 +2051,7 @@ class SkillRuntime:
             self.envelope.record(
                 name, args, ok=bool(result.get("ok")),
                 error=str(result.get("error", "")), duration_ms=dur,
-                measured=measured,
+                measured=measured, signature=failure_signature(result),
             )
         except Exception:
             pass
@@ -6409,7 +6409,7 @@ class SkillRuntime:
                     "suggestion": "check world_state / camera_snapshot; the object may be unreachable or mis-detected",
                 }
                 if park_halt is not None:
-                    out["error"] = _stop_first(_halted_text("final park", park_halt), out["error"])
+                    _stop_first(out, _halted_text("final park", park_halt))
                 # The robot did everything it can on its own: the budget is
                 # spent, or the stop reason is one no retry cures (never
                 # seen, too wide). That is STUCK -- a request to the human,
@@ -8863,12 +8863,17 @@ def _halted_text(move: str, halt: str) -> str:
     return f"{move} {halt}" if halt.startswith("halted: ") else f"{move} halted: {halt}"
 
 
-def _stop_first(stop: str, error) -> str:
-    """The operator's stop that also ended a failed skill, then the skill's
-    own `error`: outcome first, as `_reset_release_failed` does, because the
-    agent's FAILED line keeps only the first `_FAILED_ERROR_CHARS` characters
-    of the error."""
-    return f"{stop}; {error}" if error else stop
+def _stop_first(result: dict, stop: str) -> None:
+    """Name the operator's stop that also ended a failed skill first in its
+    `error`, then the skill's own error: outcome first, as
+    `_reset_release_failed` does, because the agent's FAILED line keeps only
+    the first `_FAILED_ERROR_CHARS` characters of the error. The skill's own
+    error stays in `skill_error`: it broke before the stop, so that error,
+    not the stop, files the call (`memory.envelope.failure_signature`)."""
+    error = result.get("error")
+    if error:
+        result.setdefault("skill_error", error)
+    result["error"] = f"{stop}; {error}" if error else stop
 
 
 def _left_in_place(result: dict) -> bool:

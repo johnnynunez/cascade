@@ -10,6 +10,17 @@ Per run directory:
                     `keyframe_after_wrists`: `{stream: path}`, null when the
                     rig has none -- the judge then repeats the front image)
     summary.txt   - final human-readable outcome
+    run.json      - the run's manifest (`stamp`, written once at build): the
+                    ASPIRE note library the run read (`library_sha`, where it
+                    is and why it could not be read), the notes it served, its
+                    profile class and purpose. A rebuild into the same directory
+                    keeps the earlier one as `run.<started>.json`. Every row
+                    recorded after the stamp carries the same `library_sha`;
+                    null when nothing stamped this logger: a mobile or
+                    microduck runtime, a composed robot's own top-level rows
+                    (each manipulation domain is built by `build_runtime` into
+                    `domains/<name>/`, which writes its own run.json and stamps
+                    its own rows), or a manifest that could not be written
 
 ASPIRE's ablation credits this per-primitive evidence with the single largest
 success jump (14% -> 62%); it is also what makes post-hoc debugging of a live
@@ -19,15 +30,29 @@ demo possible.
 from __future__ import annotations
 
 import json
+import os
+import shutil
+import stat
 import time
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
 import cv2
 import numpy as np
 
+#: names tried for a kept earlier run.json (`run.<started>.json`, then `.1` ... `.99`)
+_KEEP_NAMES = 100
+#: an earlier run.json larger than this is labelled by its mtime, never parsed
+_LABEL_READ_MAX = 1 << 20
+
 
 class TraceLogger:
+    #: sha256 of the ASPIRE note library this run read (`stamp`); None until
+    #: stamped. A class default, so loggers built with `__new__` read None too.
+    library_sha: str | None = None
+
     def __init__(self, run_dir: str | Path):
         self.run_dir = Path(run_dir)
         (self.run_dir / "keyframes").mkdir(parents=True, exist_ok=True)
@@ -35,6 +60,55 @@ class TraceLogger:
         self._step = 0
         #: optional () -> dict of verified sidecar backends, appended to summaries
         self.backends_fn: Callable[[], dict] | None = None
+
+    def stamp(self, meta: dict[str, Any]) -> None:
+        """Write `run.json` = `meta` atomically (a temporary file in the run
+        directory, then `os.replace`), then stamp every later row with
+        `meta["library_sha"]`. An earlier run.json (a rebuild into the same run
+        directory) is kept first as `run.<its started>.json` (`_keep_previous`). A
+        write that fails raises OSError, leaves any earlier run.json as it was, keeps
+        no extra copy and stamps nothing."""
+        path = self.run_dir / "run.json"
+        tmp = self.run_dir / f".run.json.{os.getpid()}.{uuid.uuid4().hex}.tmp"
+        data = (json.dumps(_jsonable(meta), indent=2) + "\n").encode("utf-8")
+        kept = None
+        try:
+            with os.fdopen(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644), "wb") as f:
+                f.write(data)
+                f.flush()
+                os.fsync(f.fileno())
+            kept = self._keep_previous(path)
+            os.replace(tmp, path)
+        except BaseException:
+            for leftover in (tmp, kept):
+                if leftover is None:
+                    continue
+                try:
+                    os.unlink(leftover)
+                except OSError:
+                    pass
+            raise
+        self.library_sha = meta.get("library_sha")
+
+    def _keep_previous(self, path: Path) -> Path | None:
+        """Keep an existing run.json as `run.<started>.json` (its own `started`, else
+        its mtime, UTC ISO 8601; `.1`, `.2`... when that name is taken) so a rebuild
+        never loses an earlier run's record; None when there is none. A hard link,
+        or a copy under the same exclusive name where the file system has no hard
+        links (vfat, exFAT, some FUSE / SMB mounts: `_keep_as`)."""
+        try:
+            st = os.lstat(path)
+        except FileNotFoundError:
+            return None
+        label = _started_label(path, st)
+        for n in range(_KEEP_NAMES):
+            kept = self.run_dir / (f"run.{label}.json" if n == 0 else f"run.{label}.{n}.json")
+            try:
+                _keep_as(path, kept)
+                return kept
+            except FileExistsError:
+                continue
+        raise FileExistsError(f"no free name to keep the earlier {path} as run.{label}.<n>.json")
 
     def save_keyframe(self, rgb: np.ndarray | None, tag: str) -> str | None:
         if rgb is None:
@@ -71,6 +145,8 @@ class TraceLogger:
             # none so a reader can tell "no wrist camera" from "none saved"
             "keyframe_before_wrists": dict(keyframe_before_wrists) if keyframe_before_wrists else None,
             "keyframe_after_wrists": dict(keyframe_after_wrists) if keyframe_after_wrists else None,
+            # the note library this run read (`stamp`); null when unstamped
+            "library_sha": self.library_sha,
         }
         with open(self._trace_path, "a") as f:
             f.write(json.dumps(rec) + "\n")
@@ -109,6 +185,44 @@ class TraceLogger:
             except Exception:  # noqa: BLE001 -- never let reporting break a run
                 pass
         (self.run_dir / "summary.txt").write_text(summary + "\n")
+
+
+def _keep_as(path: Path, kept: Path) -> None:
+    """Make `kept` a hard link to `path`; where the file system refuses one (EPERM on
+    vfat / exFAT, EOPNOTSUPP or EXDEV on some FUSE / SMB mounts), a copy of its bytes
+    under the same name. Both create `kept` exclusively: a taken name raises
+    FileExistsError and is never overwritten. A copy that fails midway is removed."""
+    try:
+        os.link(path, kept, follow_symlinks=False)
+        return
+    except OSError:
+        pass  # no hard link (or the name is taken: the exclusive create below says so)
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
+    with os.fdopen(os.open(path, flags), "rb") as src:
+        fd = os.open(kept, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_CLOEXEC", 0), 0o644)
+        try:
+            with os.fdopen(fd, "wb") as dst:
+                shutil.copyfileobj(src, dst)
+                dst.flush()
+                os.fsync(dst.fileno())
+        except BaseException:
+            try:
+                os.unlink(kept)
+            except OSError:
+                pass
+            raise
+
+
+def _started_label(path: Path, st: os.stat_result) -> str:
+    """The earlier run.json's `started` as UTC-offset ISO 8601 (re-rendered, so it
+    can never name another directory), else its mtime in UTC."""
+    try:
+        if stat.S_ISREG(st.st_mode) and st.st_size <= _LABEL_READ_MAX:
+            started = json.loads(path.read_bytes()).get("started")
+            return datetime.fromisoformat(started).isoformat(timespec="seconds")
+    except (OSError, ValueError, TypeError, AttributeError):
+        pass
+    return datetime.fromtimestamp(st.st_mtime, timezone.utc).isoformat(timespec="seconds")
 
 
 def _jsonable(obj: Any) -> Any:

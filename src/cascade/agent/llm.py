@@ -65,6 +65,17 @@ def _b64(jpeg: bytes) -> str:
     return base64.b64encode(jpeg).decode()
 
 
+def _extra_body_of(value) -> dict | None:
+    """A profile's `extra_body` block as a plain dict (Cfg wraps mappings)."""
+    if value is None:
+        return None
+    if isinstance(value, Cfg):
+        return value.as_dict()
+    if isinstance(value, dict):
+        return value
+    raise ValueError("extra_body must be a mapping of request fields")
+
+
 class OpenAICompatClient(LLMClient):
     def __init__(
         self,
@@ -76,6 +87,7 @@ class OpenAICompatClient(LLMClient):
         temperature: float = 0.2,
         request_timeout_s: float | None = None,
         max_retries: int | None = None,
+        extra_body: dict | None = None,
     ):
         import os
 
@@ -111,6 +123,12 @@ class OpenAICompatClient(LLMClient):
         self.model = model
         self.supports_vision = supports_vision
         self.temperature = temperature
+        if extra_body is not None and not isinstance(extra_body, dict):
+            raise ValueError("extra_body must be a mapping of request fields")
+        # A profile's own request fields, e.g. Nemotron 3.5 Bolt's
+        # chat_template_kwargs {enable_thinking: false}: its reasoning parser
+        # ignores the server default for non-streaming requests like these.
+        self._profile_extra_body = dict(extra_body or {})
 
     def chat(self, system, messages, tools=None, max_tokens=1024) -> LLMResponse:
         oai_msgs: list[dict] = [{"role": "system", "content": system}]
@@ -184,8 +202,9 @@ class OpenAICompatClient(LLMClient):
         return LLMResponse(text=choice.content or "", tool_calls=calls)
 
     def _extra_body(self) -> dict:
-        """Provider-specific HTTP fields; empty for standard OpenAI."""
-        return {}
+        """Provider-specific HTTP fields: the profile's `extra_body`, empty
+        for standard OpenAI."""
+        return json.loads(json.dumps(self._profile_extra_body))
 
     def close(self) -> None:
         self._client.close()
@@ -810,6 +829,7 @@ def make_llm(cfg: Cfg) -> LLMClient:
             temperature=float(cfg.get("temperature", 0.2)),
             request_timeout_s=cfg.get("request_timeout_s"),
             max_retries=cfg.get("max_retries"),
+            extra_body=_extra_body_of(cfg.get("extra_body")),
         )
     if kind == "cosmos3":
         # NVIDIA Cosmos3-Edge speaks OpenAI-compatible HTTP but emits XML

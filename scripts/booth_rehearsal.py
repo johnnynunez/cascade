@@ -9,7 +9,7 @@ Grasp/experience memory are isolated to the run dir so a rehearsal never
 contaminates the booth's learned state. The CASCADE_BOOTH tuning overlay is on
 by default (realistic timing budgets).
 
-    .demo/bin/python scripts/booth_rehearsal.py --llm local_qwen
+    .demo/bin/python scripts/booth_rehearsal.py --llm local_nemotron_bolt
     .demo/bin/python scripts/booth_rehearsal.py --llm anthropic --max-steps 20
     .demo/bin/python scripts/booth_rehearsal.py --prompts my_prompts.txt
 
@@ -45,8 +45,8 @@ DEFAULT_PROMPTS = [
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--llm", default="local_qwen",
-                   help="LLM profile to rehearse (local_qwen|anthropic|openai)")
+    p.add_argument("--llm", default="local_nemotron_bolt",
+                   help="LLM profile to rehearse (local_nemotron_bolt|local_qwen|anthropic|openai)")
     p.add_argument("--prompts", default=None,
                    help="file with one prompt per line (default: runbook beats)")
     p.add_argument("--max-steps", type=int, default=30)
@@ -76,7 +76,7 @@ def main() -> int:
     llm = make_llm(cfg.llm)
     if isinstance(llm, MockLLM):
         print("[!] profile resolved to the scripted mock LLM -- "
-              "this rehearses nothing; pass --llm local_qwen etc.")
+              "this rehearses nothing; pass --llm local_nemotron_bolt etc.")
         return 2
 
     runtime, arm = build_runtime(cfg, run_dir, view=False, serve=False)

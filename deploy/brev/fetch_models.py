@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fetch the pinned Qwen model on Brev, preserving verified download receipts."""
+"""Fetch a pinned brain model (Qwen3.8 or Nemotron 3.5 Bolt GGUF), preserving verified download receipts."""
 
 from __future__ import annotations
 
@@ -30,6 +30,16 @@ import urllib.request
 DEFAULT_MANIFEST = Path(__file__).parent / "profiles" / "qwen3.8-27b-q8.json"
 DEFAULT_STOP = Path(__file__).resolve().parents[2] / "STOP"
 MODEL_DIRECTORY = Path("models/qwen3.8-27b")
+#: Reviewed model families: the official source repository -> (the reviewed GGUF
+#: repositories its files may come from, the install directory under --root).
+#: Nemotron 3.5 Bolt's model + projector and its LiLiCorr DFlash drafter live in
+#: two NVIDIA GGUF repositories; its license file is the drafter repository's.
+FAMILIES = {
+    "Qwen/Qwen3.8-27B": (("ggml-org/Qwen3.8-27B-GGUF", "unsloth/Qwen3.8-27B-GGUF"), MODEL_DIRECTORY),
+    "nvidia/NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB": (
+        ("nvidia/NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB-GGUF", "nvidia/NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB-LiLiCorr-GGUF"),
+        Path("models/nemotron-3.5-bolt")),
+}
 CHUNK_BYTES = 1024 * 1024
 
 
@@ -52,6 +62,7 @@ class Artifact:
     sha256: str
     url: str
     download_url: str | None = None
+    role: str = ""
 
 
 @dataclass(frozen=True)
@@ -75,17 +86,37 @@ def emit(event: str, **fields: object) -> None:
     print(json.dumps({"event": event, **fields}, sort_keys=True), flush=True)
 
 
-def load_manifest(path: Path, max_bytes: int) -> list[Artifact]:
-    data = json.loads(path.read_text(encoding="utf-8"))
-    source = data.get("source_model", {})
-    if source.get("repo_id") != "Qwen/Qwen3.8-27B":
-        raise DownloadError("Manifest must select the official Qwen/Qwen3.8-27B model.")
-    quant = data.get("quantization", {})
-    if quant.get("repo_id") not in ("ggml-org/Qwen3.8-27B-GGUF", "unsloth/Qwen3.8-27B-GGUF"):
-        raise DownloadError("Manifest must select a reviewed Qwen3.8 quantization repository.")
-    revision = quant.get("revision", "")
+def _family(data: dict) -> tuple[str, tuple[str, ...], Path]:
+    source = data.get("source_model", {}).get("repo_id")
+    if source not in FAMILIES:
+        raise DownloadError("Manifest must select a reviewed official model (Qwen/Qwen3.8-27B or "
+                            "nvidia/NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB).")
+    repos, directory = FAMILIES[source]
+    return source, repos, directory
+
+
+def manifest_directory(path: Path) -> Path:
+    """The install directory (relative to --root) of a manifest's model family."""
+    return _family(json.loads(path.read_text(encoding="utf-8")))[2]
+
+
+def _pinned(item: dict, default_repo: str, default_revision: str, allowed: tuple[str, ...]) -> tuple[str, str]:
+    """A file's repository and revision: its own, else the quantization's; reviewed and complete."""
+    repo = item.get("repo_id", default_repo)
+    revision = item.get("revision", default_revision)
+    if repo not in allowed:
+        raise DownloadError("Manifest must select a reviewed quantization repository.")
     if not isinstance(revision, str) or not re.fullmatch(r"[0-9a-f]{40}", revision):
         raise DownloadError("Manifest must pin a complete quantization revision.")
+    return repo, revision
+
+
+def load_manifest(path: Path, max_bytes: int) -> list[Artifact]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    source_repo, repos, _directory = _family(data)
+    source = data.get("source_model", {})
+    quant = data.get("quantization", {})
+    _pinned(quant, "", "", repos)
     artifacts = []
     for item in quant.get("files", []):
         filename = item.get("filename", "")
@@ -97,10 +128,11 @@ def load_manifest(path: Path, max_bytes: int) -> list[Artifact]:
             raise DownloadError("Manifest contains an invalid artifact size.")
         if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
             raise DownloadError("Manifest contains an invalid SHA256 digest.")
-        url = f"https://huggingface.co/{quant['repo_id']}/resolve/{revision}/{filename}"
+        repo, revision = _pinned(item, quant["repo_id"], quant["revision"], repos)
+        url = f"https://huggingface.co/{repo}/resolve/{revision}/{filename}"
         if item.get("url") != url:
             raise DownloadError("Artifact URL does not match its public pinned repository.")
-        artifacts.append(Artifact(filename, size, digest, url))
+        artifacts.append(Artifact(filename, size, digest, url, role=str(item.get("role", ""))))
     if not artifacts or len({a.filename for a in artifacts}) != len(artifacts):
         raise DownloadError("Manifest must contain unique artifacts.")
     source_revision = source.get("revision", "")
@@ -115,7 +147,11 @@ def load_manifest(path: Path, max_bytes: int) -> list[Artifact]:
         raise DownloadError("Manifest contains an invalid license size.")
     if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
         raise DownloadError("Manifest contains an invalid license SHA256 digest.")
-    url = f"https://huggingface.co/{source['repo_id']}/resolve/{source_revision}/LICENSE"
+    # The official repository's LICENSE, or (a source repository without one) a reviewed GGUF repository's.
+    license_repo, license_revision = (source_repo, source_revision)
+    if "repo_id" in license or "revision" in license:
+        license_repo, license_revision = _pinned(license, source_repo, source_revision, repos)
+    url = f"https://huggingface.co/{license_repo}/resolve/{license_revision}/LICENSE"
     if license.get("url") != url:
         raise DownloadError("License URL does not match the official pinned model repository.")
     artifacts.append(Artifact("LICENSE", size, digest, url))
@@ -339,7 +375,7 @@ def _process_time_cap(seconds: float):
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", type=Path, help="Heavy deployment root; files use models/qwen3.8-27b.")
+    parser.add_argument("--root", type=Path, help="Heavy deployment root; files use the manifest's models/<family>.")
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
     parser.add_argument("--metadata-only", action="store_true", help="Print the plan without writes or network.")
     parser.add_argument("--check", action="store_true", help="Verify installed files without downloads or writes.")
@@ -357,27 +393,29 @@ def main(argv: list[str] | None = None) -> int:
         if not 1 <= args.attempts <= 10 or args.max_bytes <= 0 or args.reserve_bytes < 0:
             raise DownloadError("Invalid attempt count, byte cap, or disk reserve.")
         artifacts = load_manifest(args.manifest, args.max_bytes)
+        model_directory = manifest_directory(args.manifest)
         if args.model_mirror_url:
             mirror = urllib.parse.urlsplit(args.model_mirror_url)
             if (mirror.scheme != "http" or mirror.hostname not in ("localhost", "127.0.0.1", "::1")
                     or mirror.username is not None or mirror.password is not None or mirror.fragment or mirror.query):
                 raise DownloadError("Model mirror must be a loopback HTTP URL without credentials, query or fragment.")
-            model = next((a for a in artifacts if a.filename.startswith("Qwen") and a.filename.endswith(".gguf")), None)
+            model = next((a for a in artifacts if a.filename.endswith(".gguf")
+                          and (a.role == "model" or (not a.role and a.filename.startswith("Qwen")))), None)
             if model is None:
                 raise DownloadError("The manifest has no model to mirror.")
             artifacts = [Artifact(a.filename, a.size_bytes, a.sha256, a.url,
-                                  args.model_mirror_url if a is model else None) for a in artifacts]
+                                  args.model_mirror_url if a is model else None, a.role) for a in artifacts]
         if args.metadata_only:
-            emit("plan", files=[a.__dict__ for a in artifacts],
+            emit("plan", files=[{k: v for k, v in a.__dict__.items() if k != "role"} for a in artifacts],
                  total_bytes=sum(a.size_bytes for a in artifacts),
-                 relative_directory=str(MODEL_DIRECTORY), network_requests=0)
+                 relative_directory=str(model_directory), network_requests=0)
             return 0
         if args.root is None:
             raise DownloadError("--root is required for a download.")
         limits = Limits(time.monotonic() + args.max_seconds, args.timeout, args.attempts,
                         args.reserve_bytes, args.stop_file)
         limits.check()
-        directory = args.root.resolve() / MODEL_DIRECTORY
+        directory = args.root.resolve() / model_directory
         if args.check:
             for artifact in artifacts:
                 destination = directory / artifact.filename

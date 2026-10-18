@@ -1,0 +1,16 @@
+# Local backend on the DGX Spark, the default brain: NVIDIA Nemotron 3.5 Bolt
+# 74B-A9B 24GB (a unified VLM) behind an OpenAI-compatible server. Start it with
+# scripts/serve_nemotron_bolt_llamacpp.sh (llama.cpp, served id
+# nemotron-3.5-bolt) or the opt-in vLLM route scripts/serve_nemotron_bolt_vllm.sh
+# (vLLM rejects any other model name). vLLM's ultra_v3 reasoning parser ignores
+# the server's thinking-off default for NON-streaming requests (content null,
+# tool calls left in reasoning_content), so this profile sends the kwarg itself.
+type: openai_compat
+base_url: http://127.0.0.1:8080/v1
+model: nemotron-3.5-bolt
+api_key: EMPTY
+supports_vision: true
+temperature: 0.2
+extra_body:
+  chat_template_kwargs:
+    enable_thinking: false

@@ -18,7 +18,7 @@
   },
   {
     "name": "pick_and_place",
-    "description": "Move one named object to a named destination: 'put the green cube in the green square', 'place the orange in the open box', or 'move the tomato can to the green square'. The destination is where the object goes ON/IN. Placing an object next to, beside or near another is not available here: tell the visitor so instead of calling this tool. Handles perception, bounded grasp attempts, placement and return home in one action. Report the actual result; failed or unverified placement is not success. Do not repeat the action after its result.",
+    "description": "Move one named object to a named destination: 'put the green cube in the green square', 'place the orange in the open box', or 'move the tomato can to the green square'. The destination is where the object goes ON/IN. Placing an object next to, beside or near another is not available here: tell the visitor so instead of calling this tool. Handles perception, bounded grasp attempts, placement and return home in one action. Report the actual result; failed or unverified placement is not success. Do not repeat the action after its result unless that result says SIMULATION ONLY and allows one more attempt.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -45,6 +45,11 @@
   {
     "name": "world_state",
     "description": "Read session status, tracked objects and cached camera counters: 'What is the session status?' or 'Check the camera statistics'. This is remembered state, not a fresh image or an independent check of simulator health, gripper contents, home pose or completed placement.",
+    "parameters": {"type": "object", "properties": {}, "required": [], "additionalProperties": false}
+  },
+  {
+    "name": "robot_knowledge",
+    "description": "What earlier runs taught this robot: learned notes with where they were learned and whether a verifier passed them. Read-only, never moves the robot.",
     "parameters": {"type": "object", "properties": {}, "required": [], "additionalProperties": false}
   }
 ]

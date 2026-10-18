@@ -122,6 +122,12 @@ def _pre_b42_catalog(*, single_arm: bool, withheld=()):
     specs = tool_specs_for_config(load_demo_config(camera="mock", arm="mock", llm="mock"))
     extras = [t for t in _EXTRA_TOOLS if t["name"] not in PROGRAM_TOOLS]
     assert tuple(t["name"] for t in extras) == PRE_B42_EXTRAS
+    # ASPIRE A3 (separate from the tier): the mock profile is sim-class, so its
+    # robot_knowledge description carries the learned-notes sentence
+    from cascade.apps.mcp_server import _LEARNED_NOTES_SENTENCE
+
+    extras = [dict(t, description=t["description"] + _LEARNED_NOTES_SENTENCE) if t["name"] == "robot_knowledge"
+              else t for t in extras]
     out = []
     for t in specs + extras:
         if t["name"] in _EXCLUDED_TOOLS or t["name"] in withheld:

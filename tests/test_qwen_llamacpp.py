@@ -210,7 +210,7 @@ def owned_build_fixture(prepared):
     commands = {
         "git": """import sys
 a=sys.argv[1:]
-if a[-2:] == ['rev-parse', 'HEAD']: print('4695f001fece1660d8bb1b3748f50726ddcc100b')
+if a[-2:] == ['rev-parse', 'HEAD']: print('620d2225cc436ab0b001e3200e590e3b286ef9ab')
 elif 'status' not in a: raise SystemExit('unexpected source mutation: ' + str(a))
 """,
         "nvcc": "",

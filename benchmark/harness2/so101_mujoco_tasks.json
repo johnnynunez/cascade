@@ -1,0 +1,8 @@
+[
+  {"id": "pp-drop-zone", "domain": "so101-pick-place", "max_steps": 16,
+   "task": "Put the red cube in the drop zone."},
+  {"id": "pp-shift-left", "domain": "so101-pick-place", "max_steps": 16,
+   "task": "Pick up the red cube and set it down 5 cm to the left of where it was."},
+  {"id": "pp-drop-and-home", "domain": "so101-pick-place", "max_steps": 16,
+   "task": "Move the red cube to the drop zone, then bring the arm back home."}
+]

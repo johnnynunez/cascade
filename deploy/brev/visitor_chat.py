@@ -18,8 +18,9 @@ _turn_budget = runpy.run_path(str(Path(__file__).resolve().parents[2] / "scripts
 NATIVE_TURN_TIMEOUT_S = _turn_budget["NATIVE_TURN_TIMEOUT_S"]
 AGENT_EXIT_GRACE_S = _turn_budget["AGENT_EXIT_GRACE_S"]
 
+# The attendee catalog, demo/kitchen/openclaw-plugin/attendee-tools.json (7 tools).
 TOOLS = frozenset({"describe_scene", "localize_object", "pick_and_place",
-                   "reset_scene", "camera_snapshot", "world_state"})
+                   "reset_scene", "camera_snapshot", "world_state", "robot_knowledge"})
 
 
 class BusyError(RuntimeError):

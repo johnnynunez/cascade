@@ -175,6 +175,18 @@ def failure_signature(result: dict) -> str:
     return normalize_failure(str(result.get("skill_error") or result.get("error", "")))
 
 
+def refused_before_motion(context) -> bool:
+    """A trace row's ``context`` marks a call the ASPIRE sim retry ledger refused
+    before any motion (``sim_retry.refused``, skills/runtime.py
+    ``_sim_retry_refusal``): a used retry, or a repeat after the operator stopped
+    the arm. No primitive ran, so it is no outcome: execute() returns it before
+    the live envelope records anything, ``ingest_trace`` skips it, and ASPIRE
+    never credits a retry to it. The stopped refusal is the echo of an
+    operator's halt or e-stop, yet its text names no halt."""
+    mark = context.get("sim_retry") if isinstance(context, dict) else None
+    return isinstance(mark, dict) and mark.get("refused") is True
+
+
 def _numeric_features(args: dict, extra: dict | None = None) -> dict[str, float]:
     """Flatten a skill call into scalar features worth learning over."""
     feats: dict[str, float] = {}
@@ -597,12 +609,14 @@ class OperatingEnvelope:
             skill = rec.get("skill")
             if not skill or skill == "task_done":
                 continue
-            result = rec.get("result") or {}
             # The runtime writes its call-time measurements into the trace
             # context (skills/runtime.py), so the OUTER loop learns the same
             # derived features the live envelope did. A record without the
             # key predates the channel: unknown, not missing.
             context = rec.get("context") or {}
+            if refused_before_motion(context):
+                continue  # no primitive ran; the live envelope never saw it
+            result = rec.get("result") or {}
             measured = context.get("measured") if isinstance(context, dict) else None
             self.record(
                 skill,

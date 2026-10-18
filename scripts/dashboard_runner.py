@@ -26,8 +26,8 @@ from cascade.agent.reflex import ExperienceMemory, FastPlanner
 from cascade.apps.demo import build_runtime, shutdown_runtime
 from cascade.config import load_demo_config
 
-# Real deliberation tier when available: Anthropic API key > local Qwen
-# server > honest mock. The reflex/experience tiers work the same either way.
+# Real deliberation tier when available: Anthropic API key > the local brain
+# (Nemotron 3.5 Bolt, scripts/serve_nemotron_bolt_llamacpp.sh) > honest mock. The reflex/experience tiers work the same either way.
 llm_profile = "mock"
 qwen_up = False
 try:
@@ -38,7 +38,7 @@ except Exception:
 if os.environ.get("ANTHROPIC_API_KEY"):
     llm_profile = "anthropic"
 elif qwen_up:
-    llm_profile = "local_qwen"
+    llm_profile = "local_nemotron_bolt"
 print(f"LLM TIER: {llm_profile}", flush=True)
 
 cfg = load_demo_config(cameras=["isaac", "isaac_side", "isaac_wrist"],
@@ -46,7 +46,7 @@ cfg = load_demo_config(cameras=["isaac", "isaac_side", "isaac_wrist"],
 if qwen_up:
     # VLM grounding: 2nd perception filter when the detector misses (slow path only)
     cfg._data["grounder"] = {"base_url": "http://127.0.0.1:8080/v1",
-                             "model": "Qwen/Qwen3.8-27B"}
+                             "model": "nemotron-3.5-bolt", "enable_thinking": False}
 # name the booth objects explicitly: beliefs are stored under DETECTOR
 # labels, and "banana" cannot resolve a belief labeled "fruit"
 cfg._data["detect_classes"] = [

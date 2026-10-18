@@ -101,6 +101,10 @@ FORWARDED: dict[str, str] = {
     "CASCADE_PERCEPTION_URL": "brain endpoint that identifies objects (detector.base_url)",
     "CASCADE_PERCEPTION_MODEL": "served brain model that identifies objects (detector.model)",
     "CASCADE_PERCEPTION_KEY_FILE": "path of the brain's api key file (detector.api_key_file), never the key",
+    # ---- ASPIRE notes (cascade.sim_profile, apps.demo run.json, kitchen profiles) ----
+    "CASCADE_SIM_RETRY": "kill switch of the sim-only bounded retry (0 = off; sim profiles only)",
+    "CASCADE_ASPIRE_LIBRARY": "ASPIRE note library the runtime serves (read-only snapshot; kitchen profiles)",
+    "CASCADE_RUN_PURPOSE": "run.json purpose (live|verify|acceptance); harvest counts only live runs",
 }
 
 #: why a variable the runtime reads is not copied from the registering shell
@@ -138,6 +142,7 @@ NOT_FORWARDED: dict[str, tuple[str, str]] = {
                      "set it explicitly (setup_agents --env) for such a server"),
     "CASCADE_RUN_DIR": ("internal", "per-process trace directory: the server derives a fresh one (mcp_<pid>, "
                         "or a new one per launch-owned process); an inherited one would merge sessions"),
+    "CASCADE_AGENT_HARNESS": ("cli", "the learned agent harness (cascade.harnessing) is installed on the demo CLI's built-in orchestrator; the MCP host is the brain and reads no harness"),
     "CASCADE_LLM": ("cli", "brain profile of the demo CLI / dashboard runner; the MCP server hardcodes "
                     "llm=mock because its host is the brain"),
     "CASCADE_CODEX_BIN": ("cli", "codex executable for the demo CLI's codex_astra brain; the MCP server runs "

@@ -48,6 +48,16 @@ overrides:
     release_clearance_m: 0.115
     # Clear the released object before the empty gripper returns home.
     post_place_retreat_offset_m: 0.025
+  memory:
+    # ASPIRE notes (docs/superpowers/specs/2026-10-17-aspire-demo-design.md §4.2):
+    # the kitchen serves its own simulation library, read once per runtime and
+    # never written by it; a private stack (verifier, acceptance run) points
+    # CASCADE_ASPIRE_LIBRARY at its own copy.
+    skill_library_path: ${CASCADE_ASPIRE_LIBRARY:-~/.cascade/aspire/sim/library}
+  agent:
+    # ASPIRE sim retry (spec §4.5; configs/demo.yaml `agent.sim_retry`): one
+    # bounded retry after a refused pick, simulation only.
+    sim_retry: true
 gripper:
   # B36: the bounded post-contact hold (`hold_squeeze_frac`, inherited from
   # isaac.yaml) was measured on the bare scene only; the kitchen keeps the plain

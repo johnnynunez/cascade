@@ -45,13 +45,13 @@ Inspected source: [`c8d04e2199b86abbbb301bb22cec0effd83c4e63`](https://github.co
    `ResourceDescriptor` (`controller_id`, single `writer_id`); `ResourceCatalog` rejects another
    writer on that endpoint. The stop-only domain exposes no motion tools; its claims are not
    physical or safety admission.
-5. **Native foundation:** the committed lock selects Python 3.12 / Linux x86_64, Isaac Sim 6.1.0.0,
-   PyTorch 2.11 / CUDA 12.8 and Newton 1.5.2 (README badges are not a lock). `native_preflight.py
-   --out <dir> ...` under Isaac's `python.sh` (hashed deps in `private_dependencies.txt`;
-   [receipt](../../docs/evidence/arena-native/20261002.json)) exercised real Arena/PhysX through
-   the CASCADE runtime on an existing 6.1rc26 SDK, preserved task-unverified results and tested
-   cancellation at the final action consumer. No task success, SafeArm tracking, Newton parity or
-   physical braking. Code is Apache-2.0; simulator components, models and assets keep their
+5. **Native foundation:** Arena's committed lock at the inspected source pins an Isaac Sim older than
+   6.2, so this preflight is not lock parity. `native_preflight.py --out <dir> ...` runs under an
+   Isaac Sim 6.2.0 SDK's `python.sh` (hashed deps in `private_dependencies.txt`) and refuses any
+   other SDK. The [earlier receipt](../../docs/evidence/arena-native/20261002.json) exercised real
+   Arena/PhysX through the CASCADE runtime, preserved task-unverified results and tested
+   cancellation at the final action consumer, on an SDK this preflight no longer accepts; it has not
+   been re-run on 6.2. No task success, SafeArm tracking, Newton parity or physical braking. Code is Apache-2.0; simulator components, models and assets keep their
    licenses.
 
 ## VAB

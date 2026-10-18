@@ -13,7 +13,7 @@ RUN git init /build && cd /build && git remote add origin https://github.com/ggm
 
 FROM node:24.16.0-bookworm-slim@sha256:ca520832af80fa37a57c14077ed0fcdd83b5aefccc356059fdc3a9a05b78ae1f AS node
 
-FROM nvcr.io/nvidia/isaac-sim:6.1.0@sha256:0c16dd67d09a70ea474f2c809a13c4d09bd23c738184cf1bf28af487ecd39080
+FROM nvcr.io/nvidia/isaac-sim:6.2.0@sha256:bcb96e0b87c28ad446a2a6a2f0fdb7d82b9867f18b96a94c796912c61f07337f
 USER root
 RUN apt-get update && apt-get install -y --no-install-recommends \
       python3.12 python3.12-venv ca-certificates libssl3t64 libgomp1 libglib2.0-0t64 libgl1 zstd \

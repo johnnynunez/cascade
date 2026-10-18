@@ -64,7 +64,7 @@ def main():
         raise ValueError("unreviewed Arena/Lab source revision")
     (out / "source-before.json").write_text(json.dumps(sources, indent=2) + "\n")
     receipt = {"preflight_pass": False, "task_success": False, "physical_stop_verified": False,
-               "recipe_variant": "existing Isaac6.1rc26 PhysX; not Arena uv.lock parity",
+               "recipe_variant": "Isaac Sim 6.2.0 PhysX; not Arena uv.lock parity",
                "argv": sys.argv, "pid": os.getpid(), "source_inventory_sha256": digest(sources),
                "sdk_version": args.sdk_version_file.read_text().strip(), "episodes": []}
     app = env = runtime = None
@@ -75,8 +75,8 @@ def main():
 
     try:
         write()
-        if not receipt["sdk_version"].startswith("6.1.0-rc.26+"):
-            raise ValueError("this reviewed variant requires Isaac6.1rc26; re-review another SDK")
+        if not receipt["sdk_version"].startswith("6.2.0"):
+            raise ValueError("this variant requires Isaac Sim 6.2.0; re-review another SDK")
         if args.python_deps is not None:
             import site
             site.addsitedir(str(args.python_deps.resolve()))

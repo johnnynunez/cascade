@@ -52,7 +52,7 @@ Dark versions: [simplified](docs/assets/paai_demo_simple_dark.png) ·
 
 | you want to | start with |
 |---|---|
-| install the PAAI kitchen demo on a DGX Spark | [DGX Spark setup](docs/DGX_SPARK_SETUP.md): allow 30–90 min uncached plus cold CUDA builds; the September launch reached READY in ~12 min |
+| install the PAAI kitchen demo on a DGX Spark | [DGX Spark setup](docs/DGX_SPARK_SETUP.md): allow 30–90 min uncached plus cold CUDA builds |
 | present the demo at a booth (15-min sessions) | [presenter card](docs/BOOTH_RUNBOOK.md#9-simulated-kitchen-on-dgx-spark-presenter-card) |
 | run the demo on a laptop (MuJoCo + OpenClaw chat) | `./run.sh mujoco --brain keep`, then [Quickstart](docs/QUICKSTART.md) |
 | drive a real arm | [safety notes](#safety-notes-for-a-live-rig), then [Quickstart: reference rig](docs/QUICKSTART.md#3-reference-rig-rebot--isaac-sim-with-a-local-brain) |
@@ -70,7 +70,7 @@ Beyond the tabletop arm (all opt-in; each doc states what is measured):
 
 PAAI is the **Build a Claw** event demo. Attendees use OpenClaw chat to inspect a
 simulated kitchen and ask the arm to move prepared objects in NVIDIA Isaac Sim
-6.1. Three camera views show the action; simulator physics readback checks the
+6.2. Three camera views show the action; simulator physics readback checks the
 result. The authenticated attendee page shows cameras; a separate `/staff/` page
 explains prompts, result checks and recovery. Staff walkthrough:
 [booth guide](docs/BOOTH_RUNBOOK.md#10-paai-on-brev-staff-guide).
@@ -101,7 +101,7 @@ offline decision research.
 2. Prepare the source/asset bundle and site profile with [the deployment instructions](docs/BREV.md).
 3. Run `./deploy/brev/deploy.sh preflight --profile /srv/cascade/site.json`, then the same with `install`.
 
-`install` prepares and starts the demo (Isaac Sim 6.1 / CUDA PhysX, Qwen3.8-27B
+`install` prepares and starts the demo (Isaac Sim 6.2 / CUDA PhysX, Qwen3.8-27B
 **Q8_0** fully on the GPU); `start`, `status`, `restart` and `stop` take the same
 `--profile`. Put heavy data under `/opt/dlami/nvme/paai-demo`. Bridge containers
 failing on a missing `docker0`: `sudo systemctl restart docker`. Brev SSH relay
@@ -110,7 +110,7 @@ dropped: Tailscale to the VM's own SSH server works.
 ## Install
 
 On a DGX Spark, run the one pinned command in [DGX Spark setup](docs/DGX_SPARK_SETUP.md#2-install)
-(Isaac Sim 6.1, real GraspGen-X, Qwen Q4 with vision, OpenClaw, verified kitchen
+(Isaac Sim 6.2, real GraspGen-X, Qwen Q4 with vision, OpenClaw, verified kitchen
 assets), then `python3 scripts/desktop.py launch --repo "$PWD"`. READY requires two
 native OpenClaw orders (green cube to green square, orange to open box), each with
 a verified reset; logs stay under `runs/.install/` and `runs/.launch/profile-cascade-demo/`.

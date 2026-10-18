@@ -20,7 +20,7 @@
     "revision": "1c95dfdcd9d02846165055ccef8d21110ad96357"
   },
   "isaac": {
-    "image": "nvcr.io/nvidia/isaac-sim:6.1.0",
+    "image": "nvcr.io/nvidia/isaac-sim:6.2.0",
     "accept_eula": "Y",
     "physics_engine": "physx",
     "physics_device": "cuda:0",

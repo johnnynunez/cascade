@@ -2,7 +2,7 @@
 
 Measured 2026-08-01/02 on the physical arm (RobStride motor 7 over `can0`) and
 in MuJoCo 3.10 (`mjcf/rebot_devarm/rebot_devarm.xml`, native `timestep = 0.002 s`)
-and Isaac Sim 6.1 / PhysX. Gripper holding 20 mm while the arm sweeps `joint1`
+and Isaac Sim / PhysX. Gripper holding 20 mm while the arm sweeps `joint1`
 ±0.4 rad and `joint2` ±0.2 rad. Raw data in `evidence/`.
 
 The gripper is driven by a single motor through one pinion and two opposed

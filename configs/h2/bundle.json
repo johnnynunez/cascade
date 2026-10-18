@@ -2,7 +2,7 @@
   "name": "unitree-h2-velocity-history-v0",
   "description": "NVIDIA Isaac Sim public bundle for the Unitree H2: Velocity-H2-History-v0 locomotion policy (TorchScript MLP 255 -> 14, trained on PhysX in AGILE) and the URDF-USD-Converter H2 asset. The two YAML files are vendored verbatim under assets/h2/bundle/ (Apache-2.0, SPDX headers kept; outside configs/ because they are NVIDIA training exports, not CASCADE profiles); policy.pt and the USD are fetched from the public asset root and verified against these digests, never committed.",
   "asset_root": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2",
-  "asset_root_versions_verified_identical": ["6.1", "6.2"],
+  "asset_root_versions_verified_identical": ["6.2"],
   "files": {
     "policy.pt": {
       "path": "Isaac/Samples/Policies/h2/policy.pt",

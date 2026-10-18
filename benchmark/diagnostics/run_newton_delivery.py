@@ -34,7 +34,7 @@ class Evidence:
         self.report = {
             "schema_version": 1,
             "scope": "Newton CPU diagnostics, not a CASCADE or Isaac episode",
-            "does_not_certify": ["Isaac Sim 6.1 binary/integration", "GPU/CUDA", "DGX Spark", "Cosmos", "CASCADE motion/safety/dispatcher", "camera rendering", "physical robot"],
+            "does_not_certify": ["Isaac Sim binary/integration", "GPU/CUDA", "DGX Spark", "Cosmos", "CASCADE motion/safety/dispatcher", "camera rendering", "physical robot"],
             "started_at_utc": datetime.now(timezone.utc).isoformat(),
             "command": invocation,
             "mutation": os.environ.get("NEWTON_DELIVERY_MUTATION"),

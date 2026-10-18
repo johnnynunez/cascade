@@ -42,7 +42,7 @@ bootstrap() {
     printf '[cascade-install] profile=%s brain=%s source=%s dir=%s\n' "$profile" "$brain" "$ref" "$dir"
     printf '[cascade-install] CASCADE Python 3.12 in %s/.venv\n' "$dir"
     if [[ "$profile" == spark ]]; then
-        printf '[cascade-install] Isaac Sim 6.1.0, exact wheel 6.1.0.0 / Python 3.12 in %s/.isaacsim\n' "$dir"
+        printf '[cascade-install] Isaac Sim 6.2.0, exact wheel 6.2.0.0 / Python 3.12 in %s/.isaacsim\n' "$dir"
         printf '[cascade-install] Qwen Q4 + vision projector: pinned downloads in %s/models/qwen3.8-27b; project-owned CUDA llama.cpp, loopback :8080\n' "$dir"
         printf '%s\n' '[cascade-install] Kitchen: fetch and verify the pinned Cocina Asier release and original prop sources.'
     fi

@@ -9,7 +9,7 @@ per capability: [capability status](ROADMAP.md).
 
 ## 1. DGX Spark (event profile)
 
-The profile is **DGX Spark/Linux + Isaac Sim 6.1 + PhysX CUDA + real GraspGen-X +
+The profile is **DGX Spark/Linux + Isaac Sim 6.2 + PhysX CUDA + real GraspGen-X +
 Qwen Q4 + OpenClaw**, with the dedicated `cascade-demo` chat profile. It installs
 no Cosmos; occupancy/nvblox is disabled and JEv is a separate experiment.
 

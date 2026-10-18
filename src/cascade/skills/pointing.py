@@ -10,9 +10,9 @@ point_at computed (the observed top, raised by the map's capped column top and
 by an object stacked over it), never a PCA box corner: a box tilted by noise
 would invent height. An object stacked over the target adds its own prism.
 Every OTHER known object (a remembered belief) is a neighbour: its own prism
-(`neighbour_column`), kept the same margin as the target by every motion this
-module plans that main never made (the lean-in pose, its route, every
-rise-first leg) and by the jaws' close.
+(`neighbour_column`), kept the same margin as the target by every pose and leg
+point_at commands (the top-down pose too, `neighbour_clearance`; the direct
+leg, every rise-first leg) and by the jaws' close.
 
 The jaws (`Jaws`, `jaw_samples`) are TCP-frame samples on a grid at most
 TOOL_SPACING_M apart: the TCP and the open-jaw sweep box
@@ -410,11 +410,7 @@ def pose_clearance(kin, q, column: ObjectColumn, tool, approach_col: int,
     a = T[:3, approach_col]
     v = column.aim - T[:3, 3]
     along = max(float(v @ a), 0.0)
-    near_m, near = math.inf, ""
-    for other in neighbours:
-        d = column_min(other, world, links)
-        if not d >= near_m:          # NaN wins: it refuses
-            near_m, near = d, other.name
+    near_m, near = _nearest(neighbours, world, links)
     return PoseClearance(tool_m=float(column.distance(world).min()),
                          table_m=float(world[:, 2].min()) - float(table_z),
                          links_m=float(column.distance(links).min()) if len(links) else math.inf,
@@ -427,6 +423,25 @@ def column_min(column: ObjectColumn, world: np.ndarray, links: np.ndarray) -> fl
     if len(links):
         d = min(d, column.distance(links).min()) if not np.isnan(d) else d
     return float(d)
+
+
+def _nearest(neighbours, world: np.ndarray, links: np.ndarray) -> tuple[float, str]:
+    """(distance, name) of the neighbour nearest the jaw samples and joint
+    origins; (inf, "") without neighbours. NaN wins: it refuses."""
+    near_m, near = math.inf, ""
+    for other in neighbours:
+        d = column_min(other, world, links)
+        if not d >= near_m:
+            near_m, near = d, other.name
+    return near_m, near
+
+
+def neighbour_clearance(kin, q, tool, neighbours=()) -> tuple[float, str]:
+    """(distance, name) from the jaws (`tool`, TCP frame) and the joint
+    origins at q to the nearest known neighbour: what a top-down pose keeps
+    from every other known object."""
+    T = np.asarray(kin.fk(q), dtype=float)
+    return _nearest(neighbours, _stacked(tool) @ T[:3, :3].T + T[:3, 3], _link_points(kin, q))
 
 
 # ── the lean-in family ─────────────────────────────────────────────────────
@@ -711,7 +726,7 @@ class Route:
 
 
 def plan_route(kin, q_start, q_goal, column: ObjectColumn, jaws, approach_col: int, *,
-               margin: float, table_z: float, neighbours=(), direct_neighbours: bool = True,
+               margin: float, table_z: float, neighbours=(),
                close: bool = True, vet=None, preflight=None, preflight_direct: bool = False) -> Route:
     """The route to `q_goal` and where the jaws close (`Route`): [q_goal]
     when the straight segment keeps the margin, else [rise waypoint, q_goal].
@@ -726,9 +741,8 @@ def plan_route(kin, q_start, q_goal, column: ObjectColumn, jaws, approach_col: i
     waypoint and the goal where `close_violation` of `jaws.sweep` clears
     every column and the table; legs before the close are checked with
     `jaws.now`, legs after it with `jaws.closed`.
-    `neighbours`: the other known objects' columns, kept on every leg except
-    the direct one when `direct_neighbours` is False (a top-down pose: the
-    leg main streamed).
+    `neighbours`: the other known objects' columns, kept on every leg (the
+    direct one too, top-down or lean-in).
 
     `vet(q)` (the harness's static `vet_pose`) vetoes a waypoint;
     `preflight(q_from, q_to)` (the harness's static route vet,
@@ -749,8 +763,7 @@ def plan_route(kin, q_start, q_goal, column: ObjectColumn, jaws, approach_col: i
     def closes(q):
         return close_violation(kin, q, every, jaws.sweep, margin, table_z)
 
-    direct = segment_violation(kin, q_start, q_goal, every if direct_neighbours else (column,), before, margin,
-                               table_z, from_inside=True)
+    direct = segment_violation(kin, q_start, q_goal, every, before, margin, table_z, from_inside=True)
     if direct is None and preflight_direct and preflight is not None:
         harness = preflight(q_start, q_goal)
         direct = None if harness is None else f"the harness would stop it ({harness})"

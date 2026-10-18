@@ -7227,11 +7227,11 @@ class SkillRuntime:
         when one clears the object's top; otherwise a lean-in pose that aims
         the tilted gripper at the centre of the top from the arm's side
         (`skills/pointing.py`: tilt 15-45 deg, 4-10 cm from the top, the
-        jaws sampled at <= 5 mm, the joints too), keeping the same margin
-        from every other known object. The route there is checked as well:
-        the straight joint segment from where the arm is, else one rise-first
-        waypoint (which also keeps every known object's margin, and on which
-        the jaws never come closer to the target). The jaws close only where
+        jaws sampled at <= 5 mm, the joints too). Either pose keeps the same
+        margin from every other known object. The route there is checked as
+        well: the straight joint segment from where the arm is, else one
+        rise-first waypoint (both keep every known object's margin; on the
+        rise the jaws never come closer to the target). The jaws close only where
         everything a close sweeps (the profile's `gripper.jaw_volume`) keeps
         the margin from the target, every known object and the table: where
         the arm starts, else at the waypoint or the pointing pose. While
@@ -7253,11 +7253,34 @@ class SkillRuntime:
         from ..grasping.obb_grasp import _yaw_rotation
         from . import pointing
 
+        table_z = float(getattr(getattr(harness, "limits", None), "table_z",
+                                self.cfg.safety.get("table_z", 0.0)))
+        from .relative_motion import _TOOL_COLUMNS
+
+        approach_col = _TOOL_COLUMNS[self._tool_axis_order][0]
+        sweep = (gcfg.get("graspgenx") or {}).get("sweep")
+        held = self.held_object
+        state = self.arm.get_state()
+        q_now = state.q
+        try:
+            column = pointing.object_column(fix, table_z, top, occluders)
+            near = tuple(pointing.neighbour_column(poly, n_top, table_z, name) for poly, n_top, name in neighbours)
+            opening = state.gripper_pos if getattr(state, "gripper_valid", True) else None
+            jaws = pointing.jaw_samples(sweep, self.cfg.arm.get("gripper"), self._tool_axis_order, opening)
+        except ValueError as exc:
+            raise SkillError(f"cannot point at {label!r}: {exc}; nothing was moved") from None
+        # what the jaws are at the pointing pose: closed there, or as they are
+        # while holding (no jaw command)
+        posed = jaws.now if held else jaws.closed
+
         # Top-down first: the lowest tool point (TCP or jaws) keeps the
-        # margin above the top. `need` is the TCP height that gives that for
-        # a strict top-down pose; a lower hover rises to it within the
+        # margin above the top, and the jaws and the joints keep it from every
+        # other known object. `need` is the TCP height that gives the first
+        # for a strict top-down pose; a lower hover rises to it within the
         # ceiling, a rung below it is never tried.
-        tool = _pointing_tool_points(gcfg, self._tool_axis_order)
+        # the box corners and the jaws as they are at the pose (a hinged jaw's
+        # measured geometry, `gripper.jaw_volume`, counts too)
+        tool = np.vstack([_pointing_tool_points(gcfg, self._tool_axis_order), *posed])
         clear_z = top + margin
         reach = max(0.0, -_lowest_tool_z(make_transform(_yaw_rotation(0.0, axis_order=self._tool_axis_order),
                                                         [0.0, 0.0, 0.0]), tool))
@@ -7266,10 +7289,9 @@ class SkillRuntime:
             hover[2] = min(need + POINT_AT_IK_SLACK_M, z_max)
         rungs = [z for z in (hover[2], z_max - 0.02) if z >= need]
 
-        state = self.arm.get_state()
-        q_now = state.q
         ik = None
         too_low = None     # the highest lowest-tool-point among rejected solutions
+        crowded = None     # (distance, name): the farthest a rejected solution kept from a neighbour
         for z in rungs:
             for yaw in (float(np.arctan2(hover[1], hover[0])), 0.0, np.pi / 4, -np.pi / 4):
                 cand = self.kin.ik(
@@ -7282,25 +7304,15 @@ class SkillRuntime:
                 if not low >= clear_z:     # NaN refuses too
                     too_low = low if too_low is None or low > too_low else too_low
                     continue
+                gap = pointing.neighbour_clearance(self.kin, cand.q, posed, near)
+                if not gap[0] >= margin:   # NaN refuses too
+                    crowded = gap if crowded is None or gap[0] > crowded[0] else crowded
+                    continue
                 ik = cand
                 break
             if ik is not None:
                 break
 
-        table_z = float(getattr(getattr(harness, "limits", None), "table_z",
-                                self.cfg.safety.get("table_z", 0.0)))
-        from .relative_motion import _TOOL_COLUMNS
-
-        approach_col = _TOOL_COLUMNS[self._tool_axis_order][0]
-        sweep = (gcfg.get("graspgenx") or {}).get("sweep")
-        held = self.held_object
-        try:
-            column = pointing.object_column(fix, table_z, top, occluders)
-            near = tuple(pointing.neighbour_column(poly, n_top, table_z, name) for poly, n_top, name in neighbours)
-            opening = state.gripper_pos if getattr(state, "gripper_valid", True) else None
-            jaws = pointing.jaw_samples(sweep, self.cfg.arm.get("gripper"), self._tool_axis_order, opening)
-        except ValueError as exc:
-            raise SkillError(f"cannot point at {label!r}: {exc}; nothing was moved") from None
         vet = getattr(harness, "vet_pose", None)
         lean = None
         if ik is None:
@@ -7308,6 +7320,9 @@ class SkillRuntime:
                 from_above = (f"from above, its top-down ceiling is {z_max:.3f} m, below the object top + "
                               f"margin ({need:.3f} m: top {top:.3f} m + clearance {margin:.3f} m + "
                               f"{reach:.3f} m of jaw below the TCP)")
+            elif crowded is not None:
+                from_above = (f"from above, the best solved pose kept the arm {crowded[0]:.3f} m from "
+                              f"{crowded[1]}, less than {margin:.3f} m")
             elif too_low is not None:
                 from_above = (f"from above, the best solved pose put the closed jaws at {too_low:.3f} m, "
                               f"less than {margin:.3f} m above its top ({top:.3f} m)")
@@ -7343,8 +7358,7 @@ class SkillRuntime:
 
         try:
             route = pointing.plan_route(self.kin, q_now, target, column, jaws, approach_col, margin=margin,
-                                        table_z=table_z, neighbours=near, direct_neighbours=lean is not None,
-                                        close=not held, vet=vet,
+                                        table_z=table_z, neighbours=near, close=not held, vet=vet,
                                         preflight=preflight, preflight_direct=lean is not None)
         except pointing.RouteRefused as exc:
             _raise_if_estopped(harness)

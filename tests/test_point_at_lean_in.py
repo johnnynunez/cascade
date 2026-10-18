@@ -1028,9 +1028,11 @@ def test_the_close_keeps_the_margin_from_a_neighbour():
     assert route == pointing.Route([goal], 1), route
 
 
-def test_the_direct_leg_to_a_lean_in_keeps_the_margin_from_a_neighbour():
-    """Straight to the pointing pose passes 2 cm over a neighbour's top: a
-    rise-first waypoint, unless the leg is main's top-down one."""
+def test_the_direct_leg_keeps_the_margin_from_a_neighbour():
+    """Straight to the pointing pose (top-down or lean-in: the same leg)
+    passes 2 cm over a neighbour's top: a rise-first waypoint; without the
+    neighbour the same leg goes straight (#378 review Critical 1: the
+    top-down leg ignored neighbours)."""
     from cascade.skills import pointing
 
     near = pointing.neighbour_column(np.array([[-0.12, -0.02], [-0.08, -0.02], [-0.08, 0.02], [-0.12, 0.02]]), 0.06,
@@ -1039,9 +1041,26 @@ def test_the_direct_leg_to_a_lean_in_keeps_the_margin_from_a_neighbour():
     route = pointing.plan_route(_SlideIK(), start, goal, _box_column(), np.zeros((1, 3)), 2, margin=MARGIN,
                                 table_z=0.0, neighbours=(near,))
     assert len(route.targets) == 2 and route.targets[0][2] > start[2], route
-    top_down = pointing.plan_route(_SlideIK(), start, goal, _box_column(), np.zeros((1, 3)), 2, margin=MARGIN,
-                                   table_z=0.0, neighbours=(near,), direct_neighbours=False)
-    assert top_down == pointing.Route([goal], 0), top_down
+    alone = pointing.plan_route(_SlideIK(), start, goal, _box_column(), np.zeros((1, 3)), 2, margin=MARGIN,
+                                table_z=0.0)
+    assert alone == pointing.Route([goal], 0), alone
+
+
+def test_a_top_down_pose_counts_neighbours():
+    """The top-down acceptance: a pose whose jaws (or a joint) come within
+    the margin of a neighbour is not taken."""
+    from cascade.skills import pointing
+
+    near = pointing.neighbour_column(np.array([[0.025, -0.02], [0.065, -0.02], [0.065, 0.02], [0.025, 0.02]]), 0.2,
+                                     0.0, "the blue bottle")
+    assert pointing.neighbour_clearance(_SlideKin(), np.array([0.0, 0.0, 0.1]), np.zeros((1, 3)), (near,)) == \
+        pytest.approx((0.025, "the blue bottle"))
+    # the jaws, not only the TCP: a jaw sample 2 cm toward it
+    jaws = np.array([[0.0, 0.0, 0.0], [0.02, 0.0, 0.0]])
+    assert pointing.neighbour_clearance(_SlideKin(), np.array([0.0, 0.0, 0.1]), jaws, (near,)) == \
+        pytest.approx((0.005, "the blue bottle"))
+    assert pointing.neighbour_clearance(_SlideKin(), np.array([0.0, 0.0, 0.1]), np.zeros((1, 3)), ()) == \
+        (math.inf, "")
 
 
 def test_each_jaw_group_is_its_own_pair():
@@ -1357,6 +1376,48 @@ def test_a_rise_leg_keeps_the_margin_from_a_neighbour():
                                       rise=True) is None
 
 
+# ── top-down profiles: known neighbours keep the margin too ──────────────
+
+#: the #378 review's top-down rows (a tall bottle beside the cube went 11.8-12.9 mm
+#: inside the jaw box with ok: true, where main kept >= 36 mm)
+TOP_DOWN_PROFILES = ("mock", "mock_reach", "fr3", "isaac_kitchen", "rebot_rs_reach")
+
+
+def _table_neighbour(r, label, xy, side, height):
+    """A `side` x `side` x `height` box standing on the profile's table at
+    xy, remembered as a belief; its (lo, hi) corners."""
+    table = float(r.cfg.safety.get("table_z", 0.0))
+    r.runtime.beliefs.update(label, np.array([xy[0], xy[1], table + height / 2]), 0.9,
+                             extent=np.array([height, side, side]), top_z=table + height, color="blue")
+    return (np.array([xy[0] - side / 2, xy[1] - side / 2, table]),
+            np.array([xy[0] + side / 2, xy[1] + side / 2, table + height]))
+
+
+@pytest.mark.parametrize("profile", TOP_DOWN_PROFILES)
+@pytest.mark.parametrize("dist", [0.056, 0.09])
+@pytest.mark.parametrize("deg", range(0, 360, 45))
+def test_a_top_down_point_keeps_the_margin_from_a_tall_neighbour(rig, profile, dist, deg):
+    """#378 review Critical 1: a 16 cm bottle (5 cm girth) 5.6 cm from the
+    cube. The top-down pose and its direct leg ignored it, so the jaw box
+    ended 12.9 mm inside it with ok: true. Now every command keeps 3 cm from
+    it (and from the cube), or nothing moves. (At 9 cm some rows point: fr3
+    every row, the others 2 of 8.)"""
+    r = rig(profile, camera="mock")
+    cube = r.runtime.beliefs.find("red cube")
+    assert cube is not None, "test setup: the mock camera saw no cube"
+    a = math.radians(deg)
+    xy = np.asarray(cube.position, float)[:2] + dist * np.array([math.cos(a), math.sin(a)])
+    lo, hi = _table_neighbour(r, "bottle", xy, 0.05, 0.16)
+
+    out = r.runtime.execute("point_at", {"label": "red cube"})
+
+    if out["ok"]:
+        _assert_commands_keep_the_margin_from(r, lo, hi)
+        _assert_every_command_keeps_the_margin(r)
+    else:
+        _refused_untouched(r, out)
+
+
 # ── the rise never comes closer; the escape never dips between samples ────
 
 
@@ -1552,7 +1613,9 @@ def test_a_non_finite_remembered_object_raises(field, value):
 def test_a_20cm_bottle_8cm_away_is_not_an_occluder(rig, monkeypatch):
     """#372 took half its largest extent (10 cm) as its footprint radius, so
     it 'stood over' the cube and the hover counted from 0.2 m. Its girth
-    does not reach the cube: today's hover, from the cube's own top."""
+    does not reach the cube: today's hover, from the cube's own top. It is
+    a neighbour, though: that hover's jaws would pass 2 cm from it, so
+    nothing moves (#378 review Critical 1: they did, with ok: true)."""
     r = rig("mock", camera="mock")
     cube = r.runtime.beliefs.find("red cube")
     r.runtime.beliefs.update("bottle", np.array([cube.position[0], cube.position[1] + 0.08, 0.1]), 0.9,
@@ -1563,8 +1626,10 @@ def test_a_20cm_bottle_8cm_away_is_not_an_occluder(rig, monkeypatch):
 
     out = r.runtime.execute("point_at", {"label": "red cube"})
 
-    assert out["ok"] is True and "lean_deg" not in out, out
     assert asked[0] == pytest.approx(0.05 + 0.04, abs=1e-6)
+    _refused_untouched(r, out)
+    assert "from above, the best solved pose kept the arm 0.0" in out["error"], out
+    assert "from the blue bottle, less than 0.030 m" in out["error"], out
 
 
 @needs_pin

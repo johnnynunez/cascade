@@ -33,6 +33,15 @@ A call is refused when
    (`SafetyHarness`, the same parsed zones), so routes planned inside a skill
    (move_relative, move_near_object, grasps) cannot enter one either.
 
+Frames (#374, base_pose arms): people stand around the TABLE, so visitor
+zones and visitor sides are table-frame settings, the frame of the cameras,
+the beliefs, the occupancy map and every coordinate an agent sends. Points
+that are table-frame already (place_at's point, remembered positions) are
+compared as they are; arm-frame ones (FK of a fixed pose, the throw's release
+direction) are lifted by the running arm's base_pose first (`arm_frame`), and
+the harness lifts its TCP by its own. An arm without a base_pose has
+coincident frames: nothing is transformed.
+
 Handover keeps its own protocol: a fixed profile pose (`handover_q`), every
 waypoint harness-vetted, the jaws stay closed until an explicit open_gripper;
 this guard refuses a person or body part as its label and checks its pose
@@ -55,8 +64,9 @@ REFUSED_BY = "people_guard"
 #: every refusal error starts with this (the taxonomy pattern keys on it)
 REFUSAL_PREFIX = "people-safety refusal"
 
-#: base-frame horizontal sides: +x forward (away from the robot base), +y the
-#: robot's left. `skill_throw` aims its swing at the same four words.
+#: table-frame horizontal sides: +x forward (away from the robot base of a rig
+#: without base_pose), +y the robot's left. `skill_throw` aims its swing at the
+#: same four words in the running arm's frame (#374 D8).
 SIDES = {"forward": (1.0, 0.0), "left": (0.0, 1.0), "right": (0.0, -1.0), "back": (-1.0, 0.0)}
 
 #: half-width of a localized person's column when the detection carries no size
@@ -189,7 +199,7 @@ def person_mention(text) -> str | None:
 
 @dataclass(frozen=True)
 class Zone:
-    """A configured visitor zone, already grown by the clearance margin."""
+    """A configured visitor zone (table frame), already grown by the clearance margin."""
 
     name: str
     lo: np.ndarray
@@ -211,7 +221,8 @@ def parse(block, margin_m: float) -> PeopleSettings:
     """`safety.people` -> PeopleSettings, fail-closed.
 
     Missing block or missing `visitor_sides`: every side (visitors may stand
-    anywhere around the table). `visitor_zones`: base-frame boxes
+    anywhere around the table). Sides and zones are in the TABLE frame (the
+    base frame of an arm without a base_pose). `visitor_zones`: boxes
     `{name, min: [x, y, z], max: [x, y, z]}`, each grown by `margin_m`
     (`safety.min_clearance_m`). Anything malformed raises ValueError: a guard
     that silently switched itself off would be worse than none."""
@@ -299,16 +310,20 @@ def _toward_viewer_refusal(args: dict) -> Refusal | None:
     return None
 
 
-def _throw_refusal(rt, args: dict, people: PeopleSettings, kin) -> Refusal | None:
+def _throw_refusal(rt, args: dict, people: PeopleSettings, kin, T) -> Refusal | None:
     """A throw launches the object from the release pose along the swing:
-    judged by the side the release pose PHYSICALLY points to (FK of the
-    skill's own keyframes, nearest base side), not by the direction word."""
+    judged by the TABLE side the release pose physically points to (FK of
+    the skill's own keyframes, the base -> release direction rotated by the
+    arm's base_pose `T`, nearest side), not by the direction word."""
+    from ..skills import arm_frame
+
     direction = args.get("direction", "forward")
     if not people.visitor_sides:
         return None
     try:
         _, release = rt._throw_keyframes(direction)
-        xy = np.asarray(kin.fk(np.asarray(release, dtype=float))[:2, 3], dtype=float)
+        reach = np.asarray(kin.fk(np.asarray(release, dtype=float))[:3, 3], dtype=float)
+        xy = np.asarray(arm_frame.dir_to_world(T, reach), dtype=float)[:2]
         norm = float(np.linalg.norm(xy))
         if not (math.isfinite(norm) and norm > 1e-6):
             raise ValueError(f"release TCP {xy.tolist()} has no horizontal direction")
@@ -369,11 +384,14 @@ def _hit(point, people: PeopleSettings, columns) -> dict | None:
     return None
 
 
-def _destinations(rt, name: str, args: dict, arm, kin) -> list[tuple[str, np.ndarray]]:
-    """(what, base-frame point) for every destination this call commits to
-    before it perceives anything: coordinates, remembered label targets, and
-    the TCP of the fixed poses it streams. Unknown or invalid ones are left
-    to the skill's own refusal."""
+def _destinations(rt, name: str, args: dict, arm, kin, T) -> list[tuple[str, np.ndarray]]:
+    """(what, table-frame point) for every destination this call commits to
+    before it perceives anything: coordinates and remembered label targets
+    (table frame already), and the TCP of the fixed poses it streams (FK in
+    the arm frame, lifted by the arm's base_pose `T`). Unknown or invalid
+    ones are left to the skill's own refusal."""
+    from ..skills import arm_frame
+
     out: list[tuple[str, np.ndarray]] = []
     if name == "place_at":
         try:
@@ -408,7 +426,8 @@ def _destinations(rt, name: str, args: dict, arm, kin) -> list[tuple[str, np.nda
         poses = []
     if kin is not None:
         for what, q in poses:
-            out.append((what, np.asarray(kin.fk(np.asarray(q, dtype=float))[:3, 3], dtype=float)))
+            tcp = np.asarray(kin.fk(np.asarray(q, dtype=float))[:3, 3], dtype=float)
+            out.append((what, np.asarray(arm_frame.to_world(T, tcp), dtype=float)))
     return out
 
 
@@ -416,21 +435,32 @@ def check_call(rt, name: str, args: dict, arm) -> Refusal | None:
     """The refusal for this motion call on `arm` (the arm the call runs on),
     or None. Pure decision: it never commands, and its geometry reads (the
     arm state for rotate_joint) happen only when a visitor zone or a
-    localized person exists."""
+    localized person exists. Arm-frame geometry is lifted into the table
+    frame by `arm`'s own base_pose (its harness's, the one execute() bound)."""
+    from ..skills import arm_frame
+
     harness = (getattr(arm, "__dict__", None) or {}).get("harness")
     kin = getattr(harness, "kin", None) or getattr(rt, "kin", None)
     refusal = _word_refusal(name, args)
     if refusal is None and name in ("move_relative", "rotate_gripper", "move_near_object"):
         refusal = _toward_viewer_refusal(args)
+    if refusal is not None:
+        return refusal
+    try:
+        T = arm_frame.world_from_base(arm)
+    except arm_frame.ArmFrameError as exc:
+        # execute() refuses such an arm before this guard; fail closed anyway
+        return Refusal(f"cannot tell where this arm stands ({exc}), so where its motion goes near people",
+                       {"rule": "unknown_arm_frame"})
     people = _settings(rt, harness)
-    if refusal is None and name == "throw":
-        refusal = _throw_refusal(rt, args, people, kin)
+    if name == "throw":
+        refusal = _throw_refusal(rt, args, people, kin, T)
     if refusal is not None:
         return refusal
     columns = _people_columns(rt, people.margin_m)
     if not columns and not people.zones:
         return None
-    for what, point in _destinations(rt, name, args, arm, kin):
+    for what, point in _destinations(rt, name, args, arm, kin, T):
         hit = _hit(point, people, columns)
         if hit is not None:
             where = (f"in the visitor zone {hit['zone']!r}" if "zone" in hit

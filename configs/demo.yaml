@@ -495,7 +495,7 @@ agent:
   # this says. Optional: sim_retry_window_s (>= 360) and sim_retry_reserve_s
   # (< 300). The kitchen profile (configs/arms/isaac_kitchen.yaml) turns it on.
   sim_retry: false
-  # Harness² agent harness (docs/AGENT_HARNESSING.md): advice text (rules, tool guidance,
+  # Harness² agent harness (src/cascade/harnessing): advice text (rules, tool guidance,
   # triggered skills) learned by scripts/harness2_improve.py and validated before use. null = the
   # built-in agent's prompt and tool specs exactly. CASCADE_AGENT_HARNESS overrides.
   harness_path: null

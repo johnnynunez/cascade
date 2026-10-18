@@ -23,7 +23,7 @@ source and scope; it does not certify a later checkout.
 
 - [Architecture](ARCHITECTURE.md): tiers, `execute()`, safety path, module map, known limitations
 - [Composable robots](ROBOT_MODULARITY.md), [spatial providers](SPATIAL_PROVIDERS.md), [spatial commands](SPATIAL_COMMANDS.md)
-- [Conversation gateway](CONVERSATION.md), [programs tier](PROGRAMS_TIER.md), [retry evidence admission](DREAM_RSI_ADAPTATION.md), [agent harnessing (Harness²)](AGENT_HARNESSING.md)
+- [Conversation gateway](CONVERSATION.md), [programs tier](PROGRAMS_TIER.md), [retry evidence admission](DREAM_RSI_ADAPTATION.md)
 
 ## Simulators, mapping and other robots
 

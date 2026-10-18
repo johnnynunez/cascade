@@ -1,4 +1,4 @@
-import {cameraNames, MJPEGParser, freshness, frameAgeNote} from './core.mjs';
+import {cameraNames, MJPEGParser, freshness, frameAgeNote, frameAgeNow} from './core.mjs';
 import {bootstrap,discover,LABELS} from './discovery.mjs';
 import {cameraZoom} from './zoom.mjs';
 // Keep references when the existing camera UI moves into its larger window.
@@ -21,12 +21,17 @@ let wasOutOfView=outOfView();
 function later(fn,ms){ const t=setTimeout(()=>{timers=timers.filter(id=>id!==t);fn();},ms);timers.push(t);return t; }
 function cancel(){generation++;controllers.forEach(c=>c.abort());controllers=[];timers.forEach(clearTimeout);timers=[];}
 function forgetFrame(){if(imageURL)URL.revokeObjectURL(imageURL);imageURL=null;$('camera-image').removeAttribute('src');$('camera-image').hidden=true;$('empty').hidden=false;$('viewer').disabled=true;lastFrame=0;}
-function state(kind,title,detail){$('retry').hidden=!['offline','stale'].includes(kind);$('status').dataset.state=kind;$('status').textContent=title;$('detail').textContent=detail;$('viewer').dataset.stale=String(kind!=='live');$('frame-note').hidden=!lastFrame||kind==='live';$('frame-note').textContent=kind==='paused'?'Video paused · last frame':kind==='held'?title:'Last frame · freshness unconfirmed';}
+// Write only changed text: an unchanged rewrite of a live region can be announced again.
+function put(id,text){if($(id).textContent!==text)$(id).textContent=text;}
+// The badge counts a held frame's age every second; screen readers hear only the
+// state changes (Live, Last frame, Not updating, ...) from #status-live.
+function state(kind,title,detail){$('retry').hidden=!['offline','stale'].includes(kind);$('status').dataset.state=kind;put('status',title);put('status-live',kind==='held'?'Last frame':title);put('detail',detail);$('viewer').dataset.stale=String(kind!=='live');$('frame-note').hidden=!lastFrame||kind==='live';put('frame-note',kind==='paused'?'Video paused · last frame':kind==='held'?title:'Last frame · freshness unconfirmed');}
 function refresh(){
  if(paused||collapsed||outOfView()){state('paused','Paused','The connection pauses while the camera is out of view.');return;}
  if(networkError){const sec=Math.max(1,Math.ceil((retryAt-Date.now())/1000));state(lastFrame?'stale':'offline',lastFrame?'Not updating':'Offline',`${networkError} Retrying in ${sec} s.`);return;}
- const f=freshness({now:performance.now(),lastFrame,lastState,lastAdvance,hasAdvanced,error:cameraError});
- const held=f==='live'&&frameAgeNote(frameAge);
+ const now=performance.now(),f=freshness({now,lastFrame,lastState,lastAdvance,hasAdvanced,error:cameraError});
+ // The age keeps growing between parts: the 1 s tick ages the frame of a stream that stopped.
+ const held=f==='live'&&frameAgeNote(frameAgeNow(frameAge,now-lastFrame));
  if(held)state('held',held,'No new image from the camera yet. This is the last one it sent.');
  else if(f==='live')state('live','Live',`The image is updating live.`);
  else if(f==='stale')state('stale','Not updating','A recent image could not be confirmed. The last frame may be frozen.');

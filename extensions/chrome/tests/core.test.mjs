@@ -56,3 +56,10 @@ test('a frame older than 1 s is labelled with its age, a fresher one is not',()=
  assert.equal(core.frameAgeNote(2.4),'Last frame · 2 s old');
  assert.equal(core.frameAgeNote(4.99),'Last frame · 4 s old');
 });
+test('a frame on screen keeps ageing after its part arrived',()=>{
+ assert.equal(typeof core.frameAgeNow,'function');
+ assert.equal(core.frameAgeNow(0,1500),1.5);
+ assert.equal(core.frameAgeNow(2.4,600),3);
+ for(const age of [null,undefined,NaN,'2'])assert.equal(core.frameAgeNow(age,1500),null,String(age));
+ assert.equal(core.frameAgeNow(1.2,-5),1.2,'a clock step back never makes it younger');
+});

@@ -1849,8 +1849,8 @@ class SkillRuntime:
             elif (not result.get("ok", False) and halt_before_return is None
                   and _home_return_halted(home_return)):
                 # The skill failed, then the operator's halt stopped (or
-                # skipped) its return: the error names that halt too.
-                result["error"] = _with_also(result.get("error"), returned)
+                # skipped) its return: the error names that halt first.
+                result["error"] = _stop_first(returned, result.get("error"))
         if name in _MOTION_SKILLS:
             # Readiness can fail DURING a motion as well as before it. A
             # trajectory abort latches STOP; handing that failure back to
@@ -6320,7 +6320,7 @@ class SkillRuntime:
                     "suggestion": "check world_state / camera_snapshot; the object may be unreachable or mis-detected",
                 }
                 if park_halt is not None:
-                    out["error"] = _with_also(out["error"], _halted_text("final park", park_halt))
+                    out["error"] = _stop_first(_halted_text("final park", park_halt), out["error"])
                 # The robot did everything it can on its own: the budget is
                 # spent, or the stop reason is one no retry cures (never
                 # seen, too wide). That is STUCK -- a request to the human,
@@ -8733,9 +8733,11 @@ def _halted_text(move: str, halt: str) -> str:
     return f"{move} {halt}" if halt.startswith("halted: ") else f"{move} halted: {halt}"
 
 
-def _with_also(error, also: str) -> str:
-    """A failed result's `error` followed by what also happened."""
-    return f"{error}; {also}" if error else also
+def _stop_first(stop: str, error) -> str:
+    """The operator's stop that also ended a failed skill, then the skill's
+    own `error`: outcome first, as `_reset_release_failed` does, because the
+    agent's FAILED line keeps only the first 240 characters of the error."""
+    return f"{stop}; {error}" if error else stop
 
 
 def _left_in_place(result: dict) -> bool:

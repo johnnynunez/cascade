@@ -91,8 +91,11 @@ class Frames:
         if type(stamp) not in (int, float) or not math.isfinite(stamp):
             raise ValueError("camera capture timestamp missing")
         changed = old.get("stamp") != stamp
+        # A new image is first seen when the read returns, not when it was asked
+        # for: a slow or hung read must not age it (X-Frame-Age 3 s after a 3 s hang).
+        seen = self.clock()
         row = {"jpeg": jpg, "stamp": stamp, "checked": now,
-               "advance": now if changed else old.get("advance", now),
+               "advance": seen if changed else old.get("advance", seen),
                "frame_id": old.get("frame_id", 0) + int(changed)}
         self.rows[name] = row
         return row

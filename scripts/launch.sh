@@ -37,7 +37,7 @@
 #                  server registered IDEMPOTENTLY (`mcp set`, not `mcp add`),
 #                  brain resolved (--brain auto: a local Cosmos, else the
 #                  brain on :8080 -- Nemotron 3.5 Bolt by default,
-#                  scripts/serve_nemotron_bolt_vllm.sh, or Qwen3.8 -- else
+#                  scripts/serve_nemotron_bolt_llamacpp.sh, or Qwen3.8 -- else
 #                  whatever auth OpenClaw already has; a local server is only
 #                  used when it answers. --brain nemotron-bolt|qwen pins one)
 #   5. proof       `openclaw mcp probe cascade` must list the robot tools; the
@@ -461,7 +461,7 @@ fi
 # llama.cpp ignores the name) and the brain key FILE, never the
 # key. An operator's own value wins; an empty one counts as unset, as in
 # demo.yaml. --brain nemotron-bolt does the same for the default brain
-# (scripts/serve_nemotron_bolt_vllm.sh, served id nemotron-3.5-bolt) at the
+# (scripts/serve_nemotron_bolt_llamacpp.sh, served id nemotron-3.5-bolt) at the
 # CASCADE_NEMOTRON_BOLT_BASE_URL endpoint (else CASCADE_QWEN_BASE_URL's: both
 # serve scripts default to :8080). Every other brain leaves perception on the
 # configured default brain (configs/demo.yaml: Nemotron 3.5 Bolt at :8080).

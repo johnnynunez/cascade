@@ -107,7 +107,7 @@ MCP_TOKEN_ENV = "CASCADE_MCP_TOKEN"
 DEFAULT_BRAIN_PORT = 8081   # the authenticated brain (docs/OPENSHELL.md)
 DEFAULT_MCP_PORT = 18741    # loopback, plain HTTP + bearer (NemoClaw's TLS listener is 18740)
 DEFAULT_CHAT_PORT = 18799   # NemoClaw's dashboard forward holds 18789
-DEFAULT_MODEL = "nemotron-3.5-bolt"   # scripts/serve_nemotron_bolt_vllm.sh's served id
+DEFAULT_MODEL = "nemotron-3.5-bolt"   # scripts/serve_nemotron_bolt_llamacpp.sh's served id
 #: The local brains whose served id also identifies objects for the robot
 #: server (configs/demo.yaml `detector: type: brain`): the default brain and
 #: Qwen3.8-27B (`--model qwen3.8-27b`, scripts/serve_qwen_vllm.sh).
@@ -988,7 +988,7 @@ def cmd_up(inst: Instance, home: Path, args) -> int:
     brain = _check_brain(cfg, read_secret(brain_key_file))
     if brain != 200:
         raise SystemExit(f"brain on 127.0.0.1:{cfg.brain_port} answered {brain} with {brain_key_file}; "
-                         "start it (scripts/serve_nemotron_bolt_vllm.sh, or serve_qwen_vllm.sh for --model "
+                         "start it (scripts/serve_nemotron_bolt_llamacpp.sh, or serve_qwen_vllm.sh for --model "
                          "qwen3.8-27b) with that key")
     mcp = _check_mcp(cfg, read_secret(token_file) if token_file.exists() else "")
     if mcp != 200:

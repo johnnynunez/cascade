@@ -203,7 +203,11 @@ def array(name, value):
             attempt.error(f"array:{name}", exc)
 
 
-def localized(frame, fix, extrinsics=None):
+def localized(frame, fix, extrinsics=None, T_world_base=None):
+    """The localization a grasp acts on. Its points, fix and camera pose are in
+    the running arm's base frame; `T_world_base` (that arm's base_pose as a
+    4x4 list, None without one) lets an offline replay lift them into the
+    table frame (spec 2026-10-17 base_pose runtime frame, §3.4)."""
     if _ACTIVE.get() is None:
         return
     try:
@@ -242,7 +246,8 @@ def localized(frame, fix, extrinsics=None):
               detection_label=fix.detection.label, confidence=fix.detection.conf,
               bbox=fix.detection.bbox, frame_id=frame.frame_id, frame_t=frame.t,
               capture=frame.capture, K=frame.K, T_base_cam=frame.T_base_cam,
-              effective_T_base_cam=T, depth_source=frame.depth_source)
+              effective_T_base_cam=T, depth_source=frame.depth_source,
+              T_world_base=None if T_world_base is None else np.asarray(T_world_base, dtype=float).tolist())
     except Exception as exc:
         _ACTIVE.get().error("localized", exc)
 

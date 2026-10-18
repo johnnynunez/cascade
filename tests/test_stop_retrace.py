@@ -310,6 +310,23 @@ def test_jaws_closed_on_air_after_the_retrace_hold_nothing(rebot, monkeypatch):
     assert "holding" not in res and "next_action" not in res, res
 
 
+def test_a_move_home_without_a_retrace_leaves_the_hold_alone(rebot, monkeypatch):
+    """No retrace (the column was given up): move_home is main's, command for
+    command and flag for flag -- refused, nothing reconciled."""
+    rt = rebot
+    mock_of(rt).object_stop_frac = 0.5
+    stopped_at_the_object(rt, monkeypatch, skill=("grasp_object", {"label": "red cube"}))
+    from cascade.skills import stop_retrace
+
+    prov = rt._held_provisional
+    assert prov is not None and stop_retrace.forget(rt) == 1
+    n0 = commands(rt)
+    res = rt.execute("move_home", {})
+    assert res["ok"] is False and "no safe joint route found" in res["error"], res
+    assert commands(rt) == n0 and "holding" not in res
+    assert rt.held_object is None and rt._held_provisional == prov
+
+
 def test_reset_scene_never_promotes_a_hold_mid_reset(rebot, monkeypatch):
     """Inside reset_scene the retrace does not reconcile the jaws: the reset's
     own held rule runs at its start (a real gripper refuses there), and a hold

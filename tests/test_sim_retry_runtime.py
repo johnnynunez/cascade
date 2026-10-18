@@ -578,6 +578,45 @@ def test_a_hostile_halt_reason_never_carries_the_reply_line(monkeypatch, tmp_pat
         assert runtime.last_recalled_frames, "the recalled step has its keyframes (their captions are checked)"
 
 
+#: how a call meets the operator's stop, each read alone by `_sim_retry_finish` (A8 follow-ups fix, Important 1):
+#: latched at its end (a halt pending since before it), a halt since the skill started that was withdrawn again
+#: before the stop token was taken (only the skill's halt baseline shows it), the stop token alone (an e-stop
+#: and its reset during the call: neither latched nor a halt)
+MARK_CASES = ("latched", "halted since start", "token", "none")
+
+
+@pytest.mark.parametrize("ok", [False, True], ids=["failed", "ok"])
+@pytest.mark.parametrize("case", MARK_CASES)
+def test_the_ledger_marks_every_failed_call_a_stop_ended(ledger_stack, case, ok):  # A8 follow-ups fix, Important 1
+    """`_sim_retry_finish` marks the trace row `ended_in_stop` when the call failed and ANY of
+    the latch, the halt since the skill started or the stop token shows a stop; never a
+    successful call, never a call no stop met."""
+    runtime, arm = ledger_stack
+    harness = runtime.arm.harness
+    if case == "latched":
+        harness.halt("operator")  # before the skill's baseline and `begin`'s token: only the latch shows it
+    g0, token0 = harness._halt_generation, runtime._stop_token()
+    if case == "halted since start":
+        harness.halt("operator")
+        harness.clear_halt()
+        token0 = runtime._stop_token()  # only the skill's halt baseline shows it
+    elif case == "token":
+        harness.estop("test e-stop")
+        harness.reset_estop()  # neither latched nor a halt: only the stop token shows it
+    context = {}
+    try:
+        runtime._sim_retry_finish(
+            runtime.sim_retry, "grasp_object", {"label": "red cube"},
+            {"ok": ok, "error": None if ok else "SafetyViolation: finger trajectory intersects observed surface: x"},
+            context, retry=None, retry_home=False, exc_type=None if ok else "SafetyViolation",
+            state=runtime_mod._SimRetryState(()), arm=runtime.arm, harness=harness,
+            baselines=((harness, g0),), stop_token0=token0)
+    finally:
+        harness.clear_halt()
+    marked = (context.get("sim_retry") or {}).get("ended_in_stop") is True
+    assert marked is (not ok and case != "none"), context
+
+
 def _mcp_payload(result):
     """An MCP tool result's text parsed back from JSON (escapes would hide a span)."""
     (text,) = [item["text"] for item in result["content"] if item.get("type") == "text"]

@@ -346,6 +346,39 @@ class ProvisionalHold(tuple):
         return hold
 
 
+class _HoldNotJudged(Exception):
+    """A seat-aware reconcile (reset_scene's refusal, move_home's jaw report
+    after a stop retrace) read the jaws but could not judge the interrupted
+    grasp's marker against that reading (a malformed marker): not a jaw-read
+    failure. Raised only with `seat_aware`; the cause is chained."""
+
+
+#: How the seat-aware callers name jaws they could not read, and jaws they
+#: read but could not judge (`_HoldNotJudged`). Short: the move_home-first
+#: refusal needs room for the label within the agent's 240 characters.
+_JAWS_NOT_READ = "the jaw state could not be read"
+_JAWS_NOT_JUDGED = "the jaw reading could not be judged"
+
+
+def _error_text(exc: BaseException) -> str:
+    """An exception's text for a refusal's \"Error: \" tail; one without text
+    names its type, never a bare tag."""
+    return str(exc).strip() or type(exc).__name__
+
+
+def _cut_text(text: str, limit: int) -> str:
+    """`text` within `limit` characters; a cut ends in "..." (the failure
+    line keeps that marker, `_with_failure_instruction`)."""
+    return text if len(text) <= limit else text[:max(limit - 3, 0)].rstrip() + "..."
+
+
+def _fit_label(template: str, label, *, keep: int = 0) -> str:
+    """`template` with `label` in its `{}`, the label shortened so the text
+    plus `keep` more characters fits the error the agent's failure line quotes
+    (_FAILED_ERROR_CHARS): a long name is cut, never the sentence."""
+    return template.format(_cut_text(str(label), _FAILED_ERROR_CHARS - keep - len(template.format(""))))
+
+
 def _air_grasp_stop(harness, generation) -> str | None:
     """Why the recovery after an air grasp (the jaws' reopen, the exit
     withdrawal) must not act: a latched e-stop, a pending operator halt, or
@@ -2451,51 +2484,66 @@ class SkillRuntime:
         too: open jaws are not an invented hold.
         With `seat_aware` (reset_scene on a real gripper) a marker that
         carries its close's commanded opening (`ProvisionalHold`) is judged
-        exactly like the grasp's own verify (`_air_grasp`): jaws at or
-        through that seat closed on air (the reBot's rigid close on air stops
-        at 85 % of travel, short of closed) -> drop it; stalled short of it
-        -> promote it.
+        exactly like the grasp's own verify (`_air_grasp`): jaws nearly shut,
+        or within 3 % of travel of that seat while the plan sized the object
+        at least 7 % wider, closed on air (the reBot's rigid close on air
+        stops at its seat, 85 % of travel, short of closed) -> drop it;
+        stalled anywhere else short of open -> promote it. The rule's price
+        is the grasp verify's: on the reBot (90 mm of travel, seat 15 % open)
+        an object about 13.5-16.2 mm thick that the plan sized at 19.8 mm or
+        more stalls the jaws inside that 3 % and reads as air, so the reset
+        opens the jaws on it at home. A marker this reconcile cannot judge
+        against the reading (malformed) raises `_HoldNotJudged`.
         (c) Thin objects: the held width MEASURED when the object was taken
         (jaw stall after the lift) decides whether a closed-jaw reading can
         mean a slip at all; see below.
+        A provisional hold's reading that is no number (a NaN the driver
+        reports as valid) is unknown feedback, never a width that reads empty
+        (`_finite_width_frac`); a held flag already keeps such a reading.
         """
         if getattr(self, "_contact_episode", None) is not None:
             return  # only explicit contact recovery may finish this failed close
         air = float(self.cfg.grasp.get("air_grasp_frac", 0.04))
         prov = getattr(self, "_held_provisional", None)
         if prov is not None and not self.held_object:
-            wf = self._gripper_width_frac()
+            wf = self._finite_width_frac()
             if wf is not None:
-                seat = getattr(prov, "commanded_open", None) if seat_aware else None
-                # Jaws AT the open position (within the same tolerance that
-                # separates a closed jaw from air) cannot be stalled on
-                # anything: the close never landed (refused before its first
-                # stage) or the jaws were opened since. Promoting that read
-                # every later grasp as "already holding" -- a phantom hold.
-                if wf >= 1.0 - air:
-                    self.memory.add(
-                        "outcome",
-                        f"the jaws are open; the interrupted grasp of {prov[0]!r} "
-                        "did not land -- nothing is held",
-                    )
-                elif seat is not None and self._air_grasp(wf, seat, prov.expected_open):
-                    self.memory.add(
-                        "outcome",
-                        f"the jaws closed on air at the opening the interrupted grasp of {prov[0]!r} "
-                        "commanded -- nothing is held",
-                    )
-                elif wf >= air:
-                    label, det_label, color = prov
-                    self.held_object = label
-                    self._held_det_label = det_label
-                    self._held_color = color
-                    # the stall width IS the measurement of what is held
-                    self._held_width_m = float(wf) * float(self._max_width)
-                    self.memory.add(
-                        "outcome",
-                        f"the jaws are stalled on {label!r} although the grasp did not "
-                        "complete -- treating it as held",
-                    )
+                try:
+                    seat = getattr(prov, "commanded_open", None) if seat_aware else None
+                    # Jaws AT the open position (within the same tolerance that
+                    # separates a closed jaw from air) cannot be stalled on
+                    # anything: the close never landed (refused before its first
+                    # stage) or the jaws were opened since. Promoting that read
+                    # every later grasp as "already holding" -- a phantom hold.
+                    if wf >= 1.0 - air:
+                        self.memory.add(
+                            "outcome",
+                            f"the jaws are open; the interrupted grasp of {prov[0]!r} "
+                            "did not land -- nothing is held",
+                        )
+                    elif seat is not None and self._air_grasp(wf, seat, prov.expected_open):
+                        self.memory.add(
+                            "outcome",
+                            f"the jaws closed on air at the opening the interrupted grasp of {prov[0]!r} "
+                            "commanded -- nothing is held",
+                        )
+                    elif wf >= air:
+                        label, det_label, color = prov
+                        self.held_object = label
+                        self._held_det_label = det_label
+                        self._held_color = color
+                        # the stall width IS the measurement of what is held
+                        self._held_width_m = float(wf) * float(self._max_width)
+                        self.memory.add(
+                            "outcome",
+                            f"the jaws are stalled on {label!r} although the grasp did not "
+                            "complete -- treating it as held",
+                        )
+                except Exception as exc:
+                    if not seat_aware:
+                        raise
+                    # The jaws WERE read: judging the marker against them failed.
+                    raise _HoldNotJudged(exc) from exc
                 self._held_provisional = None  # either promoted or refuted
         if not self.held_object:
             return
@@ -2765,6 +2813,13 @@ class SkillRuntime:
         if not getattr(state, "gripper_valid", True):
             return None
         return self._open_frac_of(state.gripper_pos)
+
+    def _finite_width_frac(self) -> float | None:
+        """`_gripper_width_frac` for the held-state reconcile: a reading that
+        is no number (a NaN the driver reports as valid) is unknown (None),
+        never a width that reads empty."""
+        wf = self._gripper_width_frac()
+        return wf if wf is not None and math.isfinite(wf) else None
 
     # ── language -> world resolution ─────────────────────────────────────
 
@@ -8075,6 +8130,9 @@ class SkillRuntime:
         except (SkillError, SafetyViolation) as e:
             out.update(ok=False, stage="home", home_error=str(e), beliefs_forgotten=0,
                        error=f"Scene reset could not reach home: {e}")
+            # A stop retrace that completed before the failed home move: the
+            # result still says so, as move_home's own (#359 review M4).
+            _with_retrace_result(out, e)
             return out
         # The arm is home and the scene changes next: a column kept after a
         # STOP (stop_retrace.py) no longer describes anything.
@@ -8248,53 +8306,68 @@ class SkillRuntime:
         close's provisional hold. It is classified with the jaws first,
         exactly like the grasp's own verify (`_reconcile_held(seat_aware=
         True)`, `_air_grasp` against the opening the close commanded):
-        - stalled short of that seat: the hold is promoted and the reset
-          refuses instead of homing with the object (a later open_gripper
-          dropped it);
-        - at or through the seat (the reBot's rigid close on air stops at
-          85 % of travel, 0.93 rad), closed or open: nothing is held, the
-          hold is cleared and the reset runs as for empty jaws;
-        - unreadable (unknown feedback, a failed read): refused too (fail
-          closed), naming the way out. On the reBot only a jaw command
-          restores a lost turn reference, and it closes first: an object
-          still in the jaws must come out by hand before open_gripper.
-        The hold sentence comes first and the driver's text is shortened, so
-        the refusal fits the 240 characters of the agent's failure line. A
-        held flag is never reconciled here: it refuses as it is.
+        - stalled on something (wider than the verify's air band below): the
+          hold is promoted and the reset refuses instead of homing with the
+          object (a later open_gripper dropped it);
+        - nearly shut, open, or within 3 % of travel of the seat while the
+          plan sized the object at least 7 % wider (the reBot's rigid close
+          on air stops at its seat, 85 % of travel, 0.93 rad): nothing is
+          held, the hold is cleared and the reset runs as for empty jaws.
+          That band is the verify's price: on the reBot an object about
+          13.5-16.2 mm thick that the plan sized at 19.8 mm or more stalls
+          the jaws inside it, and the reset opens the jaws on it at home;
+        - unreadable (unknown feedback, a reading that is no number, a
+          failed read): refused too (fail closed), naming the way out. On
+          the reBot only a jaw command restores a lost turn reference, and it
+          closes first: an object still in the jaws must come out by hand
+          before open_gripper;
+        - read but not judgeable (a malformed marker): refused with its own
+          text and the same way out;
+        - an unfinished contact episode: the jaws are never read (only its
+          recovery may finish that close), refused with its own text.
         While an approach column is kept after a STOP at the object
-        (stop_retrace.py), both refusals send the agent to move_home FIRST:
-        it raises the gripper up that column, with the object; place_at or
-        open_gripper first would forfeit the column and freeze the arm at the
-        object (#359 review, Important #1). "Kept" is `stop_retrace.live`,
-        the rule move_home's retrace acts on: a column that expired, or was
-        kept for another arm or backend or before a scene reset, names #363's
-        texts, never a move_home that could no longer raise the gripper."""
-        read_error = None
-        if not self.held_object and getattr(self, "_held_provisional", None) is not None:
+        (stop_retrace.py), the held, unreadable and not-judged refusals send
+        the agent to move_home FIRST: it raises the gripper up that column,
+        with the object; place_at or open_gripper first would forfeit the
+        column and freeze the arm at the object (#359 review, Important #1).
+        "Kept" is `stop_retrace.live`, the rule move_home's retrace acts on: a
+        column that expired, or was kept for another arm or backend or before
+        a scene reset, names #363's texts, never a move_home that could no
+        longer raise the gripper. (A contact episode is never such a column.)
+        Each refusal's sentence comes first and fits the 240 characters the
+        agent's failure line quotes: a long label is shortened, never the
+        sentence, and the driver's text after it is cut to the room left. A
+        held flag is never reconciled here: it refuses as it is."""
+        provisional = getattr(self, "_held_provisional", None)
+        contact = getattr(self, "_contact_episode", None) is not None
+        read_error = judge_error = None
+        if not self.held_object and provisional is not None:
             try:
                 self._reconcile_held(seat_aware=True)
+            except _HoldNotJudged as exc:
+                judge_error = exc.__cause__
             except Exception as exc:  # noqa: BLE001 -- unknown jaws: refused below
                 read_error = exc
         column_kept = stop_retrace.live(self) is not None
         if self.held_object:
             if column_kept:
-                return (f"holding {self.held_object}: call move_home first (it raises the gripper up its "
-                        "approach column, with the object), then place_at, then reset_scene")
-            return f"holding {self.held_object}: place it first (place_at), then reset"
+                return _fit_label("holding {}: call move_home first (it raises the gripper up its approach "
+                                  "column, with the object), then place_at, then reset_scene", self.held_object)
+            return _fit_label("holding {}: place it first (place_at), then reset", self.held_object)
         provisional = getattr(self, "_held_provisional", None)
         if provisional is None:
             return None
-        way_out = ("the jaw state could not be read: "
-                   + (f"call move_home first (it raises the gripper up its approach column), then, if "
-                      f"{provisional[0]} is in the jaws, take it out by hand, open_gripper, reset_scene."
-                      if column_kept else
-                      f"if {provisional[0]} is in the jaws, take it out by hand, then open_gripper, then "
-                      "reset_scene."))
-        why = read_error if read_error is not None else "no valid jaw feedback"
-        error, room = f" Error: {why}", _FAILED_ERROR_CHARS - len(way_out)
-        if len(error) > room:
-            error = error[:room - 3].rstrip() + "..." if room >= 3 else ""
-        return way_out + error
+        if contact:
+            return _fit_label("the grasp of {} ended in an unfinished contact episode, so the jaws were not "
+                              "read and it may be in them: a person must check the gripper.", provisional[0])
+        head = ((_JAWS_NOT_JUDGED if judge_error is not None else _JAWS_NOT_READ)
+                + (": call move_home first (it raises the gripper up its approach column), then, if {} is in "
+                   "the jaws, take it out by hand, open_gripper, reset_scene." if column_kept else
+                   ": if {} is in the jaws, take it out by hand, then open_gripper, then reset_scene."))
+        way_out = _fit_label(head, provisional[0], keep=_REFUSAL_ERROR_ROOM)
+        exc = judge_error if judge_error is not None else read_error
+        why = "no valid jaw feedback" if exc is None else _error_text(exc)
+        return way_out + _cut_text(f" Error: {why}", _FAILED_ERROR_CHARS - len(way_out))
 
     def _forget_held_object(self) -> None:
         """The jaws let the held object go: clear every held-object field."""
@@ -8462,12 +8535,16 @@ class SkillRuntime:
         (`_reconcile_held(seat_aware=True)`, #363): stalled on the object ->
         `holding` + place it first; at the commanded seat, closed or open ->
         nothing (the provisional hold is dropped); unreadable (unknown
-        feedback, or the read raised) -> `holding_unknown`: the object may
-        still be in the jaws, never the empty-jaws result (review Important
-        #2, M3)."""
-        read_error = None
+        feedback, a reading that is no number, or the read raised) ->
+        `holding_unknown`: the object may still be in the jaws, never the
+        empty-jaws result (review Important #2, M3). Read but not judgeable
+        (a malformed marker, `_HoldNotJudged`, #367): `holding_unknown` too,
+        naming that reason; the hold stays and the jaws are not commanded."""
+        read_error = judge_error = None
         try:
             self._reconcile_held(seat_aware=True)
+        except _HoldNotJudged as exc:  # the jaws were read: the marker could not be judged
+            judge_error = exc.__cause__
         except Exception as exc:  # noqa: BLE001 -- the jaw read failed: reported below
             read_error = exc
         if self.held_object:
@@ -8477,9 +8554,11 @@ class SkillRuntime:
         provisional = getattr(self, "_held_provisional", None)
         if provisional is None:
             return {}
+        head = _JAWS_NOT_JUDGED if judge_error is not None else _JAWS_NOT_READ
+        exc = judge_error if judge_error is not None else read_error
         return {"holding_unknown": True, "next_action": (
-            f"the jaw state could not be read: {provisional[0]} may still be in the jaws; check the gripper "
-            "before any other grasp, open or reset" + ("" if read_error is None else f". Error: {read_error}"))}
+            f"{head}: {provisional[0]} may still be in the jaws; check the gripper before any other grasp, open "
+            "or reset" + ("" if exc is None else f". Error: {_error_text(exc)}"))}
 
     def skill_move_to_rest(self, keep_torque: bool = False) -> dict:
         """"Home" / "pose 0" / "rest" / "park": fold the arm onto its rest pose
@@ -8947,6 +9026,9 @@ def _normalize_outcome(result: dict, name: str) -> dict:
 FAILED_INSTRUCTION = "This attempt FAILED"
 #: Error text quoted in that instruction; the full text stays in `error`.
 _FAILED_ERROR_CHARS = 240
+#: Room a reset hold refusal keeps after its sentence for " Error: <driver
+#: text>" (`_reset_real_hold_refusal`): a longer label is shortened instead.
+_REFUSAL_ERROR_ROOM = 40
 #: pick_and_place's next_action for a completed routine. A failure (including a
 #: refuted placement) gets the failure instructions instead, never this.
 _PICK_REPORT_NEXT_ACTION = ("Report this result, including any return_home failure, and await the next "
@@ -9051,10 +9133,11 @@ def _stop_first(stop: str, error) -> str:
 
 def _with_retrace_result(result: dict, exc: BaseException) -> None:
     """A move_home that retraced after a STOP and then failed in its home
-    move (a halt, an e-stop, a fault): its failed `result` keeps what the
-    retrace did and what the jaws hold (`stop_retrace`, `holding` or
-    `holding_unknown`, `next_action`), which skill_move_home attached to the
-    exception (review M2)."""
+    move (a halt, an e-stop, a fault): its failed `result` (execute()'s, or
+    reset_scene's when the reset called it) keeps what the retrace did and
+    what the jaws hold (`stop_retrace`, `holding` or `holding_unknown`,
+    `next_action`), which skill_move_home attached to the exception (review
+    M2, M4)."""
     kept = getattr(exc, "retrace_result", None)
     if isinstance(kept, dict):
         result.update(kept)
@@ -9087,7 +9170,10 @@ def _with_failure_instruction(result: dict) -> dict:
     error = " ".join(str(result.get("error") or "the call reported ok=false").split())
     if len(error) > _FAILED_ERROR_CHARS:
         error = error[:_FAILED_ERROR_CHARS].rstrip() + " (truncated; see error)"
-    line = (f"{FAILED_INSTRUCTION}: {error.rstrip('.')}. Tell the user it failed; never report a "
+    # One full stop ends the quoted error; a cut marker ("...", a skill that
+    # shortened its own text) already ends it and is kept.
+    end = error if error.endswith("...") else error.rstrip(".") + "."
+    line = (f"{FAILED_INSTRUCTION}: {end} Tell the user it failed; never report a "
             "failed or refuted result as success.")
     result["next_action"] = line + (f" {own}" if own else "")
     return result

@@ -99,6 +99,7 @@ class AgentOrchestrator:
         memory_frames_k: int = 4,
         plausibility: PlausibilityChecker | None = None,
         programs=None,
+        harness=None,
     ):
         self.llm = llm
         self.runtime = runtime
@@ -115,6 +116,13 @@ class AgentOrchestrator:
         else:
             self.system_prompt = build_system_prompt(getattr(runtime, "cfg", None))
             self.tool_specs = tool_specs_for_config(getattr(runtime, "cfg", None))
+        #: learned agent harness (cascade.harnessing.AgentHarness): advice text appended to the
+        #: system prompt, to tool descriptions and, for matching tasks, to the intro. `None` (the
+        #: default) leaves the prompt, the tool specs and the intro byte-identical.
+        self._base_system_prompt = self.system_prompt
+        self._base_tool_specs = self.tool_specs
+        self.harness = None
+        self.set_harness(harness)
         self.advisor = advisor
         self.max_steps = max_steps
         self.decompose = decompose
@@ -167,6 +175,19 @@ class AgentOrchestrator:
         #: no runtime write, no store touched. Arm skills only, like the
         #: fast planner: programs encode manipulation skills.
         self.programs = None if self._mobile else programs
+
+    def set_harness(self, harness) -> None:
+        """Install (or, with None, remove) a learned agent harness for the following tasks."""
+        self.harness = harness
+        if harness is None:
+            self.system_prompt = self._base_system_prompt
+            self.tool_specs = self._base_tool_specs
+            return
+        problems = harness.problems({spec.get("name") for spec in self._base_tool_specs})
+        if problems:
+            raise ValueError("agent harness refused: " + "; ".join(problems[:5]))
+        self.system_prompt = self._base_system_prompt + harness.system_suffix()
+        self.tool_specs = harness.apply_tool_specs(self._base_tool_specs)
 
     def cancel(self) -> None:
         """Cancel the current plan and hold the arm, including during inference."""
@@ -358,6 +379,10 @@ class AgentOrchestrator:
                     intro += "\n\n" + lib
             except Exception:
                 pass
+        if self.harness is not None:
+            block = self.harness.intro_block(task)
+            if block:
+                intro += "\n\n" + block
         # ROADMAP #7 action<->object consolidation (opt-in): what earlier
         # plans did to the objects this task names, across wordings.
         action_objects = getattr(self.fast_planner, "action_objects", None)

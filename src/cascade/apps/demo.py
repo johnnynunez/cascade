@@ -1986,6 +1986,23 @@ def _program_library(cfg):
                           min_tasks=int(agent_cfg.get("program_min_tasks", PROMOTION_MIN_TASKS)))
 
 
+def _agent_harness(cfg):
+    """The learned agent harness named by `agent.harness_path` or CASCADE_AGENT_HARNESS, or None.
+
+    A named file that is missing or fails validation stops the start: an operator who asked for a
+    harness must not silently run without it.
+    """
+    agent_cfg = (cfg.get("agent", {}) if cfg is not None else {}) or {}
+    path = os.environ.get("CASCADE_AGENT_HARNESS", "").strip() or agent_cfg.get("harness_path")
+    if not path:
+        return None
+    from ..harnessing import AgentHarness
+
+    harness = AgentHarness.read(Path(str(path)).expanduser())
+    print(f"[cascade] agent harness {harness.sha()[:12]} from {path}", flush=True)
+    return harness
+
+
 def _program_tier(cfg, is_mock: bool):
     """ROADMAP follow-up #8: the opt-in programs tier (docs/PROGRAMS_TIER.md).
 
@@ -2339,6 +2356,9 @@ def _run_demo(args, cfg, runtime, mobile):
         plausibility=None if mobile else _premotion_critic(cfg, llm, runtime, is_mock),
         # ROADMAP #8 programs tier: opt-in (agent.programs / CASCADE_PROGRAMS).
         programs=None if mobile else _program_tier(cfg, is_mock),
+        # Harness² agent harness (cascade.harnessing): opt-in advice text learned by
+        # scripts/harness2_improve.py (agent.harness_path / CASCADE_AGENT_HARNESS).
+        harness=_agent_harness(cfg),
     )
 
     def _run(task: str, cancel_event=None):

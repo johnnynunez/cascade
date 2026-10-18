@@ -1,11 +1,13 @@
-"""ASPIRE A8: the agent rules and recipes R1-R5 (spec §4.6, as amended by preflight ruling R2).
+"""ASPIRE A8: the agent rules and recipes R1-R4 (spec §4.6, as amended by preflight ruling R2), and R5's removal.
 
 R1 lets the kitchen agent repeat a motion order once, and only when that order's own result says SIMULATION ONLY and
 allows one more attempt: the visitor block, the plugin identity and the attendee pick_and_place description all say
 it, and none of their absolute "one motion per order, no retry" rules is left without it. R2 tells the OpenShell
 route's agent to set a held object down with place_at, on a sim-class profile only (a hardware profile's tool
-catalogue stays main's, spec §6.3). R3 and R4 are kitchen recipes, R5 makes the agent end its reply with a line a
-tool result gives.
+catalogue stays main's, spec §6.3). R3 and R4 are kitchen recipes. R5 ("end your reply with the line a tool result
+gives") is gone until a tool result actually grants such a line (A8 follow-ups fix, Minor 1): no word list can tell
+every paraphrase of the line from the agent's own text, so no rule acts on one; the runtime still withholds R5's words
+as defence in depth.
 
 Two cross-checks keep the rules sound:
 - only a retry the ledger granted carries the R1 trigger: a refusal under a halt, an e-stop (also withdrawn or reset
@@ -72,7 +74,11 @@ R1_NEVER_OTHERWISE = "Never retry otherwise, reset automatically or turn a faile
 R3 = ("For an inventory, name describe_scene's detected objects first, call anything else 'also visible, not "
       "detected', and never describe what you cannot see.")
 R4 = "If placement failed, say 'I could not place the <object>:' and the reason from the result."
+#: R5 as A8 wrote it into the visitor block (removed again: A8 follow-ups fix, Minor 1)
 R5 = "If a tool result gives a line to end your reply with, end with exactly that line."
+#: the words of any reply-line rule: none may stand in the rules the agent reads until a result grants a line
+REPLY_LINE_RULE_WORDS = ("end your reply", "end your answer", "end with", "exact line", "exactly that line",
+                         "exactly this line", "line to end", "last line", "final line")
 #: the plugin identity (index.mjs:10 and :12)
 IDENTITY_ONE_MOTION = ("Use at most one motion action per order (repeat it once only when its result allows a "
                        "SIMULATION ONLY retry), then report the final result and end the turn.")
@@ -97,7 +103,7 @@ GONE = ("Do not retry, reset automatically or turn a failed result into success.
 def test_r1_replaces_every_absolute_one_motion_rule():
     visitor = _visitor()
     assert R1_ONE_MOTION in visitor
-    assert R1_NEVER_OTHERWISE + " " + R5 in visitor  # R5 right after the remaining prohibition
+    assert R1_NEVER_OTHERWISE in visitor
     identity = _identity()
     assert IDENTITY_ONE_MOTION in identity
     assert ("Report failed or unverified placement plainly, including any return-home failure; "
@@ -109,11 +115,22 @@ def test_r1_replaces_every_absolute_one_motion_rule():
             assert old not in text, old
 
 
-def test_r3_r4_r5_are_the_kitchen_recipes():
+def test_r3_r4_are_the_kitchen_recipes():
     visitor = _visitor()
     assert "Do not invent observations, coordinates, reachable objects or tool results. " + R3 in visitor
-    assert R4 in visitor and R5 in visitor
+    assert R4 in visitor
     assert visitor.count("I could not place the <object>:") == 1
+
+
+def test_no_rule_asks_for_a_reply_line_until_a_result_grants_one():  # A8 follow-ups fix, Minor 1
+    """R5 is gone from the visitor block (it ended the paragraph after R1's remaining
+    prohibition), and neither the plugin identity nor the attendee pick_and_place
+    description asks for a reply line."""
+    visitor = _visitor()
+    assert R5 not in visitor
+    for text in (visitor, _identity(), _attendee("pick_and_place")):
+        folded = text.casefold()
+        assert not [w for w in REPLY_LINE_RULE_WORDS if w in folded], text
 
 
 def test_the_visitor_block_stays_within_400_words():

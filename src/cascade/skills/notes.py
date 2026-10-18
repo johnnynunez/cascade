@@ -533,9 +533,10 @@ _TURNS = frozenset({"turn", "turns"})
 _TURN_QUALIFIERS = frozenset({"full", "quarters"})
 _TURN_REACH = 3
 #: the triggers the kitchen agent's rules act on (ASPIRE A8, spec §4.6): R1 repeats a motion
-#: order once when ITS result says SIMULATION ONLY and allows one more attempt, R5 ends the
-#: reply with the line a tool result gives ("End your reply with this exact line: ..."). Only
-#: the runtime writes them (the sim retry ledger, the learning line). A note is shown inside a
+#: order once when ITS result says SIMULATION ONLY and allows one more attempt; R5's reply line
+#: ("End your reply with this exact line: ...") is out of the rules until a tool result grants
+#: one (A8 follow-ups fix; A9/A10), and its words stay refused. Only the runtime writes them
+#: (the sim retry ledger; the learning line, A9/A10). A note is shown inside a
 #: tool result (robot_knowledge) and beside the rules (LEARNED.md): one that carries a trigger
 #: would turn advice into a permission to move again or a line repeated verbatim, so it is
 #: refused wherever the trigger stands

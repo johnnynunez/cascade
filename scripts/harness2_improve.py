@@ -49,8 +49,8 @@ def main(argv=None) -> int:
     ap.add_argument("--mode", choices=("parallel", "sequential"), default="parallel")
     ap.add_argument("--gate", choices=("verified", "none"), default="verified")
     ap.add_argument("--start", default="library",
-                    help="base harness: 'library' (latest adopted in this scope/family, else empty), "
-                         "'empty', or a harness.json path")
+                    help="seed of a family with no adopted harness yet in this scope: 'empty' (or 'library') "
+                         "or a harness.json path; later tasks always continue from the library")
     ap.add_argument("--out", type=Path, default=None, help="run directory (default runs/harness2/<stamp>)")
     ap.add_argument("--library", type=Path, default=Path("~/.cascade/harness2/library").expanduser())
     ap.add_argument("--workers", type=int, default=2, help="concurrent improver sessions")
@@ -72,12 +72,15 @@ def main(argv=None) -> int:
     out = args.out or REPO / "runs" / "harness2" / dt.datetime.now().strftime("%Y%m%d-%H%M%S")
     print(f"[harness2] scope {scope}; {len(specs)} task(s); mode {args.mode} k={args.k}; out {out}")
 
-    def base_for(domain: str) -> AgentHarness:
-        if args.start == "empty":
+    def seed() -> AgentHarness:
+        if args.start in ("empty", "library"):
             return AgentHarness()
-        if args.start == "library":
-            return Library(args.library, scope, domain).latest_adopted() or AgentHarness()
         return AgentHarness.read(Path(args.start))
+
+    def base_for(domain: str) -> AgentHarness:
+        # Harness² task order: a family continues from the harness its last task adopted; the
+        # --start harness seeds a family whose library is still empty in this scope.
+        return Library(args.library, scope, domain).base_or(seed())
 
     for domain in sorted({s.domain for s in specs}):
         problems = base_for(domain).problems(tool_names)

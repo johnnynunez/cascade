@@ -264,10 +264,12 @@ def test_ledger_identity_is_enforced():
 def test_library_is_ordered_scoped_and_answer_free(tmp_path):
     lib = Library(tmp_path, "so101__mujoco__codex", "pick-place")
     assert lib.latest_adopted() is None and not lib.context_into(tmp_path / "ctx0")
+    assert lib.base_or(AgentHarness.from_dict(GOOD)) == AgentHarness.from_dict(GOOD)   # an empty family: the seed
     lib.append("t1", AgentHarness.from_dict(GOOD), "# lesson", {"measured": {"base1": False}}, "lesson: x")
     lib.append("t2", AgentHarness(), "# none", {"measured": {"base1": True}}, "NO_ENTRY")
     assert [p.name for p in lib.entries()] == ["001-t1", "002-t2"]
     assert lib.latest_adopted() == AgentHarness()
+    assert lib.base_or(AgentHarness.from_dict(GOOD)) == AgentHarness()               # then what it adopted last
     assert lib.context_into(tmp_path / "ctx")
     copied = sorted(str(p.relative_to(tmp_path / "ctx")) for p in (tmp_path / "ctx").rglob("*") if p.is_file())
     assert "001-t1/meta.json" not in copied and "001-t1/EXPERIENCE.md" in copied and "INDEX.md" in copied

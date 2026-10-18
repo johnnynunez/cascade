@@ -58,6 +58,10 @@ class Library:
                 return AgentHarness.read(path)
         return None
 
+    def base_or(self, seed: AgentHarness) -> AgentHarness:
+        """The harness the family's next task starts from: the latest adopted one, else `seed`."""
+        return self.latest_adopted() or seed
+
     def context_into(self, dst: Path) -> bool:
         """Copy the readable part of every earlier entry into ``dst``; False when empty."""
         entries = self.entries()

@@ -348,7 +348,9 @@ class Harnessing:
                 "selected_measured": rollouts[adopted_label].measured_success if adopted_label in rollouts else None}
         if self.gate == "verified" and adopted_label not in base_labels and \
                 rollouts[adopted_label].measured_success is not True:
-            gate["decision"] = "kept base: the selected execution was not verified by CASCADE"
+            gate["decision"] = ("kept base: the selected execution failed the task's hidden check"
+                                if rollouts[adopted_label].check is not None
+                                else "kept base: the selected execution was not verified by CASCADE")
             adopted, adopted_label = base, base_labels[0]
         else:
             gate["decision"] = "adopted the selected execution's harness"

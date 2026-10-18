@@ -40,12 +40,22 @@ ORACLE_SKILLS: frozenset[str] = frozenset({
     "count_objects",
     # Task 4: the grasp path
     "grasp_object", "grasp_at_pixel",
+    # Task 5: releases and pushes
+    "place_at", "place_on_object", "push_object", "pick_and_place",
 })
 
-#: Result keys whose numeric 3-vector is a POINT: rig B's is T a.
-POINT_KEYS: frozenset[str] = frozenset({"position", "tcp_xyz", "object_xyz"})
-#: Result keys whose numeric 2-vector is an xy in the table frame: rig B's is the xy of T (x, y, 0).
-XY_KEYS: frozenset[str] = frozenset({"position_xy_m"})
+#: Result keys whose numeric 3-vector is a POINT: rig B's is T a. Task 5:
+#: place_at's `at` / `tcp_at`, pick_and_place's `placed_at`, the retreat's
+#: `tcp_at`, push's `new_position_estimate`, a postcondition's `final` pose.
+POINT_KEYS: frozenset[str] = frozenset({"position", "tcp_xyz", "object_xyz", "at", "tcp_at", "placed_at",
+                                        "new_position_estimate", "final"})
+#: Result keys whose numeric 2-vector is an xy in the table frame: rig B's is
+#: the xy of T (x, y, 0). Task 5: a failed pick's configured `target`.
+XY_KEYS: frozenset[str] = frozenset({"position_xy_m", "target"})
+#: Scalar distances in metres measured between two perceived poses (a
+#: postcondition's errors and travel): frame-free, but read from perception,
+#: so compared at the point tolerance instead of 1e-9.
+DISTANCE_KEYS: frozenset[str] = frozenset({"target_err_m", "dest_err_m", "moved_m", "err_m"})
 #: Result keys whose numeric 3-vector is a DIRECTION: rig B's is R a.
 DIRECTION_KEYS: frozenset[str] = frozenset()
 #: Result keys whose numeric vector does not depend on the frame: equal.
@@ -54,7 +64,8 @@ FRAME_FREE_KEYS: frozenset[str] = frozenset({"extent_m", "q_deg"})
 #: ages, the visible/remembered state derived from an age, timings).
 VOLATILE_KEYS: frozenset[str] = frozenset({
     "age_s", "frame_age_s", "frame_id", "state", "perception_timing", "observation_retry",
-    "selection_s"})   # the observed-finger choice time (wall clock)
+    "selection_s",    # the observed-finger choice time (wall clock)
+    "duration_s", "timings"})   # pick_and_place's wall-clock stage times
 #: Prose that quotes xy positions as "[x, y]": the numbers map like XY_KEYS,
 #: the rest of the text stays equal.
 TEXT_XY_KEYS: frozenset[str] = frozenset({"description"})
@@ -403,6 +414,10 @@ def _compare(a, b, T, path, problems) -> None:
             want = lift(T, [float(pa[0]), float(pa[1]), 0.0])[:2]
             if not np.allclose([float(v) for v in pb], want, rtol=0.0, atol=_POINT_ATOL):
                 problems.append(f"{where}: [{pb[0]}, {pb[1]}] != T [{pa[0]}, {pa[1]}]")
+        return
+    if key in DISTANCE_KEYS and isinstance(a, (int, float)) and isinstance(b, (int, float)):
+        if not np.isclose(a, b, rtol=0.0, atol=_POINT_ATOL):
+            problems.append(f"{where}: {a!r} != {b!r} (distance, {_POINT_ATOL} m)")
         return
     if isinstance(a, float) or isinstance(b, float):
         if not (isinstance(a, (int, float)) and isinstance(b, (int, float))

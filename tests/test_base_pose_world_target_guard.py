@@ -43,10 +43,6 @@ GUARD = "this arm is mounted off the table origin (base_pose); world targets are
 #: verified against the call graph in
 #: `test_the_guarded_list_is_every_skill_that_aims_at_a_world_position`).
 WORLD_TARGET_CALLS = {
-    "pick_and_place": {"object": "red cube"},
-    "place_at": {"x": 0.25, "y": -0.10, "z": 0.05},
-    "place_on_object": {"label": "red cube"},
-    "push_object": {"label": "red cube", "direction": "left", "distance_m": 0.05},
     "move_near_object": {"label": "red cube", "relation": "above"},
     "sort_by_color": {},
     "search_for_object": {"label": "red cube"},
@@ -63,7 +59,15 @@ CONVERTED_CALLS = {
     "preview_grasp": {"label": "red cube"},     # Task 3
     "grasp_object": {"label": "red cube"},      # Task 4
     "grasp_at_pixel": {"u": 0.5, "v": 0.5, "normalized": True},     # Task 4
+    "pick_and_place": {"object": "red cube"},   # Task 5
+    "place_at": {"x": 0.25, "y": -0.10, "z": 0.05},     # Task 5
+    "place_on_object": {"label": "red cube"},   # Task 5
+    "push_object": {"label": "red cube", "direction": "left", "distance_m": 0.05},     # Task 5
 }
+#: Converted release skills need no perception to start: "ran" is reaching
+#: the place stage (placed whatever the mock jaws stalled on, or refused there).
+NEEDS_A_HOLD = frozenset({"place_at", "place_on_object"})
+PLACE_STAGE = ("not holding anything", "place pose unreachable")
 
 #: The tilt refusal's scope (spec D4, §5): the brief's 15 world-target skills,
 #: FROZEN as the plan started. It never shrinks with `_WORLD_TARGET_SKILLS`:
@@ -275,7 +279,7 @@ def test_the_mcp_server_relays_the_refusal_with_one_failed_line(make_runtime, mo
     assert spy.arm_commands() == 0 and spy.jaw == [] and spy.perception == []
 
 
-@pytest.mark.parametrize("skill", ["place_at", "throw", "push_object"])
+@pytest.mark.parametrize("skill", ["move_near_object", "throw", "turn_screw"])   # still guarded (Task 6)
 def test_the_refusal_never_powers_a_lazy_arm(make_runtime, skill):
     """The MCP server builds every arm lazily (standby until a motion)."""
     rt = make_runtime(["so101_left", "so101_right"], lazy=True)
@@ -324,6 +328,9 @@ def test_a_converted_skill_runs_on_a_base_pose_arm(make_runtime, monkeypatch, ri
         assert spy.arm_commands() == 0 and spy.jaw == [] and spy.perception == []
         return
     assert TILT not in str(result.get("error")), result
+    if skill in NEEDS_A_HOLD:
+        assert result.get("placed") or any(s in str(result.get("error")) for s in PLACE_STAGE), result
+        return
     # it ran: perceived (the object here is W (0.198, 0), 22 cm across from
     # so101_right's base, where a pointing pose or a grasp may honestly be
     # refused); grasp_at_pixel reads the camera frame itself
@@ -431,7 +438,7 @@ def test_the_tilt_text_quotes_a_sub_print_step_angle_with_its_digits():
 # ── 3. the RUNNING arm decides (execute(arm=...) included) ────────────────
 
 
-@pytest.mark.parametrize("skill", ["place_at", "push_object"])
+@pytest.mark.parametrize("skill", ["move_near_object", "search_for_object"])   # still guarded (Task 6)
 def test_the_running_arm_decides_not_the_primary(make_runtime, monkeypatch, skill):
     """A pair whose primary has the identity pose and whose second arm has a
     real base_pose: only calls that RUN on the second arm are refused."""
@@ -445,7 +452,7 @@ def test_the_running_arm_decides_not_the_primary(make_runtime, monkeypatch, skil
     assert spy.perception, "the primary's call ran its skill"
 
 
-@pytest.mark.parametrize("skill", ["place_at", "push_object"])
+@pytest.mark.parametrize("skill", ["move_near_object", "search_for_object"])   # still guarded (Task 6)
 def test_a_selected_arm_without_a_base_pose_runs_beside_a_mounted_primary(make_runtime, monkeypatch, skill):
     rt = make_runtime(["so101_left", "so101_right"], {"so101_right": IDENTITY})
     spy = Spy(rt, monkeypatch)
@@ -459,7 +466,7 @@ def test_a_grasp_on_the_identity_primary_still_moves_the_arm(make_runtime, monke
     """The identity pose is main's path: the grasp really runs (commands)."""
     rt = make_runtime(["so101_left", "so101_right"], {"so101_left": IDENTITY})
     spy = Spy(rt, monkeypatch)
-    result = rt.execute("place_at", dict(WORLD_TARGET_CALLS["place_at"]))
+    result = rt.execute("place_at", dict(CONVERTED_CALLS["place_at"]))
     assert GUARD not in str(result.get("error")), result
     assert spy.arm_commands() > 0
 

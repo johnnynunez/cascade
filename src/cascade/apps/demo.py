@@ -268,11 +268,15 @@ def _arm_safety(acfg, occupancy, fallback_cfg, *, payload_tracked: bool = False)
     # Every arm's grasp section is live under execute(arm=) (spec Q4 a): its
     # jaw-open bound must be valid before any arm exists (R8), never first
     # after a grasp's close on the second arm.
-    from ..skills.runtime import open_wait_timeout_s
+    from ..skills.runtime import close_stall_band, open_wait_timeout_s
     from ..types import SkillError
 
     try:
         open_wait_timeout_s(view.get("grasp") or _empty_cfg())
+        # The close under execute(arm=) reads the bound profile's arm section
+        # (the resolved view): its stall band must be valid here too, not only
+        # the arm entry's own `gripper` (checked in _build_runtime).
+        close_stall_band((view.get("arm") or _empty_cfg()).get("gripper"))
     except SkillError as exc:
         raise ValueError(f"arm {arm_name!r}: {exc}") from None
     kin = Kinematics(

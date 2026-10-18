@@ -23,8 +23,10 @@ the column.
   arm. Never after a contact (ContactDetected is no operator stop), never
   while a contact episode is retained (payload maps: reset_scene's contact
   recovery owns that case).
-- `forget` drops every kept column: execute() on any other motion skill,
-  skill_grasp_object at its start, reset_scene once its home move is done.
+- `forget` drops the RUNNING arm's kept column: execute() on any other motion
+  skill, skill_grasp_object at its start (another arm's motion leaves its
+  column alone: base_pose R5 follow-up); reset_scene, once its home move is
+  done, drops every arm's (`every_arm`: the scene changes for all of them).
   A column also expires `MAX_AGE_S` (300 s, monotonic clock) after the stop:
   the explicit call then drops it and today's home move runs (frozen, 0
   commands). The scene changes only through reset_scene on the reBot: its
@@ -111,14 +113,18 @@ def live(runtime) -> Kept | None:
     return record
 
 
-def forget(runtime) -> int:
-    """Drop every kept column; how many there were."""
+def forget(runtime, *, every_arm: bool = False) -> int:
+    """Drop the running arm's kept column (`every_arm`: every arm's); how
+    many were dropped. A column is one arm's approach: another arm's motion
+    does not forfeit it (it would strand that arm at its object)."""
     records = _records(runtime)
     if not records:
         return 0
-    count = len(records)
-    records.clear()
-    return count
+    if every_arm:
+        count = len(records)
+        records.clear()
+        return count
+    return 0 if records.pop(id(runtime.arm), None) is None else 1
 
 
 def _scene(harness):

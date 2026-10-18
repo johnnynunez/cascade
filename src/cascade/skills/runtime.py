@@ -645,11 +645,11 @@ _FOREGROUND_PERCEPTION_SKILLS = _MOTION_SKILLS | {"preview_grasp", "localize_obj
 #: base_pose runtime frame). execute() refuses them on such an arm
 #: (`_mounted_off_table_origin`); a skill leaves this set in the task whose
 #: tests prove it reaches the world point (point_at, preview_grasp: Task 3;
-#: grasp_object, grasp_at_pixel: Task 4).
+#: grasp_object, grasp_at_pixel: Task 4; place_at, place_on_object,
+#: push_object, pick_and_place: Task 5).
 #: Pinned against the call graph by tests/test_base_pose_world_target_guard.py.
 _WORLD_TARGET_SKILLS = frozenset({
-    "pick_and_place", "place_at",
-    "place_on_object", "push_object", "move_near_object", "sort_by_color",
+    "move_near_object", "sort_by_color",
     "search_for_object", "restore_scene", "turn_screw", "throw", "handover",
 })
 #: Why a world-target skill is refused on an arm with a base_pose.
@@ -988,6 +988,7 @@ class SkillRuntime:
         self.last_frame: Frame | None = None
         self.last_annotated_frame: Frame | None = None
         self.held_object: str | None = None
+        self._held_arm: str | None = None
         # (3,) base-frame vector from TCP to the held object, or None. Set at
         # grasp, refreshed by re-observation before a place.
         self._held_offset = None
@@ -1175,6 +1176,10 @@ class SkillRuntime:
     _kin = None
     _cfg = None
     _arm_bindings = None
+    #: The rig name of the arm whose jaws hold `held_object` (spec D9 / R5):
+    #: set wherever `held_object` is set, None wherever it is cleared. None
+    #: with an object held (a runtime double, a hand-set flag): this arm's.
+    _held_arm = None
 
     # ── the running arm's frame (spec 2026-10-17 base_pose runtime frame) ──
     #
@@ -1324,6 +1329,55 @@ class SkillRuntime:
         """The running arm's `safety.table_z` (its base frame) as a table-frame
         height. Without a base_pose: `table_z` itself."""
         return arm_frame.table_z_in_world(self.T_world_base, float(self.cfg.safety.get("table_z", 0.0)))
+
+    def _height_to_world(self, z: float) -> float:
+        """A running-arm-frame height as a table-frame height (level mounts;
+        agent text quotes table-frame numbers). Without a base_pose: z."""
+        return arm_frame.table_z_in_world(self.T_world_base, z)
+
+    def _running_arm_name(self) -> str | None:
+        """The rig name of the arm this call drives, as execute() names it
+        (identity search, no arm attribute read): "default" without a rig."""
+        rig = getattr(self, "arm_rig", None)
+        if rig is None:
+            return "default"
+        running = self.arm
+        return next((key for key, arm in rig.arms.items() if arm is running), None)
+
+    def _held_by_another_arm(self) -> str | None:
+        """The name of the arm holding `held_object` when it is NOT the arm
+        this call drives (spec D9 / R5), else None. A hold without a recorded
+        arm counts as this arm's, as before."""
+        held_arm = getattr(self, "_held_arm", None)
+        if not getattr(self, "held_object", None) or held_arm is None:
+            return None
+        return None if held_arm == self._running_arm_name() else held_arm
+
+    def _check_holding_arm(self) -> None:
+        """Refuse a release on an arm that does not hold the object (spec D9,
+        §5): its jaws would open on nothing while the holding arm keeps it.
+        Called first, before any work."""
+        other = self._held_by_another_arm()
+        if other is not None:
+            raise SkillError(f"{self.held_object!r} is held by arm {other!r}, not {self._running_arm_name()!r}; "
+                             "no motion was sent")
+
+    def _model_release_refusal(self, model_plan=None) -> None:
+        """R9: the MuJoCo placement and withdrawal observers admit only an
+        articulation root at the kinematic origin, so a base_pose arm with a
+        region plan or a declared model release (`mj_delivery_area`,
+        `mj_release_*`) is refused before any command. Without a base_pose:
+        nothing (today's path)."""
+        if self.T_world_base is None:
+            return
+        arm = self.cfg.arm
+        data = getattr(arm, "_data", arm) if not isinstance(arm, dict) else arm
+        declared = isinstance(data, dict) and any(
+            value is not None and (key == "mj_delivery_area" or str(key).startswith("mj_release_"))
+            for key, value in data.items())
+        if model_plan is not None or declared:
+            raise SkillError("region placement / model release is not supported on a base_pose arm; "
+                             "no motion was sent")
 
     @property
     def arm(self):
@@ -2814,6 +2868,7 @@ class SkillRuntime:
                     elif wf >= air:
                         label, det_label, color = prov
                         self.held_object = label
+                        self._held_arm = self._running_arm_name()
                         self._held_det_label = det_label
                         self._held_color = color
                         # the stall width IS the measurement of what is held
@@ -2830,6 +2885,10 @@ class SkillRuntime:
                     raise _HoldNotJudged(exc) from exc
                 self._held_provisional = None  # either promoted or refuted
         if not self.held_object:
+            return
+        if self._held_by_another_arm() is not None:
+            # R5 / D9: only the holding arm's jaws can say the object slipped;
+            # this arm's (shut, open or stalled) say nothing about it.
             return
         wf = self._gripper_width_frac()
         if wf is None:  # unknown feedback: keep the cautious assumption
@@ -2859,6 +2918,7 @@ class SkillRuntime:
                 "(it must have slipped); clearing the held state",
             )
             self.held_object = None
+            self._held_arm = None
             self._held_det_label = None
             self._held_color = None
             self._held_width_m = None
@@ -5707,6 +5767,7 @@ class SkillRuntime:
         the measured width, the aiming offset and the observation binding.
         Shared by the analytic and the VLA executor so the two cannot drift."""
         self.held_object = label
+        self._held_arm = self._running_arm_name()
         self._held_det_label = fix.detection.label
         self._held_color = detection_color(frame.rgb, fix.detection)
         self._held_provisional = None  # promoted: the real flag is set now
@@ -6054,6 +6115,7 @@ class SkillRuntime:
         air = float(self.cfg.grasp.get("air_grasp_frac", 0.04))
         if wf is not None and air < wf < 0.9:
             self.held_object = "object"
+            self._held_arm = self._running_arm_name()
             self._held_det_label = None
             self._held_width_m = float(wf) * float(self._max_width)  # measured now
             self.memory.add(
@@ -6110,6 +6172,17 @@ class SkillRuntime:
         return reason
 
     def skill_place_at(self, x: float, y: float, z: float | None = None, *, _model_plan=None) -> dict:
+        # Before any work: a release on the arm that does not hold the object
+        # (spec D9) and a model release on a base_pose arm (R9) are refused.
+        self._check_holding_arm()
+        self._model_release_refusal(_model_plan)
+        # (x, y[, z]) are table-frame agent coordinates (Q1 a): into the
+        # running arm's frame. An omitted z stays the arm's own release height.
+        if self.T_world_base is not None:
+            if z is None:
+                x, y = (float(v) for v in self._to_arm(np.array([x, y, 0.0], dtype=float))[:2])
+            else:
+                x, y, z = (float(v) for v in self._to_arm(np.array([x, y, z], dtype=float)))
         from .mujoco_placement_aim import RegionPlan
         if _model_plan is not None:
             if type(_model_plan) is not RegionPlan:
@@ -6132,8 +6205,8 @@ class SkillRuntime:
         if release_z > z_cap:
             self.memory.add(
                 "note",
-                f"place height {release_z:.2f} m is above the wrist's "
-                f"top-down ceiling; releasing from {z_cap:.2f} m instead",
+                f"place height {self._height_to_world(release_z):.2f} m is above the wrist's "
+                f"top-down ceiling; releasing from {self._height_to_world(z_cap):.2f} m instead",
             )
             release_z = z_cap
         if _model_plan is not None:
@@ -6216,6 +6289,7 @@ class SkillRuntime:
                 self._gripper_opens_completed += 1
                 slipped = self.held_object
                 self.held_object = None
+                self._held_arm = None
                 self._held_det_label = None
                 self._held_color = None
                 self._held_offset = None
@@ -6244,8 +6318,10 @@ class SkillRuntime:
         if aim is not None:
             aim.guard(self, q_now)
             target = geometry.target.copy()
-        self.memory.add('note', f"planned TCP aim [{target[0]:.3f}, {target[1]:.3f}, {target[2]:.3f}] "
-                        f"for requested OBJECT XY [{x:.3f}, {y:.3f}]")
+        aim_w = self._to_world(target)                     # agent text: table frame
+        asked_w = self._to_world(np.array([x, y, release_z], dtype=float))
+        self.memory.add('note', f"planned TCP aim [{aim_w[0]:.3f}, {aim_w[1]:.3f}, {aim_w[2]:.3f}] "
+                        f"for requested OBJECT XY [{asked_w[0]:.3f}, {asked_w[1]:.3f}]")
         lift, pre, low = geometry.lift, geometry.pre, geometry.low
         retreat, retreat_target = geometry.retreat, geometry.retreat_target
         R, hover = geometry.rotation, geometry.hover
@@ -6281,7 +6357,8 @@ class SkillRuntime:
                 raise _PreCarryLiftError(f"pre-carry lift was interrupted: {exc}") from exc
             if not lifted:
                 raise _PreCarryLiftError("pre-carry lift did not settle; keeping the grasp")
-            self.memory.add("action", f"reached planned carry height {hover[2]:.3f} m before horizontal transport")
+            self.memory.add("action", f"reached planned carry height {self._height_to_world(hover[2]):.3f} m "
+                            "before horizontal transport")
         if not self._move_carry(pre.q, duration_s=float(gcfg.get("move_duration_s", 2.5)),
                                      **({} if aim is None else aim.motion_arguments())):
             raise SkillError("did not settle above the place target")
@@ -6378,18 +6455,20 @@ class SkillRuntime:
                 # Use the OBJECT's aim point, not the TCP's: `target` may have
                 # been shifted to compensate for how the object sits in the
                 # jaws, and recording that would seed the belief offset by
-                # exactly the amount the compensation just removed.
+                # exactly the amount the compensation just removed. The world
+                # model is the table frame.
                 self._held_det_label or placed,
-                np.array([x, y, release_z], dtype=float),
+                self._to_world(np.array([x, y, release_z], dtype=float)),
                 0.8, color=self._held_color
             )
             self.held_object = None
+            self._held_arm = None
             self._held_det_label = None
             self._held_offset = None
             self._held_support_offset_m = None
             self._held_color = None
             self._held_width_m = None
-            self.memory.add("action", f"placed {placed!r} at {target.round(3).tolist()}")
+            self.memory.add("action", f"placed {placed!r} at {np.round(self._to_world(target), 3).tolist()}")
             try:
                 if release_error is None and release is not None:
                     release_episode.wait_geometry(self, release)
@@ -6439,17 +6518,20 @@ class SkillRuntime:
         if retreat_target is not None:
             result["post_place_retreat"] = {
                 "ok": retreat_error is None,
-                "tcp_at": [round(float(v), 3) for v in retreat_target],
+                "tcp_at": [round(float(v), 3) for v in self._to_world(retreat_target)],
             }
             if retreat_error is not None:
                 # Release already happened. Do not retry this grasp/place or
                 # take the unsafe home sweep after a failed clearance motion.
                 result.update(ok=False, stage="release" if release_error else "retreat", error=retreat_error,
                               home_skipped=True)
+        # Reported in the table frame (the agent's coordinates): `at` is the
+        # caller's object aim (x, y), not the compensated `target`.
+        x, y, release_z = (float(v) for v in self._to_world(np.array([x, y, release_z], dtype=float)))
         return {"placed": placed,
                 "at": [round(float(x), 3), round(float(y), 3),
                        round(float(release_z), 3)],
-                "tcp_at": [round(float(v), 3) for v in target],
+                "tcp_at": [round(float(v), 3) for v in self._to_world(target)],
                 **result}
 
     def _destination_fix(self, label: str):
@@ -6466,8 +6548,9 @@ class SkillRuntime:
 
         A stale belief is worse than no belief here, so a fresh observation
         wins over the stored one whenever it is available. Returns
-        `(position, top_z)` or None when nothing can be observed, in which case
-        the caller keeps today's behaviour.
+        `(position, top_z)` in the TABLE frame (the world model's, the pose
+        channel's and place_at's) or None when nothing can be observed, in
+        which case the caller keeps today's behaviour.
         """
         # The external pose channel, when attached, sees the destination even
         # when the camera cannot (benchmark oracle mode). Same provenance
@@ -6482,12 +6565,13 @@ class SkillRuntime:
                 pass
         try:
             frame, fix = self._localize(label)
+            world = self._fix_to_world(fix)      # the arm-frame fix, remembered and returned in the table frame
             self.beliefs.update(
-                fix.detection.label or label, fix.position, fix.detection.conf,
-                extent=fix.extent, top_z=float(fix.points[:, 2].max()),
+                fix.detection.label or label, world.position, fix.detection.conf,
+                extent=fix.extent, top_z=float(world.points[:, 2].max()),
                 color=detection_color(frame.rgb, fix.detection),
             )
-            return np.asarray(fix.position, float), float(fix.points[:, 2].max())
+            return np.asarray(world.position, float), float(world.points[:, 2].max())
         except Exception:
             return None
 
@@ -6519,6 +6603,7 @@ class SkillRuntime:
         return self.skill_place_at(float(pos[0]), float(pos[1]), drop)
 
     def skill_place_on_object(self, label: str) -> dict:
+        self._check_holding_arm()        # spec D9: before any work
         if self._native_wrist_camera():
             self._reconcile_held()
         self._adopt_unknown_held()
@@ -6541,7 +6626,10 @@ class SkillRuntime:
                 if not np.isfinite(support_z):
                     raise SkillError("configured open box requires a finite support height")
                 release = self._supported_release_height(support_z, release)
-            result = self.skill_place_at(float(center[0]), float(center[1]), release)
+            # The box pose is this arm's configuration (its base frame);
+            # place_at takes table-frame coordinates.
+            at = self._to_world(np.array([center[0], center[1], release], dtype=float))
+            result = self.skill_place_at(float(at[0]), float(at[1]), float(at[2]))
             return {**result, "destination": "open box", "destination_kind": "configured_point"}
         if self._native_wrist_camera():
             return self._place_at_destination(self._overview_destination(label))
@@ -6556,15 +6644,16 @@ class SkillRuntime:
             belief = self.beliefs.find(label)
             if belief is None:
                 frame, fix = self._localize(label)
+                world = self._fix_to_world(fix)  # table frame: the world model's and place_at's
                 self.beliefs.update(
-                    fix.detection.label or label, fix.position,
+                    fix.detection.label or label, world.position,
                     fix.detection.conf, extent=fix.extent,
-                    top_z=float(fix.points[:, 2].max()),
+                    top_z=float(world.points[:, 2].max()),
                     color=detection_color(frame.rgb, fix.detection),
                 )
                 # The detector's label may differ from the user's query.
                 return self._place_at_destination(
-                    (fix.position, float(fix.points[:, 2].max())))
+                    (world.position, float(world.points[:, 2].max())))
             # Use the actually observed highest point of the target, never OBB
             # extents (those are eigenvalue-ordered, not axis-aligned).
             pos = belief.position
@@ -6619,9 +6708,10 @@ class SkillRuntime:
             self._move_joints(ik_hover.q, duration_s=1.5)
         finally:
             self.arm.harness.clear_grasp_exemption()
-        self.beliefs.update(label, end, 0.6)
+        end_w = self._to_world(end)            # the world model and the report: table frame
+        self.beliefs.update(label, end_w, 0.6)
         self.memory.add("action", f"pushed {label!r} {direction} by {distance_m:.2f} m")
-        return {"pushed": label, "direction": direction, "new_position_estimate": end.round(3).tolist()}
+        return {"pushed": label, "direction": direction, "new_position_estimate": np.round(end_w, 3).tolist()}
 
     def skill_pick_and_place(
         self,
@@ -6639,6 +6729,9 @@ class SkillRuntime:
         for "pick and place pink object"."""
         # An operator halt from here on ends the grasp stage (`_end_on_halt`).
         halt_generation = self._halt_generation_now()
+        # R9: its place stage would refuse a model release on a base_pose arm
+        # after the grasp; refuse before any command instead.
+        self._model_release_refusal()
         try:
             carry_attachment.check(self)
             self._reconcile_held()
@@ -6646,6 +6739,8 @@ class SkillRuntime:
             return carry_attachment.failure_result(self, exc, grasp_attempts=0, place_attempts=0)
         from .held_observation import HeldObservationInvalid
         already_held = None
+        # Another arm's hold: this arm would place what it does not hold (D9).
+        self._check_holding_arm()
         if self.held_object:
             hq, oq = self.held_object.lower(), str(object).lower()
             if hq in oq or oq in hq:
@@ -6672,9 +6767,11 @@ class SkillRuntime:
             # A failed grasp/carry still aimed at this calibrated floor mark.
             # Without this context, the postcondition checker may resolve its
             # colour name as a movable object or an absent body's zero pose.
+            # The mark is this arm's (its base frame); reported table-frame.
+            dz_w = self._to_world(np.array([float(dz[0]), float(dz[1]), 0.0]))
             failure_destination = {"destination": destination_name,
                 "destination_kind": "configured_point",
-                "target": [float(dz[0]), float(dz[1])]}
+                "target": [float(dz_w[0]), float(dz_w[1])]}
             if self.cfg.arm.get("mj_delivery_area") is not None:
                 from ..sim.mujoco_placement import Region
                 region = Region.parse(self.cfg.arm.get("mj_delivery_area"))
@@ -6692,8 +6789,8 @@ class SkillRuntime:
             # Its grouping prim can sit at the origin while the cavity is
             # elsewhere. A failed grasp needs the same destination provenance
             # as a completed place, before the place stage has been reached.
-            failure_destination = {"destination": "open box",
-                "destination_kind": "configured_point", "target": center.tolist()}
+            failure_destination = {"destination": "open box", "destination_kind": "configured_point",
+                "target": self._to_world(np.array([center[0], center[1], 0.0]))[:2].tolist()}
         max_attempts = max(int(gcfg.get("max_pick_attempts", 8)), 1)
         deadline = t0 + float(gcfg.get("persist_seconds", 120.0))
         # #2.3: the budget must not multiply across tiers. The reflex tier
@@ -6897,7 +6994,11 @@ class SkillRuntime:
                         region_selection = None if region_plan is None else region_plan.report
                         dz = (region_selection["target"] if region_selection is not None
                               else gcfg.get("drop_zone", [0.30, -0.20]))
-                        res = self.skill_place_at(float(dz[0]), float(dz[1]),
+                        # This arm's drop zone (its base frame; a region plan
+                        # never runs on a base_pose arm, R9): place_at takes
+                        # table-frame coordinates.
+                        dz_w = self._to_world(np.array([float(dz[0]), float(dz[1]), 0.0]))
+                        res = self.skill_place_at(float(dz_w[0]), float(dz_w[1]),
                             **({} if region_plan is None else {'_model_plan': region_plan}))
                         if region_selection is not None:
                             res.update(destination=region_selection["destination"],
@@ -7124,11 +7225,14 @@ class SkillRuntime:
         if not hover[2] >= need:
             hover[2] = min(need + POINT_AT_IK_SLACK_M, z_max)
         rungs = [z for z in (hover[2], z_max - 0.02) if z >= need]
+        # Agent text quotes TABLE-frame heights (Q1 a); the checks above and
+        # below stay in the arm frame.
+        world_z = self._height_to_world
         if not rungs:
             raise SkillError(
-                f"cannot point at {label!r} from above on this arm: its top-down ceiling is {z_max:.3f} m, "
-                f"below the object top + margin ({need:.3f} m: top {top:.3f} m + clearance {margin:.3f} m "
-                f"+ {reach:.3f} m of jaw below the TCP); nothing was moved")
+                f"cannot point at {label!r} from above on this arm: its top-down ceiling is {world_z(z_max):.3f} m, "
+                f"below the object top + margin ({world_z(need):.3f} m: top {world_z(top):.3f} m + clearance "
+                f"{margin:.3f} m + {reach:.3f} m of jaw below the TCP); nothing was moved")
 
         q_now = self.arm.get_state().q
         ik = None
@@ -7153,8 +7257,8 @@ class SkillRuntime:
             if too_low is not None:
                 raise SkillError(
                     f"cannot reach a pointing pose above {label!r} that keeps the closed jaws {margin:.3f} m "
-                    f"above its top ({top:.3f} m): the best solved pose put them at {too_low:.3f} m; "
-                    f"nothing was moved")
+                    f"above its top ({world_z(top):.3f} m): the best solved pose put them at "
+                    f"{world_z(too_low):.3f} m; nothing was moved")
             raise SkillError(f"cannot reach a pointing pose above {label!r}")
         if not self.held_object:
             self._set_gripper(self._grip_closed, effort=0.6)
@@ -7268,6 +7372,7 @@ class SkillRuntime:
         self._gripper_opens_completed += 1
         released_obj = self.held_object
         self.held_object = None
+        self._held_arm = None
         self._held_det_label = None
         self._held_color = None
         self._held_width_m = None
@@ -8214,6 +8319,13 @@ class SkillRuntime:
     def skill_open_gripper(self) -> dict:
         # The wait's bound is validated before the jaws move (round 2, M6).
         timeout = open_wait_timeout_s(self.cfg.grasp)
+        # R5 / D9: on an arm that does not hold the object (another arm's
+        # hold, or another arm's interrupted grasp) this opens ITS OWN jaws
+        # only; the other arm's hold, provisional hold and carry attachment
+        # stay, or that arm's next grasp would open its jaws on the object.
+        held_elsewhere = self._held_by_another_arm() is not None
+        prov = getattr(self, "_held_provisional", None)
+        prov_elsewhere = prov is not None and self._provisional_on_another_arm(prov)
         self._set_gripper(self._grip_open, effort=0.8)
         self._gripper_opens_completed += 1
         # The open command is the agent's intentional release: it ends the
@@ -8221,16 +8333,20 @@ class SkillRuntime:
         # jaws, and an attachment still active would reject them once the
         # object left (review N1: a real release reported as a failure). A
         # refused command raised above and keeps the attachment.
-        self._carry_attachment = None
-        if self.held_object:
+        if not (held_elsewhere or prov_elsewhere):
+            self._carry_attachment = None
+        if self.held_object and not held_elsewhere:
             self.memory.add("action", f"released {self.held_object!r}")
             self.held_object = None
+            self._held_arm = None
             self._held_det_label = None
         # An explicit open after an interrupted grasp settles the question
         # the provisional marker left open: whatever the jaws may have held
         # is released now, so nothing remains to promote.
-        self._held_provisional = None
-        self._held_width_m = None
+        if not prov_elsewhere:
+            self._held_provisional = None
+        if not held_elsewhere:
+            self._held_width_m = None
         if timeout is not None:
             self._wait_gripper_opened(timeout)
         return {"gripper": "open"}
@@ -8353,6 +8469,13 @@ class SkillRuntime:
         # the one jaw command at home below (the release, or the opening of
         # closed empty jaws) carry it.
         reset_generation = getattr(self.arm.harness, "_halt_generation", None)
+        holder = self._held_by_another_arm()
+        if holder is not None:
+            # R5 / D9: another arm holds the object. This reset would home
+            # and open the RUNNING arm and forget the object while the other
+            # arm still carries it: refuse before any motion, naming it.
+            return {**out, "ok": False, "stage": "release", "home_skipped": True, "beliefs_forgotten": 0,
+                    "error": self._held_elsewhere_refusal(self.held_object, holder)}
         try:
             carry_attachment.check(self)
         except carry_attachment.AttachmentInvalid as exc:
@@ -8450,8 +8573,8 @@ class SkillRuntime:
             _with_retrace_result(out, e)
             return out
         # The arm is home and the scene changes next: a column kept after a
-        # STOP (stop_retrace.py) no longer describes anything.
-        stop_retrace.forget(self)
+        # STOP (stop_retrace.py) no longer describes anything, for any arm.
+        stop_retrace.forget(self, every_arm=True)
         if recovery_cancelled():
             return out
         # At most ONE jaw command at home, to the profile's OPEN position
@@ -8652,8 +8775,12 @@ class SkillRuntime:
         Each refusal's sentence comes first and fits the 240 characters the
         agent's failure line quotes: a long label is shortened, never the
         sentence, and the driver's text after it is cut to the room left. A
-        held flag is never reconciled here: it refuses as it is."""
+        held flag is never reconciled here: it refuses as it is.
+        A provisional hold another arm's close left (R5) is never judged by
+        this arm's jaws: refused naming that arm, the one that must settle it."""
         provisional = getattr(self, "_held_provisional", None)
+        if not self.held_object and provisional is not None and self._provisional_on_another_arm(provisional):
+            return self._held_elsewhere_refusal(provisional[0], self._arm_name_of(provisional.arm), provisional=True)
         contact = getattr(self, "_contact_episode", None) is not None
         read_error = judge_error = None
         if not self.held_object and provisional is not None:
@@ -8684,9 +8811,33 @@ class SkillRuntime:
         why = "no valid jaw feedback" if exc is None else _error_text(exc)
         return way_out + _cut_text(f" Error: {why}", _FAILED_ERROR_CHARS - len(way_out))
 
+    def _arm_name_of(self, arm) -> str | None:
+        """The rig name of the SafeArm `arm` (identity search), or None."""
+        rig = getattr(self, "arm_rig", None)
+        if rig is None:
+            return "default" if arm is getattr(self, "_arm", None) else None
+        return next((key for key, candidate in rig.arms.items() if candidate is arm), None)
+
+    def _held_elsewhere_refusal(self, label, holder, *, provisional: bool = False) -> str:
+        """reset_scene's refusal while ANOTHER arm holds the object (R5), or
+        may hold it (its grasp stopped after the close): it names that arm and
+        the way out on it, never this arm's jaws. Fits the agent's failure
+        line (a long label is shortened, never the sentence)."""
+        arm = repr(holder).replace("{", "{{").replace("}", "}}")
+        here = repr(self._running_arm_name()).replace("{", "{{").replace("}", "}}")
+        if provisional:
+            template = ("{} may be held by arm " + arm + " (its grasp stopped after the close), not " + here
+                        + ": settle it with arm=" + arm + " first (move_home, then place_at or open_gripper), "
+                        "then reset_scene; no motion was sent")
+        else:
+            template = ("{} is held by arm " + arm + ", not " + here + ": place it with arm=" + arm
+                        + " first (place_at), then reset_scene; no motion was sent")
+        return _fit_label(template, repr(str(label)))
+
     def _forget_held_object(self) -> None:
         """The jaws let the held object go: clear every held-object field."""
         self.held_object = None
+        self._held_arm = None
         self._held_det_label = None
         self._held_color = None
         self._held_offset = None

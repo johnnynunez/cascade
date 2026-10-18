@@ -5,7 +5,10 @@ docs/superpowers/specs/2026-10-17-base-pose-runtime-frame-design.md, §3.7, §6.
 perceived point reads that point in the RUNNING arm's frame, so a base 3 cm
 above the table (`base_pose` z 0.03, `safety.table_z: -0.03`, workspace floor
 -0.05) measures, floors and boxes the cube exactly as an arm on the table
-does. The verifier's lift fallback counts from the WORLD table (R4).
+does. The verifier's lift fallback counts from the WORLD table (R4). Task 5:
+place_at's `z` is a table-frame height (an omitted z releases
+`release_height_m` above the arm's own table), and the push contact height is
+measured from the arm's table.
 
 Rig: so101_right at RAISED, camera fixed in the table frame and shifted 10 cm
 in -y: mock_small's cube stands on the world table (z = 0) at W (0.198, -0.10),
@@ -197,3 +200,55 @@ def test_the_verifier_lift_counts_from_the_world_table(make_runtime, monkeypatch
     measured = result["postcondition"]["measured"]
     assert measured["z_before"] == pytest.approx(0.0, abs=1e-9), result["postcondition"]
     assert measured["rise_m"] == pytest.approx(0.025, abs=1e-9)
+
+
+# ── Task 5: place and push ────────────────────────────────────────────────
+
+#: place_at's table-frame target (spec §3.7: x and y go into the arm frame).
+PLACE_W = (0.22, -0.30)
+
+
+def _release_z(rt, n0) -> float:
+    """The lowest commanded TCP of the place (its release pose), lifted."""
+    tcps = lifted_tcps(rt, rt.arm, n0, T)
+    assert len(tcps), "the place moved the arm"
+    return float(tcps[:, 2].min())
+
+
+@pytest.mark.parametrize("z", [0.06, None], ids=["z=0.06", "z omitted"])
+def test_place_at_z_is_a_table_frame_height(make_runtime, z):  # noqa: F811
+    """z = 0.06 is a TABLE-frame height: released at world 0.06 (main read it
+    in the arm frame and clamped it to the 0.045 ceiling there: world 0.075).
+    An omitted z releases `release_height_m` (0.05) above the arm's own table,
+    which is the world table."""
+    rt = make_runtime(_raised_rig())
+    assert rt.execute("grasp_object", {"label": "red cube"})["ok"] is True
+    n0 = len(raw_arm(rt.arm).commands)
+    args = {"x": PLACE_W[0], "y": PLACE_W[1], **({} if z is None else {"z": z})}
+    result = rt.execute("place_at", args)                                 # main: refused by #352's guard
+    assert result.get("ok", True) is True, result
+    want = z if z is not None else 0.0 + float(rt.cfg.grasp.get("release_height_m", 0.05))
+    assert _release_z(rt, n0) == pytest.approx(want, abs=0.002)
+    assert result["at"][2] == pytest.approx(want, abs=1.1e-3)            # reported in the table frame
+
+
+def test_push_contact_height_is_measured_from_the_arms_table(make_runtime, monkeypatch):  # noqa: F811
+    """The push contacts a third of the cube's height above the WORLD table:
+    min(max(0.015, 0.35 * 0.05), 0.06) = 0.0175 m. On the `mock` profile: no
+    SO-101 reaches the push hover (tests/test_base_pose_runtime_frame.py
+    PUSH_ARM)."""
+    rt = make_runtime(raised_table(moved_cfg("mock", RAISED, move_cameras=False, shift_xy=(0.0, -0.10))))
+    rt._reobserve(1)
+    targets = []
+    real = rt._move_joints
+
+    def move_joints(q, *a, **k):
+        targets.append(np.asarray(q, dtype=float).copy())
+        return real(q, *a, **k)
+
+    monkeypatch.setattr(rt, "_move_joints", move_joints)
+    result = rt.execute("push_object", {"label": "red cube", "direction": "left", "distance_m": 0.05})
+    assert result.get("ok", True) is True, result                         # main: refused by #352's guard
+    for q in targets[1:3]:                                                # the push START and END poses
+        assert float(lift(T, rt.kin.fk(q)[:3, 3])[2]) == pytest.approx(min(max(0.015, 0.35 * CUBE_M), 0.06),
+                                                                         abs=0.003)

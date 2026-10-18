@@ -11,6 +11,7 @@ from ..control.simulation_motion import PhysicsClock
 from ..sim.truth import _match_label
 from ..sim.render_binding import valid_render_binding
 from ..types import SkillError, SafetyViolation
+from . import arm_frame
 
 
 class HeldObservationInvalid(SkillError):
@@ -197,7 +198,8 @@ def measure(runtime, localize) -> HeldOffset:
         # Their poses are table-frame; the offset is the running arm's.
         try:
             positions = [channel(label) for label in labels]
-            positions = [runtime._to_arm(_vector(p, 3)) for p in positions if p is not None]
+            T_arm = getattr(runtime, "T_world_base", None)       # None: no base_pose (or a double without it)
+            positions = [arm_frame.to_arm(T_arm, _vector(p, 3)) for p in positions if p is not None]
             if positions and all(np.array_equal(p, positions[0]) for p in positions):
                 return HeldOffset(_offset(positions[0], tcp), "legacy_pose")
         except Exception as exc:
@@ -211,8 +213,13 @@ def measure(runtime, localize) -> HeldOffset:
         return HeldOffset(None, "wrist_unobserved", evidence={"rejected": rejected})
     try:
         # Measured in the running arm's frame (its camera pose T^-1 T_table_cam),
-        # where the captured TCP is.
-        frame = runtime._frame_in_arm(runtime.observe())
+        # where the captured TCP is. `T_world_base` is read the way the grasp
+        # path and `for_runtime` read it: None (no base_pose, or a runtime
+        # double without the arm frame) leaves the frame as it is.
+        frame = runtime.observe()
+        T_arm = getattr(runtime, "T_world_base", None)
+        if T_arm is not None:
+            frame = arm_frame.frame_to_arm(T_arm, frame, runtime.extrinsics)
         if getattr(runtime, "_held_observation_floor", None) is not None:
             endpoint, robot, floor, now = _clock_binding(runtime, current)
             capture = getattr(frame, "capture", None)

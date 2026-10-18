@@ -171,15 +171,17 @@ move on, win or lose (exit lines in §8). One `pick_and_place` per group, ever.
    approach column is kept after a STOP at the object, `move_home` first, see §8.3). Jaws that
    closed on air after such a STOP hold nothing: the reset runs and opens them at home. It
    judges them like the grasp's own check: the rigid close on air stops at 85 % of travel
-   (15 % open, 13.5 mm), and jaws up to 3 % wider (16.2 mm) also count as air when the plan
-   sized the object at 19.8 mm or more. So an object about 13.5-16.2 mm thick that the plan
-   sized that wide is opened at home and drops: after a STOP on such a thin object, take it
-   out by hand before the reset. After such a STOP it also refuses when the jaws cannot be
-   read. While the approach column is kept, `move_home` first (`open_gripper` first gives the
-   column up and the arm stays frozen at the object); then, at home (about 0.44 m up), check
-   the jaws and take the object out by hand before `open_gripper` (opening drops it from
-   there), then `reset_scene`. Otherwise: take the object out by hand, then `open_gripper`,
-   then `reset_scene`. Real props do not teleport (`props_reset: []`): put them back on the tape.
+   (15 % open, 13.5 mm). Jaws at that seat or up to 3 % wider (16.2 mm) count as air only when
+   the plan sized the object at 19.8 mm or more; otherwise the reset refuses as holding. So an
+   object about 13.5-16.2 mm thick that the plan sized that wide is opened at home and drops:
+   after a STOP on such a thin object, take it out by hand before the reset. After such a STOP
+   it also refuses when the jaws cannot be read. While the approach column is kept, `move_home`
+   first (`open_gripper` first gives the column up and the arm stays frozen at the object);
+   then, where it stopped (home, about 0.44 m up, or the pregrasp hover if the home move
+   failed), check the jaws and take the object out by hand before `open_gripper` (opening
+   drops it from there), then `reset_scene`. Otherwise: take the object out by hand, then
+   `open_gripper`, then `reset_scene`. Real props do not teleport (`props_reset: []`): put
+   them back on the tape.
 2. Run `scripts/booth_reset.sh` (keeps the learned brain). It prints the physical checklist
    (park → props to tape → `/clear` the chat) and verifies every prop shows LIVE in the world
    model before you seat anyone: a "remembered" ghost row at minute 0 is a mystery failure at
@@ -206,14 +208,14 @@ to the morning baseline after a bad streak (restart the server to load the resto
    *"go home"* (`move_to_rest`, §6.4) or a relative move first gives that column up and the arm
    stays frozen (jog it by hand). Object still in the jaws: `move_home` (within those 5 min the
    reset refuses and says so), then `place_at`, then `reset the scene`. If `move_home` reports
-   `holding_unknown` (the jaws could not be read), the arm is at home height (about 0.44 m):
-   check the gripper by hand there and take the object out before `open the gripper` (opening
-   drops it from that height), then `reset the scene`. A refusal that said `move_home` first,
-   followed by a `move_home` after the 5 min or after the arm was jogged out of the column, gets
-   the old home move: frozen while the gripper is still at the object (jog it by hand). The
-   launcher registers the server with a 300 s budget so a persistent pick (60–120 s) is never
-   cut by the host's 60 s default; picks dying at exactly 60 s mean a stale registration:
-   `./run.sh <mode>` re-registers.
+   `holding_unknown` (the jaws could not be read), the arm is at home height (about 0.44 m), or
+   at the pregrasp hover if its home move failed: check the gripper by hand where it stopped and
+   take the object out before `open the gripper` (opening drops it from that height), then
+   `reset the scene`. A refusal that said `move_home` first, followed by a `move_home` after the
+   5 min or after the arm was jogged out of the column, gets the old home move: frozen while the
+   gripper is still at the object (jog it by hand). The launcher registers the server with a
+   300 s budget so a persistent pick (60–120 s) is never cut by the host's 60 s default; picks
+   dying at exactly 60 s mean a stale registration: `./run.sh <mode>` re-registers.
 4. **LLM stalls (G1 ladder, one-way):** cloud dead → pre-warmed local Qwen session (same MCP
    server). Local model loops → the **dashboard chat box** (MCP mode runs the tier-1 reflex
    grammar with zero LLM: every cheat-card motion beat survives; narrate the preview/where-is

@@ -124,6 +124,7 @@ def test_native_empty_jaws_prevent_standalone_place_before_moving():
     rt = runtime(held="ball")
     rt._reconcile_held = SkillRuntime._reconcile_held.__get__(rt)
     rt._gripper_width_frac = lambda: 0.
+    rt._finite_width_frac = lambda: 0.
     rt._gripper_width_m = lambda: 0.
     with pytest.raises(SkillError, match="not holding anything"):
         rt.skill_place_on_object("tray")

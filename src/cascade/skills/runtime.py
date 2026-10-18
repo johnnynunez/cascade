@@ -7326,7 +7326,9 @@ class SkillRuntime:
 
         An operator halt that ends the grasp's persistence loop (raised in a
         grasp attempt, its re-home or its re-scan) or a clear-view home here
-        raises MotionHalted, so the caller's loop ends too. A halt in the
+        raises MotionHalted, so the caller's loop ends too; after a failed
+        grasp, the halt in its clear-view home carries that failure
+        (`skill_error`, filed as it). A halt in the
         place call comes back as the place's failure in the record
         (`holding` names what the jaws still hold; the caller stops on it).
         Under execute() the skill's halt baseline refuses every later motion
@@ -7355,7 +7357,9 @@ class SkillRuntime:
             elif not self._estopped():  # the operator stopped the arm: no re-home (A3 review)
                 try:  # never leave the arm over the table after a failed attempt
                     self.skill_move_home()
-                except MotionHalted:
+                except MotionHalted as halted:
+                    # this failed grasp's own re-home: the halt carries the failure
+                    _keep_decided_failure(halted, res.get("error") or rec["error"])
                     raise  # the caller's next step would clear the halt and move
                 except (SkillError, SafetyViolation):
                     pass

@@ -22,6 +22,7 @@ place primitives are replaced by fakes that move the arm and miss.
 from __future__ import annotations
 
 import re
+import time
 from types import SimpleNamespace
 
 import numpy as np
@@ -351,6 +352,10 @@ def test_a_halt_ends_move_object_to(rig, monkeypatch, profile, where):
     assert str(raised.value) == HALT
     assert r.at_stop is not None and r.sends == r.at_stop, "an arm command went out after the halt"
     assert r.grasps == 1
+    if where == "home_after_the_place":
+        assert getattr(raised.value, "skill_error", None) is None   # the move held and placed: nothing failed
+    else:   # the miss, then its own re-home / clear-view home: the halt carries the miss
+        assert raised.value.skill_error.startswith("grasp missed: closed on air"), raised.value.skill_error
 
 
 @pytest.mark.parametrize("kind", ["estop_harness", "estop_safearm"])
@@ -836,3 +841,54 @@ def test_a_miss_the_grasp_stage_recovered_from_no_longer_decides_a_halted_place(
     assert "skill_error" not in out, out
     assert _filed_as(r, "pick_and_place") == ({}, 1, "safety:halt")
 
+def _composite_scene(runtime, monkeypatch, skill):
+    """What restore_scene / search_for_object need to reach `_move_object_to`
+    (two remembered objects; for the search, a target that stays hidden)."""
+    now = time.time()
+    beliefs = [SimpleNamespace(label=lab, color=color, aliases=(), position=np.array([0.32, y, 0.02]),
+                               last_seen_t=now + 1e6, extent=np.array([0.05, 0.05, 0.05]))
+               for lab, color, y in (("cube", "red", 0.12), ("bowl", "blue", -0.12))]
+    monkeypatch.setattr(runtime, "_fresh_look", lambda frames=1: now)
+    if skill == "restore_scene":
+        snap = SimpleNamespace(entries=[1, 2], age_s=lambda: 1.0)
+        monkeypatch.setattr(runtime.beliefs, "get_snapshot", lambda name: snap)
+        monkeypatch.setattr(runtime, "_reachable_place_xy", lambda x, y: True)
+        objs = (("red cube", 0.30, 0.10), ("blue bowl", 0.30, -0.10))
+
+        def plan(snap, tolerance_m, skip, seen_after=None):
+            rows = [{"label": lab, "target": [x, y], "query": lab} for lab, x, y in objs if lab not in skip]
+            step = ({"label": rows[0]["label"], "query": rows[0]["query"], "to": rows[0]["target"],
+                     "kind": "restore"} if rows else None)
+            return {"displaced": rows, "unchanged": [], "next": step, "missing": []}
+        monkeypatch.setattr(runtime, "_restore_plan", plan)
+    else:
+        monkeypatch.setattr(runtime.beliefs, "all", lambda: list(beliefs))
+        monkeypatch.setattr(runtime, "_seen_since", lambda query, since: None)
+        monkeypatch.setattr(runtime, "_free_park_spot", lambda around, avoid, offsets_m=(): np.array([0.30, 0.0]))
+        monkeypatch.setattr(runtime, "_footprint_m", lambda b: 0.05)
+
+
+COMPOSITES = [("restore_scene", {}), ("search_for_object", {"label": "green ball"})]
+
+
+@pytest.mark.parametrize("skill, args", COMPOSITES, ids=[s for s, _ in COMPOSITES])
+@pytest.mark.parametrize("profile", DECIDED_PROFILES)
+def test_a_halt_in_the_clear_view_home_after_a_failed_grasp_is_filed_as_that_grasp(rig, monkeypatch, profile,
+                                                                                   skill, args):
+    """restore_scene / search_for_object: one object's grasp failed, then
+    `_move_object_to`'s clear-view home (that failure's own recovery: "never
+    leave the arm over the table after a failed attempt") was halted. Main
+    filed it as a loss (other:motionhalted_*); it stays a loss, under the
+    miss."""
+    r = rig(profile)
+    r.runtime.cfg._data.setdefault("grasp", {})["max_pick_attempts"] = 1
+    _composite_scene(r.runtime, monkeypatch, skill)
+    _missing_grasp(r, monkeypatch)
+    _stop_in_rehome(r, monkeypatch)
+
+    out = r.runtime.execute(skill, dict(args))
+
+    assert r.at_stop is not None and r.sends == r.at_stop, f"{r.sends - r.at_stop} arm commands after the halt"
+    assert out["error"] == f"MotionHalted: {HALT}" and r.grasps == 1, out
+    assert out["skill_error"].startswith(MISSED), out
+    assert _filed_as(r, skill) == ({MISSED_SIG: 1}, 0, MISSED_SIG)

@@ -285,6 +285,21 @@ def test_unreadable_jaws_after_a_stop_refuse_the_reset_and_name_the_way_out(rig,
     assert r.runtime.held_object is None and r.runtime._held_provisional is not None
 
 
+@pytest.mark.parametrize("jaws, error, signature", [("ok", REFUSAL, "state:holding"),
+                                                     ("unknown", UNREAD, "state:jaws_unreadable")])
+def test_a_reset_refused_for_the_jaws_is_filed_by_their_state_not_the_object(rig, jaws, error, signature):
+    """The envelope (the agent's failure digest) and aspire key a failure by
+    its signature: these refusals file under one stable state signature,
+    never the object's name (`other:holding_red_cube`) nor, for unreadable
+    jaws, an object too wide for them (`jaw`)."""
+    r = rig("rebot_rs")
+    _stop_in_the_grasp(r, stall=0.5)
+    r.arms[0].jaws = jaws
+    out = r.runtime.execute("reset_scene", {})
+    _refused(out, error)
+    assert r.runtime.envelope.stats()["reset_scene"]["failures"] == {signature: 1}
+
+
 def test_open_gripper_after_unreadable_jaws_clears_the_hold_and_the_reset_runs(rig):
     """The refusal's own way out, with the jaws still unreadable: the object
     taken out by hand, open_gripper drops the provisional hold, and the reset

@@ -162,6 +162,45 @@ def test_failure_taxonomy_files_an_air_grasp_that_names_the_jaws_as_an_air_grasp
     assert normalize_failure(error) == signature
 
 
+#: reset_scene's refusals for what the jaws may hold (#357, #359, #363), by
+#: the jaws' state: one stable signature each, never the object's name
+JAW_STATE_REFUSALS = [
+    ("holding red cube: place it first (place_at), then reset", "state:holding"),
+    ("holding the blue bowl: place it first (place_at), then reset", "state:holding"),
+    # a label whose own words a later pattern matches ("stale")
+    ("holding stale bread: place it first (place_at), then reset", "state:holding"),
+    ("holding red cube: call move_home first (it raises the gripper up its approach column, with the object), "
+     "then place_at, then reset_scene", "state:holding"),
+    ("the jaw state could not be read: if red cube is in the jaws, take it out by hand, then open_gripper, "
+     "then reset_scene. Error: no valid jaw feedback", "state:jaws_unreadable"),
+    ("the jaw state could not be read: if stale bread is in the jaws, take it out by hand, then open_gripper, "
+     "then reset_scene. Error: no valid jaw feedback", "state:jaws_unreadable"),
+    ("the jaw state could not be read: call move_home first (it raises the gripper up its approach column), "
+     "then, if red cube is in the jaws, take it out by hand, open_gripper, reset_scene. Error: gripper feedback "
+     "timed out", "state:jaws_unreadable"),
+]
+
+
+@pytest.mark.parametrize("error, signature", JAW_STATE_REFUSALS)
+def test_failure_taxonomy_files_a_jaw_state_refusal_by_the_state(error, signature):
+    assert normalize_failure(error) == signature
+
+
+@pytest.mark.parametrize("error, signature", [
+    # an air grasp whose reopen could not read the jaws is still an air grasp
+    (AIR_GRASP_UNREAD, "contact:air_grasp"),
+    # a carried load's clearance refusal names what it holds: not a jaw-state
+    # refusal, it keeps main's signature
+    ("holding 'red cube': its bottom (estimated 4.0 cm below the gripper, measured) would come to 1.5 cm "
+     "above the table; it must stay 2.0 cm above it, the clearance the harness keeps for the gripper itself",
+     "other:holding_red_cube"),
+    # a halt is a halt, whatever its reason says
+    ("MotionHalted: halted: holding red cube: place it first", "safety:halt"),
+])
+def test_failure_taxonomy_keeps_other_texts_that_name_the_jaws_or_a_hold(error, signature):
+    assert normalize_failure(error) == signature
+
+
 def test_envelope_failure_digest_ranks_by_frequency():
     env = OperatingEnvelope()
     for _ in range(3):

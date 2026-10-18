@@ -117,6 +117,25 @@ def test_failure_taxonomy_keeps_the_signature_of_an_error_without_a_halt(error, 
     assert normalize_failure(error) == signature
 
 
+#: an air grasp whose reopen could not read the jaws (runtime.skill_grasp_object's text)
+AIR_GRASP_UNREAD = ("air grasp: gripper closed fully, object not held; the jaws were not confirmed open: "
+                    "jaw state could not be read: gripper feedback timed out")
+
+
+@pytest.mark.parametrize("error, signature", [
+    # an air grasp that names the jaws is still an air grasp, not an object too wide
+    (AIR_GRASP_UNREAD, "contact:air_grasp"),
+    (f"grasp failed after 1 attempts (0.0s): {AIR_GRASP_UNREAD}", "contact:air_grasp"),
+    (f"could not grasp 'red cube' for handover: {AIR_GRASP_UNREAD}", "contact:air_grasp"),
+    # an object wider than the jaws stays one
+    ("grasp failed after 2 attempts (0.0s): every candidate too wide (object wider than the jaws; "
+     "use push_object; giving up early)", "geometry:object_too_wide"),
+    ("jaw opening 0.09 m too small for a 0.12 m object", "geometry:object_too_wide"),
+])
+def test_failure_taxonomy_files_an_air_grasp_that_names_the_jaws_as_an_air_grasp(error, signature):
+    assert normalize_failure(error) == signature
+
+
 def test_envelope_failure_digest_ranks_by_frequency():
     env = OperatingEnvelope()
     for _ in range(3):

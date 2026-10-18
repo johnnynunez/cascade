@@ -109,8 +109,10 @@ _FAILURE_PATTERNS: tuple[tuple[str, str], ...] = (
     (r"outside .*workspace|workspace aabb|out of workspace", "geometry:outside_workspace"),
     (r"keep-?out|keepout", "geometry:keep_out"),
     (r"no ik|ik failed|unreachable|no solution|could not solve", "kinematics:ik_unreachable"),
-    (r"jaw|too wide|max_width|width .*exceed", "geometry:object_too_wide"),
+    # Before `jaw`: an air grasp's own text can name the jaws ("the jaws
+    # were not confirmed open"), and it is still an air grasp.
     (r"air.?grasp|missed the object|closed on nothing|nothing in the", "contact:air_grasp"),
+    (r"jaw|too wide|max_width|width .*exceed", "geometry:object_too_wide"),
     (r"slip|dropped|lost the object", "contact:slip"),
     (r"never seen|not seen|no object|could not find|not found|unknown object", "perception:not_found"),
     (r"stale|watchdog|too old", "safety:stale_perception"),

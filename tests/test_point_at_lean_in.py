@@ -573,6 +573,34 @@ def test_the_route_rule_on_a_straight_segment(start, goal, from_inside, ok):
     assert (reason is None) is ok, reason
 
 
+def test_the_least_distance_is_found_exactly_without_measuring_every_point():
+    """`min_distance` (bounding-box first) equals `distance(...).min()` to the
+    bit, inside and outside, with an object stacked over the target too."""
+    from cascade.skills import pointing
+
+    rng = np.random.default_rng(378)
+    for _ in range(200):
+        square = rng.uniform(0.02, 0.05) * np.array([[-1, -1], [1, -1], [1, 1], [-1, 1]]) + rng.uniform(-0.1, 0.1, 2)
+        cup = square * rng.uniform(0.5, 1.5) + rng.uniform(-0.03, 0.03, 2)
+        column = pointing.ObjectColumn(footprints=(square, cup), tops=tuple(rng.uniform(0.03, 0.2, 2)), z_lo=0.0,
+                                       aim=np.zeros(3))
+        points = rng.normal(0.0, rng.uniform(0.02, 0.3), size=(int(rng.integers(1, 3000)), 3)) + [0.0, 0.0, 0.08]
+        assert column.min_distance(points) == float(column.distance(points).min())
+    points[5] = np.nan
+    assert math.isnan(column.min_distance(points))
+    # where only the bound's order decides: 64 points inside a diamond's box
+    # 7 mm off the diamond (their bound -2 cm), one 1 mm off its box ...
+    diamond = pointing.ObjectColumn(footprints=(np.array([[0.05, 0.0], [0.0, 0.05], [-0.05, 0.0], [0.0, -0.05]]),),
+                                    tops=(0.1,), z_lo=0.0, aim=np.zeros(3))
+    corner = np.array([0.03, 0.03, 0.05]) + np.linspace(0.0, 1e-4, 64)[:, None] * [1.0, -1.0, 0.0]
+    points = np.vstack([corner, [0.051, 0.0, 0.05]])
+    assert diamond.min_distance(points) == pytest.approx(0.001) == float(diamond.distance(points).min())
+    # ... and 64 points 3 mm off a box, one 5 mm inside it
+    outside = np.column_stack([np.full(64, 0.023), np.linspace(-0.015, 0.015, 64), np.full(64, 0.03)])
+    points = np.vstack([outside, [0.015, 0.0, 0.03]])
+    assert _box_column().min_distance(points) == pytest.approx(-0.005) == float(_box_column().distance(points).min())
+
+
 def test_the_column_distance_is_signed_inside():
     """Inside the object the distance is minus the depth to its nearest side
     or top (the table is no way out): going deeper is visible."""
@@ -1418,6 +1446,434 @@ def test_a_top_down_point_keeps_the_margin_from_a_tall_neighbour(rig, profile, d
         _refused_untouched(r, out)
 
 
+# ── a jaw touching an object backs straight out first (#378 review I3) ─────
+
+
+class _DownKin(_SlideKin):
+    """_SlideKin whose tool points down (approach column 2 = -z) and whose IK
+    solves any TCP position (the line `planning.cartesian` follows)."""
+
+    def fk(self, q):
+        T = super().fk(q)
+        T[:3, :3] = np.diag([1.0, -1.0, -1.0])
+        return T
+
+    def ik(self, T, q_init=None, *a, **k):
+        return SimpleNamespace(q=np.asarray(T, float)[:3, 3].copy(), success=True, error=0.0)
+
+
+def test_a_jaw_touching_the_object_backs_straight_out_first():
+    """The TCP 3 mm over the top: back straight out along the approach (up
+    here), 5 mm at a time on the line, until it is more than TOUCH_M clear;
+    the route starts where that ends."""
+    from cascade.skills import pointing
+
+    start, goal = np.array([0.0, 0.0, 0.053]), np.array([0.0, 0.0, 0.10])
+    route = pointing.plan_route(_DownKin(), start, goal, _box_column(), np.zeros((1, 3)), 2, margin=MARGIN,
+                                table_z=0.0)
+    assert route.withdraw_m == pytest.approx(0.005)
+    np.testing.assert_allclose(np.array(route.withdraw), [[0.0, 0.0, 0.058]], atol=1e-12)
+    assert route.targets == [goal] and route.close_at == 1, route
+    # touching the top: 1 cm back (5 mm is exactly TOUCH_M, still touching)
+    route = pointing.plan_route(_DownKin(), np.array([0.0, 0.0, 0.05]), goal, _box_column(), np.zeros((1, 3)), 2,
+                                margin=MARGIN, table_z=0.0)
+    np.testing.assert_allclose(np.array(route.withdraw)[:, 2], [0.055, 0.06], atol=1e-12)
+    assert route.withdraw_m == pytest.approx(0.01)
+
+
+def test_a_jaw_clear_of_every_object_goes_as_before():
+    """6 mm over the top (beyond TOUCH_M): no withdrawal."""
+    from cascade.skills import pointing
+
+    start, goal = np.array([0.0, 0.0, 0.056]), np.array([0.0, 0.0, 0.10])
+    route = pointing.plan_route(_DownKin(), start, goal, _box_column(), np.zeros((1, 3)), 2, margin=MARGIN,
+                                table_z=0.0)
+    assert route == pointing.Route([goal], 1), route
+
+
+def test_a_touching_jaw_on_an_arm_that_cannot_back_out_refuses():
+    from cascade.skills import pointing
+
+    with pytest.raises(pointing.RouteRefused, match=r"the jaws start 0\.003 m from it and this arm cannot back them"):
+        pointing.plan_route(_DownKin(), np.array([0.0, 0.0, 0.053]), np.array([0.0, 0.0, 0.10]), _box_column(),
+                            np.zeros((1, 3)), 2, margin=MARGIN, table_z=0.0, withdraw=False)
+
+
+def test_a_touching_jaw_with_no_straight_line_back_refuses():
+    """No pose on the line back solves (IK fails above the start): refused,
+    naming the last distance tried."""
+    from cascade.skills import pointing
+
+    class _Stuck(_DownKin):
+        def ik(self, T, q_init=None, *a, **k):
+            ok = float(np.asarray(T)[2, 3]) <= 0.055
+            return SimpleNamespace(q=np.asarray(T, float)[:3, 3].copy(), success=ok, error=0.1)
+
+    with pytest.raises(pointing.RouteRefused, match="backing straight out along the approach, no pose solves 0.5 cm"):
+        pointing.plan_route(_Stuck(), np.array([0.0, 0.0, 0.053]), np.array([0.0, 0.0, 0.10]), _box_column(),
+                            np.zeros((1, 3)), 2, margin=MARGIN, table_z=0.0)
+
+
+def test_a_withdrawal_that_closes_in_is_not_taken():
+    """A tool whose approach points UP backs out downward, into the object:
+    every distance closes in from inside the margin, so it is refused."""
+    from cascade.skills import pointing
+
+    class _UpKin(_DownKin):
+        def fk(self, q):
+            return _SlideKin.fk(self, q)
+
+    with pytest.raises(pointing.RouteRefused, match="closing in from inside the margin"):
+        pointing.plan_route(_UpKin(), np.array([0.0, 0.0, 0.053]), np.array([0.0, 0.0, 0.10]), _box_column(),
+                            np.zeros((1, 3)), 2, margin=MARGIN, table_z=0.0)
+
+
+def test_a_withdrawal_may_wobble_dip_tol_but_never_closes_in_further():
+    """A jaw 2 mm beside the object, backing straight up along its side: a
+    face sliding along the line keeps its distance, but the arm's turn drifts
+    it toward the object by `drift` per metre. Up to DIP_TOL_M closer than
+    where the withdrawal started is taken (a 0.03 mm wobble over the 1.5 cm
+    back); 0.1 mm is not."""
+    from cascade.skills import pointing
+
+    class _Drift(_DownKin):
+        def __init__(self, drift):
+            self.drift = drift
+
+        def fk(self, q):
+            T = super().fk(q)
+            T[0, 3] -= self.drift * (float(q[2]) - 0.04)
+            return T
+
+    start, goal = np.array([0.022, 0.0, 0.04]), np.array([0.022, 0.0, 0.12])
+    route = pointing.plan_route(_Drift(0.002), start, goal, _box_column(), np.zeros((1, 3)), 2, margin=MARGIN,
+                                table_z=0.0)
+    assert route.withdraw_m == pytest.approx(0.015), route
+    with pytest.raises(pointing.RouteRefused, match="cm back: the jaws 0.002 m from it .*closing in from inside"):
+        pointing.plan_route(_Drift(0.01), start, goal, _box_column(), np.zeros((1, 3)), 2, margin=MARGIN,
+                            table_z=0.0)
+
+
+def test_a_withdrawal_step_the_harness_would_stop_is_refused():
+    """Each step back is vetted by the harness's static route check too."""
+    from cascade.skills import pointing
+
+    with pytest.raises(pointing.RouteRefused, match=r"the jaws start 0\.003 m from it; backing straight out along "
+                                                    r"the approach, 0\.5 cm back: the harness would stop it \(too fast\)"):
+        pointing.plan_route(_DownKin(), np.array([0.0, 0.0, 0.053]), np.array([0.0, 0.0, 0.10]), _box_column(),
+                            np.zeros((1, 3)), 2, margin=MARGIN, table_z=0.0, preflight=lambda a, b: "too fast")
+
+
+def test_a_withdrawal_step_that_jumps_a_joint_is_refused():
+    """Each step back is solved from the previous pose with no restart: a
+    solution more than a branch-flip bound away (here 0.5 on one joint) is
+    no step on the line, so nothing moves."""
+    from cascade.skills import pointing
+
+    class _Flip(_DownKin):
+        def ik(self, T, q_init=None, *a, **k):
+            q = np.asarray(T, float)[:3, 3].copy()
+            q[0] += 0.5
+            return SimpleNamespace(q=q, success=True, error=0.0)
+
+    with pytest.raises(pointing.RouteRefused, match="backing straight out along the approach, no pose solves 0.5 cm"):
+        pointing.plan_route(_Flip(), np.array([0.0, 0.0, 0.053]), np.array([0.0, 0.0, 0.10]), _box_column(),
+                            np.zeros((1, 3)), 2, margin=MARGIN, table_z=0.0)
+
+
+def test_the_jaws_touch_on_their_real_geometry_not_the_sweep_box():
+    """A hinged jaw's touch is judged on its measured geometry (`now[1:]`):
+    the inflated sweep box 3 mm over the top is no touch, the measured jaw
+    3 mm over it is."""
+    from cascade.skills import pointing
+
+    far, near = np.zeros((1, 3)), np.array([[0.0, 0.0, 0.047]])      # TCP-frame; +z is the approach (down)
+    start, goal = np.array([0.0, 0.0, 0.10]), np.array([0.0, 0.0, 0.15])
+    box_only = pointing.Jaws(closed=(far, far), now=(near, far), sweep=(far, far))
+    route = pointing.plan_route(_DownKin(), start, goal, _box_column(), box_only, 2, margin=MARGIN, table_z=0.0)
+    assert route.withdraw == [] and route.targets == [goal], route
+    jaw = pointing.Jaws(closed=(far, far), now=(far, near), sweep=(far, far))
+    route = pointing.plan_route(_DownKin(), start, goal, _box_column(), jaw, 2, margin=MARGIN, table_z=0.0)
+    assert route.withdraw_m == pytest.approx(0.005), route
+
+
+@needs_pin
+@pytest.mark.parametrize("gap, backs", [(0.002, True), (0.008, False)])
+def test_point_at_backs_the_jaws_straight_out_of_a_touch_first(rig, gap, backs):
+    """The mock arm parked top-down with its jaw box `gap` over the cube's
+    top: within TOUCH_M it first backs straight up (the TCP on a vertical
+    line, never closer to the cube), then points; beyond it, it goes as
+    before. Every command keeps the escape rule; the jaws close after the
+    withdrawal."""
+    from cascade.skills import pointing
+
+    r = rig("mock", camera="mock", prop=(0.30, 0.0, 0.05, 0.05))
+    cube = r.runtime.beliefs.find("red cube")
+    q = _park(r, [0.30, 0.0, 0.12])
+    T = r.runtime.kin.fk(q)
+    low = float((_tool_grid(r.cfg) @ T[:3, :3].T + T[:3, 3])[:, 2].min())
+    q0 = _park(r, [0.30, 0.0, 0.12 - (low - float(cube.top_z)) + gap])
+
+    out = r.runtime.execute("point_at", {"label": "red cube"})
+
+    assert out["ok"] is True, out
+    _assert_every_command_keeps_the_margin(r)
+    cmds = _commands(r)
+    if not backs:
+        assert "backed_out_m" not in out
+        return
+    assert 0 < out["backed_out_m"] <= pointing.WITHDRAW_MAX_M, out
+    t0 = r.runtime.kin.fk(q0)[:3, 3]
+    tcp = np.array([r.runtime.kin.fk(c)[:3, 3] for c in cmds])
+    up = tcp[:, 2] - t0[2]
+    n = int(np.argmax(up >= out["backed_out_m"] - 5e-4)) + 1     # the withdrawal's commands
+    assert np.abs(tcp[:n, :2] - t0[:2]).max() < 1e-3, "the withdrawal left the line"
+    assert np.all(np.diff(up[:n]) >= -1e-9), "the withdrawal went back down"
+    assert r.jaws and r.jaws_at[0] >= n, (r.jaws_at, n)
+
+
+@needs_pin
+@pytest.mark.parametrize("why", ["no_path", "planner"])
+def test_a_touching_start_on_an_arm_that_cannot_stream_a_path_refuses(rig, monkeypatch, why):
+    """No `move_joint_path`, or a motion planner that owns every move (the
+    harness refuses a raw joint path then): refused while planning."""
+    r = rig("mock", camera="mock", prop=(0.30, 0.0, 0.05, 0.05))
+    cube = r.runtime.beliefs.find("red cube")
+    q = _park(r, [0.30, 0.0, 0.12])
+    T = r.runtime.kin.fk(q)
+    low = float((_tool_grid(r.cfg) @ T[:3, :3].T + T[:3, 3])[:, 2].min())
+    _park(r, [0.30, 0.0, 0.12 - (low - float(cube.top_z)) + 0.002])
+    if why == "no_path":
+        monkeypatch.setattr(r.runtime.arm, "move_joint_path", None)
+    else:
+        monkeypatch.setattr(r.runtime.arm, "motion_planner", SimpleNamespace(close=lambda: None))
+
+    out = r.runtime.execute("point_at", {"label": "red cube"})
+
+    _refused_untouched(r, out)
+    assert "this arm cannot back them straight out" in out["error"], out
+
+
+@needs_pin
+@pytest.mark.parametrize("kind", ["halt", "estop"])
+@pytest.mark.parametrize("when", ["during", "after"])
+def test_a_stop_in_or_after_the_withdrawal_sends_no_further_command(rig, monkeypatch, kind, when):
+    """A stop while the jaws back out (at its second streamed command) or
+    right after it: not one more arm or jaw command, and no success."""
+    r = rig("mock", camera="mock", prop=(0.30, 0.0, 0.05, 0.05))
+    cube = r.runtime.beliefs.find("red cube")
+    q = _park(r, [0.30, 0.0, 0.12])
+    T = r.runtime.kin.fk(q)
+    low = float((_tool_grid(r.cfg) @ T[:3, :3].T + T[:3, 3])[:, 2].min())
+    _park(r, [0.30, 0.0, 0.12 - (low - float(cube.top_z)) + 0.002])
+    arm = r.arms[0]
+    at_stop = {}
+
+    def stop():
+        if not at_stop:
+            _stop(r.runtime, kind)
+            at_stop.update(arm=len(arm.commands), jaws=len(r.jaws))
+
+    if when == "during":
+        send = arm.send_joint_target
+
+        def send_then_stop(q):
+            send(q)
+            if len(arm.commands) >= 2:
+                stop()
+
+        arm.send_joint_target = send_then_stop
+    else:
+        real_path = r.runtime.arm.move_joint_path
+
+        def path_then_stop(*a, **k):
+            ok = real_path(*a, **k)
+            stop()
+            return ok
+
+        monkeypatch.setattr(r.runtime.arm, "move_joint_path", path_then_stop)
+
+    out = r.runtime.execute("point_at", {"label": "red cube"})
+
+    assert at_stop and at_stop["arm"] > 0, "the withdrawal never streamed"
+    assert len(arm.commands) == at_stop["arm"] and len(r.jaws) == at_stop["jaws"] == 0
+    assert out["ok"] is False, out
+
+
+# ── planning has a time budget (#378 review M7) ────────────────────────────
+
+
+def test_the_planning_budget_runs_out_on_its_clock(monkeypatch):
+    from cascade.skills import pointing
+
+    now = [100.0]
+    monkeypatch.setattr(pointing, "_clock", lambda: now[0])
+    budget = pointing.Budget(3.0)
+    now[0] = 103.0
+    budget.check()
+    now[0] = 103.001
+    with pytest.raises(pointing.PlanningTimeout, match=r"planning took longer than its 3\.0 s budget"):
+        budget.check()
+    # a long leg checks it at every pose it evaluates
+    now[0] = 0.0
+    ticks = iter(np.arange(0.0, 100.0, 0.25))
+    monkeypatch.setattr(pointing, "_clock", lambda: float(next(ticks)))
+    with pytest.raises(pointing.PlanningTimeout):
+        pointing.plan_route(_SlideIK(), np.array([0.3, 0.0, 0.2]), np.array([-0.3, 0.0, 0.2]), _box_column(),
+                            np.zeros((1, 3)), 2, margin=MARGIN, table_z=0.0, budget=pointing.Budget(3.0))
+
+
+def test_the_lean_in_search_checks_the_budget(monkeypatch):
+    """A spent budget stops the lean-in search before its next candidate."""
+    from cascade.skills import pointing
+
+    now = [0.0]
+    monkeypatch.setattr(pointing, "_clock", lambda: now[0])
+    spent = pointing.Budget(3.0)
+    now[0] = 3.5
+    square = np.array([[-0.02, -0.02], [0.02, -0.02], [0.02, 0.02], [-0.02, 0.02]]) + [0.2, 0.0]
+    column = pointing.ObjectColumn(footprints=(square,), tops=(0.05,), z_lo=0.0, aim=np.array([0.2, 0.0, 0.05]))
+    assert pointing.lean_in(_SlideIK(), column, np.zeros((1, 3)), 2, np.zeros(3), margin=MARGIN,
+                            table_z=0.0).solved > 0, "test setup: the search must try poses"
+    with pytest.raises(pointing.PlanningTimeout):
+        pointing.lean_in(_SlideIK(), column, np.zeros((1, 3)), 2, np.zeros(3), margin=MARGIN, table_z=0.0,
+                         budget=spent)
+
+
+@needs_pin_so101
+@pytest.mark.parametrize("profile", ["mock", "so101_mock"])
+def test_planning_past_its_budget_refuses_before_any_command(rig, monkeypatch, profile):
+    """Every planning step reads the clock; one that has run 3 s refuses
+    with that reason and sends nothing (g1_mock took up to 8.9 s)."""
+    from cascade.skills import pointing
+
+    r = rig(profile, camera="mock") if profile == "mock" else rig(profile, prop=(*at(0.22, 0.0), 0.035, 0.035))
+    ticks = iter(np.arange(0.0, 1e6, 0.4))
+    monkeypatch.setattr(pointing, "_clock", lambda: float(next(ticks)))
+
+    out = r.runtime.execute("point_at", {"label": "red cube"})
+
+    _refused_untouched(r, out)
+    assert "planning took longer than its 3.0 s budget" in out["error"], out
+
+
+# ── remembered objects without a size (#378 review M6) ─────────────────────
+
+
+def test_an_object_remembered_without_a_size_is_a_conservative_column():
+    """push_object and place_at remember only a place: a 10 x 10 cm square
+    up to 0.20 m above the table (or 5 cm over the place), not 'not finite'."""
+    from cascade.skills.runtime import UNSIZED_HALF_M, UNSIZED_HEIGHT_M, _belief_footprint
+
+    pushed = SimpleNamespace(label="box", color="blue", position=np.array([0.3, 0.1, 0.02]), extent=None,
+                             top_z=None, points=None)
+    poly, top = _belief_footprint(pushed, table_z=0.0)
+    assert (UNSIZED_HALF_M, UNSIZED_HEIGHT_M) == (0.05, 0.20)
+    np.testing.assert_allclose(np.abs(poly - [0.3, 0.1]), 0.05)
+    assert top == pytest.approx(0.20)
+    high = SimpleNamespace(**{**vars(pushed), "position": np.array([0.3, 0.1, 0.18])})
+    assert _belief_footprint(high, table_z=0.0)[1] == pytest.approx(0.23)
+    with pytest.raises(ValueError, match="not finite"):
+        _belief_footprint(SimpleNamespace(**{**vars(pushed), "position": np.array([0.3, np.nan, 0.1])}))
+
+
+@needs_pin
+def test_point_at_keeps_the_margin_from_an_object_remembered_without_a_size(rig):
+    """A pushed box remembered at a place only, 9 cm from the cube: point_at
+    no longer refuses 'not finite'; it keeps 3 cm from a 10 x 10 cm column
+    0.20 m tall there, or refuses naming it."""
+    r = rig("mock", camera="mock")
+    cube = r.runtime.beliefs.find("red cube")
+    where = np.asarray(cube.position, float) + [0.0, 0.09, 0.0]
+    r.runtime.beliefs.update("box", np.array([where[0], where[1], 0.015]), 0.6, color="blue")
+
+    out = r.runtime.execute("point_at", {"label": "red cube"})
+
+    assert "not finite" not in str(out.get("error")), out
+    if out["ok"]:
+        lo = np.array([where[0] - 0.05, where[1] - 0.05, 0.0])
+        _assert_commands_keep_the_margin_from(r, lo, lo + [0.1, 0.1, 0.2])
+    else:
+        _refused_untouched(r, out)
+        assert "the blue box (no remembered size: taken as a 10 x 10 cm column up to 0.20 m)" in out["error"], out
+
+
+@needs_pin
+def test_the_targets_own_record_without_a_size_is_not_a_neighbour(rig, monkeypatch):
+    """push_object re-remembers the pushed object at its new place only: a
+    second 'red cube' record inside the cube's own column is the cube."""
+    r = rig("mock", camera="mock")
+    cube = r.runtime.beliefs.find("red cube")
+    stale = SimpleNamespace(label=cube.label, color=cube.color, extent=None, top_z=None, points=None,
+                            position=np.asarray(cube.position, float) + [0.005, 0.0, -0.01])
+    real_all = r.runtime.beliefs.all
+    monkeypatch.setattr(r.runtime.beliefs, "all", lambda: [*real_all(), stale])
+
+    out = r.runtime.execute("point_at", {"label": "red cube"})
+
+    assert out["ok"] is True, out
+    # the same record under another name is another object, taken as a column
+    other = SimpleNamespace(**{**vars(stale), "label": "box", "color": "blue"})
+    monkeypatch.setattr(r.runtime.beliefs, "all", lambda: [*real_all(), other])
+    for arm in r.arms:
+        arm.commands.clear()
+    r.jaws.clear()
+    out = r.runtime.execute("point_at", {"label": "red cube"})
+    _refused_untouched(r, out)
+    assert "the blue box (no remembered size" in out["error"], out
+
+
+# ── an e-stop in the last close or the hold is no success (#378 review M5) ─
+
+
+@needs_pin_so101
+@pytest.mark.parametrize("where", ["close", "hold"])
+def test_an_estop_in_the_final_close_or_the_hold_is_reported(rig, monkeypatch, where):
+    """The close can be the last command (the so101 lean-in closes at the
+    pointing pose): an e-stop latched in it, or during the hold, returns ok
+    false naming the e-stop, with no command after it (main closed first and
+    its next move refused)."""
+    import threading
+
+    import cascade.skills.runtime as R
+
+    r = rig("so101_mock", prop=(*at(0.22, 0.0), 0.035, 0.035))
+    runtime = r.runtime
+    seen = {}
+    if where == "close":
+        real = runtime._set_gripper
+
+        def close(*a, **k):
+            res = real(*a, **k)
+            runtime.arm.harness.estop("operator e-stop")
+            seen["arm"] = len(_commands(r))
+            return res
+
+        monkeypatch.setattr(runtime, "_set_gripper", close)
+    else:
+        real_sleep = R.time.sleep
+
+        class _Time:
+            def __getattr__(self, name):
+                return getattr(time, name)
+
+            def sleep(self, s):
+                if s >= 1.0 and not seen and threading.current_thread() is threading.main_thread():
+                    runtime.arm.harness.estop("operator e-stop")
+                    seen["arm"] = len(_commands(r))
+                return real_sleep(min(s, 0.05))
+
+        monkeypatch.setattr(R, "time", _Time())
+
+    out = runtime.execute("point_at", {"label": "red cube"})
+
+    assert seen, "the stop was never injected"
+    if where == "close":
+        assert r.jaws_at[-1] == len(_commands(r)), "test setup: the close must be the last command"
+    assert out["ok"] is False and "e-stop" in out["error"], out
+    assert len(_commands(r)) == seen["arm"] and len(r.jaws) == 1
+
+
 # ── the rise never comes closer; the escape never dips between samples ────
 
 
@@ -1711,7 +2167,26 @@ def _mujoco_point_at(monkeypatch, tmp_path, prop, touching=None):
     """point_at on so101_mujoco with the prop at (x, y, side, height): (result,
     the largest prop displacement, arm targets sent, jaw commands sent).
     `touching` collects the arm bodies the prop touches before the call."""
-    touching = [] if touching is None else touching
+    run = _mujoco_run(monkeypatch, tmp_path, prop)
+    if touching is not None:
+        touching.extend(run.touching)
+    return run.out, run.moved, run.sent, run.jaws
+
+
+#: the control's straight lift of the TCP along its approach axis (m)
+LIFT_M = 0.06
+
+
+def _mujoco_run(monkeypatch, tmp_path, prop, lift=False):
+    """so101_mujoco from home with the prop at (x, y, side, height):
+    point_at, or (`lift`) the control: the TCP straight back LIFT_M along its
+    approach (a dense joint path, as one motion). A namespace: out, moved
+    (the largest prop displacement), sent / jaws (arm targets and jaw
+    commands, with the number of targets sent before each jaw command),
+    touching (the arm bodies the prop touched before), depth (the prop's
+    distance to the arm's collision geometry where it starts, and the least
+    over every commanded pose, the jaws at their commanded angle and every
+    close swept: `_prop_depth`)."""
     monkeypatch.setenv("MUJOCO_GL", "disable")
     from cascade.apps import demo
     from cascade.config import load_demo_config
@@ -1720,7 +2195,7 @@ def _mujoco_point_at(monkeypatch, tmp_path, prop, touching=None):
     cfg = load_demo_config(camera="mock_small", arm="so101_mujoco", llm="mock")
     if prop is not None:
         place_prop(cfg, *prop)
-    runtime, raw = demo.build_runtime(cfg, tmp_path / "run")
+    runtime, raw = demo.build_runtime(cfg, tmp_path / ("lift" if lift else "run"))
     try:
         deadline = time.monotonic() + 10.0
         while time.monotonic() < deadline and runtime.beliefs.find("red cube") is None:
@@ -1728,21 +2203,92 @@ def _mujoco_point_at(monkeypatch, tmp_path, prop, touching=None):
         truth = make_truth_pose_fn(raw)
         before = {k: np.asarray(v, float)[:3].copy() for k, v in truth.all_poses().items()}
         assert before, "the scene has no prop"
+        qpos0 = np.array(raw._engine.data.qpos, dtype=float).copy()
+        q0 = np.asarray(raw.get_state().q, float).copy()
+        grip0 = float(raw.get_state().gripper_pos)
         sent, jaws = [], []
         send, grip = raw.send_joint_target, raw.set_gripper
-        monkeypatch.setattr(raw, "send_joint_target", lambda q: (sent.append(q), send(q))[1])
-        monkeypatch.setattr(raw, "set_gripper", lambda *a, **k: (jaws.append(a), grip(*a, **k))[1])
+        monkeypatch.setattr(raw, "send_joint_target", lambda q: (sent.append(np.asarray(q, float).copy()), send(q))[1])
+        monkeypatch.setattr(raw, "set_gripper", lambda *a, **k: (jaws.append((len(sent), float(a[0]))),
+                                                                 grip(*a, **k))[1])
 
-        touching.extend(_prop_contacts(raw))
-        out = runtime.execute("point_at", {"label": "red cube"})
+        touching = _prop_contacts(raw)
+        if lift:
+            # the backend directly (a physics control, not a gated motion):
+            # the TCP straight back along its approach, 5 mm IK steps from the
+            # previous pose (the approach held, the roll free: a 5-joint arm),
+            # as far as the line solves (the SO-101 at home: 2.5 cm), up to LIFT_M
+            T = np.asarray(runtime.kin.fk(q0), float)
+            col = _approach_col(cfg)
+            path, q = [], q0
+            for k in range(1, int(round(LIFT_M / 0.005)) + 1):
+                res = runtime.kin.ik_approach(T[:3, 3] - k * 0.005 * T[:3, col], T[:3, col], q, np.eye(3)[:, col],
+                                              retries=0)
+                q_next = np.asarray(res.q, float)[: q0.size]
+                if not (res.success and np.abs(q_next - q).max() < 0.1):
+                    break
+                path.append(q_next)
+                q = q_next
+            assert len(path) >= 4, f"control: the straight lift ends {len(path) * 5} mm up"
+            raw.stream_path(path, duration_s=2.0)
+            out = {"ok": None}
+        else:
+            out = runtime.execute("point_at", {"label": "red cube"})
         time.sleep(0.3)
 
         after = {k: np.asarray(v, float)[:3] for k, v in truth.all_poses().items()}
         moved = max(float(np.linalg.norm(after[k] - before[k])) for k in before)
-        # copies: the shutdown below parks the arm through the same hooks
-        return out, moved, list(sent), list(jaws)
+        closed = float(cfg.arm.get("gripper").get("closed_pos"))
+        # copies under new names: the shutdown below parks the arm through
+        # the same hooks, which append to `sent` / `jaws` (closure cells)
+        sent_now, jaws_now = list(sent), list(jaws)
+        depth = _prop_depth(raw._engine.model, qpos0, q0, grip0, sent_now, jaws_now, closed)
+        return SimpleNamespace(out=out, moved=moved, sent=sent_now, jaws=jaws_now, touching=touching, depth=depth)
     finally:
         demo.shutdown_runtime(runtime, raw)
+
+
+_ARM_JOINTS = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll")
+
+
+def _prop_depth(m, qpos0, q0, grip0, sent, jaws, closed) -> tuple[float, float]:
+    """(where it starts, the least): the red cube's distance (MuJoCo
+    `mj_geomDistance`, negative = inside) to the arm's collision geoms, the
+    props where they started, the arm at its start and at every commanded
+    target, the jaws at their commanded angle, every jaw command swept from
+    the angle before it."""
+    import mujoco
+
+    d = mujoco.MjData(m)
+    adr = {n: m.jnt_qposadr[mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, n)] for n in (*_ARM_JOINTS, "gripper")}
+    names = [mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_BODY, int(m.geom_bodyid[g])) or "" for g in range(m.ngeom)]
+    cube = [g for g in range(m.ngeom) if names[g] == "red_cube"]
+    arm = [g for g in range(m.ngeom) if names[g] not in ("world", "") and not names[g].endswith("cube")
+           and not names[g].startswith("extra") and (m.geom_contype[g] or m.geom_conaffinity[g])]
+    assert cube and arm, "test setup: no red cube or no arm geoms"
+    fromto = np.zeros(6)
+
+    def dist(q, angle):
+        d.qpos[:] = qpos0
+        for n, v in zip(_ARM_JOINTS, q):
+            d.qpos[adr[n]] = v
+        d.qpos[adr["gripper"]] = angle
+        mujoco.mj_forward(m, d)
+        return min(mujoco.mj_geomDistance(m, d, c, g, 0.1, fromto) for c in cube for g in arm)
+
+    angle, poses = grip0, [np.asarray(q0, float)] + list(sent)
+    start = dist(poses[0], angle)
+    least = start
+    commands = iter(sorted(jaws))
+    nxt = next(commands, None)
+    for i, q in enumerate(poses):
+        while nxt is not None and nxt[0] == i:          # a jaw command before target i (or after the last)
+            for a in np.linspace(angle, nxt[1], 12):
+                least = min(least, dist(poses[i], a))
+            angle = nxt[1]
+            nxt = next(commands, None)
+        least = min(least, dist(q, angle))
+    return start, least
 
 
 def _prop_contacts(raw) -> list:
@@ -1804,32 +2350,58 @@ def test_so101_mujoco_never_closes_the_jaws_into_a_prop_beside_them(monkeypatch,
 
 
 def _sweep_props() -> list:
-    """24 random props (seed 37202: r 0.17-0.27 m, az +-0.6 rad, side 3-5 cm,
-    height 3-7 cm), the draws MuJoCo does not spawn inside the arm at home:
-    a prop spawned through the open jaws (draws 0, 16, 25: 1-7.5 mm deep) is
-    pushed by the contact solver as soon as the arm moves, whatever moves it."""
+    """27 random props (seed 37202: r 0.17-0.27 m, az +-0.6 rad, side 3-5 cm,
+    height 3-7 cm), every draw: three (0, 16, 25) spawn 1-7.5 mm deep through
+    the open jaws at home."""
     rng = np.random.default_rng(37202)
-    draws = [tuple(float(rng.uniform(lo, hi)) for lo, hi in ((0.17, 0.27), (-0.6, 0.6), (0.03, 0.05), (0.03, 0.07)))
-             for _ in range(27)]
-    return [draws[i] for i in range(27) if i not in (0, 16, 25)]
+    return [tuple(float(rng.uniform(lo, hi)) for lo, hi in ((0.17, 0.27), (-0.6, 0.6), (0.03, 0.05), (0.03, 0.07)))
+            for _ in range(27)]
+
+
+#: the #378 review's props that spawn touching the open jaws at home
+#: (-0.5..0.1 mm: its rows 15-20; row 17 was pushed 4.9 mm with ok: true) and
+#: one 3 mm inside them (its row 48, pushed 9.2 mm), as (r, az, side, height)
+TOUCHING_PROPS = [
+    (0.25734242237027244, 0.08925956387866209, 0.038745371620075936, 0.10482883081992844),
+    (0.23937353027307368, -0.2912019679078725, 0.03259293691162826, 0.07101454004912552),
+    (0.251368827244064, -0.09388168869707424, 0.042772055144915826, 0.0632440173211075),
+    (0.16761774466685683, 0.14442380210101538, 0.031111323835186486, 0.09409644281004863),
+    (0.2288725523360636, 0.08515222590635628, 0.04382901120232272, 0.09768749606812635),
+    (0.17093100559115967, 0.13095612812444785, 0.047534798071054936, 0.05856056091506852),
+    (0.1966719978476447, -0.06532871111329619, 0.0392272200583173, 0.06706985553620733),
+]
 
 
 @needs_pin_so101
 @needs_mujoco
-@pytest.mark.parametrize("prop", _sweep_props(), ids=lambda p: f"r{p[0]:.3f}-az{p[1]:+.2f}-s{p[2]:.3f}-h{p[3]:.3f}")
-def test_so101_mujoco_never_pushes_a_random_prop(monkeypatch, tmp_path, prop):
-    """Every ok:true moves no prop more than 1 mm (physics, not the code's
-    own geometry); a refusal sends nothing."""
+@pytest.mark.parametrize("prop", _sweep_props() + TOUCHING_PROPS,
+                         ids=lambda p: f"r{p[0]:.3f}-az{p[1]:+.2f}-s{p[2]:.3f}-h{p[3]:.3f}")
+def test_so101_mujoco_never_pushes_a_prop_more_than_a_straight_lift(monkeypatch, tmp_path, prop):
+    """Physics, not the code's own geometry, with props touching and inside
+    the open jaws too (#378 review Important 3). Every ok: true never takes
+    the arm deeper into the prop than where it started (MuJoCo collision
+    geometry, every commanded pose, every close swept) and moves it no more
+    than 1 mm beyond what a straight lift (LIFT_M back along the approach,
+    from the same start) moves it; a refusal sends nothing."""
     radius, az, side, height = prop
-    touching = []
-    out, moved, sent, jaws = _mujoco_point_at(monkeypatch, tmp_path, (*at(radius, az), side, height), touching)
+    placed = (*at(radius, az), side, height)
+    run = _mujoco_run(monkeypatch, tmp_path, placed)
+    start, least = run.depth
+    print(f"\n[sweep] r{radius:.3f} az{az:+.2f} ok={run.out['ok']} start={start * 1000:.2f}mm least={least * 1000:.2f}mm "
+          f"moved={run.moved * 1000:.3f}mm backed={run.out.get('backed_out_m')} lean={run.out.get('lean_deg')} "
+          f"error={str(run.out.get('error'))[:160]}")
 
-    assert touching == [], f"test setup: the prop must not spawn touching the arm ({touching})"
-    if out["ok"] is True:
-        assert moved < 0.001, f"the prop moved {moved * 1000:.1f} mm: {out}"
-        assert len(jaws) == 1, jaws
-    else:
-        assert sent == [] and jaws == [] and "nothing was moved" in out["error"], out
+    if run.out["ok"] is not True:
+        assert run.sent == [] and run.jaws == [] and "nothing was moved" in run.out["error"], run.out
+        return
+    assert least >= min(start, 0.0) - 2e-4, \
+        f"the arm went {(min(start, 0.0) - least) * 1000:.2f} mm deeper into the prop than where it started: {run.out}"
+    allowed = 0.001
+    if run.moved >= allowed and start < 0.001:     # it starts touching: a straight lift moves it too
+        allowed += _mujoco_run(monkeypatch, tmp_path, placed, lift=True).moved
+        print(f"[sweep]   straight lift moved it {(allowed - 0.001) * 1000:.3f}mm")
+    assert run.moved < allowed, f"the prop moved {run.moved * 1000:.2f} mm (allowed {allowed * 1000:.2f}): {run.out}"
+    assert len(run.jaws) == 1, run.jaws
 
 
 def _surface(m, g, step=0.002):

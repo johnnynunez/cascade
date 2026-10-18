@@ -211,7 +211,22 @@ def _pointing_tool_points(gcfg, axis_order: str) -> np.ndarray:
     return np.vstack([np.zeros(3), centre + (signs * half) @ axes.T])
 
 
-def _belief_footprint(belief) -> tuple[np.ndarray, float]:
+#: a remembered object with no size (neither extents nor points: place_at's
+#: and push_object's records) is taken as a square column this half-wide ...
+UNSIZED_HALF_M = 0.05
+#: ... up to this above the table (the tallest prop the demos use is a 20 cm
+#: bottle), or this half-width above its remembered point if that is higher
+UNSIZED_HEIGHT_M = 0.20
+
+
+def _unsized(belief) -> bool:
+    """A remembered object with neither extents nor points: its position is
+    all point_at knows of it."""
+    pts = getattr(belief, "points", None)
+    return getattr(belief, "extent", None) is None and (pts is None or not len(pts))
+
+
+def _belief_footprint(belief, table_z: float = 0.0) -> tuple[np.ndarray, float]:
     """A remembered object's prism for point_at: (xy footprint polygon, top).
 
     The top is its remembered `top_z`, else its centre plus half its
@@ -220,9 +235,12 @@ def _belief_footprint(belief) -> tuple[np.ndarray, float]:
     two HORIZONTAL extents (any yaw fits in it). Extents are eigenvalue-
     ordered, not axis-aligned: the vertical one is the extent closest to its
     height (twice its top above its centre), so a 20 cm bottle's footprint is
-    its 6 cm girth, not its height. Raises ValueError when its position, top
-    or extents (or points) are not finite, or when it has neither extents
-    nor points: an object point_at cannot place is never skipped."""
+    its 6 cm girth, not its height. An object with neither extents nor points
+    (`_unsized`) is taken conservatively: a square UNSIZED_HALF_M half-wide
+    around its position, up to its `top_z`, else UNSIZED_HEIGHT_M above the
+    table (`table_z`) or UNSIZED_HALF_M above its position if higher. Raises
+    ValueError when its position, top or extents (or points) are not finite:
+    an object point_at cannot place is never skipped."""
     name = f"the {belief.color + ' ' if getattr(belief, 'color', None) else ''}{belief.label}"
     position = np.asarray(belief.position, dtype=float).reshape(-1)
     ext = getattr(belief, "extent", None)
@@ -230,6 +248,9 @@ def _belief_footprint(belief) -> tuple[np.ndarray, float]:
     pts = getattr(belief, "points", None)
     pts = None if pts is None or not len(pts) else np.asarray(pts, dtype=float).reshape(-1, 3)
     top = getattr(belief, "top_z", None)
+    unsized = ext is None and pts is None
+    if top is None and unsized and position.size == 3:
+        top = max(float(table_z) + UNSIZED_HEIGHT_M, float(position[2]) + UNSIZED_HALF_M)
     if top is None and ext is not None and ext.size:
         top = float(position[2] + np.max(ext) / 2.0) if position.size == 3 else math.nan
     if top is None and pts is not None:
@@ -237,14 +258,17 @@ def _belief_footprint(belief) -> tuple[np.ndarray, float]:
     top = math.nan if top is None else float(top)
     if not (position.size == 3 and np.isfinite(position).all() and math.isfinite(top)
             and (ext is None or (ext.size == 3 and np.isfinite(ext).all()))
-            and (pts is None or np.isfinite(pts).all()) and (ext is not None or pts is not None)):
+            and (pts is None or np.isfinite(pts).all())):
         raise ValueError(f"{name}'s remembered box is not finite")
+    square = np.array([[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]])
+    if unsized:
+        return position[:2] + UNSIZED_HALF_M * square, top
     xy = [] if pts is None else [pts[:, :2]]
     if ext is not None:
         height = 2.0 * max(top - float(position[2]), 0.0)
         horizontal = np.delete(np.abs(ext), int(np.argmin(np.abs(np.abs(ext) - height))))
         half = float(np.hypot(*horizontal)) / 2.0
-        xy.append(position[:2] + half * np.array([[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]]))
+        xy.append(position[:2] + half * square)
     return np.vstack(xy), top
 
 
@@ -7231,16 +7255,31 @@ class SkillRuntime:
         margin from every other known object. The route there is checked as
         well: the straight joint segment from where the arm is, else one
         rise-first waypoint (both keep every known object's margin; on the
-        rise the jaws never come closer to the target). The jaws close only where
+        rise the jaws never come closer to the target). Jaws that start
+        touching an object (within 5 mm, on their real geometry) first back
+        straight out along their approach. The jaws close only where
         everything a close sweeps (the profile's `gripper.jaw_volume`) keeps
         the margin from the target, every known object and the table: where
-        the arm starts, else at the waypoint or the pointing pose. While
-        holding an object it never leans in and never closes the jaws. No
-        clear pose, route or close refuses before any arm or jaw command. The
-        object top is the observed top raised to the occupancy map's column
-        top (capped as the pregrasp reads it) and to the top of an object
-        standing over it (a cup over the cube)."""
+        the arm starts (or backed out), else at the waypoint or the pointing
+        pose. While holding an object it never leans in and never closes the
+        jaws. No clear pose, route or close, or planning past its 3 s budget,
+        refuses before any arm or jaw command; an e-stop latched in the last
+        close or the hold is reported. The object top is the observed top
+        raised to the occupancy map's column top (capped as the pregrasp
+        reads it) and to the top of an object standing over it (a cup over
+        the cube)."""
         _, fix = self._localize(label)
+        from . import pointing
+
+        budget = pointing.Budget()
+        try:
+            return self._point_at(label, fix, budget)
+        except pointing.PlanningTimeout as exc:
+            raise SkillError(f"cannot point at {label!r}: {exc} (the pose and its route are planned before any "
+                             f"command); nothing was moved") from None
+
+    def _point_at(self, label: str, fix, budget) -> dict:
+        """skill_point_at after the fix: plan within `budget`, then move."""
         gcfg = self.cfg.grasp
         harness = getattr(self.arm, "harness", None)
         margin = float(self.cfg.safety.get("min_clearance_m", 0.03))
@@ -7294,6 +7333,7 @@ class SkillRuntime:
         crowded = None     # (distance, name): the farthest a rejected solution kept from a neighbour
         for z in rungs:
             for yaw in (float(np.arctan2(hover[1], hover[0])), 0.0, np.pi / 4, -np.pi / 4):
+                budget.check()
                 cand = self.kin.ik(
                     make_transform(_yaw_rotation(yaw, axis_order=self._tool_axis_order),
                                    [hover[0], hover[1], z]), q_now
@@ -7333,7 +7373,7 @@ class SkillRuntime:
                 raise SkillError(f"cannot point at {label!r} while holding {held!r}: {from_above}; it leans in "
                                  f"only with empty jaws; nothing was moved")
             lean = pointing.lean_in(self.kin, column, jaws.closed, approach_col, q_now, margin=margin,
-                                    table_z=table_z, vet=vet, neighbours=near)
+                                    table_z=table_z, vet=vet, neighbours=near, budget=budget)
             if lean.q is None:
                 best = "" if lean.clearance is None else f" (the best solved pose had {lean.clearance.worst(margin)})"
                 raise SkillError(
@@ -7356,14 +7396,25 @@ class SkillRuntime:
             except SkillError as exc:
                 return str(exc)
 
+        # a jaw touching an object first backs straight out: one dense joint
+        # path, streamed as one harness-gated motion (never a planner-bound arm's)
+        can_withdraw = (callable(getattr(self.arm, "move_joint_path", None))
+                        and getattr(self.arm, "motion_planner", None) is None)
         try:
             route = pointing.plan_route(self.kin, q_now, target, column, jaws, approach_col, margin=margin,
                                         table_z=table_z, neighbours=near, close=not held, vet=vet,
-                                        preflight=preflight, preflight_direct=lean is not None)
+                                        preflight=preflight, preflight_direct=lean is not None,
+                                        withdraw=can_withdraw, budget=budget)
+        except pointing.PlanningTimeout:
+            raise
         except pointing.RouteRefused as exc:
             _raise_if_estopped(harness)
             raise SkillError(f"cannot reach the pointing pose over {label!r} keeping {margin:.3f} m from it: "
                              f"{exc}; nothing was moved") from None
+        if route.withdraw:
+            self._mark_motion_started()
+            if not self.arm.move_joint_path(route.withdraw, duration_s=2.0):
+                raise SkillError("did not settle after backing the jaws straight out")
         legs = ("did not settle at the rise-first waypoint", "did not settle at the pointing pose")
         for i, q in enumerate(route.targets):
             if route.close_at == i:
@@ -7373,12 +7424,17 @@ class SkillRuntime:
         if route.close_at == len(route.targets):
             self._set_gripper(self._grip_closed, effort=0.6)
         time.sleep(float(self.cfg.get("gesture", {}).get("point_hold_s", 1.2)))
+        # the close can be the last command: an e-stop latched in it (or in
+        # the hold) is no success (main closed first, and its next move refused)
+        _raise_if_estopped(harness)
         self.memory.add("action", f"pointed at {label!r}")
         out = {"pointed_at": label, "position": [round(float(x), 3) for x in fix.position]}
         if lean is not None:
             out["lean_deg"] = int(round(lean.tilt_deg))
         if len(route.targets) > 1:
             out["rose_first"] = True
+        if route.withdraw:
+            out["backed_out_m"] = round(float(route.withdraw_m), 3)
         return out
 
     def _pointing_top(self, label: str, fix, harness) -> tuple[float, list, list]:
@@ -7393,9 +7449,13 @@ class SkillRuntime:
         the booth's "point at where it was" points at the cup that now hides
         the cube, and the cup is part of what the jaws must clear. The target's
         own belief and the object in the jaws are neither. A remembered object
-        whose box is not finite refuses (nothing was moved): point_at cannot
-        tell whether it stands over the target or in the way."""
-        from .pointing import _footprint_distance, _hull_xy
+        with no size (`_unsized`) is a neighbour taken conservatively (named so
+        in a refusal), never an occluder; one with the target's name whose
+        place lies inside the target's column is the target's own stale record
+        and is skipped. A remembered object whose box is not finite refuses
+        (nothing was moved): point_at cannot tell whether it stands over the
+        target or in the way."""
+        from .pointing import _footprint_distance, _hull_xy, object_column
 
         pts = np.asarray(fix.points, dtype=float).reshape(-1, 3)
         observed = float(pts[:, 2].max()) if len(pts) else float("nan")
@@ -7403,6 +7463,7 @@ class SkillRuntime:
             raise SkillError(f"cannot point at {label!r}: its observed top is not a finite height "
                              f"({observed} m over {len(pts)} points); nothing was moved")
         top = observed + _map_top_lift(self.cfg.grasp, harness, fix, observed)
+        table_z = float(getattr(getattr(harness, "limits", None), "table_z", self.cfg.safety.get("table_z", 0.0)))
         target = self.beliefs.find(label)
         in_jaws = self.beliefs.find(self.held_object) if self.held_object else None
         centre = np.asarray(fix.position, dtype=float)[:2]
@@ -7410,8 +7471,20 @@ class SkillRuntime:
         for b in self.beliefs.all():
             if b is target or b is in_jaws:
                 continue
+            name = f"the {b.color + ' ' if b.color else ''}{b.label}"
             try:
-                poly, b_top = _belief_footprint(b)
+                poly, b_top = _belief_footprint(b, table_z)
+                if _unsized(b):
+                    # the target's own stale record (push_object / place_at
+                    # write the place only) is no other object
+                    if target is not None and (b.label, b.color) == (target.label, target.color) and \
+                            not float(object_column(fix, table_z, top).distance(b.position)[0]) > 0.0:
+                        continue
+                    # never an occluder: a guess must not move the target's top
+                    neighbours.append((_hull_xy(poly), b_top, f"{name} (no remembered size: taken as a "
+                                       f"{200 * UNSIZED_HALF_M:.0f} x {200 * UNSIZED_HALF_M:.0f} cm column up to "
+                                       f"{b_top:.2f} m)"))
+                    continue
             except ValueError as exc:
                 raise SkillError(f"cannot point at {label!r}: {exc}; nothing was moved") from None
             hull = _hull_xy(poly)
@@ -7419,7 +7492,7 @@ class SkillRuntime:
             if covers and b_top > top:
                 occluders.append((hull, b_top))
             else:
-                neighbours.append((hull, b_top, f"the {b.color + ' ' if b.color else ''}{b.label}"))
+                neighbours.append((hull, b_top, name))
         if occluders:
             top = max(top, max(t for _, t in occluders))
         return top, occluders, neighbours

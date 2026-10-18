@@ -224,6 +224,20 @@ def _no_ambient_judge(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_ambient_observed_finger_gate(monkeypatch):
+    """A Spark shell that sourced the installer's env.sh exports
+    CASCADE_OBSERVED_FINGER_GATE=1 (install_support.SPARK_RUNTIME_DEFAULTS).
+    It must not switch every grasp in the suite to the observed-finger path:
+    tests written for the shipped default (gate unset, as on CI) then fail on
+    the Spark for an environment reason -- on the mock stack the gate refuses
+    the grasp ("observed-finger gate currently requires calibrated Isaac
+    reBot"). The suite certifies the gate-off default; gate-on tests set the
+    gate themselves with monkeypatch.setenv (which overrides this scrub), so
+    they run gate-on in every shell."""
+    monkeypatch.delenv("CASCADE_OBSERVED_FINGER_GATE", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _no_ambient_occupancy(monkeypatch):
     """occupancy is ON by default in configs/demo.yaml (2026-09-03), and this
     venv has the `grasping` extra, so every build_runtime in the suite would

@@ -7,12 +7,16 @@ go through `_to_arm`, and every report goes back out in the TABLE frame
 (localize_object, point_at, preview_grasp, get_observation's `tcp_xyz`, the
 configured zones). The equivariance oracle (`tests/base_pose_oracle.py`) is
 the core check: an arm at base_pose T with the scene moved by T behaves
-exactly like the same arm without a base_pose.
+exactly like the same arm without a base_pose. Agent-facing text quotes
+table-frame points too (a workspace refusal, the VLM's refusal and note), and
+another camera is taken into the arm frame by its OWN extrinsics.
 """
 
 from __future__ import annotations
 
+import dataclasses
 import json
+import re
 
 import numpy as np
 import pytest
@@ -37,6 +41,21 @@ ORACLE_T3 = {"localize_object": {"label": "red cube"}, "point_at": {"label": "re
 #: mock_small's red cube, with the camera shifted 10 cm in -y in the table
 #: frame: W (0.198, -0.10), r = 0.231 from so101_right's base (spec §6.2).
 WORLD_OBJECT_XY = (0.198, -0.10)
+#: A yawed, raised and shifted mount (the Task 3 review's COMBO): the cube at
+#: W (0.198, -0.10) is behind this arm, B (-0.238, 0.076, 0.018), outside its
+#: workspace, so localization refuses it and quotes where it saw it.
+COMBO = [0.05, -0.30, 0.02, 0.0, 0.0, -1.9]
+#: The point a refusal quotes: "... at [x, y, z] (is) outside the active arm workspace".
+_QUOTED = re.compile(r"at \[(-?\d+(?:\.\d+)?), (-?\d+(?:\.\d+)?), (-?\d+(?:\.\d+)?)\] (?:is )?outside the active arm "
+                     r"workspace")
+#: The point the VLM's memory note quotes: "... found it at [x, y, z]" (cm).
+_NOTED = re.compile(r"the VLM \(2nd filter\) found it at \[(-?\d+(?:\.\d+)?), (-?\d+(?:\.\d+)?), (-?\d+(?:\.\d+)?)\]")
+
+
+def _quoted(text, pattern=_QUOTED):
+    found = pattern.findall(str(text))
+    assert len(found) == 1, text
+    return np.asarray(found[0], dtype=float)
 
 
 def _world_object_rig():
@@ -95,19 +114,32 @@ def test_point_at_hovers_over_the_world_object(make_runtime, monkeypatch):  # no
 
 def test_the_belief_fallback_aims_in_the_arm_frame(make_pair_rigs, monkeypatch):  # noqa: F811
     """The detector misses; a fresh belief (table frame) becomes the target,
-    converted into the arm frame (`_localize`'s world-model fix)."""
+    converted into the arm frame (`_localize`'s world-model fix). The frame
+    the fallback returns is in the arm frame too: Task 4's grasp and observed
+    gate read its camera pose."""
     rt_a, rt_b, T = make_pair_rigs(YAWED)
-    misses = []
-    for rt in (rt_a, rt_b):
+    misses, returned = [], {}
+    for tag, rt in (("a", rt_a), ("b", rt_b)):
         # point_at's hold and the IK search take seconds on rig A; keep rig B's
         # belief (seeded with A's) inside the fallback's freshness window
         rt.cfg._data.setdefault("perception_loop", {})["belief_fallback_age_s"] = 60.0
         monkeypatch.setattr(rt.detector, "detect", lambda *a, **k: (misses.append(1), [])[1])
+        real = rt._localize
+
+        def localize(*a, _real=real, _tag=tag, _rt=rt, **k):
+            frame, fix = _real(*a, **k)
+            returned[_tag] = (frame.T_base_cam if frame.T_base_cam is not None
+                              else _rt.extrinsics.cam_to_base())
+            return frame, fix
+
+        monkeypatch.setattr(rt, "_localize", localize)
     run = run_pair(rt_a, rt_b, T, "point_at", {"label": "red cube"})
     assert misses, "the detector was asked and missed"
     assert run["result_a"]["ok"] is True, run["result_a"]
     assert any("world-model fix" in e.text for e in rt_b.memory.events(("note",))), "rig B used the belief"
     assert_equivariant(run, T)
+    # rig B's camera, moved with its base by T, sits where rig A's does in the arm frame
+    np.testing.assert_allclose(returned["b"], returned["a"], rtol=0.0, atol=1e-9)
 
 
 @pytest.mark.parametrize("pose", [YAWED, RAISED], ids=["yawed", "raised"])
@@ -182,6 +214,63 @@ def test_a_side_camera_localizes_in_the_arm_frame(make_pair_rigs):  # noqa: F811
     assert_equivariant(run, T)
 
 
+#: The side camera's own pose relative to the primary's: 3 cm along the image x
+#: and -2 cm along its y, in the camera's frame (so it moves with the arm in rig B).
+_SIDE_OFFSET = np.array([[1.0, 0.0, 0.0, 0.03], [0.0, 1.0, 0.0, -0.02], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]])
+
+
+def _side_camera_elsewhere(cfg):
+    """`_side_camera_only`, with the side camera at its OWN pose (not the
+    primary's): a wrong camera's extrinsics then put the cube 3.6 cm off."""
+    _side_camera_only(cfg)
+    ext = cfg._data["cameras"][-1]["extrinsics"]
+    ext = ext._data if hasattr(ext, "_data") else ext
+    ext["T"] = (np.asarray(ext["T"], dtype=float) @ _SIDE_OFFSET).tolist()
+
+
+def _unstamped_other_cameras(rt):
+    """The other cameras' frames carry no per-capture `T_base_cam` (a camera
+    without capture geometry): their pose is the camera's static extrinsics."""
+    for cam in rt._other_cams():
+        real = cam.stream.get_frame
+        cam.stream.get_frame = lambda *a, _real=real, **k: dataclasses.replace(_real(*a, **k), T_base_cam=None)
+
+
+class _RedBoxGrounder:
+    """A VLM grounder double that reads the image: the box around the red
+    cube's pixels (mock_small's BGR red), or None on a view without it."""
+
+    def ground(self, frame, query):
+        from cascade.types import Detection
+
+        ys, xs = np.nonzero(np.all(frame.rgb == (40, 40, 200), axis=-1))
+        if not len(xs):
+            return None
+        return Detection(label=query, conf=0.9,
+                         bbox=np.array([xs.min(), ys.min(), xs.max() + 1, ys.max() + 1], dtype=np.float32))
+
+
+@pytest.mark.parametrize("path", ["detector", "vlm"])
+def test_another_camera_is_placed_by_its_own_extrinsics(make_pair_rigs, monkeypatch, path):  # noqa: F811
+    """The other camera at its own pose, its frames unstamped: its detector
+    pass and its VLM view take it into the arm frame with ITS extrinsics."""
+    rt_a, rt_b, T = make_pair_rigs(YAWED, edit=_side_camera_elsewhere)
+    for rt in (rt_a, rt_b):
+        assert len(rt._other_cams()) == 1
+        _unstamped_other_cameras(rt)
+        assert rt._other_cams()[0].stream.get_frame().T_base_cam is None
+        if path == "vlm":
+            rt.cfg._data["grounder"] = {"base_url": "http://127.0.0.1:9/v1", "model": "double"}   # never dialled
+            rt._grounder = _RedBoxGrounder()
+            rt.cfg._data.setdefault("perception_loop", {})["belief_fallback_age_s"] = -1.0       # no memory fix
+            monkeypatch.setattr(rt.detector, "detect", lambda *a, **k: [])
+    run = run_pair(rt_a, rt_b, T, "point_at", {"label": "red cube"})
+    assert run["result_a"]["ok"] is True, run["result_a"]
+    note = "found through" if path == "detector" else "the VLM (2nd filter) found it"
+    assert any(note in e.text for e in rt_b.memory.events(("note",))), "the side camera found it"
+    assert_equivariant(run, T)
+
+
 class _BoxGrounder:
     """A VLM grounder double that names mock_small's box (the detector missed)."""
 
@@ -213,12 +302,13 @@ def test_perception_is_equivariant_on_a_raised_base(make_pair_rigs, skill):  # n
     assert_equivariant(run, T)
 
 
-@pytest.mark.parametrize("camera", ["primary", "side"])
-def test_two_phase_localization_is_equivariant(make_runtime, monkeypatch, camera):  # noqa: F811
-    """The brain names the cube on frame0 and SAM re-measures it on a fresh
-    frame1 (spec 2026-10-16 two-phase): both frames, on the primary camera
-    and on the other-camera pass, are analysed in the running arm's frame.
-    Fakes and time scale of tests/test_brain_two_phase_localize.py."""
+def _two_phase_rigs(make_runtime, monkeypatch, *, side=False):  # noqa: F811
+    """Rig A (no base_pose) and rig B (YAWED, cameras moved) on the brain
+    detector with SAM: the brain names the cube on frame0 and SAM re-measures
+    it on a fresh frame1 (spec 2026-10-16 two-phase). Fakes and time scale of
+    tests/test_brain_two_phase_localize.py. `side`: the primary sees no cube;
+    another camera, at its OWN pose with unstamped frames, does. Returns
+    ([(rt_a, sam_a), (rt_b, sam_b)], T)."""
     import functools
     from types import SimpleNamespace
 
@@ -233,6 +323,7 @@ def test_two_phase_localization_is_equivariant(make_runtime, monkeypatch, camera
 
     from cascade.apps import demo
     from cascade.perception.brain_detector import BrainDetector
+    from cascade.perception.grounding import Extrinsics
     from cascade.skills import runtime as runtime_mod
 
     monkeypatch.setattr(runtime_mod, "_analyzed_frame_age_s",
@@ -250,15 +341,81 @@ def test_two_phase_localization_is_equivariant(make_runtime, monkeypatch, camera
         t = SimpleNamespace(rt=rt, scene=_Scene(rt.camera._camera))
         rt.camera.get_frame()
         rt.camera.get_frame()
-        if camera == "side":
-            _side_cameras(t)
+        if side:
+            _side_cameras(t)   # unstamped MockCamera frames
+            for cam in rt._other_cams():
+                cam.extrinsics = Extrinsics(T=np.asarray(cam.extrinsics.T, dtype=float) @ _SIDE_OFFSET)
         rigs.append((rt, sam))
-    (rt_a, sam_a), (rt_b, sam_b) = rigs
-    T = transform(YAWED)
+    return rigs, transform(YAWED)
+
+
+@pytest.mark.parametrize("camera", ["primary", "side"])
+def test_two_phase_localization_is_equivariant(make_runtime, monkeypatch, camera):  # noqa: F811
+    """Both frames of the two-phase localization, on the primary camera and
+    on the other-camera pass (its own pose), are analysed in the running
+    arm's frame."""
+    ((rt_a, sam_a), (rt_b, sam_b)), T = _two_phase_rigs(make_runtime, monkeypatch, side=camera == "side")
     run = run_pair(rt_a, rt_b, T, "localize_object", {"label": "red cube"})
     assert run["result_a"].get("ok", True) is True, run["result_a"]
     assert_equivariant(run, T)
     assert len(sam_a.calls) == len(sam_b.calls) == 3, "named on frame0, re-masked, measured on frame1"
+
+
+# ── 2b. agent text quotes table-frame points (Q1 a) ──────────────────────
+
+
+def _combo_rig():
+    return moved_cfg("so101_right", COMBO, move_cameras=False, shift_xy=(0.0, -0.10))
+
+
+def test_a_workspace_refusal_quotes_the_table_frame_point(make_runtime):  # noqa: F811
+    """The cube behind the COMBO arm is refused for its workspace; the point
+    the agent reads is where the cube is on the table (the same cube seen by
+    an arm without a base_pose), not its arm-frame coordinates."""
+    reference = make_runtime(moved_cfg("so101_right", None, move_cameras=False, shift_xy=(0.0, -0.10)))
+    seen = reference.execute("localize_object", {"label": "red cube"})
+    assert seen.get("ok", True) is True, seen
+    rt = make_runtime(_combo_rig())
+    result = rt.execute("localize_object", {"label": "red cube"})
+    assert result["ok"] is False, result
+    np.testing.assert_allclose(_quoted(result["error"]), seen["position"], rtol=0.0, atol=0.005)
+
+
+def test_a_vlm_refusal_and_its_note_quote_the_table_frame_point(make_runtime, monkeypatch):  # noqa: F811
+    rt = make_runtime(_combo_rig())
+    rt.cfg._data["grounder"] = {"base_url": "http://127.0.0.1:9/v1", "model": "double"}   # never dialled
+    rt._grounder = _RedBoxGrounder()
+    rt.cfg._data.setdefault("perception_loop", {})["belief_fallback_age_s"] = -1.0       # no memory fix
+    monkeypatch.setattr(rt.detector, "detect", lambda *a, **k: [])
+    grounded = []
+    real = rt._vlm_ground_fix
+    monkeypatch.setattr(rt, "_vlm_ground_fix", lambda *a, **k: grounded.append(real(*a, **k)) or grounded[-1])
+    result = rt.execute("localize_object", {"label": "red cube"})
+    assert result["ok"] is False, result
+    assert len(grounded) == 1 and grounded[0] is not None, "the VLM found the cube (outside the workspace)"
+    world = lift(transform(COMBO), grounded[0][1].position)
+    assert np.hypot(*(world[:2] - WORLD_OBJECT_XY)) <= 0.005, world
+    np.testing.assert_allclose(_quoted(result["error"]), world, rtol=0.0, atol=1.1e-3)
+    notes = [e.text for e in rt.memory.events(("note",)) if "the VLM (2nd filter) found it" in e.text]
+    assert notes
+    np.testing.assert_allclose(_quoted(notes[-1], _NOTED), world, rtol=0.0, atol=1.1e-2)
+
+
+def test_a_two_phase_scene_change_quotes_the_table_frame_point(make_runtime, monkeypatch):  # noqa: F811
+    """frame1's fix refused for the workspace ("out of the workspace now",
+    `_SceneChanged`, twice: SceneChangedError): the point in the text is rig
+    A's, moved by T."""
+    from cascade.skills import runtime as runtime_mod
+
+    rigs, T = _two_phase_rigs(make_runtime, monkeypatch)
+    real = runtime_mod.fix_from_detection
+    nowhere = (np.full(3, 5.0), np.full(3, 6.0))
+    monkeypatch.setattr(runtime_mod, "fix_from_detection",
+                        lambda *a, **k: real(*a, **{**k, "workspace_bounds": nowhere}))
+    errors = [rt.execute("localize_object", {"label": "red cube"}).get("error") for rt, _ in rigs]
+    for error in errors:
+        assert "scene changed during perception of 'red cube'" in str(error), error
+    np.testing.assert_allclose(_quoted(errors[1]), lift(T, _quoted(errors[0])), rtol=0.0, atol=1.5e-3)
 
 
 def test_the_near_hint_is_in_the_arm_frame(make_runtime, monkeypatch):  # noqa: F811

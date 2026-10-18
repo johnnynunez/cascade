@@ -291,7 +291,9 @@ Each converted site gets a RED test on a base 3 cm above the table plane (`base_
 ### 3.10 The guard (D10)
 
 - `_WORLD_TARGET_SKILLS` loses each skill in the task that converts it.
-- The last conversion task replaces `_mounted_off_table_origin(arm)` with a tilt check on the bound frame.
+- The tilt refusal scope is the FROZEN 15 (`_TILT_REFUSED_SKILLS`, in place since the Task 3 fix round), never
+  derived from `_WORLD_TARGET_SKILLS`: a tilted mount refuses a converted skill too.
+- The last conversion task removes `_mounted_off_table_origin(arm)`; the tilt check on the bound frame remains.
 - The call-graph derivation widens its sources (Minor 4):
   - `_localize`, `_belief_pose`, `fix_at_pixel`;
   - any `beliefs.` read;

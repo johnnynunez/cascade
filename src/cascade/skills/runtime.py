@@ -496,6 +496,19 @@ _WORLD_TARGET_SKILLS = frozenset({
 #: Why a world-target skill is refused on an arm with a base_pose.
 _BASE_POSE_WORLD_TARGET_REFUSAL = (
     "this arm is mounted off the table origin (base_pose); world targets are not converted yet")
+#: The tilt refusal's scope (spec D4, §5): the 15 world-target skills of the
+#: brief, FROZEN as the base_pose plan started. Unlike `_WORLD_TARGET_SKILLS`
+#: it never shrinks as skills convert: the conversion is exact only on a level
+#: mount (one `table_z` plane, the top-down yaw, the reach annuli), so an arm
+#: whose base_pose has any roll or pitch refuses all 15 before any work.
+#: `halt_motion` (never deniable) and the joint-space / relative skills are
+#: not in it. Pinned by tests/test_base_pose_world_target_guard.py.
+_TILT_REFUSED_SKILLS = frozenset({
+    "grasp_object", "pick_and_place", "grasp_at_pixel", "place_at",
+    "place_on_object", "push_object", "move_near_object", "sort_by_color",
+    "search_for_object", "restore_scene", "turn_screw", "throw", "handover",
+    "point_at", "preview_grasp",
+})
 
 
 def _mounted_off_table_origin(arm) -> bool:
@@ -528,6 +541,23 @@ def _world_target_refusal(name: str, arm_name) -> dict:
         "next_action": ("Do not retry this skill on this arm. Only joint-space and relative "
                         "skills (move_home, move_to_rest, rotate_joint, move_relative, "
                         "rotate_gripper, wave, open_gripper, close_gripper) run on it."),
+    }
+
+
+def _tilted_mount_refusal(name: str, arm_name, roll_deg: float, pitch_deg: float) -> dict:
+    """The result of a `_TILT_REFUSED_SKILLS` skill on an arm whose base_pose
+    is tilted (spec D4, §5): nothing was perceived, commanded or moved, so
+    there is no move_home step."""
+    who = "this arm" if arm_name in (None, "default") else f"arm {arm_name!r}"
+    # + 0.0 turns a rounded -0.0 (a level axis, arcsin(-0.0)) into 0.00
+    roll, pitch = (round(float(a), 2) + 0.0 for a in (roll_deg, pitch_deg))
+    return {
+        "ok": False,
+        "outcome": OUTCOME_FAILED,
+        "error": (f"{name} refused on {who}: its base_pose is tilted (roll {roll:.2f} deg, pitch "
+                  f"{pitch:.2f} deg); table-frame targets need a level mount; no motion was sent"),
+        "next_action": ("Do not retry this skill on this arm. Level its base_pose in the profile, or use "
+                        "move_home, move_to_rest, rotate_joint, open_gripper or close_gripper on it."),
     }
 
 
@@ -1738,6 +1768,12 @@ class SkillRuntime:
             if name not in _FRAME_FREE_ALWAYS:
                 return _arm_frame_refusal(name, resolved_arm, e)
             frame = None
+        # A tilted mount (any roll or pitch of the RUNNING arm's bound
+        # base_pose) refuses the frozen 15 world-target skills before any
+        # perception, status line, keyframe or command (spec D4, §5). Without
+        # a base_pose `is_level(None)` is True: nothing changes.
+        if name in _TILT_REFUSED_SKILLS and not arm_frame.is_level(frame.T_world_base):
+            return _tilted_mount_refusal(name, resolved_arm, *arm_frame.tilt_deg(frame.T_world_base))
         # The RUNNING arm (the `arm=` selection included) decides, before any
         # perception, status line, keyframe or command: a base_pose arm would
         # aim a table-frame target in its own base frame (_WORLD_TARGET_SKILLS).
@@ -3305,7 +3341,8 @@ class SkillRuntime:
         def localize_once(cframe, ext):
             # Today's per-frame localization: the detector's refer, SAM,
             # colour/reference/workspace rules (single-frame path and the
-            # two-phase naming step alike).
+            # two-phase naming step alike). A refusal quotes the point in the
+            # table frame (`report_point`), like every report.
             return localize_object(
                 cframe, query, self.detector, ext,
                 prompts=r["prompts"], spatial_hint=spatial_hint,
@@ -3313,6 +3350,7 @@ class SkillRuntime:
                 prefer_label=r["prefer_label"],
                 workspace_bounds=workspace_bounds,
                 require_unique=r["configured_description"],
+                report_point=self._to_world,
             )
 
         def analyze(cframe, ext):
@@ -3406,7 +3444,7 @@ class SkillRuntime:
                     raise _ReanchorFailed(found.reason or "SAM returned no mask")
                 try:
                     fix1 = fix_from_detection(frame1, found.detection, ext1, label=query, color=r["color"],
-                                              workspace_bounds=workspace_bounds)
+                                              workspace_bounds=workspace_bounds, report_point=self._to_world)
                 except DetectionRejected as rejected:
                     if rejected.kind == "points":
                         raise _ReanchorFailed(rejected.reason) from None
@@ -3625,9 +3663,10 @@ class SkillRuntime:
             return grounded
         if grounded is not None:
             _, fix = grounded
+            # The fix is in the arm frame; the agent reads table-frame points.
             last_err = SkillError(
                 f"localize {query!r} failed: VLM fix at "
-                f"{np.round(fix.position, 3).tolist()} is outside the active arm workspace"
+                f"{np.round(self._to_world(fix.position), 3).tolist()} is outside the active arm workspace"
             )
         raise last_err
 
@@ -3709,7 +3748,7 @@ class SkillRuntime:
             self.memory.add(
                 "note",
                 f"the detector missed {query!r}; the VLM (2nd filter) found it at "
-                f"{[round(float(v), 2) for v in center]}",
+                f"{[round(float(v), 2) for v in self._to_world(center)]}",
             )
             fix = ObjectFix(
                 label=query, position=center, points=pts,

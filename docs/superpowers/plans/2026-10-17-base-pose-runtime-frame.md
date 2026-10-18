@@ -582,10 +582,12 @@ def test_mujoco_withdrawal_compares_the_world_table(monkeypatch):
     `skill_throw` 5956, `skill_turn_screw` 6042, `skill_sort_by_color` 6204 (incl. `_reachable_place_xy` 6314,
     `_move_object_to` 6393), `_restore_plan` 6471 / `skill_restore_scene` 6566, `skill_search_for_object` 6704;
   - `skill_throw` and `skill_handover` call Task 5's `_check_holding_arm()` first;
-  - the guard 362-410 + 1353-1357: replace `_mounted_off_table_origin` with
-    `frame.T_world_base is not None and not is_level(frame.T_world_base)`. Keep `_WORLD_TARGET_SKILLS` (the
-    15) as the tilt scope.
-  - `_world_target_refusal(name, arm_name, roll_deg, pitch_deg)`:
+  - the guard 362-410 + 1353-1357: remove #352's `_mounted_off_table_origin` early return, `_WORLD_TARGET_SKILLS`
+    (empty by now) and `_world_target_refusal`. The tilt refusal is already in place (Task 3 fix round) and stays
+    as is: `_TILT_REFUSED_SKILLS` is the FROZEN 15 (`WORLD_TARGET_CALLS | CONVERTED_CALLS` as the plan started),
+    never derived from `_WORLD_TARGET_SKILLS`, checked on the bound frame
+    (`not arm_frame.is_level(frame.T_world_base)`) before any work; `halt_motion` is never in it.
+  - `_tilted_mount_refusal(name, arm_name, roll_deg, pitch_deg)` (exists):
     - error: `f"{name} refused on arm {arm!r}: its base_pose is tilted (roll {roll:.2f} deg, pitch
       {pitch:.2f} deg); table-frame targets need a level mount; no motion was sent"`;
     - next_action: `"Do not retry this skill on this arm. Level its base_pose in the profile, or use move_home,
@@ -593,7 +595,9 @@ def test_mujoco_withdrawal_compares_the_world_table(monkeypatch):
 - Modify: `src/cascade/skills/spatial_moves.py` `viewer_axes` 242 (`rt._cam_to_arm(ext.cam_to_base())`),
   `_target_geometry` 869 (verify it is in B), `move_near_object` 929-946 (the reported `center_xy_m` in W).
 - Delete: `tests/test_base_pose_world_target_guard.py`. Create: `tests/test_base_pose_tilted_mount.py`. Port
-  these pins from the deleted file to TILTED:
+  these pins from the deleted file to TILTED (its tilt section, from the Task 3 fix round, already pins the
+  frozen 15, PITCHED, the pair's arm=, `_WORLD_TARGET_SKILLS` emptied, halts/joint/relative running, and the
+  tilt early-return AST pin: move those as they are):
   - refusal before any work: Spy, 0 commands, 0 perception;
   - the MCP one-FAILED-line relay;
   - LazyArm never materialized;
@@ -618,7 +622,7 @@ def test_viewer_directions_follow_the_camera_on_a_yawed_base(make_pair_rigs):
     # arm profile "mock" (move_relative completes at its home pose), YAWED, cameras moved with the base:
     # move_relative(direction="right", frame="viewer", distance_m=0.02) commands equal A's
     # (main: rotated by 0.4 rad); same for rotate_gripper(direction="left", angle_deg=10, frame="viewer")
-@pytest.mark.parametrize("skill", sorted(WORLD_TARGET_CALLS))      # the 15
+@pytest.mark.parametrize("skill", sorted(TILT_REFUSED_CALLS))      # the frozen 15, never WORLD_TARGET_CALLS
 def test_a_tilted_mount_refuses_world_target_skills_before_any_work(make_runtime, monkeypatch, skill):
     # TILTED: ok False; "its base_pose is tilted (roll 5.73 deg, pitch 0.00 deg)" in error; FAILED line once;
     # Spy 0 commands / 0 jaw / 0 perception; next_action has no "move_relative" and no "rotate_gripper"
@@ -635,7 +639,7 @@ def test_the_derivation_sees_a_new_belief_or_camera_reader(monkeypatch):
 ```
 
 - [ ] **Step 2: Run the tests** -> FAIL. The oracle rows are refused by the guard on YAWED. The viewer commands
-  differ. The tilt text is missing.
+  differ. (The tilt text already exists since the Task 3 fix round; its rows pass before and after.)
 - [ ] **Step 3: Implement** the listed sites and the narrowed guard.
 - [ ] **Step 4: Run the tests** -> PASS. Also run `tests/test_spatial*.py tests/test_relative_motion*.py
   tests/test_sort*.py tests/test_restore*.py tests/test_mcp_server.py tests/test_robot_mcp.py`.
@@ -643,6 +647,8 @@ def test_the_derivation_sees_a_new_belief_or_camera_reader(monkeypatch):
   - viewer axes left unconverted -> `viewer_directions`
   - tilt check reads roll only (pitch case: add `[0, -0.22, 0, 0, 0.1, 0]` to the tilt test ids) -> `tilted_mount`
   - tilt check fires on any non-identity pose -> `level_yaw_is_never_refused`
+  - tilt scope read from `_WORLD_TARGET_SKILLS` (or derived from it) instead of the frozen `_TILT_REFUSED_SKILLS`
+    -> `tilted_mount` (every one of the 15 must still refuse once `_WORLD_TARGET_SKILLS` is empty)
   - `_restore_plan` left unconverted -> `equivariant[yawed-restore_scene]`
   - next_action lists move_relative -> `tilted_mount`
   - a skill dropped from ORACLE_SKILLS / FRAME_FREE -> `every_skill_reaching_a_world_source`

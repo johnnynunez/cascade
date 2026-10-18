@@ -65,10 +65,14 @@ export function freshness({now, lastFrame, lastState, lastAdvance, hasAdvanced, 
 export function frameAgeNote(ageS) {
   return typeof ageS === 'number' && Number.isFinite(ageS) && ageS > 1 ? `Last frame · ${Math.floor(ageS)} s old` : '';
 }
-// The age of the frame on screen now: its part's X-Frame-Age plus the time it
-// has been shown (`shownMs`), so a frame keeps ageing when no further part
-// arrives. null when the part had no age (any other server).
+// The age of the frame on screen now: its part's X-Frame-Age, plus the time it
+// has been shown (`shownMs`) once no part arrived for over 1 s (a stopped
+// stream). The server writes a part every 0.5 s, so until then the part's own
+// age stands: counting screen time sooner flashed "Last frame" for 50-180 ms
+// before each next part of a slowly changing image. The cost: a frame can read
+// Live up to ~2 s old. null when the part had no age (any other server).
+const STOPPED_STREAM_MS = 1000;
 export function frameAgeNow(ageS, shownMs) {
   if (typeof ageS !== 'number' || !Number.isFinite(ageS)) return null;
-  return ageS + Math.max(0, shownMs) / 1000;
+  return shownMs > STOPPED_STREAM_MS ? ageS + shownMs / 1000 : ageS;
 }

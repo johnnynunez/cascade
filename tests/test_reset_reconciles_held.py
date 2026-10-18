@@ -606,18 +606,27 @@ def test_a_label_that_fits_beside_a_short_driver_text_is_kept_whole(rig):
     assert r.log == [], r.log
 
 
-@pytest.mark.parametrize("limit", [-3, 0, 1, 2, 3, 4, 30])
-def test_a_cut_text_never_runs_past_its_limit(limit):
+#: what a cut of the driver text below keeps for each limit, written out
+CUTS = [(-3, ""), (0, ""), (1, "."), (2, ".."), (3, "..."), (4, "C..."),
+        (12, "CAN bus:..."),                          # the space before the cut goes
+        (30, "CAN bus: gripper motor 7 di..."),
+        (59, "CAN bus: gripper motor 7 did not answer the position req..."),
+        (60, "CAN bus: gripper motor 7 did not answer the position request"),
+        (61, "CAN bus: gripper motor 7 did not answer the position request")]
+
+
+@pytest.mark.parametrize("limit, expected", CUTS, ids=[str(limit) for limit, _ in CUTS])
+def test_a_cut_text_never_runs_past_its_limit(limit, expected):
     """A cut ends in \"...\" when the limit has room for it; a smaller limit
     keeps only as many of those dots, and none at all below 1: never more
-    characters than the limit (\"...\" for a limit of 1 overflowed it)."""
+    characters than the limit (\"...\" for a limit of 1 overflowed it). A
+    text within the limit stays whole."""
     from cascade.skills.runtime import _cut_text
 
     text = "CAN bus: gripper motor 7 did not answer the position request"
+    assert len(text) == 60
     out = _cut_text(text, limit)
-    assert len(out) <= max(limit, 0), (limit, out)
-    assert out == (text[:limit - 3].rstrip() + "..." if limit >= 3 else "." * max(limit, 0)), out
-    assert _cut_text(text, len(text)) == text
+    assert out == expected and len(out) <= max(limit, 0), (limit, out)
 
 
 @pytest.mark.parametrize("keep", [0, 40])

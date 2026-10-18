@@ -292,8 +292,10 @@ def pytest_configure(config):
 
     hold = held_dead_port()
     port = hold.__enter__()
-    config._cascade_graspgenx_pin = (hold, {name: os.environ.get(name)
-                                            for name in _GRASPGENX_ENV + _SCRUBBED_ENV})
+    # The held dead port and the ambient value of every variable pinned here
+    # (GraspGen-X's and the scrubbed Spark defaults), for pytest_unconfigure.
+    config._cascade_session_env_pin = (hold, {name: os.environ.get(name)
+                                              for name in _GRASPGENX_ENV + _SCRUBBED_ENV})
     os.environ.pop("CASCADE_GRASPGENX_HOST", None)
     for name in _SCRUBBED_ENV:
         os.environ.pop(name, None)
@@ -301,7 +303,7 @@ def pytest_configure(config):
 
 
 def pytest_unconfigure(config):
-    pin = getattr(config, "_cascade_graspgenx_pin", None)
+    pin = getattr(config, "_cascade_session_env_pin", None)
     if pin is None:
         return
     hold, ambient = pin

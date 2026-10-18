@@ -163,7 +163,7 @@ refuses wrist cameras on a rig.
 |---|---|---|
 | Camera transform of a frame analysed for a target | `_localize` (2768: primary, two-phase, side cameras), `_vlm_ground_fix` (3133), `skill_grasp_at_pixel` (7616), `_destination_fix` (5254), `held_observation.measure` image path (211-228) | `frame_to_arm`: `T_base_cam := T⁻¹ (frame.T_base_cam or ext.cam_to_base())` |
 | Map refresh and belief fusion | `_update_beliefs_from_frame` (1938), `_reobserve` (3248), `_reset_camera_frames` (6981), WorldWatcher | unchanged (table frame) |
-| Belief positions used as targets | `_resolve_query` near_xyz (2393), `_localize` belief fallback (3088-3118, `_fix_from_belief`), `_restore_plan` (6471), `sort_by_color` (6204), `search_for_object` (6704), `observed_scene.for_runtime` tracked objects (799-801), held observation's legacy pose channel (194-201) | `to_arm` / `fix_to_arm` |
+| Belief positions used as targets | `_resolve_query` near_xyz (2393), `_localize` belief fallback (3088-3118: the belief is converted before `_fix_from_belief` builds its fix, so a box built from extent and `top_z` is upright in the arm frame), `_restore_plan` (6471), `sort_by_color` (6204), `search_for_object` (6704), `observed_scene.for_runtime` tracked objects (799-801), held observation's legacy pose channel (194-201) | `to_arm` / `fix_to_arm` |
 | Agent coordinates | `place_at(x, y, z)` (4916); z omitted -> the arm's own release height, computed in B after converting (x, y) | `to_arm` |
 | Viewer directions | `spatial_moves.viewer_axes` (242) | camera rotation through `cam_to_arm` |
 | Observed-finger gate | `observed_scene.for_runtime` (789-797): the arm-frame frame's T, and its static-T fallback through `cam_to_arm` | arm frame, matching the base-frame FK finger hulls |

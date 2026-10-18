@@ -481,14 +481,16 @@ _FOREGROUND_PERCEPTION_SKILLS = _MOTION_SKILLS | {"preview_grasp", "localize_obj
 #: Skills that turn a perceived position (`_localize`, `_belief_pose`,
 #: `fix_at_pixel`) or agent world coordinates (place_at's x, y) into an arm
 #: target. Those positions are in the shared TABLE frame, while the runtime
-#: solves IK in the running arm's base frame and converts nothing, so on an
-#: arm mounted with a `base_pose` they aim (and place their exemption columns)
-#: the base_pose's offset away from the object. execute() refuses them on such
-#: an arm until world targets are converted (`_mounted_off_table_origin`).
+#: solves IK in the running arm's base frame, so on an arm mounted with a
+#: `base_pose` they aim (and place their exemption columns) the base_pose's
+#: offset away from the object until their path converts (spec 2026-10-17
+#: base_pose runtime frame). execute() refuses them on such an arm
+#: (`_mounted_off_table_origin`); a skill leaves this set in the task whose
+#: tests prove it reaches the world point (point_at, preview_grasp: Task 3).
 #: Pinned against the call graph by tests/test_base_pose_world_target_guard.py.
 _WORLD_TARGET_SKILLS = frozenset({
-    "grasp_object", "pick_and_place", "preview_grasp", "grasp_at_pixel", "place_at",
-    "place_on_object", "push_object", "point_at", "move_near_object", "sort_by_color",
+    "grasp_object", "pick_and_place", "grasp_at_pixel", "place_at",
+    "place_on_object", "push_object", "move_near_object", "sort_by_color",
     "search_for_object", "restore_scene", "turn_screw", "throw", "handover",
 })
 #: Why a world-target skill is refused on an arm with a base_pose.
@@ -1094,6 +1096,26 @@ class SkillRuntime:
 
     def _fix_to_world(self, fix):
         return arm_frame.fix_to_world(self.T_world_base, fix)
+
+    def _belief_to_arm(self, belief):
+        """A belief (table-frame memory) as a target in the running arm's
+        frame: position, remembered points and `top_z` move (level mounts:
+        `top_z` - base z); label, extent, colour and times are kept. Without
+        a base_pose: the belief object itself."""
+        T = self.T_world_base
+        if T is None:
+            return belief
+        from dataclasses import replace
+
+        position = np.asarray(belief.position, dtype=float).reshape(3)
+        points = getattr(belief, "points", None)
+        return replace(
+            belief,
+            position=arm_frame.to_arm(T, position),
+            points=None if points is None else arm_frame.to_arm(T, np.asarray(points, dtype=float).reshape(-1, 3)),
+            top_z=None if belief.top_z is None else float(
+                arm_frame.to_arm(T, [position[0], position[1], float(belief.top_z)])[2]),
+        )
 
     def _table_z_world(self) -> float:
         """The running arm's `safety.table_z` (its base frame) as a table-frame
@@ -2857,7 +2879,8 @@ class SkillRuntime:
                 "configured_description": True,
             }
         belief = self.beliefs.find(visual_query)
-        near = belief.position.copy() if belief is not None else None
+        # A ranking hint for candidates measured in the running arm's frame.
+        near = self._to_arm(belief.position.copy()) if belief is not None else None
         prompts = vocab = prefer = None
         if noun:
             q = visual_query.strip().lower()
@@ -3448,16 +3471,20 @@ class SkillRuntime:
                         raise ReanchorError(f"could not re-anchor {query!r} on a fresh image: {exc}") from None
             raise ReanchorError(f"could not re-anchor {query!r} on a fresh image")
 
+        # Every frame analysed for the target is in the running arm's base
+        # frame (`_frame_in_arm`, spec §3.3): its fix, the workspace bounds and
+        # the near hint all are. `frame` itself stays the camera's own
+        # (table-frame) capture for the VLM fallback, which converts its views.
         def primary_frame0():
             nonlocal frame
             frame = self.observe()
-            return frame
+            return self._frame_in_arm(frame)
 
         def primary_frame1(frame0):
             fresh = self.depth.ensure_depth(_fresh_camera_frame(self.camera, previous=frame0))
             self.last_frame = fresh
             self.arm.harness.heartbeat()
-            return fresh
+            return self._frame_in_arm(fresh)
 
         tries = int(loop_cfg.get("localize_frames", 3))
         for frame_try in range(max(tries, 1)):
@@ -3472,8 +3499,9 @@ class SkillRuntime:
                                                            lambda _frame: self.extrinsics)
                         return self._note_localized(query, analyzed, fix)
                     frame = self.observe()
-                    fix = analyze(frame, self.extrinsics)
-                return self._note_localized(query, frame, fix)
+                    analyzed = self._frame_in_arm(frame)
+                    fix = analyze(analyzed, self.extrinsics)
+                return self._note_localized(query, analyzed, fix)
             except SlowPerceptionError:
                 raise  # Not detector flicker; do not fall back to memory.
             except (SceneChangedError, ReanchorError):
@@ -3504,10 +3532,11 @@ class SkillRuntime:
                 cframe = cam.depth.ensure_depth(cam.stream.get_frame())
                 if not cframe.has_depth:
                     raise _NoDepth
-                return cframe
+                return self._frame_in_arm(cframe, cam.extrinsics)
 
             def side_frame1(frame0, cam=cam):
-                return cam.depth.ensure_depth(_fresh_camera_frame(cam.stream, previous=frame0))
+                return self._frame_in_arm(
+                    cam.depth.ensure_depth(_fresh_camera_frame(cam.stream, previous=frame0)), cam.extrinsics)
 
             try:
                 with reserve():
@@ -3553,6 +3582,10 @@ class SkillRuntime:
                 "Clarify the reference; refusing an unqualified fallback."
             )
         belief = r["belief"] or self.beliefs.find(query)
+        # The belief is table-frame memory; as a target it is taken into the
+        # running arm's frame BEFORE a fix is synthesized from it, so the
+        # remembered box is built upright in the arm frame (equivariant).
+        belief_in_arm = None if belief is None else self._belief_to_arm(belief)
         max_age = float(self.cfg.get("perception_loop", {}).get(
             "belief_fallback_age_s", 3.0))
         # Staleness reference: the last fresh re-scan during this motion (a
@@ -3572,7 +3605,7 @@ class SkillRuntime:
             # store's neighbor tolerance (pink~red) is for conversation, not
             # for choosing what the jaws close on.
             and (r["color"] is None or belief.color == r["color"])
-            and in_workspace(belief.position)
+            and in_workspace(belief_in_arm.position)
         )
         if mem_ok:
             _analyzed_frame_age_s(frame, time.monotonic() - localization_started)
@@ -3582,7 +3615,8 @@ class SkillRuntime:
                 f"world-model fix ({belief.label}, "
                 f"{time.monotonic() - belief.last_seen_t:.1f}s old)",
             )
-            return frame, self._fix_from_belief(query, belief)
+            return (frame if frame is None else self._frame_in_arm(frame)), \
+                self._fix_from_belief(query, belief_in_arm)
         # Last filter: VLM grounding of this one query, when the detector
         # missed it; one slow call only ever runs on this failure path.
         _analyzed_frame_age_s(frame, time.monotonic() - localization_started)
@@ -3626,8 +3660,12 @@ class SkillRuntime:
                 )
             # Views to try: (frame, cam->base T). Primary first, then the
             # other fusing cameras with their own extrinsics.
+            # Each view in the running arm's frame (`_frame_in_arm`: its T is
+            # T_world_base^-1 T_table_cam), so the fix, the table shave below
+            # and the returned frame share the arm frame.
             views = []
             if frame is not None and frame.has_depth:
+                frame = self._frame_in_arm(frame)
                 views.append((frame, frame.T_base_cam if frame.T_base_cam
                               is not None else self.extrinsics.cam_to_base()))
             for cam in self._other_cams():
@@ -3637,6 +3675,7 @@ class SkillRuntime:
                     continue
                 if not cframe.has_depth:
                     continue
+                cframe = self._frame_in_arm(cframe, cam.extrinsics)
                 views.append((cframe, cframe.T_base_cam if cframe.T_base_cam
                               is not None else cam.extrinsics.cam_to_base()))
             det = gframe = T = None
@@ -3878,7 +3917,7 @@ class SkillRuntime:
         # materialized yet reports standby instead of being poked awake.
         if getattr(self.arm.raw, "connected", True):
             state = self.arm.get_state()
-            tcp = self.kin.fk(state.q)[:3, 3]
+            tcp = self._to_world(self.kin.fk(state.q)[:3, 3])    # reported in the table frame
             wf = self._gripper_width_frac()
             robot = {
                 "q_deg": [round(float(np.degrees(x)), 1) for x in state.q],
@@ -3917,6 +3956,8 @@ class SkillRuntime:
         }
 
     def _configured_zones(self) -> list[dict]:
+        """The running arm's configured destinations, REPORTED in the table
+        frame: a profile states them in that arm's base frame (spec §3.6)."""
         grasp = self.cfg.get("grasp", {})
         entries = []
         if grasp.get("drop_zone") is not None:
@@ -3936,6 +3977,10 @@ class SkillRuntime:
             if (not isinstance(name, str) or not name.strip()
                     or center.shape != (2,) or not np.isfinite(center).all()):
                 raise SkillError("Configured zone requires a name and a finite XY center")
+            if self.T_world_base is not None:
+                # on the arm's table plane (level mounts: any z gives this xy)
+                table_z = float(self.cfg.safety.get("table_z", 0.0))
+                center = np.asarray(self._to_world([center[0], center[1], table_z]), dtype=float)[:2]
             zones.append({"name": name, "kind": kind, "source": "configuration",
                           "position_xy_m": center.tolist(), "visibility": "not_established"})
         return zones
@@ -3963,11 +4008,12 @@ class SkillRuntime:
             raise SkillError("No delivery zone is configured")
         frame, fix = self._localize(label, spatial_hint=spatial_hint)
         color = detection_color(frame.rgb, fix.detection)
+        world = self._fix_to_world(fix)    # the arm-frame fix, reported and remembered in the table frame
         # Beliefs live under DETECTOR labels (what the watcher re-fuses);
         # recording the user's query words would create ghost duplicates.
         self.beliefs.update(
-            fix.detection.label or fix.label, fix.position, fix.detection.conf,
-            extent=fix.extent, top_z=float(fix.points[:, 2].max()), t=frame.t,
+            fix.detection.label or fix.label, world.position, fix.detection.conf,
+            extent=fix.extent, top_z=float(world.points[:, 2].max()), t=frame.t,
             color=color,
         )
         return {
@@ -3975,7 +4021,7 @@ class SkillRuntime:
             **self._target_resolution(label, frame, fix),
             "detected_as": fix.detection.label,
             "color": color,
-            "position": [round(float(x), 3) for x in fix.position],
+            "position": [round(float(x), 3) for x in world.position],
             "extent_m": [round(float(x), 3) for x in fix.extent],
             "n_points": int(fix.points.shape[0]),
         }
@@ -4010,9 +4056,10 @@ class SkillRuntime:
         out = {
             "ok": True,
             "object": label,
-            "object_xyz": [round(float(x), 3) for x in fix.position],
+            # planned in the running arm's frame, reported in the table frame
+            "object_xyz": [round(float(x), 3) for x in self._to_world(fix.position)],
             "planned_grasp": {
-                "tcp_xyz": [round(float(x), 3) for x in g.position],
+                "tcp_xyz": [round(float(x), 3) for x in self._to_world(g.position)],
                 "approach": ("top-down" if vert > 0.7
                              else "angled" if vert > 0.3 else "side"),
                 "approach_vert": round(vert, 2),
@@ -4079,7 +4126,7 @@ class SkillRuntime:
             frame, fix = _frame, _fix
         else:
             frame, fix = self._localize(label, spatial_hint=spatial_hint)
-        grasp_evidence.localized(frame, fix, getattr(self, "extrinsics", None))
+        grasp_evidence.localized(frame, fix, getattr(self, "extrinsics", None), T_world_base=self.T_world_base)
         # Derived envelope features from the fix (memory/envelope.py #4):
         # the object's top above its support plane -- a top-down camera
         # never sees the sides, so the cloud's z-span is NOT a height -- and
@@ -6749,7 +6796,7 @@ class SkillRuntime:
             raise SkillError("did not settle at the pointing pose")
         time.sleep(float(self.cfg.get("gesture", {}).get("point_hold_s", 1.2)))
         self.memory.add("action", f"pointed at {label!r}")
-        return {"pointed_at": label, "position": [round(float(x), 3) for x in fix.position]}
+        return {"pointed_at": label, "position": [round(float(x), 3) for x in self._to_world(fix.position)]}
 
     def skill_wave(self, cycles: int = 2) -> dict:
         """Greeting gesture: wag the base + wrist around home. Every

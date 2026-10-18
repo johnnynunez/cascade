@@ -318,8 +318,11 @@ def test_the_watcher_and_the_runtime_share_the_bases(make_runtime):
 - Modify `src/cascade/skills/runtime.py`:
   - `_resolve_query` 2393: `near` goes through `_to_arm`;
   - `_localize` 2768-3131: every analysed frame goes through `_frame_in_arm` (primary_frame0/1, `observe()`,
-    side_frame0/1). `ext_of` returns arm-frame `Extrinsics(T=...)`. The belief fallback goes through
-    `_fix_to_arm(_fix_from_belief(...))`. `in_workspace` sees B.
+    side_frame0/1). `ext_of` returns arm-frame `Extrinsics(T=...)`. The belief fallback converts the BELIEF
+    first, `_fix_from_belief(query, _belief_to_arm(belief))` (position, remembered points, `top_z`): a belief
+    without a cloud becomes an axis-aligned box, and only a box built in the arm frame is equivariant on a yawed
+    base (`_fix_to_arm` of a table-frame box turns it by the yaw; mutation `remembered_fix[box-yawed]`).
+    `in_workspace` sees B.
   - `_vlm_ground_fix` 3133-3247: each view's T goes through `_cam_to_arm`;
   - `_configured_zones` 3452-3474 (report-only) returns `position_xy_m` in W;
   - `skill_localize_object` 3486-3514: belief update and result via `_fix_to_world`;

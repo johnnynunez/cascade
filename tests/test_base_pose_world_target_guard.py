@@ -1,18 +1,18 @@
-"""World-target skills refuse, fail closed, on an arm mounted with a base_pose.
+"""World-target skills refuse, fail closed, on an arm mounted with a base_pose,
+until their path converts (spec 2026-10-17 base_pose runtime frame).
 
 Perception, beliefs and agent coordinates are in the shared TABLE frame; the
-skill runtime solves IK in the RUNNING arm's base frame and converts nothing
-(no `base_pose` anywhere under skills/ or grasping/). On a base_pose arm
+skill runtime solves IK in the RUNNING arm's base frame. On a base_pose arm
 (so101_left / so101_right / *_mujoco, y = +-0.22) grasp_object and place_at
-therefore landed 22 cm off and still reported ok, and the grasp exemption
-column sat where the arm really descends, so the map gate ignored whatever
-really stood there. Until the runtime works in the running arm's frame
-(design Option 2), execute() refuses every skill that turns a perceived or
-world position into an arm target on such an arm, before any work: no
-perception call, no arm or jaw command, no move_home hint. Joint-space and
-relative skills keep working there. Arms without a base_pose (the reBot, the
-kitchen arm, every single-arm profile) or with the identity pose are exactly
-main's path.
+used to land 22 cm off and still report ok, and the grasp exemption column sat
+where the arm really descends, so the map gate ignored whatever really stood
+there. execute() refuses every skill that turns a perceived or world position
+into an arm target on such an arm, before any work (no perception call, no arm
+or jaw command, no move_home hint), until the task that converts its path
+removes it from `_WORLD_TARGET_SKILLS` (`CONVERTED_CALLS` below run there).
+Joint-space and relative skills keep working there. Arms without a base_pose
+(the reBot, the kitchen arm, every single-arm profile) or with the identity
+pose are exactly main's path.
 """
 
 from __future__ import annotations
@@ -33,17 +33,16 @@ SKILLS_DIR = REPO / "src" / "cascade" / "skills"
 #: The refusal text the brief fixes (agent-facing, relayed to the user).
 GUARD = "this arm is mounted off the table origin (base_pose); world targets are not converted yet"
 
-#: One valid call per world-target skill (the brief's list, verified against
-#: the call graph in `test_the_guarded_list_is_every_skill_that_aims_at_a_world_position`).
+#: One valid call per world-target skill still refused (the brief's list,
+#: verified against the call graph in
+#: `test_the_guarded_list_is_every_skill_that_aims_at_a_world_position`).
 WORLD_TARGET_CALLS = {
     "grasp_object": {"label": "red cube"},
     "pick_and_place": {"object": "red cube"},
-    "preview_grasp": {"label": "red cube"},
     "grasp_at_pixel": {"u": 0.5, "v": 0.5, "normalized": True},
     "place_at": {"x": 0.25, "y": -0.10, "z": 0.05},
     "place_on_object": {"label": "red cube"},
     "push_object": {"label": "red cube", "direction": "left", "distance_m": 0.05},
-    "point_at": {"label": "red cube"},
     "move_near_object": {"label": "red cube", "relation": "above"},
     "sort_by_color": {},
     "search_for_object": {"label": "red cube"},
@@ -51,6 +50,13 @@ WORLD_TARGET_CALLS = {
     "turn_screw": {"label": "red cube"},
     "throw": {"label": "red cube"},
     "handover": {"label": "red cube"},
+}
+#: World-target skills whose path converts (spec 2026-10-17 base_pose runtime
+#: frame): they left the guard in the task that proved they reach the world
+#: point (tests/test_base_pose_runtime_frame.py) and run on a base_pose arm.
+CONVERTED_CALLS = {
+    "point_at": {"label": "red cube"},          # Task 3
+    "preview_grasp": {"label": "red cube"},     # Task 3
 }
 
 #: Joint-space and relative skills: never world targets, never refused.
@@ -229,7 +235,7 @@ def test_the_mcp_server_relays_the_refusal_with_one_failed_line(make_runtime, mo
     assert spy.arm_commands() == 0 and spy.jaw == [] and spy.perception == []
 
 
-@pytest.mark.parametrize("skill", ["grasp_object", "place_at", "throw", "preview_grasp"])
+@pytest.mark.parametrize("skill", ["grasp_object", "place_at", "throw", "push_object"])
 def test_the_refusal_never_powers_a_lazy_arm(make_runtime, skill):
     """The MCP server builds every arm lazily (standby until a motion)."""
     rt = make_runtime(["so101_left", "so101_right"], lazy=True)
@@ -260,10 +266,26 @@ def test_joint_space_and_relative_skills_still_run_on_a_base_pose_arm(make_runti
         assert spy.arm_commands() > 0 or spy.jaw
 
 
+@pytest.mark.parametrize("skill", sorted(CONVERTED_CALLS))
+@pytest.mark.parametrize("rig", sorted(RIGS))
+def test_a_converted_skill_runs_on_a_base_pose_arm(make_runtime, monkeypatch, rig, skill):
+    arms, poses, select = RIGS[rig]
+    rt = make_runtime(arms, poses)
+    spy = Spy(rt, monkeypatch)
+    args = dict(CONVERTED_CALLS[skill])
+    if select:
+        args["arm"] = select
+    result = rt.execute(skill, args)
+    assert GUARD not in str(result.get("error")), result
+    # it ran: perceived (the object here is W (0.198, 0), 22 cm across from
+    # so101_right's base, where a pointing pose may honestly be refused)
+    assert "_localize" in spy.perception
+
+
 # ── 3. the RUNNING arm decides (execute(arm=...) included) ────────────────
 
 
-@pytest.mark.parametrize("skill", ["grasp_object", "place_at", "point_at"])
+@pytest.mark.parametrize("skill", ["grasp_object", "place_at", "push_object"])
 def test_the_running_arm_decides_not_the_primary(make_runtime, monkeypatch, skill):
     """A pair whose primary has the identity pose and whose second arm has a
     real base_pose: only calls that RUN on the second arm are refused."""
@@ -277,7 +299,7 @@ def test_the_running_arm_decides_not_the_primary(make_runtime, monkeypatch, skil
     assert spy.perception, "the primary's call ran its skill"
 
 
-@pytest.mark.parametrize("skill", ["grasp_object", "place_at", "point_at"])
+@pytest.mark.parametrize("skill", ["grasp_object", "place_at", "push_object"])
 def test_a_selected_arm_without_a_base_pose_runs_beside_a_mounted_primary(make_runtime, monkeypatch, skill):
     rt = make_runtime(["so101_left", "so101_right"], {"so101_right": IDENTITY})
     spy = Spy(rt, monkeypatch)
@@ -370,11 +392,19 @@ def _derive_world_target_skills():
 
 
 def test_the_guarded_list_is_every_skill_that_aims_at_a_world_position():
+    """The call graph still finds the brief's 15; each is either still refused
+    or converted (and then pinned by the equivariance oracle)."""
     import cascade.skills.runtime as runtime_mod
 
+    from base_pose_oracle import ORACLE_SKILLS
+
     derived = _derive_world_target_skills()
-    assert derived == set(WORLD_TARGET_CALLS)  # the brief's 15, verified by the call graph
-    assert set(getattr(runtime_mod, "_WORLD_TARGET_SKILLS", ())) == derived
+    assert derived == set(WORLD_TARGET_CALLS) | set(CONVERTED_CALLS)  # the brief's 15
+    assert not set(WORLD_TARGET_CALLS) & set(CONVERTED_CALLS)
+    guarded = set(getattr(runtime_mod, "_WORLD_TARGET_SKILLS", ()))
+    assert guarded <= derived
+    assert guarded == set(WORLD_TARGET_CALLS)
+    assert set(CONVERTED_CALLS) <= ORACLE_SKILLS      # a skill leaves the guard only with oracle rows
 
 
 def test_the_derivation_sees_a_new_world_target_skill(monkeypatch):
@@ -509,7 +539,7 @@ def test_the_guard_engages_exactly_on_the_profiles_that_declare_a_base_pose():
 def test_an_arm_without_a_base_pose_runs_every_world_target_skill(make_runtime, monkeypatch, arm, skill):
     rt = make_runtime([arm])
     spy = Spy(rt, monkeypatch)
-    result = rt.execute(skill, dict(WORLD_TARGET_CALLS[skill]))
+    result = rt.execute(skill, dict({**WORLD_TARGET_CALLS, **CONVERTED_CALLS}[skill]))
     assert GUARD not in str(result.get("error")), result
     assert spy.perception or spy.arm_commands() > 0
 

@@ -36,16 +36,18 @@ GITHUB_HOSTS = frozenset({"github.com", "api.github.com", "release-assets.github
 # A private repository answers anonymous release downloads with 404; a token
 # in either variable switches the installer to the authenticated API route.
 TOKEN_VARIABLES = ("GH_TOKEN", "GITHUB_TOKEN")
-TOKEN_SHAPE = re.compile(r"[A-Za-z0-9_.-]{1,255}")
+# Any printable, space-free ASCII: GitHub App installation tokens (the Actions
+# job token) are ~520 characters in the stateless format.
+TOKEN_SHAPE = re.compile(r"[\x21-\x7e]{1,4096}")
 RELEASE_METADATA_BYTES = 1024 * 1024
 REDIRECT_CODES = frozenset({301, 302, 303, 307, 308})
 
 
 def github_token() -> str | None:
-    """The first non-empty GH_TOKEN / GITHUB_TOKEN, refused unless token-shaped.
+    """The first non-empty GH_TOKEN / GITHUB_TOKEN, refused unless header-safe.
 
     The shape check keeps the value out of http.client's "Invalid header value"
-    errors, which would otherwise quote it.
+    errors (CR/LF), which would otherwise quote it.
     """
     for name in TOKEN_VARIABLES:
         value = os.environ.get(name, "").strip()

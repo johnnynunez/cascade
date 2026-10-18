@@ -492,6 +492,17 @@ def test_token_is_redacted_from_errors_and_malformed_tokens_are_never_sent(sourc
     _no_partial_install(repo)
 
 
+@pytest.mark.parametrize("token", [
+    "ghp_" + "a1" * 18, "github_pat_" + "B2_" * 27,
+    # The stateless GitHub App installation token (the Actions job token): ~520 chars.
+    "ghs_12345_" + "eyJhbGciOiJSUzI1NiJ9." * 24 + "Sfl-KxwR_JSM"])
+def test_every_github_token_format_is_accepted(monkeypatch, token):
+    monkeypatch.setenv("GITHUB_TOKEN", token)
+    assert kitchen.github_token() == token
+    monkeypatch.setenv("GH_TOKEN", f"  {TOKEN}\n")
+    assert kitchen.github_token() == TOKEN
+
+
 def test_real_urllib_never_carries_the_token_across_a_redirect(monkeypatch):
     """Loopback proof of both guards with the real urllib openers (no GitHub access)."""
     for name in ("http_proxy", "HTTP_PROXY", "all_proxy", "ALL_PROXY"):

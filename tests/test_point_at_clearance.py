@@ -205,7 +205,8 @@ def test_an_object_out_of_reach_either_way_is_refused_before_any_command(rig, mo
     _refused_untouched(r, out)
     assert (LEAN_TEXT + "from above, its top-down ceiling is 0.140 m, below the object top + margin "
             "(0.630 m: top 0.600 m + clearance 0.030 m + 0.000 m of jaw below the TCP); leaning in 15-45 deg, "
-            "no pose keeps the TCP, the jaws and the arm 0.030 m from it and the table") in out["error"], out
+            "no pose keeps the TCP, the jaws and the arm 0.030 m from it, every known object and the table") \
+        in out["error"], out
     assert out["error"].count("nothing was moved") == 1, out
 
 

@@ -278,6 +278,7 @@ def test_answer_parsers():
     h, keep, notes = parse_harness_answer(f"x <harness>```json\n{json.dumps(GOOD)}\n```</harness> <notes>n</notes>")
     assert h == AgentHarness.from_dict(GOOD) and not keep and notes == "n"
     assert parse_harness_answer("KEEP_BASE")[1] is True
+    assert parse_harness_answer("<harness>KEEP_BASE</harness>\nKEEP_BASE")[:2] == (None, True)
     with pytest.raises(ValueError):
         parse_harness_answer("I would change the rules.")
     edits, exp = parse_experience("<edits>a</edits>\nNO_ENTRY")

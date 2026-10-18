@@ -84,7 +84,9 @@ def parse_harness_answer(text: str) -> tuple[AgentHarness | None, bool, str]:
     blocks = _HARNESS.findall(text)
     if blocks:
         body = blocks[-1].strip()
-        body = re.sub(r"^```(?:json)?\s*|\s*```$", "", body)
+        body = re.sub(r"^```(?:json)?\s*|\s*```$", "", body).strip()
+        if body == "KEEP_BASE":  # an improver may wrap its keep in the harness tags
+            return None, True, notes
         return AgentHarness.from_json(body), False, notes
     if "KEEP_BASE" in text:
         return None, True, notes

@@ -7790,12 +7790,15 @@ class SkillRuntime:
             carry_attachment.check(self)
         except carry_attachment.AttachmentInvalid as exc:
             return {**out, **carry_attachment.failure_result(self, exc)}
-        if self.held_object and self._drives_real_gripper():
-            # The release happens at home: a real gripper would drop the
-            # object from there (~0.44 m on the reBot). Refuse before any
-            # motion; the object stays held.
-            return {**out, "ok": False, "stage": "release", "home_skipped": True, "beliefs_forgotten": 0,
-                    "error": f"holding {self.held_object}: place it first (place_at), then reset"}
+        if ((self.held_object or getattr(self, "_held_provisional", None) is not None)
+                and self._drives_real_gripper()):
+            refusal = self._reset_real_hold_refusal()
+            if refusal is not None:
+                # The release happens at home: a real gripper would drop the
+                # object from there (~0.44 m on the reBot). Refuse before any
+                # motion; the object stays held.
+                return {**out, "ok": False, "stage": "release", "home_skipped": True, "beliefs_forgotten": 0,
+                        "error": refusal}
         occupancy = getattr(self.arm.harness, "occupancy", None)
         recovery_generation = None
         recovery_cancellation = None
@@ -8033,6 +8036,32 @@ class SkillRuntime:
         type or arm counts as real."""
         arm = self._running_arm_profile() or {}
         return not str(arm.get("type") or "").startswith(self._SIM_ARM_TYPES)
+
+    def _reset_real_hold_refusal(self) -> str | None:
+        """Why reset_scene on a real gripper refuses before any motion, or
+        None. A held object refuses (#357). An operator STOP late in the grasp
+        lift leaves only the close's provisional hold: it is reconciled with
+        the jaws first, as every grasp skill's entry does (`_reconcile_held`),
+        so jaws stalled on the object promote it and the reset refuses
+        instead of homing with the object and forgetting it (a later
+        open_gripper dropped it). Jaws that read open or closed on air clear
+        it (nothing is held). A provisional hold the jaws could not settle
+        (unknown feedback, a failed read) refuses too: fail closed. A held
+        flag is never reconciled here: it refuses as it is."""
+        read_error = None
+        if not self.held_object and getattr(self, "_held_provisional", None) is not None:
+            try:
+                self._reconcile_held()
+            except Exception as exc:  # noqa: BLE001 -- unknown jaws: refused below
+                read_error = exc
+        if self.held_object:
+            return f"holding {self.held_object}: place it first (place_at), then reset"
+        provisional = getattr(self, "_held_provisional", None)
+        if provisional is None:
+            return None
+        why = read_error if read_error is not None else "no valid jaw feedback"
+        return (f"jaw state could not be read: {provisional[0]} may still be held after the interrupted "
+                f"grasp; check the gripper, then reset. Error: {why}")
 
     def _forget_held_object(self) -> None:
         """The jaws let the held object go: clear every held-object field."""

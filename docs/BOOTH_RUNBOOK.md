@@ -163,9 +163,12 @@ move on, win or lose (exit lines in §8). One `pick_and_place` per group, ever.
 ## 7. Reset between groups (target: 60 s of hands, run during Q&A)
 
 1. Say **"reset the scene"** in the chat (a reflex, works with the brain down; also the
-   `reset_scene` tool). It moves the arm home, restores SIM props, opens closed empty jaws, clears
-   the world model and task-memory frames and takes one fresh observation. On the real rig it
-   refuses while the gripper holds something: place it first (`place_at`). Real props do not
+   `reset_scene` tool). It moves the arm to its raised home pose (`move_home`, not the park),
+   restores SIM props, opens closed empty jaws, clears the world model and task-memory frames
+   and takes one fresh observation. In SIM a held object is released at home. On the real rig
+   (the reBot) it refuses before any motion while the jaws hold something, also an object
+   they stalled on when a STOP interrupted the grasp: place it first (`place_at`). After such
+   a STOP it also refuses when the jaws cannot be read: check the gripper. Real props do not
    teleport (`props_reset: []`): put them back on the tape.
 2. Run `scripts/booth_reset.sh` (keeps the learned brain). It prints the physical checklist
    (park → props to tape → `/clear` the chat) and verifies every prop shows LIVE in the world

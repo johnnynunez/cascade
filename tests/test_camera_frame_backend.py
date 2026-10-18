@@ -211,7 +211,8 @@ def test_preview_hands_the_frame_only_to_frame_backends(backend):
         cfg=cfg, _localize=lambda label, spatial_hint=None: (frame, fix),
         _plan_grasps=lambda f, **kw: calls.append(kw) or [grasp],
         grasp_memory=SimpleNamespace(prior=lambda *a: None),
-        memory=SimpleNamespace(add=lambda *a: None))
+        memory=SimpleNamespace(add=lambda *a: None),
+        _to_world=lambda p: p)    # a runtime without a base_pose reports its frame as is
     assert SkillRuntime.skill_preview_grasp(fake, "red cube")["ok"] is True
     wants_frame = backend in ("hug", "camera_frame")
     assert calls == [{"label": "red cube", **({"_frame": frame} if wants_frame else {})}]

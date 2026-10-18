@@ -23,14 +23,19 @@ the column.
   arm. Never after a contact (ContactDetected is no operator stop), never
   while a contact episode is retained (payload maps: reset_scene's contact
   recovery owns that case).
-- `forget` drops every kept column: execute() on any other motion skill,
-  skill_grasp_object at its start, reset_scene once its home move is done.
+- `forget` drops the RUNNING arm's kept column: execute() on any other motion
+  skill, skill_grasp_object at its start (another arm's motion leaves its
+  column alone: base_pose R5 follow-up); reset_scene, once its home move is
+  done, drops every arm's (`every_arm`: the scene changes for all of them).
   A column also expires `MAX_AGE_S` (300 s, monotonic clock) after the stop:
   the explicit call then drops it and today's home move runs (frozen, 0
   commands). The scene changes only through reset_scene on the reBot: its
   map's `scene_reset_generation` moves only for payload-tracking maps.
 - `live` is a kept column while it still applies (the retrace's own rule):
   reset_scene's refusal names "move_home first" only then.
+  `live_on_another_arm` is another arm's, judged by the same rule for that
+  arm: reset_scene on this arm refuses while one exists (its forget would
+  strand that arm at its object) and names move_home on that arm.
 - `retrace` (skill_move_home, before its own home move) acts only when
   execute()'s ROOT motion skill is move_home or reset_scene. It moves ONE
   direct joint segment from the measured pose to `q_pre` (the reverse of the
@@ -111,14 +116,30 @@ def live(runtime) -> Kept | None:
     return record
 
 
-def forget(runtime) -> int:
-    """Drop every kept column; how many there were."""
+def live_on_another_arm(runtime) -> Kept | None:
+    """A column kept for ANOTHER arm than the running one, while it still
+    applies to that arm (`live`'s rule, judged for its own arm), or None.
+    reset_scene on this arm would forget it (`forget(every_arm=True)`) and
+    strand that arm at its object: the reset refuses instead and names
+    move_home on that arm (Task 5 review Minor 1). Reads only."""
+    for record in list((_records(runtime) or {}).values()):
+        if record.arm is not runtime.arm and _no_longer_applies(runtime, record, arm=record.arm) is None:
+            return record
+    return None
+
+
+def forget(runtime, *, every_arm: bool = False) -> int:
+    """Drop the running arm's kept column (`every_arm`: every arm's); how
+    many were dropped. A column is one arm's approach: another arm's motion
+    does not forfeit it (it would strand that arm at its object)."""
     records = _records(runtime)
     if not records:
         return 0
-    count = len(records)
-    records.clear()
-    return count
+    if every_arm:
+        count = len(records)
+        records.clear()
+        return count
+    return 0 if records.pop(id(runtime.arm), None) is None else 1
 
 
 def _scene(harness):
@@ -194,8 +215,9 @@ def upward_in_column(kin, start, goal, duration_s, rate_hz, column, z_max) -> st
     return None
 
 
-def _no_longer_applies(runtime, record) -> str | None:
-    arm = runtime.arm
+def _no_longer_applies(runtime, record, *, arm=None) -> str | None:
+    """Why `record` no longer applies to `arm` (default: the running arm), or None."""
+    arm = runtime.arm if arm is None else arm
     if record.arm is not arm or record.raw is not getattr(arm, "raw", None):
         return "the arm changed"
     if _clock() - record.kept_at > MAX_AGE_S:

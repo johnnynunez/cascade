@@ -16,7 +16,6 @@ The rules this pins (ROADMAP follow-up #7, ledger B17):
 from __future__ import annotations
 
 import time
-from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -83,7 +82,8 @@ def test_only_hug_is_handed_the_rgbd_frame(backend):
         cfg=cfg, _localize=lambda label, spatial_hint=None: (frame, fix),
         _plan_grasps=lambda f, **kw: calls.append(kw) or [grasp],
         grasp_memory=SimpleNamespace(prior=lambda *a: None),
-        memory=SimpleNamespace(add=lambda *a: None))
+        memory=SimpleNamespace(add=lambda *a: None),
+        _to_world=lambda p: p)    # a runtime without a base_pose reports its frame as is
     out = SkillRuntime.skill_preview_grasp(fake, "red cube")
     assert out["ok"] is True
     expected = {"label": "red cube", "_frame": frame} if backend == "hug" else {"label": "red cube"}

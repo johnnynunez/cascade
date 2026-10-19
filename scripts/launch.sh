@@ -491,10 +491,24 @@ if [[ -n "${CASCADE_OPENSHELL_INSTANCE+x}" ]]; then OS_INSTANCE="$CASCADE_OPENSH
 elif [[ "$SIM" == none ]]; then OS_INSTANCE=""
 else OS_INSTANCE=sim; fi
 # A name OpenShell would refuse (its sandbox name has at most 19 characters)
-# stops here, before a simulator or server starts; the rig prints why.
+# stops here, before a simulator or server starts; --check reports it as a
+# failed row instead. The rig exits 3 (NAME_REFUSED) with the reason for a
+# refused name; any other failure (a usage error, a broken python) is not
+# reported as one. --instance=NAME keeps a name starting with - a name.
+OS_INSTANCE_ERROR=""
 if [[ "$AGENT_ROUTE" == openshell ]]; then
-    "$PY" "$REPO/scripts/openshell_rig.py" --instance "$OS_INSTANCE" instance >/dev/null \
-        || die "OpenShell instance '$OS_INSTANCE' refused (see above): pick another CASCADE_OPENSHELL_INSTANCE"
+    os_rc=0
+    os_why="$("$PY" "$REPO/scripts/openshell_rig.py" --instance="$OS_INSTANCE" instance 2>&1 >/dev/null)" || os_rc=$?
+    if [[ $os_rc == 3 ]]; then
+        OS_INSTANCE_ERROR="refused: $os_why"
+    elif [[ $os_rc != 0 ]]; then
+        OS_INSTANCE_ERROR="could not be checked (scripts/openshell_rig.py exited $os_rc): ${os_why:-no output}"
+    fi
+    if [[ $CHECK == 0 && $os_rc == 3 ]]; then
+        die "OpenShell instance '$OS_INSTANCE' $OS_INSTANCE_ERROR (pick another CASCADE_OPENSHELL_INSTANCE)"
+    elif [[ $CHECK == 0 && $os_rc != 0 ]]; then
+        die "could not check OpenShell instance '${OS_INSTANCE:-default}': scripts/openshell_rig.py exited $os_rc: ${os_why:-no output}"
+    fi
 fi
 log "plan: sim=$SIM arm=$ARM cameras=$CAMERAS brain=$BRAIN python=$PY"
 if [[ "$AGENT_ROUTE" == openshell ]]; then
@@ -713,7 +727,9 @@ if [[ $CHECK == 1 ]]; then
     if [[ "$AGENT_ROUTE" == openshell ]]; then
         docker info >/dev/null 2>&1 && ok "Docker (the OpenShell sandbox runtime)" \
             || bad "Docker: OpenShell runs the agent in a container; install Docker and add $USER to the docker group"
-        if [[ -x "$("$PY" "$REPO/scripts/openshell_rig.py" --instance "$OS_INSTANCE" instance 2>/dev/null \
+        if [[ -n "$OS_INSTANCE_ERROR" ]]; then
+            bad "OpenShell instance '${OS_INSTANCE:-default}' $OS_INSTANCE_ERROR"
+        elif [[ -x "$("$PY" "$REPO/scripts/openshell_rig.py" --instance "$OS_INSTANCE" instance 2>/dev/null \
                 | "$PY" -c 'import json,sys; print(json.load(sys.stdin)["home"])' 2>/dev/null)/0.1.3/bin/openshell" ]]; then
             ok "OpenShell installed (instance ${OS_INSTANCE:-default})"
         else

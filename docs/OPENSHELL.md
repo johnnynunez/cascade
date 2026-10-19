@@ -25,7 +25,7 @@ forward. The older [NemoClaw route](#nemoclaw-route-opt-in) (pinned to OpenShell
         │                                               │ $CASCADE_MCP_TOKEN     = placeholder
  robot MCP :18741  cascade.apps.mcp_server              ▼
         ▲   plain HTTP + bearer (loopback only)    OpenShell supervisor (proxy, L7)
-        │  CASCADE_MCP_TOKEN (real)                  - only host.openshell.internal:8081
+        │  CASCADE_MCP_TOKEN (real)                  - only host.openshell.internal:8081/v1/* (GET, POST)
         └──────────── host.openshell.internal ◄──    - only host.openshell.internal:18741/mcp
                                                      - only for /usr/local/bin/node
  chat  127.0.0.1:18799 ◄── openshell forward ──      - swaps placeholder -> real secret
@@ -60,6 +60,39 @@ TLS from a private CA).
    stays locked. `motion lock` cancels a pending re-lock, `motion status` shows the time left,
    and tools denied with `up --deny-tool` stay denied across every lock and unlock.
 
+## Brain warm start: what it opens
+
+The Bolt brain prefills the agent prefix OpenClaw last sent after every restart
+(`scripts/serve_nemotron_bolt_llamacpp.sh`, `WARM_START=1` by default). To record that prefix,
+llama-server runs with two features that widen its API for **every holder of the brain key**:
+
+1. `LLAMA_SERVER_SLOTS_DEBUG=1`: `GET /slots` returns each slot's last prompt and output text
+   (agent chats, perception), and a request reusing part of a slot logs the 2 tokens where it
+   diverges. llama.cpp v0.7.0 reads it once at start: it cannot be on only while the helper records.
+2. `--slot-save-path <state>/bolt-slots-PORT`: `POST /slots/N?action=save|restore|erase` work
+   (one save writes about 0.5 GB).
+
+The limits:
+
+1. Only behind `API_KEY_FILE`. Without a key the script warns and serves as `WARM_START=0`; the
+   server binds `127.0.0.1` either way. The same fallback covers a missing helper, a llama-server
+   without `--slot-save-path` and a slot directory that cannot be private.
+2. The slot directory is the user's own, mode 0700, never a symlink. A save needs 4 GiB free
+   there before it starts (`--min-free-gb`; its file comes on top), else it waits; the file is
+   deleted right after the read.
+3. The sandbox reaches only `GET` and `POST /v1/*` of every brain (`brain_profile`, OpenShell
+   REST rules): `/slots`, `/completion`, `/props` and `/tokenize` (llama-server), `/metrics`
+   (vLLM) get 403. The profile names no model: Bolt under a custom `ALIAS`, `--model
+   qwen3.8-27b` and Cosmos get the same one (OpenClaw only calls `<brain>/v1`).
+4. Not yet verified live (next `up` after this change, ~1 min per brain): `up` prints no
+   `openshell provider profile update failed`; a chat still answers with no `policy_denied`
+   in the sandbox log; and, with `P=/v1/models`, then `P=/slots` (llama-server) or `P=/metrics`
+   (vLLM), then `P=/props`,
+   `scripts/openshell_rig.py exec -- node -e "fetch('http://host.openshell.internal:8081'+process.argv[1],{headers:{authorization:'Bearer '+process.env.CASCADE_BRAIN_API_KEY}}).then(r=>console.log(r.status))" $P`
+   prints 200, then 403, 403. Do it for Bolt (`up`) and Qwen (`up --model qwen3.8-27b`).
+5. Still trusted with the key: host processes that read `llama.key` (the robot server's
+   perception, the helper). `WARM_START=0` closes all of the above.
+
 ## Bring-up
 
 ```bash
@@ -70,7 +103,8 @@ TLS from a private CA).
 #    file itself, never argv. Once per host: scripts/serve_nemotron_bolt_llamacpp.sh
 #    --setup-only (pinned GGUF + projector + drafter, 24.8 GB, and the pinned llama.cpp
 #    build). Restart this unit after pulling a new revision. After a restart it prefills the
-#    agent prefix OpenClaw last sent (scripts/brain_warm_start.py; WARM_START=0 turns it off).
+#    agent prefix OpenClaw last sent (scripts/brain_warm_start.py; only with API_KEY_FILE;
+#    WARM_START=0 turns it off; what it opens: "Brain warm start" below).
 systemd-run --user --unit=cascade-brain --collect -p MemoryMax=infinity \
     -E PORT=8081 -E API_KEY_FILE="$HOME/.cascade/nemoclaw/llama.key" \
     "$PWD/scripts/serve_nemotron_bolt_llamacpp.sh"

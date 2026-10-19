@@ -26,11 +26,21 @@ close, `sweep` every pose a close passes through from there. Without
 all three are the sweep box. Once the tool is tilted the point nearest the
 object is in general not a box corner, hence the grid.
 
+The rest of the tool the harness models (`safety.tool_volume`: the reBot's
+wrist camera box, a measured housing or fingers) rides along as `Part`s
+(`tool_body`): each part's box sampled on its faces at most BODY_SPACING_M
+apart, its own pair in every rule below (from each object and from the
+table), named in a refusal. A part's distance from an object is its sampled
+distance less `slack_m` (`part_slack`), a lower bound on the BOX's distance
+wherever it keeps the margin, so a pose or leg a part clears keeps the whole
+box the margin away. A profile without a tool volume has no part; a part
+whose box the volume does not give refuses (its points alone bound nothing).
+
 A pose is admissible (`PoseClearance.admissible`) when, on its solved FK,
-every closed-jaw sample keeps `margin` from the column and from every
-neighbour and stays `margin` above the table, every joint origin the harness
-checks keeps `margin` from the column and every neighbour, and the approach
-ray passes within AIM_TOLERANCE_M of the aim point.
+every closed-jaw sample and every part keeps `margin` from the column and
+from every neighbour and stays `margin` above the table, every joint origin
+the harness checks keeps `margin` from the column and every neighbour, and
+the approach ray passes within AIM_TOLERANCE_M of the aim point.
 
 The lean-in family (`lean_in`) aims at the centre of the object's top, P:
 approach a = cos(phi)(-z) + sin(phi) u, u the horizontal direction from the
@@ -44,24 +54,32 @@ passes through the pan axis; a 6-joint arm holds it in any plane.
 The route (`plan_route`) is checked by FK samples along the straight joint
 segment the streamer interpolates (min-jerk in time, a straight line in
 joint space), at most ROUTE_STEP_RAD apart, against the same columns and the
-table: jaw samples and joint origins. An arm that already starts inside the
-margin (the SO-101's home holds its jaw box over the mock_small cube) may
-only move away until it is out, never closer, and between two samples it
-never dips more than DIP_TOL_M below where it started (`_dip`, a bound from
-the joints' lever arms, not more samples). A failing direct segment gets one
-rise-first waypoint: over the start TCP (or backed off from the object), at
-the start's height + 3 or 6 cm or at the higher of the start and the goal
-(+0/3/6 cm), lowest first, then backed off 6 or 9 cm at the start's height
-+ 0-2 cm (`BACK_OFF_WAYPOINTS`), at the start's rotation or tilted in the
-arm's plane; on the rise leg the jaws never come closer to the target than
-where it started (sampled, and bounded between samples the same way).
+table: jaw samples, the parts and joint origins. An arm that already starts
+inside the margin (the SO-101's home holds its jaw box over the mock_small
+cube) may only move away until it is out, never closer, and between two
+samples it never dips more than DIP_TOL_M below where it started (`_dip`, a
+bound from the joints' lever arms, not more samples). A failing direct
+segment gets one rise-first waypoint: over the start TCP (or backed off from
+the object), at the start's height + 3 or 6 cm or at the higher of the start
+and the goal (+0/3/6 cm), lowest first, then backed off 6 or 9 cm at the
+start's height + 0-2 cm (`BACK_OFF_WAYPOINTS`), at the start's rotation or
+tilted in the arm's plane; on the rise leg the jaws never come closer to the
+target than where it started (sampled, and bounded between samples the same
+way).
 
 A jaw that starts within TOUCH_M of an object (judged on the jaws' real
 geometry, `touch_distance`: a prop touching or inside the open jaws, where the
 model's escape rule cannot promise the real parts do not push it) first backs
 straight out along its approach, the TCP on a line (`withdrawal`), until it
-keeps WITHDRAWN_M from every object; the route starts there. Planning runs
-against a time budget (`Budget`, PLAN_BUDGET_S): past it, point_at refuses.
+keeps WITHDRAWN_M from every object; the route starts there. Never while
+holding: the payload in the jaws is not modelled, so that start refuses.
+Planning runs against a budget (`Budget`): PLAN_BUDGET_S of the planning
+thread's CPU time (stretched on a core slower than the host's fastest,
+`core_factor`) and PLAN_WALL_S of wall time; past either, point_at refuses.
+Planning that took longer than FRESH_PLAN_S of wall time looks at the target
+again before the first command (`fix_moved_m`): moved more than FRESH_MOVE_M,
+it is planned once more from where it is now, on what is left of the same
+budget, and refused if it moved again; never a move toward a stale pose.
 
 The jaws close (`Route.close_at`) at the first pose of the route where their
 `sweep` samples keep `margin` from the target, every neighbour and the table
@@ -74,6 +92,7 @@ with no such close, or no clear waypoint, is refused before any command.
 from __future__ import annotations
 
 import math
+import threading
 import time
 from dataclasses import dataclass, field
 
@@ -85,6 +104,10 @@ LEAN_IN_TILTS_DEG = (15.0, 25.0, 35.0, 45.0)
 LEAN_IN_DISTANCES_M = (0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.10)
 #: largest spacing of the jaw samples (faces and interior)
 TOOL_SPACING_M = 0.005
+#: largest spacing of a tool part's face samples (`tool_body`): the reBot's
+#: 15 x 14 x 8 cm camera box is ~900 samples; its slack (`part_slack`) at the
+#: 3 cm margin is 0.8 mm
+BODY_SPACING_M = 0.01
 #: the approach ray must pass this close to the aim point
 AIM_TOLERANCE_M = 0.01
 #: largest joint step between two route samples (5 mm at 0.5 m of lever)
@@ -123,10 +146,33 @@ WITHDRAWN_M = TOUCH_M
 #: it backs out in steps of this (the TCP on its line), at most this far
 WITHDRAW_STEP_M = 0.005
 WITHDRAW_MAX_M = 0.08
-#: the time point_at may spend planning (s): past it, it refuses
+#: the CPU time the planning thread may spend planning (s): past it, point_at
+#: refuses. CPU time, not wall time: a loaded host (other processes on the
+#: cores, other threads holding the GIL) stretches the wall time planning
+#: waits, not the work it does (#385 review M2: rows that planned in < 2.5 s
+#: at load 3 ran past a 3 s wall budget at load 8-10)
 PLAN_BUDGET_S = 3.0
-#: the planning clock (tests replace it)
-_clock = time.monotonic
+#: ... and never more than this wall-clock time, however loaded the host
+#: (s): planning stays bounded (main once planned for 13.3 s)
+PLAN_WALL_S = 8.0
+#: A loaded GB10 also runs the planner on its Cortex-A725 cores, which take
+#: 2.5-3x an X925's CPU time for the same plan (at load 2 pinned to one:
+#: 6 of 32 so101_mock and 14 of 32 g1_mock rows ran past 3 s; none on an
+#: X925). The CPU budget stretches by how much slower the planning thread's
+#: core is than the host's fastest (`core_factor`), never past PLAN_WALL_S;
+#: a core within this ratio of the fastest counts as it (timing noise)
+SLOWER_CORE_MIN = 1.25
+#: Up to PLAN_WALL_S can pass between the target's localization and the
+#: first command. Planning that took longer than this (s, wall) looks at the
+#: target again before that command (#399 review Minor 3, `fix_moved_m`) ...
+FRESH_PLAN_S = 3.0
+#: ... and plans once more, from where it is now, when it moved more than
+#: this (m: its centre or its observed top), the pose's own aim tolerance
+FRESH_MOVE_M = AIM_TOLERANCE_M
+#: the planning clocks (tests replace them): the calling thread's CPU time,
+#: and wall time
+_clock = time.thread_time
+_wall = time.monotonic
 
 
 #: `ObjectColumn.min_distance` evaluates the exact distance this many points at a time
@@ -141,22 +187,113 @@ class PlanningTimeout(RouteRefused):
     """Planning ran past its time budget; nothing was commanded."""
 
 
+#: `_fastest_probe_s`, kept for the process once a search completed
+_FASTEST: dict = {}
+
+
+def _speed_probe_s() -> float:
+    """CPU seconds this thread takes for a fixed slice of the planner's own
+    work (`ObjectColumn.min_distance`, 216 points, 8 times; ~0.4 ms on a
+    GB10 X925)."""
+    probe = _FASTEST.get("probe")
+    if probe is None:
+        square = np.array([[-0.02, -0.02], [0.02, -0.02], [0.02, 0.02], [-0.02, 0.02]])
+        grid = np.stack(np.meshgrid(*[np.linspace(-0.05, 0.05, 6)] * 3, indexing="ij"), -1).reshape(-1, 3)
+        probe = _FASTEST["probe"] = (ObjectColumn(footprints=(square,), tops=(0.05,), z_lo=0.0,
+                                                  aim=np.array([0.0, 0.0, 0.05])), grid + [0.0, 0.1, 0.1])
+    column, points = probe
+    t0 = time.thread_time()
+    for i in range(8):
+        column.min_distance(points + i * 1e-5)
+    return time.thread_time() - t0
+
+
+def _fastest_probe_s() -> float:
+    """`_speed_probe_s` on the host's fastest core (`core_speed.fastest`:
+    timed by helper threads pinned to one core of each capacity class of the
+    process's CPU set, fastest class first, the planning thread's affinity
+    untouched), measured at the first use and kept for the process once a
+    search completed. A search that ran out of time serves this call only
+    (it can only understate how much slower a core is) and the next call
+    searches again (#399 review Minor 1)."""
+    if "s" not in _FASTEST:
+        from ..core_speed import fastest
+
+        ref = fastest(lambda: _speed_probe_s())
+        if not ref.complete:
+            return ref.seconds
+        _FASTEST["s"] = ref.seconds
+    return _FASTEST["s"]
+
+
+def core_factor() -> float:
+    """How many times slower than the host's fastest core this thread's
+    core runs the planner's own work now (>= 1; 1 within SLOWER_CORE_MIN, or
+    when it cannot tell)."""
+    ref = _fastest_probe_s()
+    now = min(_speed_probe_s() for _ in range(2))
+    ratio = now / ref if ref > 0.0 else math.nan
+    return float(ratio) if math.isfinite(ratio) and ratio >= SLOWER_CORE_MIN else 1.0
+
+
 class Budget:
     """point_at's planning deadline: `check()` raises PlanningTimeout once
-    `seconds` have passed since it was made (on `_clock`)."""
+    the thread that made it has spent `seconds` of CPU time since (`_clock`,
+    PLAN_BUDGET_S) times `factor` (`core_factor`: how much slower its core
+    is than the host's fastest, measured again, at most 3 times, before it
+    refuses), or `wall` seconds have passed (`_wall`, PLAN_WALL_S); the
+    factor never stretches the CPU budget past `wall`. Read from another
+    thread, whose CPU clock says nothing about this one, `seconds` counts
+    wall time (the strict rule)."""
 
-    def __init__(self, seconds: float | None = None):
+    def __init__(self, seconds: float | None = None, wall: float | None = None):
         self.seconds = float(PLAN_BUDGET_S if seconds is None else seconds)
-        self.end = _clock() + self.seconds
+        self.wall_s = float(PLAN_WALL_S if wall is None else wall)
+        self.thread = threading.get_ident()
+        self.most = max(1.0, self.wall_s / self.seconds) if self.seconds > 0.0 else 1.0
+        self.factor = min(core_factor(), self.most)
+        self.measured = 0
+        self.start = _clock()
+        start = _wall()
+        self.wall_end = start + self.wall_s
+        self.strict_end = start + self.seconds
 
     def check(self) -> None:
-        if not _clock() <= self.end:       # NaN refuses too
-            raise PlanningTimeout(f"planning took longer than its {self.seconds:.1f} s budget")
+        # written so that NaN refuses
+        now = _wall()
+        if threading.get_ident() == self.thread:
+            spent = _clock() - self.start
+            within = spent <= self.seconds * self.factor
+            if not within and self.measured < 3 and self.factor < self.most:
+                self.measured += 1
+                self.factor = max(self.factor, min(core_factor(), self.most))
+                within = spent <= self.seconds * self.factor
+        else:
+            within = now <= self.strict_end
+        if not within:
+            slower = f" (x{self.factor:.1f} on a slower core)" if self.factor > 1.0 else ""
+            raise PlanningTimeout(f"planning took longer than its {self.seconds:.1f} s budget{slower}")
+        if not now <= self.wall_end:
+            raise PlanningTimeout(f"planning took longer than its {self.wall_s:.1f} s wall-clock cap "
+                                  f"(the host is loaded)")
 
 
 def _check(budget) -> None:
     if budget is not None:
         budget.check()
+
+
+def fix_moved_m(before, after) -> float:
+    """How far a target moved between two fixes (`ObjectFix`): its centre,
+    or its observed top (the highest point, what point_at keeps the margin
+    above), whichever moved more (m). NaN when either is not finite."""
+    def top(fix):
+        pts = np.asarray(fix.points, dtype=float).reshape(-1, 3)
+        return float(pts[:, 2].max()) if len(pts) else math.nan
+
+    centre = float(np.linalg.norm(np.asarray(after.position, dtype=float) - np.asarray(before.position, dtype=float)))
+    raised = abs(top(after) - top(before))
+    return max(centre, raised) if math.isfinite(centre) and math.isfinite(raised) else math.nan
 
 
 # ── the object columns ─────────────────────────────────────────────────────
@@ -421,13 +558,120 @@ def jaw_samples(sweep, gripper, axis_order: str, opening=None, spacing: float = 
 
 
 def _groups(tool) -> tuple:
-    """Tool samples as a tuple of (N, 3) groups (one array: one group)."""
-    return tuple(np.asarray(g, dtype=float).reshape(-1, 3) for g in tool) if isinstance(tool, (tuple, list)) \
-        else (np.asarray(tool, dtype=float).reshape(-1, 3),)
+    """Tool samples as a tuple of (N, 3) groups (one array: one group; a
+    `Part`: its samples)."""
+    if isinstance(tool, (tuple, list)):
+        return tuple(np.asarray(g.samples if isinstance(g, Part) else g, dtype=float).reshape(-1, 3) for g in tool)
+    return (np.asarray(tool, dtype=float).reshape(-1, 3),)
 
 
 def _stacked(tool) -> np.ndarray:
     return np.vstack(_groups(tool))
+
+
+# ── the rest of the tool: the harness's parts beyond the jaws ──────────────
+
+
+@dataclass(frozen=True, eq=False)
+class Part:
+    """A rigid part of the tool beyond the jaws (`tool_body`): TCP-frame
+    `samples` on its box's faces, the `name` a refusal gives it, and
+    `slack_m`, taken off every distance from it to an object."""
+
+    samples: np.ndarray
+    name: str
+    slack_m: float = 0.0
+
+
+def part_slack(spacing: float, margin: float) -> float:
+    """How far a grid at most `spacing` apart on a box's faces can overstate
+    the box's distance from a convex object, where the box keeps `margin`.
+
+    The box point nearest the object (a corner, on an edge or on a face) has
+    a sample at most spacing / sqrt(2) from it along the box, square to the
+    direction of the object, so the sampled distance is at most
+    sqrt(d^2 + spacing^2 / 2) <= d + spacing^2 / (4 d): a sampled distance
+    of at least margin + spacing^2 / (4 margin) proves d >= margin. Never
+    more than spacing / sqrt(2), which bounds it at any distance (also the
+    slack without a positive margin)."""
+    worst = spacing / math.sqrt(2.0)
+    return min(worst, spacing * spacing / (4.0 * margin)) if margin > 0.0 else worst
+
+
+def tool_body(tool_volume, margin: float, spacing: float = BODY_SPACING_M) -> tuple:
+    """The harness's tool volume beyond the jaws as `Part`s, () without one.
+
+    `tool_volume` is the arm harness's `safety.tool_volume.ToolVolume` (or
+    None). Its "jaws" part is the open-jaw sweep box, which every jaw sample
+    group already holds (`tool_samples`: the same `jaw_box`), so it is not
+    repeated. Every other part is its box (`ToolVolume.boxes`) sampled on its
+    faces at most `spacing` apart, with `part_slack` at `margin`. A part
+    without its box raises ValueError (#399 review Minor 4): its own samples
+    alone (the harness's 2 cm grid) could overstate its distance from an
+    object by up to their spacing / sqrt(2), with no slack to cover it.
+    (`build_tool_volume` gives every part its box.)"""
+    if tool_volume is None:
+        return ()
+    names = tuple(tool_volume.names)
+    boxes = tuple(getattr(tool_volume, "boxes", ()) or ())
+    parts = []
+    for k, name in enumerate(names):
+        if name == "jaws":
+            continue
+        if len(boxes) != len(names):
+            raise ValueError(f"the harness's tool part {name!r} has no box (safety.tool_volume's "
+                             f"ToolVolume.boxes): point_at keeps the margin from a part's box, never from its "
+                             f"sample points alone")
+        parts.append(Part(_box_surface(*boxes[k], spacing), str(name), part_slack(spacing, margin)))
+    return tuple(parts)
+
+
+def _items(tool) -> list:
+    return list(tool) if isinstance(tool, (tuple, list)) else [tool]
+
+
+def _part_of(tool, which: int) -> str:
+    """The name of the tool group a pair's `which` (`_pair_clearances`)
+    names: "jaws" for a jaw group, else the part's own name."""
+    if which > -2:
+        return "jaws"
+    return [g for g in _items(tool) if isinstance(g, Part)][-2 - which].name
+
+
+def _posed(tool, T) -> list:
+    """The tool at the TCP pose T as (points, slack, name): the jaw groups as
+    one point set ("jaws", no slack), then each `Part`."""
+    R, p = np.asarray(T, dtype=float)[:3, :3], np.asarray(T, dtype=float)[:3, 3]
+    items = _items(tool)
+    plain = [g for g in items if not isinstance(g, Part)]
+    out = [(_stacked(plain) @ R.T + p, 0.0, "jaws")] if plain else []
+    return out + [(np.asarray(g.samples, dtype=float).reshape(-1, 3) @ R.T + p, float(g.slack_m), g.name)
+                  for g in items if isinstance(g, Part)]
+
+
+def _least(column, posed) -> tuple[float, str]:
+    """(distance, name) of the posed tool group nearest `column`, a part's
+    distance less its slack. NaN wins."""
+    best, name = math.inf, "jaws"
+    for world, slack, part in posed:
+        d = column.min_distance(world) - slack
+        if math.isnan(d):
+            return math.nan, part
+        if d < best:
+            best, name = d, part
+    return best, name
+
+
+def _lowest(posed, table_z: float) -> tuple[float, str]:
+    """(height above the table, name) of the posed tool group lowest down. NaN wins."""
+    best, name = math.inf, "jaws"
+    for world, _, part in posed:
+        h = float(world[:, 2].min()) - float(table_z)
+        if math.isnan(h):
+            return math.nan, part
+        if h < best:
+            best, name = h, part
+    return best, name
 
 
 def _as_jaws(jaws) -> Jaws:
@@ -439,10 +683,12 @@ def _as_jaws(jaws) -> Jaws:
 
 @dataclass(frozen=True)
 class PoseClearance:
-    """What one solved pose keeps (m): the jaws from the column, the lowest
-    jaw sample above the table, the joint origins from the column, the aim
-    point's distance from the approach ray, and the jaws and joint origins
-    from the nearest known neighbour (`near` names it)."""
+    """What one solved pose keeps (m): the tool (jaws and parts) from the
+    column, its lowest sample above the table, the joint origins from the
+    column, the aim point's distance from the approach ray, and the tool and
+    joint origins from the nearest known neighbour (`near` names it);
+    `tool_part` / `table_part` name the tool group that set the first two.
+    A part's distance from an object is less its slack."""
 
     tool_m: float
     table_m: float
@@ -450,6 +696,8 @@ class PoseClearance:
     aim_m: float
     near_m: float = math.inf
     near: str = ""
+    tool_part: str = "jaws"
+    table_part: str = "jaws"
 
     def admissible(self, margin: float) -> bool:
         # written so that NaN refuses
@@ -459,9 +707,9 @@ class PoseClearance:
     def worst(self, margin: float) -> str:
         """The first failed condition, in words."""
         if not self.tool_m >= margin:
-            return f"the jaws {self.tool_m:.3f} m from it"
+            return f"the {self.tool_part} {self.tool_m:.3f} m from it"
         if not self.table_m >= margin:
-            return f"the jaws {self.table_m:.3f} m above the table"
+            return f"the {self.table_part} {self.table_m:.3f} m above the table"
         if not self.links_m >= margin:
             return f"a joint {self.links_m:.3f} m from it"
         if not self.near_m >= margin:
@@ -477,43 +725,52 @@ def _link_points(kin, q) -> np.ndarray:
 def pose_clearance(kin, q, column: ObjectColumn, tool, approach_col: int,
                    table_z: float, neighbours=()) -> PoseClearance:
     T = np.asarray(kin.fk(q), dtype=float)
-    world = _stacked(tool) @ T[:3, :3].T + T[:3, 3]
+    posed = _posed(tool, T)
     links = _link_points(kin, q)
     a = T[:3, approach_col]
     v = column.aim - T[:3, 3]
     along = max(float(v @ a), 0.0)
-    near_m, near = _nearest(neighbours, world, links)
-    return PoseClearance(tool_m=column.min_distance(world),
-                         table_m=float(world[:, 2].min()) - float(table_z),
+    near_m, near = _nearest(neighbours, posed, links)
+    tool_m, tool_part = _least(column, posed)
+    table_m, table_part = _lowest(posed, table_z)
+    return PoseClearance(tool_m=tool_m, table_m=table_m,
                          links_m=float(column.distance(links).min()) if len(links) else math.inf,
-                         aim_m=float(np.linalg.norm(v - along * a)), near_m=near_m, near=near)
+                         aim_m=float(np.linalg.norm(v - along * a)), near_m=near_m, near=near,
+                         tool_part=tool_part, table_part=table_part)
 
 
 def column_min(column: ObjectColumn, world: np.ndarray, links: np.ndarray) -> float:
     """The smallest distance from the jaw samples and joint origins to it."""
-    d = column.min_distance(world)
+    return _posed_min(column, [(world, 0.0, "jaws")], links)
+
+
+def _posed_min(column: ObjectColumn, posed, links: np.ndarray) -> float:
+    """The smallest distance from the posed tool (`_posed`: a part's less
+    its slack) and the joint origins to it."""
+    d, _ = _least(column, posed)
     if len(links):
         d = min(d, column.distance(links).min()) if not np.isnan(d) else d
     return float(d)
 
 
-def _nearest(neighbours, world: np.ndarray, links: np.ndarray) -> tuple[float, str]:
-    """(distance, name) of the neighbour nearest the jaw samples and joint
-    origins; (inf, "") without neighbours. NaN wins: it refuses."""
+def _nearest(neighbours, posed, links: np.ndarray) -> tuple[float, str]:
+    """(distance, name) of the neighbour nearest the posed tool (`_posed`)
+    and the joint origins; (inf, "") without neighbours. NaN wins: it
+    refuses."""
     near_m, near = math.inf, ""
     for other in neighbours:
-        d = column_min(other, world, links)
+        d = _posed_min(other, posed, links)
         if not d >= near_m:
             near_m, near = d, other.name
     return near_m, near
 
 
 def neighbour_clearance(kin, q, tool, neighbours=()) -> tuple[float, str]:
-    """(distance, name) from the jaws (`tool`, TCP frame) and the joint
-    origins at q to the nearest known neighbour: what a top-down pose keeps
-    from every other known object."""
+    """(distance, name) from the tool (`tool`, TCP frame: the jaws and any
+    `Part`) and the joint origins at q to the nearest known neighbour: what
+    a top-down pose keeps from every other known object."""
     T = np.asarray(kin.fk(q), dtype=float)
-    return _nearest(neighbours, _stacked(tool) @ T[:3, :3].T + T[:3, 3], _link_points(kin, q))
+    return _nearest(neighbours, _posed(tool, T), _link_points(kin, q))
 
 
 # ── the lean-in family ─────────────────────────────────────────────────────
@@ -571,9 +828,6 @@ def _score(c: PoseClearance) -> float:
 # ── the route ──────────────────────────────────────────────────────────────
 
 
-_WORDS = ("the jaws {} m from {}", "the jaws {} m above the table", "a joint {} m from {}")
-
-
 def _cull_box(world: np.ndarray, box) -> float:
     """A lower bound on the distance from `world` points to a column inside
     the axis-aligned `box`: the distance between the two boxes."""
@@ -584,43 +838,62 @@ def _cull_box(world: np.ndarray, box) -> float:
 
 def _pair_clearances(kin, q, columns, tool, table_z: float, margin: float | None = None):
     """The clearances at q, one per pair that must not close in, and what
-    each pair is: `kinds` (an index into _WORDS), `owners` (the column's
-    index, -1 the table) and `links` (the joint origin's index, -1 the jaws).
+    each pair is: `kinds` (0 a tool group from an object, 1 a tool group
+    above the table, 2 a joint origin from an object), `owners` (the
+    column's index, -1 the table) and `links` (the joint origin's index, -1
+    a jaw group, -2 - k the k-th `Part`, `_part_of`).
     Per column: each tool sample group (`_groups`) from it (signed: negative
-    inside), then each joint origin from it (signed); last the jaws above
-    the table. Column 0 is the target. With `margin`, a neighbour a group's
-    bounding box keeps >= margin + 1 cm from gets that bound instead of its
-    distance (both clear it)."""
+    inside; a part's less its slack), then each joint origin from it
+    (signed); last the jaws above the table, then each part above it. Column
+    0 is the target. With `margin`, a neighbour a group's bounding box keeps
+    >= margin + 1 cm from gets that bound (a part's less its slack) instead
+    of its distance (both clear it)."""
     T = np.asarray(kin.fk(q), dtype=float)
     groups = [g @ T[:3, :3].T + T[:3, 3] for g in _groups(tool)]
+    items = _items(tool)
+    slack = [float(g.slack_m) if isinstance(g, Part) else 0.0 for g in items]
+    tags, k = [], 0
+    for g in items:
+        tags.append(-2 - k if isinstance(g, Part) else -1)
+        k += isinstance(g, Part)
     links = _link_points(kin, q)
     values, kinds, owners, which = [], [], [], []
     for c, column in enumerate(columns):
-        for world in groups:
+        for g, world in enumerate(groups):
             jaws = None
             if margin is not None and c > 0:
                 bound = _cull_box(world, column.box())
                 if bound >= margin + 0.01:
                     jaws = bound
-            values.append([column.min_distance(world) if jaws is None else jaws])
+            values.append([(column.min_distance(world) if jaws is None else jaws) - slack[g]])
         values.append(column.distance(links) if len(links) else np.empty(0))
         kinds += [0] * len(groups) + [2] * len(links)
         owners += [c] * (len(groups) + len(links))
-        which += [-1] * len(groups) + list(range(len(links)))
-    values.append([min(world[:, 2].min() for world in groups) - float(table_z)])
-    kinds.append(1)
-    owners.append(-1)
-    which.append(-1)
+        which += tags + list(range(len(links)))
+    plain = [world for world, tag in zip(groups, tags) if tag == -1]
+    if plain:
+        values.append([min(world[:, 2].min() for world in plain) - float(table_z)])
+        kinds.append(1)
+        owners.append(-1)
+        which.append(-1)
+    for world, tag in zip(groups, tags):
+        if tag <= -2:
+            values.append([world[:, 2].min() - float(table_z)])
+            kinds.append(1)
+            owners.append(-1)
+            which.append(tag)
     values = np.concatenate([np.asarray(v, dtype=float).reshape(-1) for v in values])
     values[~np.isfinite(values)] = np.nan
     return values, np.asarray(kinds), np.asarray(owners), np.asarray(which)
 
 
-def _words(kind: int, owner: int, value: float, columns) -> str:
+def _words(kind: int, owner: int, value: float, columns, part: str = "jaws") -> str:
     text = "nan" if np.isnan(value) else f"{value:.3f}"
     if kind == 1:
-        return _WORDS[1].format(text)
-    return _WORDS[kind].format(text, columns[owner].name)
+        return f"the {part} {text} m above the table"
+    if kind == 0:
+        return f"the {part} {text} m from {columns[owner].name}"
+    return f"a joint {text} m from {columns[owner].name}"
 
 
 def _levers(kin, q_a, q_b, tool):
@@ -709,9 +982,10 @@ def segment_violation(kin, q_from, q_to, columns, tool, margin: float,
     one pair's slack never covers another closing in. Between two samples a
     pair still inside never dips more than DIP_TOL_M below its value where
     the arm starts (`_dip`). `rise` (a rise-first leg, from where the arm
-    is): each jaw group never comes closer to the target than where the leg
-    started, inside the margin or not (at every sample, and between two
-    samples by more than DIP_TOL_M). `held` (a withdrawal step, from where
+    is): each tool group (jaws and parts) never comes closer to the target
+    than where the leg started, inside the margin or not (at every sample,
+    and between two samples by more than DIP_TOL_M). `held` (a withdrawal
+    step, from where
     the arm is: every pair's value where the withdrawal started, as
     `_pair_clearances` orders them): a pair that was inside the margin there
     never comes more than DIP_TOL_M closer than it was there (at every sample
@@ -758,7 +1032,7 @@ def segment_violation(kin, q_from, q_to, columns, tool, margin: float,
             j = int(np.flatnonzero(bad)[np.argmin(np.nan_to_num(values[bad], nan=-np.inf))])
             where = "where it starts" if i == 0 else f"{100.0 * s:.0f}% of the way"
             closing = was_in[j] or jaws_target[j]
-            return f"{_words(kinds[j], owners[j], values[j], columns)} {where}" + (
+            return f"{_words(kinds[j], owners[j], values[j], columns, _part_of(tool, links[j]))} {where}" + (
                 (", closing in from inside the margin" if was_in[j] else ", closing in on the rise")
                 if closing else "")
         if from_inside and previous is not None and start is not None:
@@ -771,15 +1045,17 @@ def segment_violation(kin, q_from, q_to, columns, tool, margin: float,
                     r_tool, r_links = levers
                     dq = np.abs(q_to - q_from)
                     per_link = np.concatenate([np.asarray(r_links, dtype=float).reshape(-1, len(dq)) @ dq, [0.0]])
-                    speed = np.where(links >= 0, per_link[links], float(np.asarray(r_tool, dtype=float) @ dq))
+                    speed = np.where(links >= 0, per_link[np.where(links >= 0, links, -1)],
+                                     float(np.asarray(r_tool, dtype=float) @ dq))
                 found = _dip(lambda t: evaluate(t)[0], previous, values, (i - 1) / n, s,
                              np.flatnonzero(watch), start - DIP_TOL_M, speed, evals)
                 if found is not None:
                     j, at, value = found
+                    part = _part_of(tool, links[j])
                     if math.isnan(value):
-                        who = "a joint" if kinds[j] == 2 else "the jaws"
+                        who = "a joint" if kinds[j] == 2 else f"the {part}"
                         return f"cannot bound how far {who} dips between two samples near {100.0 * at:.0f}% of the way"
-                    return (f"{_words(kinds[j], owners[j], value, columns)} {100.0 * at:.0f}% of the way, "
+                    return (f"{_words(kinds[j], owners[j], value, columns, part)} {100.0 * at:.0f}% of the way, "
                             f"between two samples, closing in from where it started")
             previous = values
     return None
@@ -838,7 +1114,7 @@ def touch_distance(kin, q, columns, jaws) -> tuple[float, str]:
 
 
 def withdrawal(kin, q_start, columns, jaws, approach_col: int, *, margin: float, table_z: float,
-               preflight=None, budget=None) -> tuple[list, float]:
+               preflight=None, budget=None, body=()) -> tuple[list, float]:
     """(dense joint path, distance): the jaws backed straight out along their
     approach axis, WITHDRAW_STEP_M at a time with the TCP on that line, until
     their real geometry keeps more than WITHDRAWN_M from every object (at most
@@ -848,7 +1124,8 @@ def withdrawal(kin, q_start, columns, jaws, approach_col: int, *, margin: float,
     that cannot hold it, the approach held and its roll free
     (`Kinematics.ik_approach`). Each step is a route leg from where the arm
     is (`segment_violation(from_inside=True, held=...)`, the jaws as they
-    are): a pair inside the margin where the withdrawal started never comes
+    are and the `body` parts): a pair inside the margin where the withdrawal
+    started never comes
     more than DIP_TOL_M closer than it was there (a face sliding along the
     line wobbles by FK noise and the wrist's turn, it never only separates),
     one outside never comes in, and the harness (`preflight`) would let it
@@ -861,7 +1138,8 @@ def withdrawal(kin, q_start, columns, jaws, approach_col: int, *, margin: float,
     T0 = np.asarray(kin.fk(q_prev), dtype=float)
     approach = T0[:3, approach_col]
     axis = np.eye(3)[:, approach_col]
-    held = _pair_clearances(kin, q_prev, _columns(columns), jaws.now, table_z)[0]
+    tool = jaws.now + tuple(body)
+    held = _pair_clearances(kin, q_prev, _columns(columns), tool, table_z)[0]
     path = []
     for k in range(1, int(round(WITHDRAW_MAX_M / WITHDRAW_STEP_M)) + 1):
         _check(budget)
@@ -871,7 +1149,7 @@ def withdrawal(kin, q_start, columns, jaws, approach_col: int, *, margin: float,
         q = _line_step(kin, goal, approach, axis, q_prev, MAX_JOINT_STEP_RAD)
         if q is None:
             raise RouteRefused(f"backing straight out along the approach, no pose solves {dist * 100:.1f} cm back")
-        bad = segment_violation(kin, q_prev, q, columns, jaws.now, margin, table_z, from_inside=True, budget=budget,
+        bad = segment_violation(kin, q_prev, q, columns, tool, margin, table_z, from_inside=True, budget=budget,
                                 held=held)
         if bad is None and preflight is not None:
             stop = preflight(q_prev, q)
@@ -905,7 +1183,7 @@ def _line_step(kin, goal, approach, axis, q_prev, max_jump: float):
 def plan_route(kin, q_start, q_goal, column: ObjectColumn, jaws, approach_col: int, *,
                margin: float, table_z: float, neighbours=(),
                close: bool = True, vet=None, preflight=None, preflight_direct: bool = False,
-               withdraw: bool = True, budget=None) -> Route:
+               withdraw: bool = True, budget=None, body=(), holding: str | None = None) -> Route:
     """The route to `q_goal` and where the jaws close (`Route`): [q_goal]
     when the straight segment keeps the margin, else [rise waypoint, q_goal].
     An arm that starts inside the margin may only move away until it is out
@@ -920,13 +1198,17 @@ def plan_route(kin, q_start, q_goal, column: ObjectColumn, jaws, approach_col: i
     every column and the table; legs before the close are checked with
     `jaws.now`, legs after it with `jaws.closed`.
     `neighbours`: the other known objects' columns, kept on every leg (the
-    direct one too, top-down or lean-in).
+    direct one too, top-down or lean-in). `body`: the tool's `Part`s beyond
+    the jaws (`tool_body`), carried on every leg and the withdrawal with the
+    jaws as they are or closed (never part of a close or of a touch).
 
     A jaw that starts within TOUCH_M of an object (its real geometry,
     `touch_distance`: a prop touching or inside the open jaws) first backs
     straight out along the approach (`withdrawal`, `Route.withdraw`); the
     route is planned from where that ends. `withdraw` False (the arm cannot
-    stream a joint path) refuses instead.
+    stream a joint path) refuses instead, and so does `holding` (the name of
+    the object in the jaws: the payload is not modelled, so it never backs
+    out with it).
 
     `vet(q)` (the harness's static `vet_pose`) vetoes a waypoint;
     `preflight(q_from, q_to)` (the harness's static route vet,
@@ -942,11 +1224,14 @@ def plan_route(kin, q_start, q_goal, column: ObjectColumn, jaws, approach_col: i
     back, back_m = [], 0.0
     gap, name = touch_distance(kin, q_start, every, jaws)
     if not gap > TOUCH_M:          # NaN refuses too
+        if holding:
+            raise RouteRefused(f"the jaws start {gap:.3f} m from {name} while holding {holding!r}; they back out "
+                               f"only empty (the payload is not modelled)")
         if not withdraw:
             raise RouteRefused(f"the jaws start {gap:.3f} m from {name} and this arm cannot back them straight out")
         try:
             back, back_m = withdrawal(kin, q_start, every, jaws, approach_col, margin=margin, table_z=table_z,
-                                      preflight=preflight, budget=budget)
+                                      preflight=preflight, budget=budget, body=body)
         except PlanningTimeout:
             raise
         except RouteRefused as exc:
@@ -954,16 +1239,16 @@ def plan_route(kin, q_start, q_goal, column: ObjectColumn, jaws, approach_col: i
         q_start = back[-1]
     route = _plan_from(kin, q_start, q_goal, column, jaws, approach_col, every, margin=margin, table_z=table_z,
                        close=close, vet=vet, preflight=preflight, preflight_direct=preflight_direct or bool(back),
-                       budget=budget)
+                       budget=budget, body=tuple(body))
     return Route(route.targets, route.close_at, back, back_m) if back else route
 
 
 def _plan_from(kin, q_start, q_goal, column, jaws, approach_col, every, *, margin, table_z, close, vet, preflight,
-               preflight_direct, budget) -> Route:
+               preflight_direct, budget, body=()) -> Route:
     """plan_route from a start the jaws do not touch."""
     first = (close_violation(kin, q_start, every, jaws.sweep, margin, table_z) if close else None)
     early = not close or first is None          # nothing left to close on the way
-    before = jaws.closed if (close and early) else jaws.now
+    before = (jaws.closed if (close and early) else jaws.now) + body
     at_start = (0 if close else None)
 
     def closes(q):
@@ -1003,9 +1288,9 @@ def _plan_from(kin, q_start, q_goal, column, jaws, approach_col, every, *, margi
             if early:
                 tool, close_at = before, at_start
             elif closes(waypoint) is None:
-                tool, close_at = jaws.closed, 1
+                tool, close_at = jaws.closed + body, 1
             elif closes(q_goal) is None:
-                tool, close_at = jaws.now, 2
+                tool, close_at = jaws.now + body, 2
             else:
                 continue
             if (segment_violation(kin, waypoint, q_goal, every, tool, margin, table_z, budget=budget) is None

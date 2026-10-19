@@ -22,6 +22,12 @@ You can also reach the image with Tab and open it with Enter or Space. The
 side panel opens a larger window; the chat overlay expands within the tab.
 The existing camera connection keeps running while you switch sizes.
 
+In the simulated kitchen, a small **Learned notes** section below the camera
+lists the notes the robot serves from earlier runs and its last learning line
+(ASPIRE). It comes from the same `/state` poll the camera already makes (no new
+port or request), is drawn as plain text, and stays hidden on any server that
+does not send it (every real robot).
+
 On a portrait screen (window taller than wide) the panel docks across the top
 and the chat moves below it; landscape keeps the floating panel. Rotating the
 screen re-docks it live. On the booth machine,

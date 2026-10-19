@@ -13,6 +13,7 @@ from ..control import motion_evidence
 from ..control.jaw_stages import closing_stages, opens_past
 
 import contextlib
+import dataclasses
 import functools
 import logging
 from contextlib import nullcontext
@@ -28,7 +29,7 @@ import cv2
 import numpy as np
 
 from ..agent.trace import TraceLogger
-from ..config import Cfg
+from ..config import Cfg, plain
 from ..grasping import plan_grasps_from_fix, select_grasp, select_profile
 from ..grasping import evidence as grasp_evidence
 from ..grasping.obb_grasp import AngledGrasp
@@ -43,6 +44,7 @@ from ..perception.reference import ReferenceResolutionError, parse_reference
 from typing import TYPE_CHECKING, Any, Callable
 
 from ..perception.workspace import WorkspaceFilter
+from ..robot_context import declares_base_pose
 from ..safety import people_guard
 from ..safety.trajectory import ROUTE_LIFT_HEIGHTS_M
 
@@ -299,11 +301,20 @@ def _belief_footprint(belief, table_z: float = 0.0) -> tuple[np.ndarray, float]:
     return np.vstack(xy), top
 
 
+def _harness_tool_volume(harness):
+    """The arm harness's `safety.tool_volume` (`ToolVolume`), or None: a
+    profile without one, or a harness double that is not a SafetyHarness."""
+    from ..safety.tool_volume import ToolVolume
+
+    tv = getattr(harness, "tool_volume", None)
+    return tv if isinstance(tv, ToolVolume) else None
+
+
 def _raise_if_estopped(harness) -> None:
     """A latched e-stop vetoes every route the harness vets: when point_at
     finds no route, an e-stop is reported as the e-stop, never as the
-    geometry it made fail. (An operator halt since the skill started is
-    reported as the halt by `execute`.)"""
+    geometry it made fail. (`_raise_if_halted_since_start` adds the
+    operator's halt.)"""
     if getattr(harness, "estopped", False):
         raise SafetyViolation("e-stop latched")
 
@@ -334,6 +345,44 @@ def _host(value):
     if hasattr(value, "detach"):
         return value.detach().cpu().numpy()
     return value
+
+
+def _raise_if_halted_since_start(harness, generation) -> None:
+    """A stop that came while point_at planned is what the agent must hear,
+    never the geometry or the clock it made fail (#399 review Minor 2): a
+    latched e-stop first (`_raise_if_estopped`), then an operator halt
+    received since `generation` (the harness's halt generation when point_at
+    started) or since the motion skill running on this thread started
+    (`skill_halt_baseline`), named as the halt."""
+    _raise_if_estopped(harness)
+    check = getattr(harness, "_check_halt_generation", None)
+    if not callable(check):
+        return
+    try:
+        check(generation)
+    except MotionHalted:
+        halted = getattr(harness, "halted", None)
+        if halted:
+            raise MotionHalted(f"halted: {halted}") from None
+        raise
+
+
+def _hold_on_another_arm(runtime) -> bool:
+    """The rig-wide hold belongs to ANOTHER arm of a pair than the one this
+    call drives (`SkillRuntime._held_by_another_arm`; getattr-guarded: absent
+    on runtime doubles, whose hold stays this arm's)."""
+    elsewhere = getattr(runtime, "_held_by_another_arm", None)
+    return bool(callable(elsewhere) and elsewhere())
+
+
+class _PointTargetMoved(Exception):
+    """point_at's target moved while it planned (`_point_at_still_there`):
+    plan once more from `fix`, where it is now. Never leaves
+    `skill_point_at`."""
+
+    def __init__(self, fix):
+        super().__init__("the target moved while point_at planned")
+        self.fix = fix
 
 
 def _lowest_tool_z(T, tool_points) -> float:
@@ -797,6 +846,41 @@ def _sim_retry_state(runtime) -> _SimRetryState | None:
     return getattr(getattr(runtime, "_motion_scope", None), "sim_retry", None)
 
 
+#: the top-level result field the kitchen rules' R5 keys on (`agent.learning_surface.LEARNING_LINE_FIELD`)
+_LEARNING_LINE_FIELD = "learning_line"
+
+
+@dataclasses.dataclass(frozen=True)
+class _LearningGrant:
+    """What `_grant_learning_line` decided for the call `execute()` is finishing: the
+    learning event (`kind`, `line` -- None for THE retry without one -- and `outcome`),
+    `stopped`, the call's operator-stop reading, taken again on delivery, and
+    `trace_step`, the step of the call's trace row (`_bind_trace_step`; None before
+    the row is written), where a line withdrawn on delivery is marked withheld."""
+    learning: Any
+    kind: str
+    line: str | None
+    outcome: str
+    stopped: Callable[[], bool]
+    trace_step: int | None = None
+
+
+def _take_learning_grant(runtime) -> _LearningGrant | None:
+    """The decision `_grant_learning_line` left on this thread's motion scope for
+    the call `execute()` is finishing, removed (None when there is none)."""
+    scope = getattr(runtime, "_motion_scope", None)
+    return None if scope is None else scope.__dict__.pop("learning_grant", None)
+
+
+def _bind_trace_step(runtime, step) -> None:
+    """Note on this thread's pending learning grant the step of the trace row that
+    carries its line (`TraceLogger.record`'s return value; a double's None binds nothing)."""
+    scope = getattr(runtime, "_motion_scope", None)
+    grant = getattr(scope, "learning_grant", None)
+    if grant is not None and isinstance(step, int):
+        scope.learning_grant = dataclasses.replace(grant, trace_step=step)
+
+
 def _without_refused(grasps, excluded):
     """`grasps` without every candidate that repeats one of `excluded` (the
     refused attempt's grasps): the same candidate or its jaws-swapped twin
@@ -877,71 +961,23 @@ _MOTION_SKILLS = {
 #: inventories, SAM track steps) never competes with their localization.
 _FOREGROUND_PERCEPTION_SKILLS = _MOTION_SKILLS | {"preview_grasp", "localize_object"}
 
-#: Skills that turn a perceived position (`_localize`, `_belief_pose`,
-#: `fix_at_pixel`) or agent world coordinates (place_at's x, y) into an arm
-#: target. Those positions are in the shared TABLE frame, while the runtime
-#: solves IK in the running arm's base frame, so on an arm mounted with a
-#: `base_pose` they aim (and place their exemption columns) the base_pose's
-#: offset away from the object until their path converts (spec 2026-10-17
-#: base_pose runtime frame). execute() refuses them on such an arm
-#: (`_mounted_off_table_origin`); a skill leaves this set in the task whose
-#: tests prove it reaches the world point (point_at, preview_grasp: Task 3;
-#: grasp_object, grasp_at_pixel: Task 4; place_at, place_on_object,
-#: push_object, pick_and_place: Task 5).
-#: Pinned against the call graph by tests/test_base_pose_world_target_guard.py.
-_WORLD_TARGET_SKILLS = frozenset({
-    "move_near_object", "sort_by_color",
-    "search_for_object", "restore_scene", "turn_screw", "throw", "handover",
-})
-#: Why a world-target skill is refused on an arm with a base_pose.
-_BASE_POSE_WORLD_TARGET_REFUSAL = (
-    "this arm is mounted off the table origin (base_pose); world targets are not converted yet")
-#: The tilt refusal's scope (spec D4, §5): the 15 world-target skills of the
-#: brief, FROZEN as the base_pose plan started. Unlike `_WORLD_TARGET_SKILLS`
-#: it never shrinks as skills convert: the conversion is exact only on a level
-#: mount (one `table_z` plane, the top-down yaw, the reach annuli), so an arm
-#: whose base_pose has any roll or pitch refuses all 15 before any work.
-#: `halt_motion` (never deniable) and the joint-space / relative skills are
-#: not in it. Pinned by tests/test_base_pose_world_target_guard.py.
+#: The tilt refusal's scope (spec D4 / D10, §5): the brief's 15 world-target
+#: skills, FROZEN as the base_pose plan started. Each turns a perceived
+#: position (`_localize`, `_belief_pose`, `fix_at_pixel`) or agent table-frame
+#: coordinates into a target in the running arm's base frame and reports back
+#: in the table frame (spec 2026-10-17 base_pose runtime frame; #352's
+#: world-target refusal went with the last conversion, Task 6). The
+#: conversion is exact only on a level mount (one `table_z` plane, the
+#: top-down yaw, the reach annuli), so an arm whose base_pose has any roll or
+#: pitch refuses all 15 before any work. `halt_motion` (never deniable) and the
+#: joint-space / relative skills are not in it. Pinned by
+#: tests/test_base_pose_tilted_mount.py.
 _TILT_REFUSED_SKILLS = frozenset({
     "grasp_object", "pick_and_place", "grasp_at_pixel", "place_at",
     "place_on_object", "push_object", "move_near_object", "sort_by_color",
     "search_for_object", "restore_scene", "turn_screw", "throw", "handover",
     "point_at", "preview_grasp",
 })
-
-
-def _mounted_off_table_origin(arm) -> bool:
-    """The arm's safety harness declares a `base_pose` other than the identity.
-
-    Reads instance dicts only (like `_arm_harnesses`): no backend probe, and a
-    standby LazyArm stays unmaterialized. No harness or no base_pose (every
-    single-arm profile: the reBot, the kitchen arm) and the exact identity are
-    False, so execute() runs exactly as before. Any other value, including one
-    that is not a 4x4 matrix, is True: fail closed.
-    """
-    harness = (getattr(arm, "__dict__", None) or {}).get("harness")
-    pose = (getattr(harness, "__dict__", None) or {}).get("base_pose")
-    if pose is None:
-        return False
-    try:
-        return not np.array_equal(np.asarray(pose, dtype=float), np.eye(4))
-    except (TypeError, ValueError):
-        return True
-
-
-def _world_target_refusal(name: str, arm_name) -> dict:
-    """The result of a world-target skill refused on a base_pose arm: nothing
-    was perceived, commanded or moved, so there is no move_home step."""
-    who = "this arm" if arm_name in (None, "default") else f"arm {arm_name!r}"
-    return {
-        "ok": False,
-        "outcome": OUTCOME_FAILED,
-        "error": f"{name} refused on {who}: {_BASE_POSE_WORLD_TARGET_REFUSAL}; no motion was sent",
-        "next_action": ("Do not retry this skill on this arm. Only joint-space and relative "
-                        "skills (move_home, move_to_rest, rotate_joint, move_relative, "
-                        "rotate_gripper, wave, open_gripper, close_gripper) run on it."),
-    }
 
 
 def _tilt_angle_text(deg: float) -> str:
@@ -1427,6 +1463,11 @@ class SkillRuntime:
     #: of the sim retry runs and every call runs exactly as before. Its per-call
     #: state is `_SimRetryState`, on the calling thread's motion scope.
     sim_retry = None
+    #: ASPIRE learning surface (`agent.learning_surface.LearningState`, spec §4.8):
+    #: built by `apps.demo.build_runtime` only for a sim profile with
+    #: `agent.learning_surface: true` (`learning_state_for`); None everywhere else
+    #: (preflight R29), and then no result ever gets a learning line.
+    learning_state = None
 
     #: The PRIMARY arm's Kinematics and Cfg (the `kin` / `cfg` setters write
     #: these), and the other arms' bindings by rig name (build_runtime's
@@ -1593,6 +1634,24 @@ class SkillRuntime:
         agent text quotes table-frame numbers). Without a base_pose: z."""
         return arm_frame.table_z_in_world(self.T_world_base, z)
 
+    def _xy_to_world(self, xy):
+        """A running-arm-frame (x, y) as a table-frame (x, y) of floats (level
+        mounts: the height does not move it). Without a base_pose: `xy` itself."""
+        T = self.T_world_base
+        if T is None:
+            return xy
+        p = arm_frame.to_world(T, [float(xy[0]), float(xy[1]), 0.0])
+        return float(p[0]), float(p[1])
+
+    def _xy_to_arm(self, xy):
+        """A table-frame (x, y) in the running arm's base frame, as floats (level
+        mounts). Without a base_pose: `xy` itself."""
+        T = self.T_world_base
+        if T is None:
+            return xy
+        p = arm_frame.to_arm(T, [float(xy[0]), float(xy[1]), 0.0])
+        return float(p[0]), float(p[1])
+
     def _running_arm_name(self) -> str | None:
         """The rig name of the arm this call drives, as execute() names it
         (identity search, no arm attribute read): "default" without a rig."""
@@ -1661,8 +1720,7 @@ class SkillRuntime:
         nothing (today's path)."""
         if self.T_world_base is None:
             return
-        arm = self.cfg.arm
-        data = getattr(arm, "_data", arm) if not isinstance(arm, dict) else arm
+        data = plain(self.cfg.arm)
         declared = isinstance(data, dict) and any(
             value is not None and (key == "mj_delivery_area" or str(key).startswith("mj_release_"))
             for key, value in data.items())
@@ -1883,6 +1941,68 @@ class SkillRuntime:
         if mark:
             trace_context["sim_retry"] = mark
         return result
+
+    # ── ASPIRE learning surface (spec §4.8) ──────────────────────────────
+
+    def _learning_for(self, name):
+        """This call's learning state: the runtime's (None on every profile that
+        built none: a real profile, the switch off), for a motion skill only, and
+        only for the outermost motion call of this thread (as the retry ledger)."""
+        state = self.learning_state
+        if state is None or name not in _MOTION_SKILLS:
+            return None
+        scope = getattr(self, "_motion_scope", None)
+        if getattr(scope, "context", None) is not None:
+            return None
+        return state
+
+    def _grant_learning_line(self, learning, name, args, result, trace_context, *, retry, arm, baselines,
+                             stop_token0) -> None:
+        """Decide the one line this call's result grants (spec §4.8:
+        `learning_surface.learning_line`) and leave the decision on this thread's
+        motion scope (`_LearningGrant`): `execute()` delivers it as its last step
+        (`_with_learning_grant`), after the rule-trigger scrub, so only the
+        runtime's own field and instruction ever stand in a result. A call an
+        operator stop met -- latched, a halt since the skill started, or the rig's
+        stop token changed since `stop_token0` (an e-stop raised and reset) -- gets
+        none, with or without a retry ledger; that reading is taken here and again
+        on delivery (A9/A10 fix, Minor 2). The line is built from runtime texts and
+        the served note's title and tag only, never from the agent's arguments; one
+        that would read as a rule trigger is no line. Marks the trace row's
+        `learning` with the decided line; a line a stop withdraws on delivery is
+        marked withheld there (`_mark_line_withheld`). Never fails the call."""
+        from ..agent import learning_surface as surface
+
+        def stopped() -> bool:
+            return bool(self._stop_latched(arm) or self._halted_since_skill_start(baselines)
+                        or self._stop_token() != stop_token0)
+
+        try:
+            halted = stopped()
+            retried = retry is not None and name == "pick_and_place"
+            line = None
+            if not halted:
+                matched = None if retried else surface.matched_note(learning.snapshot, name, args)
+                line = surface.learning_line(
+                    retried_placed=retried, result=result, matched=matched, sha=learning.snapshot.sha,
+                    grasps_refused=retried and retry.refusal == "safety_refusal" and bool(retry.refused_grasps))
+                if line is not None and not surface.grantable(line):
+                    line = None  # fail closed: the line itself never reads as a rule's trigger
+            ok = isinstance(result, dict) and result.get("ok") is True
+            outcome = ("halted" if halted else "failed" if not ok
+                       else "unverified" if not surface.succeeded(result)
+                       else "placed" if name == "pick_and_place" else "succeeded")
+            if line is not None:
+                kind = "retry" if retried else "note"
+            elif retry is not None:
+                kind = "retry"  # THE retry without a line (failed, halted, unverified): the panel says so
+            else:
+                return
+            self._motion_scope.learning_grant = _LearningGrant(learning, kind, line, outcome, stopped)
+            if line is not None:
+                trace_context["learning"] = {"kind": kind, "line": line}
+        except Exception:  # noqa: BLE001 -- the learning surface never fails a call
+            logger.exception("learning line for %s not granted", name)
 
     def attach_verifier(self, object_pose=None) -> None:
         """Enable postcondition checking (Pigey closed loop).
@@ -2311,21 +2431,73 @@ class SkillRuntime:
         exactly the previous dispatch. The narrator only records -- it never
         alters args, the result, or whether the skill runs."""
         narrator = getattr(self, "wrist_narrator", None)
+        if self.learning_state is not None:
+            _take_learning_grant(self)  # never a line an earlier call on this thread left behind
         if narrator is None or name not in _MOTION_SKILLS:
             # Every failed result tells the agent so, including the ones the
             # dispatcher refuses before the skill runs (idempotent: results
             # that went through the full fold already carry it). Every result
             # passes `_with_retry_text`, with or without a retry ledger: only a
             # retry the ledger granted may carry the rules' retry trigger.
-            return _with_retry_text(_with_failure_instruction(self._execute_with_obligations(name, args)), name)
+            return self._with_learning_grant(
+                _with_retry_text(_with_failure_instruction(self._execute_with_obligations(name, args)), name))
         owns = narrator.begin(self, name, args)
         result = None
         try:
-            result = _with_retry_text(_with_failure_instruction(self._execute_with_obligations(name, args)), name)
+            result = self._with_learning_grant(
+                _with_retry_text(_with_failure_instruction(self._execute_with_obligations(name, args)), name))
             return result
         finally:
             if owns:
                 narrator.end(self, result)
+
+    def _with_learning_grant(self, result):
+        """`result` as execute() returns it (its last step, AFTER `_with_retry_text`,
+        which withholds R5's words and the field's name from every key and string):
+        never a top-level `learning_line` field this call was not granted, whatever
+        put one there; and when `_grant_learning_line` decided a learning event, that
+        event delivered (spec §4.8; A9/A10 fix). The operator-stop reading is taken
+        again here, so a stop that came after the decision (during the trace write,
+        the status line, the memory event) withdraws the line (Minor 2) and marks it
+        withheld in the call's trace row (#398 review, Minor 2); the event is
+        written to learning.json here too: a note line withdrawn writes nothing, THE
+        retry writes `line: null, outcome: halted`. R5 keys on this field only."""
+        if isinstance(result, dict) and _LEARNING_LINE_FIELD in result:
+            result.pop(_LEARNING_LINE_FIELD)  # only the delivery below writes the field
+        if self.learning_state is None:
+            return result
+        grant = _take_learning_grant(self)
+        if grant is None:
+            return result
+        from ..agent import learning_surface as surface
+
+        line, outcome, withheld = grant.line, grant.outcome, None
+        try:
+            if grant.stopped():
+                line, outcome, withheld = None, "halted", "stopped"
+        except Exception:  # noqa: BLE001 -- fail closed: an unreadable stop is a stop
+            logger.exception("learning line withdrawn: the stop reading failed")
+            line, outcome, withheld = None, "halted", "stop unreadable"
+        if withheld is not None and grant.line is not None:
+            self._mark_line_withheld(grant, withheld)
+        if line is None and grant.kind != "retry":
+            return result
+        grant.learning.write(surface.learning_event(grant.kind, line, outcome))
+        return result if line is None else surface.with_learning_line(result, line)
+
+    def _mark_line_withheld(self, grant: _LearningGrant, why: str) -> None:
+        """The call's trace row, which `_grant_learning_line` marked with the decided line,
+        rewritten to say the line was withheld (`why`: "stopped", or "stop unreadable") when a
+        stop withdrew it on delivery, so the audit trail never shows a line the agent did not
+        get (#398 review, Minor 2). A trace without `amend_context` or an unwritten row: nothing.
+        Never fails the call."""
+        amend = getattr(self.trace, "amend_context", None)
+        if grant.trace_step is None or amend is None:
+            return
+        try:
+            amend(grant.trace_step, "learning", {"kind": grant.kind, "line": None, "withheld": why})
+        except Exception:  # noqa: BLE001 -- the learning surface never fails a call
+            logger.exception("trace row %s: the withheld learning line was not marked", grant.trace_step)
 
     def _execute_with_obligations(self, name: str, args: dict) -> dict:
         """Dispatch with task obligations covering all tiers and preparation faults."""
@@ -2392,11 +2564,6 @@ class SkillRuntime:
         # a base_pose `is_level(None)` is True: nothing changes.
         if name in _TILT_REFUSED_SKILLS and not arm_frame.is_level(frame.T_world_base):
             return _tilted_mount_refusal(name, resolved_arm, *arm_frame.tilt_deg(frame.T_world_base))
-        # The RUNNING arm (the `arm=` selection included) decides, before any
-        # perception, status line, keyframe or command: a base_pose arm would
-        # aim a table-frame target in its own base frame (_WORLD_TARGET_SKILLS).
-        if name in _WORLD_TARGET_SKILLS and _mounted_off_table_origin(effective_arm):
-            return _world_target_refusal(name, resolved_arm)
         # Bind the selected arm AND its frame (R3): from here until the
         # postcondition fold, so the pre-state snapshot, the skill, its view-home
         # return and the verifier all read the RUNNING arm (its jaws, its
@@ -2509,6 +2676,11 @@ class SkillRuntime:
                     # taken when this skill started (execute()'s skill baseline)
                     retry_g0 = next((generation for harness, generation in skill_halt if harness is effective_harness),
                                     getattr(effective_harness, "_halt_generation", None))
+            # ASPIRE learning surface (spec §4.8): only a runtime that built one (the
+            # kitchen), only the outermost motion call; the stop token now, so a stop
+            # during the call (even one cleared again) grants no line
+            learning = self._learning_for(name)
+            learning_token0 = self._stop_token() if learning is not None else None
             retry_home = False
             refused_by = None  # the exact class name of the exception that ended the skill (R6)
             # the call's arguments as the agent wrote them (halt_motion's reason, an object
@@ -2980,9 +3152,15 @@ class SkillRuntime:
                 ledger, name, ledger_args, result, trace_context, retry=retry, retry_home=retry_home,
                 exc_type=refused_by if refused_by is not None else retry_state.refusal_exc_type, state=retry_state,
                 arm=effective_arm, harness=effective_harness, baselines=skill_halt, stop_token0=stop_token0)
-        self.trace.record(name, args, result, dur, before, after,
-                          tier=self.current_tier, context=trace_context,
-                          keyframe_before_wrists=before_wrists, keyframe_after_wrists=after_wrists)
+        if learning is not None:
+            # after the ledger (its verdict on THE retry), before the trace row
+            self._grant_learning_line(learning, name, args, result, trace_context, retry=retry, arm=effective_arm,
+                                      baselines=skill_halt, stop_token0=learning_token0)
+        traced = self.trace.record(name, args, result, dur, before, after,
+                                   tier=self.current_tier, context=trace_context,
+                                   keyframe_before_wrists=before_wrists, keyframe_after_wrists=after_wrists)
+        if learning is not None:
+            _bind_trace_step(self, traced)  # the row a line withdrawn on delivery is marked withheld in
         err = str(result.get("error", "failed"))
         stuck = result.get("outcome") == OUTCOME_STUCK
         # one tail for the status line and the memory event: ok / the ask / the error,
@@ -3219,6 +3397,16 @@ class SkillRuntime:
         if not getattr(getattr(self.arm, "raw", None), "connected", True):
             return None
         return self._tcp()
+
+    def _tcp_world_if_awake(self) -> np.ndarray | None:
+        """`_tcp_if_awake()` lifted into the table frame by the SAME arm's
+        base_pose, for the viewers (base_pose spec §3.4, R14): on a skill
+        thread the bound arm's TCP and frame, on viewer / MCP threads the
+        primary's. Without a base_pose: `_tcp_if_awake()` itself. Raises
+        ArmFrameError for an unreadable base_pose (callers draw no TCP)."""
+        T = self.T_world_base
+        tcp = self._tcp_if_awake()
+        return tcp if tcp is None else arm_frame.to_world(T, tcp)
 
     def _note_measurement(self, **values) -> None:
         """Record derived envelope features for the current top-level call.
@@ -7859,38 +8047,62 @@ class SkillRuntime:
         the tilted gripper at the centre of the top from the arm's side
         (`skills/pointing.py`: tilt 15-45 deg, 4-10 cm from the top, the
         jaws sampled at <= 5 mm, the joints too). Either pose keeps the same
-        margin from every other known object. The route there is checked as
-        well: the straight joint segment from where the arm is, else one
+        margin from every other known object, and so does the rest of the
+        tool the arm's harness models (`safety.tool_volume`: the reBot's
+        wrist camera box), at every pose and leg. The route there is checked
+        as well: the straight joint segment from where the arm is, else one
         rise-first waypoint (both keep every known object's margin; on the
         rise the jaws never come closer to the target). Jaws that start
         touching an object (within 5 mm, on their real geometry) first back
-        straight out along their approach. The jaws close only where
+        straight out along their approach (never while holding: that
+        refuses). The jaws close only where
         everything a close sweeps (the profile's `gripper.jaw_volume`) keeps
         the margin from the target, every known object and the table: where
         the arm starts (or backed out), else at the waypoint or the pointing
         pose. While holding an object it never leans in and never closes the
-        jaws. No clear pose, route or close, or planning past its 3 s budget,
-        refuses before any arm or jaw command; an e-stop latched in the last
-        close or the hold is reported. The object top is the observed top
-        raised to the occupancy map's column top (capped as the pregrasp
-        reads it) and to the top of an object standing over it (a cup over
-        the cube)."""
+        jaws. No clear pose, route or close, or planning past its budget (3 s
+        of CPU, more on a slower core, 8 s of wall time), refuses before any
+        arm or jaw command; an e-stop latched while planning, in the last
+        close or in the hold is reported as the e-stop, an operator halt
+        received since the call started as the halt (e-stop first). Planning
+        that took longer than 3 s of wall time looks at the object again
+        before the first command: moved more than 1 cm (its centre or its
+        top), it is planned once more from where it is now, on what is left
+        of the same budget; moved again, or not found, refuses (nothing was
+        moved). The object top is
+        the observed top raised to the occupancy map's column top (capped as
+        the pregrasp reads it) and to the top of an object standing over it
+        (a cup over the cube)."""
+        harness = getattr(self.arm, "harness", None)
+        generation = getattr(harness, "_halt_generation", None)
         _, fix = self._localize(label)
         fix = _host_fix(fix)
         from . import pointing
 
         budget = pointing.Budget()
         try:
-            return self._point_at(label, fix, budget)
+            try:
+                return self._point_at(label, fix, budget, generation)
+            except _PointTargetMoved as moved:
+                # once more, from where the target is now, on what is left of
+                # the same budget (#399 review Minor 3)
+                return self._point_at(label, moved.fix, budget, generation, replanned=True)
         except pointing.PlanningTimeout as exc:
             # an e-stop latched while planning vetoes every vet, so the search
-            # runs long: it is reported as the e-stop, never as the clock
-            _raise_if_estopped(getattr(self.arm, "harness", None))
+            # runs long: it is reported as the e-stop (and a halt as the
+            # halt), never as the clock
+            _raise_if_halted_since_start(harness, generation)
             raise SkillError(f"cannot point at {label!r}: {exc} (the pose and its route are planned before any "
                              f"command); nothing was moved") from None
 
-    def _point_at(self, label: str, fix, budget) -> dict:
-        """skill_point_at after the fix: plan within `budget`, then move."""
+    def _point_at(self, label: str, fix, budget, generation=None, replanned: bool = False) -> dict:
+        """skill_point_at after the fix: plan within `budget`, then move.
+        `generation`: the harness's halt generation when the call started;
+        `replanned`: this is the plan from a fix taken again after a long
+        first plan (`_point_at_still_there`)."""
+        from . import pointing
+
+        planned_from = pointing._wall()
         gcfg = self.cfg.grasp
         harness = getattr(self.arm, "harness", None)
         margin = float(self.cfg.safety.get("min_clearance_m", 0.03))
@@ -7901,7 +8113,6 @@ class SkillRuntime:
         z_max = float(gcfg.get("topdown_z_max", 0.15)) - 0.01
         hover[2] = min(top + float(gcfg.get("pregrasp_offset_m", 0.08)), z_max)
         from ..grasping.obb_grasp import _yaw_rotation
-        from . import pointing
 
         table_z = float(getattr(getattr(harness, "limits", None), "table_z",
                                 self.cfg.safety.get("table_z", 0.0)))
@@ -7909,7 +8120,9 @@ class SkillRuntime:
 
         approach_col = _TOOL_COLUMNS[self._tool_axis_order][0]
         sweep = (gcfg.get("graspgenx") or {}).get("sweep")
-        held = self.held_object
+        # a hold on ANOTHER arm of a pair is not this arm's: its jaws are
+        # empty and it points as if nothing were held (#400 re-review Minor 1)
+        held = None if _hold_on_another_arm(self) else self.held_object
         state = self.arm.get_state()
         q_now = state.q
         try:
@@ -7917,11 +8130,16 @@ class SkillRuntime:
             near = tuple(pointing.neighbour_column(poly, n_top, table_z, name) for poly, n_top, name in neighbours)
             opening = state.gripper_pos if getattr(state, "gripper_valid", True) else None
             jaws = pointing.jaw_samples(sweep, self.cfg.arm.get("gripper"), self._tool_axis_order, opening)
+            # the rest of the tool the harness models (`safety.tool_volume`:
+            # the reBot's wrist camera box) keeps the same margin from
+            # every object at every pose and leg (#385 review I1)
+            body = pointing.tool_body(_harness_tool_volume(harness), margin)
         except ValueError as exc:
             raise SkillError(f"cannot point at {label!r}: {exc}; nothing was moved") from None
         # what the jaws are at the pointing pose: closed there, or as they are
-        # while holding (no jaw command)
-        posed = jaws.now if held else jaws.closed
+        # while holding (no jaw command); the body parts ride along
+        posed_jaws = jaws.now if held else jaws.closed
+        posed = posed_jaws + body
 
         # Top-down first: the lowest tool point (TCP or jaws) keeps the
         # margin above the top, and the jaws and the joints keep it from every
@@ -7930,7 +8148,8 @@ class SkillRuntime:
         # ceiling, a rung below it is never tried.
         # the box corners and the jaws as they are at the pose (a hinged jaw's
         # measured geometry, `gripper.jaw_volume`, counts too)
-        tool = np.vstack([_pointing_tool_points(gcfg, self._tool_axis_order), *posed])
+        tool = np.vstack([_pointing_tool_points(gcfg, self._tool_axis_order), *posed_jaws,
+                          *(part.samples for part in body)])
         clear_z = top + margin
         reach = max(0.0, -_lowest_tool_z(make_transform(_yaw_rotation(0.0, axis_order=self._tool_axis_order),
                                                         [0.0, 0.0, 0.0]), tool))
@@ -7982,13 +8201,18 @@ class SkillRuntime:
                               f"less than {margin:.3f} m above its top ({world_z(top):.3f} m)")
             else:
                 from_above = "from above, no pose solved"
+            # an e-stop latched while planning is what the agent must hear,
+            # never the geometry that failed after it (#385 review M1), and so
+            # is a halt received since the call started (#399 review Minor 2)
+            _raise_if_halted_since_start(harness, generation)
             if held:
                 # the payload is not modelled: no new motion with it in the jaws (main's top-down rule)
                 raise SkillError(f"cannot point at {label!r} while holding {held!r}: {from_above}; it leans in "
                                  f"only with empty jaws; nothing was moved")
-            lean = pointing.lean_in(self.kin, column, jaws.closed, approach_col, q_now, margin=margin,
+            lean = pointing.lean_in(self.kin, column, jaws.closed + body, approach_col, q_now, margin=margin,
                                     table_z=table_z, vet=vet, neighbours=near, budget=budget)
             if lean.q is None:
+                _raise_if_halted_since_start(harness, generation)
                 best = "" if lean.clearance is None else f" (the best solved pose had {lean.clearance.worst(margin)})"
                 raise SkillError(
                     f"cannot point at {label!r} on this arm: {from_above}; leaning in "
@@ -8018,13 +8242,16 @@ class SkillRuntime:
             route = pointing.plan_route(self.kin, q_now, target, column, jaws, approach_col, margin=margin,
                                         table_z=table_z, neighbours=near, close=not held, vet=vet,
                                         preflight=preflight, preflight_direct=lean is not None,
-                                        withdraw=can_withdraw, budget=budget)
+                                        withdraw=can_withdraw, budget=budget, body=body, holding=held)
         except pointing.PlanningTimeout:
             raise
         except pointing.RouteRefused as exc:
-            _raise_if_estopped(harness)
+            _raise_if_halted_since_start(harness, generation)
             raise SkillError(f"cannot reach the pointing pose over {label!r} keeping {margin:.3f} m from it: "
                              f"{exc}; nothing was moved") from None
+        # a long plan acted on an old fix: look at the target again before the
+        # first command (#399 review Minor 3)
+        self._point_at_still_there(label, fix, planned_from, harness, generation, replanned)
         if route.withdraw:
             self._mark_motion_started()
             if not self.arm.move_joint_path(route.withdraw, duration_s=2.0):
@@ -8039,8 +8266,9 @@ class SkillRuntime:
             self._set_gripper(self._grip_closed, effort=0.6)
         time.sleep(float(self.cfg.get("gesture", {}).get("point_hold_s", 1.2)))
         # the close can be the last command: an e-stop latched in it (or in
-        # the hold) is no success (main closed first, and its next move refused)
-        _raise_if_estopped(harness)
+        # the hold) is no success (main closed first, and its next move
+        # refused), and neither is a halt (never noted as pointed)
+        _raise_if_halted_since_start(harness, generation)
         self.memory.add("action", f"pointed at {label!r}")
         out = {"pointed_at": label, "position": [round(float(x), 3) for x in self._to_world(fix.position)]}
         if lean is not None:
@@ -8050,6 +8278,38 @@ class SkillRuntime:
         if route.withdraw:
             out["backed_out_m"] = round(float(route.withdraw_m), 3)
         return out
+
+    def _point_at_still_there(self, label: str, fix, planned_from: float, harness, generation,
+                              replanned: bool) -> None:
+        """point_at, before its first command: planning that took longer
+        than `pointing.FRESH_PLAN_S` of wall time since `planned_from` acted
+        on an old fix, so the target is localized again (`_localize`: a fresh
+        detection, else the belief it falls back to). Moved more than
+        `pointing.FRESH_MOVE_M` (`fix_moved_m`): raises `_PointTargetMoved`
+        with the fresh fix (planned once more), or, when this already was
+        that plan, refuses; not found again: refuses. Nothing was commanded
+        either way; a stop that came meanwhile is reported first."""
+        from . import pointing
+
+        took = pointing._wall() - planned_from
+        if took <= pointing.FRESH_PLAN_S:      # NaN looks again
+            return
+        try:
+            _, fresh = self._localize(label)
+        except SkillError as exc:
+            _raise_if_halted_since_start(harness, generation)
+            raise SkillError(f"cannot point at {label!r}: planning took {took:.1f} s, and looking at it again "
+                             f"before the first command failed ({type(exc).__name__}: {exc}); nothing was "
+                             f"moved") from None
+        fresh = _host_fix(fresh)
+        moved = pointing.fix_moved_m(fix, fresh)
+        if moved <= pointing.FRESH_MOVE_M:     # NaN counts as moved
+            return
+        _raise_if_halted_since_start(harness, generation)
+        if replanned:
+            raise SkillError(f"cannot point at {label!r}: it moved {100 * moved:.1f} cm again while point_at "
+                             f"planned once more ({took:.1f} s); nothing was moved")
+        raise _PointTargetMoved(fresh)
 
     def _pointing_top(self, label: str, fix, harness) -> tuple[float, list, list]:
         """point_at's object top, computed once, the objects standing over
@@ -8079,7 +8339,10 @@ class SkillRuntime:
         top = observed + _map_top_lift(self.cfg.grasp, harness, fix, observed)
         table_z = float(getattr(getattr(harness, "limits", None), "table_z", self.cfg.safety.get("table_z", 0.0)))
         target = self.beliefs.find(label)
-        in_jaws = self.beliefs.find(self.held_object) if self.held_object else None
+        # only an object in THIS arm's jaws rides along; one in another arm's
+        # jaws is a neighbour like any other (#400 re-review Minor 1)
+        in_jaws = (self.beliefs.find(self.held_object)
+                   if self.held_object and not _hold_on_another_arm(self) else None)
         centre = np.asarray(fix.position, dtype=float)[:2]
         occluders, neighbours = [], []
         for b in self.beliefs.all():
@@ -8148,6 +8411,7 @@ class SkillRuntime:
         """Hand the object to the human: grasp it if needed, present it at
         the handover pose, and KEEP HOLDING -- the human says 'open gripper'
         (or the agent calls open_gripper) once they have grabbed it."""
+        self._check_holding_arm()      # D9 / R5: never present another arm's object with these jaws
         if not self.held_object:
             if not label:
                 raise SkillError("not holding anything; say which object to hand over")
@@ -8220,6 +8484,7 @@ class SkillRuntime:
         `safety.people.visitor_sides` (every side unless a profile narrows
         it): nothing vets where the object lands.
         """
+        self._check_holding_arm()      # D9 / R5: never swing and open these jaws for another arm's object
         if direction not in self._THROW_YAWS:
             raise SkillError(f"direction must be one of {sorted(self._THROW_YAWS)}")
         # 1) make sure we're holding something.
@@ -8326,7 +8591,7 @@ class SkillRuntime:
         # the jaws hold, or may hold after an interrupted grasp.
         self._reconcile_held()
         if self.held_object:
-            raise SkillError(f"already holding {self.held_object!r}; place it first")
+            raise SkillError(self._already_holding_refusal("turn_screw"))   # names another arm's hold (R5)
         self._refuse_on_another_arms_provisional("try again")      # R5: its close would take that slot
         self._raise_on_a_possible_hold()
 
@@ -8469,7 +8734,9 @@ class SkillRuntime:
         along the front edge. Pure composition of pick_and_place."""
         self._refuse_on_another_arms_provisional("sort_by_color")       # R5: before any object
         # +-0.24 is outside the top-down IK envelope at x=0.30 on this arm
-        # (verified against the RS URDF); stay within +-0.20.
+        # (verified against the RS URDF); stay within +-0.20. The zones run
+        # along the RUNNING arm's front edge (its base frame, its drop_zone x);
+        # they are placed at and reported in the table frame.
         zones_y = (-0.20, -0.10, 0.0, 0.10, 0.20)
         zone_x = float(self.cfg.grasp.get("drop_zone", [0.30, -0.20])[0])
         colors: dict[str, tuple[float, float]] = {}
@@ -8484,7 +8751,7 @@ class SkillRuntime:
                     continue
                 colors[color] = (zone_x, zones_y[len(colors)])
             zx, zy = colors[color]
-            if np.linalg.norm(b.position[:2] - np.array([zx, zy])) < 0.07:
+            if np.linalg.norm(np.asarray(self._to_arm(b.position))[:2] - np.array([zx, zy])) < 0.07:
                 continue  # already sorted
             query = f"{b.color} {b.label}" if b.color else b.label
             if not grasping:
@@ -8511,19 +8778,20 @@ class SkillRuntime:
                 if self._estopped():
                     break  # the operator stopped the arm: no next object
                 continue
+            zone = self._xy_to_world((zx, zy))     # place_at takes table-frame coordinates
             try:
-                self.skill_place_at(zx, zy)
+                self.skill_place_at(zone[0], zone[1])
             except (SkillError, SafetyViolation) as e:
                 # still holding: stop sorting rather than cascade failures
                 failed.append({"label": query, "error": f"place: {e}"})
                 break
-            moved.append({"label": query, "color": color, "zone": [zx, zy]})
+            moved.append({"label": query, "color": color, "zone": [zone[0], zone[1]]})
         ok = not failed or bool(moved)
         out = {
             "ok": ok,
             "moved": moved,
             "failed": failed,
-            "zones": {c: list(z) for c, z in colors.items()},
+            "zones": {c: list(self._xy_to_world(z)) for c, z in colors.items()},
         }
         if not ok:
             out["error"] = "; ".join(
@@ -8586,7 +8854,8 @@ class SkillRuntime:
         return bool(np.all(np.isfinite(p)) and np.all(p >= lo) and np.all(p <= hi))
 
     def _reachable_place_xy(self, x: float, y: float) -> bool:
-        """IK pre-check for a top-down release above (x, y).
+        """IK pre-check for a top-down release above (x, y), in the running
+        arm's base frame.
 
         Only a filter: `place_at`'s own planner and the harness remain the
         authority over the actual motion. Its job is to avoid grasping an
@@ -8620,7 +8889,17 @@ class SkillRuntime:
         clear of every (xy, radius) in `avoid`, and IK-reachable; None when
         the table offers none. Pigey parks occluders "+0.2 m" into free
         table; shorter offsets are fallbacks for a small workspace, never a
-        substitute for the clearance test."""
+        substitute for the clearance test.
+
+        `around_xy`, `avoid` and the spot are table-frame xy (beliefs, the
+        snapshot, place_at's coordinates); the search runs in the running
+        arm's base frame: its workspace box, its IK and the order of its
+        directions are the arm's, so an arm at a base_pose parks where the same
+        arm without one would, moved with it."""
+        T = self.T_world_base
+        if T is not None:
+            around_xy = self._xy_to_arm(np.asarray(around_xy, dtype=float).reshape(-1)[:2])
+            avoid = [(self._xy_to_arm(np.asarray(a, dtype=float).reshape(-1)[:2]), r) for a, r in avoid]
         around = np.asarray(around_xy, dtype=float).reshape(-1)[:2]
         r2 = 1.0 / np.sqrt(2.0)
         directions = ((0.0, 1.0), (0.0, -1.0), (1.0, 0.0), (-1.0, 0.0),
@@ -8635,7 +8914,7 @@ class SkillRuntime:
                     continue
                 if not self._reachable_place_xy(float(p[0]), float(p[1])):
                     continue
-                return p
+                return p if T is None else np.asarray(self._xy_to_world(p), dtype=float)
         return None
 
     def _task_budget_exhausted(self) -> bool:
@@ -8919,7 +9198,8 @@ class SkillRuntime:
                          "spot (no free, reachable park spot, or it already failed to move); "
                          "the human may need to clear the table")
                 break
-            if not self._reachable_place_xy(step["to"][0], step["to"][1]):
+            to = self._xy_to_arm(step["to"])     # a table-frame target; the IK pre-check is the arm's
+            if not self._reachable_place_xy(to[0], to[1]):
                 failed.append({"label": step["label"], "kind": step["kind"], "to": step["to"],
                                "error": "target not reachable for a top-down place; left where it is"})
                 skip.add(step["label"])
@@ -9317,14 +9597,18 @@ class SkillRuntime:
         feedback, or one that is no number) while an object may be in them
         -- an interrupted grasp's provisional hold, or a held object --
         refuse before any command: no stage can be shown not to open them.
-        With nothing held, unread jaws close as before."""
+        With nothing held, unread jaws close as before. So do the jaws of an
+        arm that does not hold the object (R5 / D9; #400 re-review): only the
+        holding arm's jaws can be on it, and this close never commands them.
+        Refusing there pointed at a place_at that the holder rule refuses too.
+        """
         state = self._jaw_state()
         reading = float(state.gripper_pos) if getattr(state, "gripper_valid", True) else None
         if reading is not None and not math.isfinite(reading):
             reading = None
         if reading is None:
             self._raise_on_a_possible_hold()
-            if self.held_object:
+            if self.held_object and self._held_by_another_arm() is None:
                 raise SkillError(_fit_label(_JAWS_NOT_READ + " while holding {}: a close stage could open the "
                                             "jaws on it; place it first (place_at)", repr(self.held_object),
                                             keep=len("SkillError: ")))
@@ -9432,7 +9716,7 @@ class SkillRuntime:
             # and before the hold refusal below: its place_at on that arm
             # would forfeit the column too, so move_home comes first.
             return {**out, "ok": False, "stage": "home", "home_skipped": True, "beliefs_forgotten": 0,
-                    "error": self._column_elsewhere_refusal(self._arm_name_of(column.arm))}
+                    "error": self._column_elsewhere_refusal(column)}
         holder = self._held_by_another_arm()
         if holder is not None:
             # R5 / D9: another arm holds the object. This reset would home
@@ -9810,14 +10094,18 @@ class SkillRuntime:
                         + " first (place_at), then " + then + "; no motion was sent")
         return _fit_label(template, repr(str(label)), keep=keep)
 
-    def _column_elsewhere_refusal(self, holder) -> str:
+    def _column_elsewhere_refusal(self, column) -> str:
         """reset_scene's refusal while ANOTHER arm keeps a live stop column
         (`stop_retrace.live_on_another_arm`): the way out is that arm's
-        move_home (it raises the gripper up its column), then this reset."""
-        arm, here = repr(holder), repr(self._running_arm_name())
-        return _cut_text(f"arm {arm} was stopped at its object and keeps its approach column, not {here}: call "
-                         f"move_home with arm={arm} first (it raises that gripper up the column), then reset_scene; "
-                         "no motion was sent", _FAILED_ERROR_CHARS)
+        move_home (it raises the gripper up its column), then this reset.
+        When that move_home is refused too (its retrace refused), the
+        fallback (Task 5 fix review Minor 1): the column expires (the time
+        left, rounded up), or any other motion skill on that arm forfeits it."""
+        arm, here = repr(self._arm_name_of(column.arm)), repr(self._running_arm_name())
+        left = int(math.ceil(stop_retrace.expires_in_s(column)))
+        return _cut_text(f"arm {arm} keeps its approach column after a stop, not {here}: call move_home with "
+                         f"arm={arm}, then reset_scene. If refused, the column expires in {left} s, or any other "
+                         "motion skill on that arm drops it; no motion was sent", _FAILED_ERROR_CHARS)
 
     def _forget_held_object(self) -> None:
         """The jaws let the held object go: clear every held-object field."""
@@ -10206,21 +10494,32 @@ class SkillRuntime:
         path = self.trace.save_keyframe(img, "annotated_view")
         if hasattr(self.camera, "set_overlay"):
             self.camera.set_overlay(status="annotated view")
-        note = (
-            "Objects carry numbered badges; grid values are robot base-frame "
-            "coordinates in metres (X forward, Y left, Z up), not camera range."
-        )
+        table_frame = declares_base_pose(self.cfg)
+        if table_frame:
+            # base_pose spec §3.5: the grid is the running arm's workspace,
+            # drawn where it stands on the table; every number is table-frame.
+            note = ("Objects carry numbered badges; grid values and positions are table-frame "
+                    "coordinates in metres (X forward, Y left, Z up), the same for every arm on this rig, "
+                    "not camera range.")
+            frame_words = ("The grid covers this arm's workspace, drawn in the shared table frame "
+                           "(+X forward, +Y left, +Z up).")
+        else:
+            note = (
+                "Objects carry numbered badges; grid values are robot base-frame "
+                "coordinates in metres (X forward, Y left, Z up), not camera range."
+            )
+            frame_words = "Grid coordinates use the robot base frame (+X forward, +Y left, +Z up)."
         if configured_reach_x(self.cfg) is not None:
             note += " The green band shows the explicitly configured top-down IK band."
         return {
-            "key": VisualInterface.describe(marks),
+            "key": VisualInterface.describe(marks, table_frame=table_frame),
             "objects": [m.as_dict() for m in marks],
             "image": path,
             "note": (
                 "Badges describe tracked estimates, which may be stale or mislabeled. "
                 "No badges does not mean the scene is empty. This refreshes the "
                 "camera image, not object detection; use get_observation to refresh "
-                "tracking. Grid coordinates use the robot base frame (+X forward, +Y left, +Z up). Any shaded grasp band is a "
+                f"tracking. {frame_words} Any shaded grasp band is a "
                 "configured display hint, not an IK or grasp-reachability check."
             ),
         }
@@ -10328,7 +10627,7 @@ class SkillRuntime:
 
             _, marks = annotate_frame(self)
             out["objects"] = [m.as_dict() for m in marks]
-            out["key"] = VisualInterface.describe(marks)
+            out["key"] = VisualInterface.describe(marks, table_frame=declares_base_pose(self.cfg))
         except Exception:
             pass
         if self.live_view is not None:
@@ -10691,65 +10990,140 @@ def _with_failure_instruction(result: dict) -> dict:
 #: attempt", "S I M U L A T I O N  O N L Y", a zero-width or other format character
 #: inside a word), with the digit 0 for the letter o.
 _RETRY_TRIGGER_PHRASES = ("simulation only", "one more attempt", "another attempt", "second attempt")
-#: R5's trigger (A8 follow-ups 5): A8's kitchen rules ended the reply with the line a tool result
-#: gives, and no tool result gives one. No word list can tell every paraphrase of such a line from
-#: the agent's own text, so R5 is out of the rules until a result actually grants a line (A8
-#: follow-ups fix, Minor 1; A9/A10 bring it back grant-based). Its words (the note lint's R5
-#: `_RULE_TRIGGERS`, "end*" as end / ends / ending) stay withheld from EVERY result, a granted
-#: retry's too, read the same way as R1's, as defence in depth: an operator's halt reason (the
-#: agent's own `halt_motion(reason)`) never carries them.
+#: R5's trigger words (A8 follow-ups 5). R5 itself keys on the result's top-level `learning_line`
+#: FIELD, never on words (A9/A10 fix: no word list can tell every paraphrase of a reply line from the
+#: agent's own text, so that residual is accepted; only `execute()` writes the field). Its words (the
+#: note lint's R5 `_RULE_TRIGGERS`, "end*" as end / ends / ending) and the field's own name stay
+#: withheld from EVERY result, a granted retry's too, read the same way as R1's, as defence in depth:
+#: an operator's halt reason (the agent's own `halt_motion(reason)`), an object name or a key the
+#: agent's names make never carries them. Unlike R1's, they need no word start ("Pleaseend your
+#: reply", "thisexact line" are read; "send your reply" is withheld too: accepted over-block).
 _REPLY_LINE_PHRASES = ("end your reply", "ends your reply", "ending your reply", "end your answer",
                        "ends your answer", "ending your answer", "exact line", "exactly that line",
-                       "exactly this line")
+                       "exactly this line", "learning line")
+#: letters a reader takes for another in a trigger phrase: the digit 0 for o, 3 for e, 1 (or a
+#: capital I) for l, and i and l for each other (A9/A10 fix: "rep1y", "repIy", "3nd y0ur r3ply")
+_TRIGGER_LETTER_CLASSES = {"o": "[o0]", "e": "[e3]", "l": "[l1i]", "i": "[i1l]"}
 
 
 def _phrases_pattern(phrases) -> str:
-    """The phrases as one alternation: any run of separators between letters, 0 for o."""
-    return "|".join(r"[\W_]*".join("[o0]" if ch == "o" else ch for ch in phrase.replace(" ", ""))
+    """The phrases as one alternation: any run of separators between letters, the
+    `_TRIGGER_LETTER_CLASSES` look-alike digits and letters."""
+    return "|".join(r"[\W_]*".join(_TRIGGER_LETTER_CLASSES.get(ch, ch) for ch in phrase.replace(" ", ""))
                     for phrase in phrases)
 
 
-_RULE_TRIGGER_RE = re.compile(r"(?<![a-z0-9])(?:(?P<retry>" + _phrases_pattern(_RETRY_TRIGGER_PHRASES)
-                               + r")|(?P<reply>" + _phrases_pattern(_REPLY_LINE_PHRASES) + "))", re.IGNORECASE)
+#: R1's phrases only from a word start (the note lint's "in simulation, only" reading); R5's anywhere
+_RULE_TRIGGER_RE = re.compile(r"(?:(?<![a-z0-9])(?P<retry>" + _phrases_pattern(_RETRY_TRIGGER_PHRASES)
+                              + r"))|(?P<reply>" + _phrases_pattern(_REPLY_LINE_PHRASES) + ")", re.IGNORECASE)
 #: R5's words alone: what a granted retry's result has withheld (it keeps R1's permission)
-_REPLY_LINE_RE = re.compile(r"(?<![a-z0-9])(?P<reply>" + _phrases_pattern(_REPLY_LINE_PHRASES) + ")",
-                            re.IGNORECASE)
+_REPLY_LINE_RE = re.compile(r"(?P<reply>" + _phrases_pattern(_REPLY_LINE_PHRASES) + ")", re.IGNORECASE)
 #: what stands in a trigger's place: R1's in a result the ledger did not grant, R5's in any result
 _RETRY_TRIGGER_WITHHELD = "(retry wording withheld)"
 _REPLY_LINE_WITHHELD = "(reply-line wording withheld)"
 _WITHHELD = {"retry": _RETRY_TRIGGER_WITHHELD, "reply": _REPLY_LINE_WITHHELD}
-#: Cyrillic, Greek and Latin look-alikes of the trigger's letters, read as those letters
-_TRIGGER_LOOKALIKES = str.maketrans({
-    "\u0430": "a", "\u0410": "a", "\u0391": "a", "\u03b1": "a", "\u0251": "a", "\u0441": "c", "\u0421": "c",
-    "\u03f2": "c", "\u0501": "d", "\u0435": "e", "\u0415": "e", "\u0395": "e", "\u03b5": "e", "\u04bb": "h",
-    "\u041d": "h", "\u0397": "h", "\u0456": "i", "\u0406": "i", "\u0399": "i", "\u03b9": "i", "\u0131": "i",
-    "\u04cf": "l", "\u04c0": "l", "\u043c": "m", "\u041c": "m", "\u039c": "m", "\u039d": "n", "\u043e": "o",
-    "\u041e": "o", "\u039f": "o", "\u03bf": "o", "\u03c3": "o", "\u0440": "p", "\u0420": "p", "\u03a1": "p",
-    "\u03c1": "p", "\u0433": "r", "\u0455": "s", "\u0405": "s", "\u0442": "t", "\u0422": "t", "\u03a4": "t",
-    "\u03c4": "t", "\u03c5": "u", "\u0443": "y", "\u0423": "y", "\u03a5": "y", "\u04af": "y",
-    # R5's letters R1 lacks (A8 follow-ups 5)
-    "\u0445": "x", "\u0425": "x", "\u03a7": "x", "\u051d": "w", "\u051c": "w"})
-#: the trigger squeezed (no separators, lower case, 0 read as o): a cheap first look, a
-#: superset of `_RULE_TRIGGER_RE` (no word-start guard) on bytes
-_TRIGGER_SQUEEZED = tuple(phrase.replace(" ", "").encode() for phrase in _RETRY_TRIGGER_PHRASES + _REPLY_LINE_PHRASES)
-_REPLY_LINE_SQUEEZED = tuple(phrase.replace(" ", "").encode() for phrase in _REPLY_LINE_PHRASES)
-_TRIGGER_SQUEEZE = bytes.maketrans(b"ABCDEFGHIJKLMNOPQRSTUVWXYZ0", b"abcdefghijklmnopqrstuvwxyzo")
+#: look-alikes of the triggers' letters (a c d e g h i l m n o p r s t u w x y), read as those
+#: letters: Cyrillic, Greek, Armenian, Cherokee (capital and small), Latin small capitals
+#: (U+1D00-U+1D2B and the IPA ones) and other Latin letters, from Unicode's confusables.txt
+#: (security data, single-letter targets), plus Greek nu read as n (A9/A10 fix). NFKD has already
+#: folded fullwidth, mathematical and other compatibility forms.
+_TRIGGER_LOOKALIKE_LETTERS = {
+    "a": "\u0251\u0391\u03b1\u0410\u0430\u13aa\u1d00\uab64\uab7a",
+    "c": "\u03f2\u03f9\u0421\u0441\u13df\u1c83\u1d04\uabaf",
+    "d": "\u0501\u13a0\u13e7\u1d05\uab70\uabb7\U0001018b",
+    "e": "\u0395\u03b5\u0415\u0435\u04bd\u13ac\u1d07\uab32\uab7c",
+    "g": "\u018d\u0261\u0262\u050c\u0581\u13c0\u13f3\u13fb\u1d83\uab90",
+    "h": "\u029c\u0397\u041d\u04ba\u04bb\u0570\u13bb\u13c2\uab8b\uab92",
+    "i": "\u0131\u0269\u026a\u0399\u03b9\u0406\u0456\u0582\u13a5\ua647\uab75",
+    "l": "\u0196\u01c0\u029f\u04c0\u04cf\u13de\ua781\ua7ae\ua7fe\uabae\U0001d22a",
+    "m": "\u039c\u03fa\u041c\u043c\u13b7\u1d0d\uab87",
+    "n": "\u0274\u039d\u03bd\u0578\u057c",
+    "o": "\u039f\u03bf\u03c3\u041e\u043e\u0555\u0585\u1c82\u1d0f\u1d11\uab3d",
+    "p": "\u00fe\u01bf\u03a1\u03c1\u03f1\u03f8\u0420\u0440\u13e2\u1d18\uabb2",
+    "r": "\u01a6\u024c\u0280\u0433\u13a1\u13d2\u1d26\uab47\uab48\uab71\uab81\uaba2\U0001d216",
+    "s": "\u01bd\u0405\u0455\u054f\u13d5\u13da\ua731\uaba5\uabaa",
+    "t": "\u03a4\u03c4\u0422\u0442\u13a2\u1d1b\uab72",
+    "u": "\u028b\u03c5\u054d\u057d\u1d1c\ua79f\uab4e\uab52",
+    "w": "\u026f\u0448\u0461\u051c\u051d\u0561\u13b3\u13d4\u1d21\ua7fa\uab83\uaba4\U0001d20c",
+    "x": "\u03a7\u0425\u0445\u04b2\u04b3\ua7b3",
+    "y": "\u0263\u028f\u03a5\u03b3\u03d2\u0423\u0443\u04ae\u04af\u13a9\u13bd\u1d8c\u1eff\uab5a\uab79\uab8d",
+}
+_TRIGGER_LOOKALIKES = str.maketrans({ch: letter for letter, chars in _TRIGGER_LOOKALIKE_LETTERS.items()
+                                     for ch in chars})
+#: escapes a model decodes, read decoded (A9/A10 fix): HTML character references, %xx (a UTF-8
+#: run), \xHH, \uHHHH, \UHHHHHHHH and \n \r \t written out
+_TRIGGER_ESCAPE_RE = re.compile(r"&#[0-9]{1,7};?|&#[xX][0-9a-fA-F]{1,6};?|&[A-Za-z][A-Za-z0-9]{1,31};"
+                                r"|(?:%[0-9A-Fa-f]{2})+|\\x[0-9A-Fa-f]{2}|\\u[0-9A-Fa-f]{4}|\\U[0-9A-Fa-f]{8}"
+                                r"|\\[nrt]")
+#: the characters every escape starts with: an ASCII string without any is read as written
+_TRIGGER_ESCAPE_STARTS = re.compile(r"[&%\\]")
+#: the trigger squeezed (no separators, lower case, the `_TRIGGER_LETTER_CLASSES` digits and
+#: letters folded alike): a cheap first look, a superset of `_RULE_TRIGGER_RE` on bytes
+_TRIGGER_SQUEEZE = bytes.maketrans(b"ABCDEFGHIJKLMNOPQRSTUVWXYZ013i", b"abcdefghljklmnopqrstuvwxyzolel")
 _TRIGGER_SEPARATORS = bytes(byte for byte in range(128) if not chr(byte).isalnum())
+_TRIGGER_SQUEEZED = tuple(phrase.replace(" ", "").encode().translate(_TRIGGER_SQUEEZE)
+                          for phrase in _RETRY_TRIGGER_PHRASES + _REPLY_LINE_PHRASES)
+_REPLY_LINE_SQUEEZED = tuple(phrase.replace(" ", "").encode().translate(_TRIGGER_SQUEEZE)
+                             for phrase in _REPLY_LINE_PHRASES)
+
+
+def _decoded_escape(token: str) -> str | None:
+    """What a `_TRIGGER_ESCAPE_RE` token reads as, or None (not a character)."""
+    import html
+
+    try:
+        if token.startswith("&"):
+            decoded = html.unescape(token if token.endswith(";") else token + ";")
+            return None if decoded == token else decoded
+        if token.startswith("%"):
+            return bytes.fromhex(token.replace("%", "")).decode("utf-8", "replace")
+        if token[1] in "nrt":
+            return " "
+        code = int(token[2:], 16)
+        return chr(code) if code <= 0x10FFFF and not 0xD800 <= code <= 0xDFFF else None
+    except (ValueError, OverflowError):
+        return None
+
+
+def _trigger_units(text: str) -> list[tuple[str, int, int]]:
+    """`text` as it is read, unit by unit: (reading, start, end) with text[start:end] the characters
+    it was read from. Escapes are decoded first (up to three nested levels, `%2520`), then each
+    character is read on its own: NFKD, combining marks dropped (an empty reading), look-alike
+    letters as Latin letters (`_TRIGGER_LOOKALIKES`). Format characters stay: they are separators to
+    `_RULE_TRIGGER_RE` like any other non-letter."""
+    chars = [(ch, i, i + 1) for i, ch in enumerate(text)]
+    for _ in range(3):
+        joined = "".join(ch for ch, _, _ in chars)
+        out, last, changed = [], 0, False
+        for match in _TRIGGER_ESCAPE_RE.finditer(joined):
+            decoded = _decoded_escape(match.group(0))
+            if decoded is None:
+                continue
+            start, end = chars[match.start()][1], chars[match.end() - 1][2]
+            out += chars[last:match.start()] + [(ch, start, end) for ch in decoded]
+            last, changed = match.end(), True
+        if not changed:
+            break
+        chars = out + chars[last:]
+    units = []
+    for ch, start, end in chars:
+        if ch.isascii():
+            units.append((ch, start, end))
+            continue
+        decomposed = unicodedata.normalize("NFKD", ch)
+        kept = "".join(c for c in decomposed if c.isascii() or unicodedata.category(c) not in ("Mn", "Me"))
+        units.append((kept.translate(_TRIGGER_LOOKALIKES), start, end))
+    return units
 
 
 def _trigger_reading(text: str) -> str:
-    """`text` as the trigger is read: NFKD, combining marks dropped, look-alike letters
-    as Latin letters (`_TRIGGER_LOOKALIKES`). Format characters stay: they are separators
-    to `_RULE_TRIGGER_RE` like any other non-letter."""
-    decomposed = unicodedata.normalize("NFKD", text)
-    hidden = {ord(ch): None for ch in set(decomposed)
-              if not ch.isascii() and unicodedata.category(ch) in ("Mn", "Me")}
-    return decomposed.translate({**_TRIGGER_LOOKALIKES, **hidden} if hidden else _TRIGGER_LOOKALIKES)
+    """`text` as the trigger is read (`_trigger_units`, joined)."""
+    return "".join(reading for reading, _, _ in _trigger_units(text))
 
 
 def _may_carry_trigger(reading: str, phrases: tuple = _TRIGGER_SQUEEZED) -> bool:
     """A cheap first look (C-level byte ops): False only when `reading` cannot match
-    `_RULE_TRIGGER_RE` (its letters, squeezed, contain no trigger phrase; `phrases`:
+    `_RULE_TRIGGER_RE` (its letters, squeezed and folded, contain no trigger phrase; `phrases`:
     the squeezed phrases of the pattern in use)."""
     squeezed = reading.encode("ascii", "ignore").translate(_TRIGGER_SQUEEZE, _TRIGGER_SEPARATORS)
     return any(phrase in squeezed for phrase in phrases)
@@ -10761,44 +11135,58 @@ def _withheld(match: re.Match) -> str:
 
 
 def _withhold_spans(text: str, pattern: re.Pattern = _RULE_TRIGGER_RE) -> str:
-    """`text` with each span that reads as a trigger of `pattern` replaced by its
-    placeholder (`_withheld`; the rest kept as written: other scripts, accents, numbers), read character by
-    character so every match maps back to its own characters (the same reading as
-    `_trigger_reading` of the whole text: NFKD decomposes each character on its own,
-    and the marks it could reorder are dropped)."""
-    pieces, origin = [], []
-    for i, ch in enumerate(text):
-        reading = ch if ch.isascii() else _trigger_reading(ch)
-        pieces.append(reading)
-        origin.extend([i] * len(reading))
+    """`text` with each span that reads as a trigger of `pattern` replaced by its placeholder
+    (`_withheld`; the rest kept as written: other scripts, accents, numbers, escapes), read unit by
+    unit (`_trigger_units`) so every match maps back to the characters it was read from; the marks
+    that only decorate a match's last letter go with it."""
+    units = _trigger_units(text)
+    origin = [k for k, (reading, _, _) in enumerate(units) for _ in reading]
     out, last = [], 0
-    for match in pattern.finditer("".join(pieces)):
-        start, end = origin[match.start()], origin[match.end() - 1] + 1
-        while end < len(text) and not pieces[end]:  # marks that only decorate the last letter
-            end += 1
-        out += [text[last:start], _withheld(match)]
-        last = end
+    for match in pattern.finditer("".join(reading for reading, _, _ in units)):
+        first, final = origin[match.start()], origin[match.end() - 1]
+        start, end = units[first][1], units[final][2]
+        while final + 1 < len(units) and not units[final + 1][0]:
+            final += 1
+            end = units[final][2]
+        out += [text[last:start], _withheld(match)]  # a span two matches share is withheld once
+        last = max(last, end)
     out.append(text[last:])
     return "".join(out)
 
 
 def _without_rule_triggers(value, pattern: re.Pattern = _RULE_TRIGGER_RE, phrases: tuple = _TRIGGER_SQUEEZED):
     """`value` with every span that reads as a rule trigger (`_RULE_TRIGGER_RE` on
-    `_trigger_reading`: R1's retry permission and R5's reply line) withheld from every
-    string in it: dicts, lists and tuples are walked, and a container is copied only
-    where a string changed (shared objects are never edited). A plain-ASCII string
-    skips the Unicode reading (A8 fix 2, Minor 6: no mark, compatibility form or
-    look-alike can be in it); a string without a trigger comes back as it was, the same
-    object, and so does any other value. `pattern` / `phrases`: `_without_reply_line`'s."""
+    `_trigger_units`: R1's retry permission, R5's reply line and the `learning_line` field's name)
+    withheld from every string in it: dicts (their string keys too: a failure model or a grasp prior
+    is keyed by the agent's own object name), lists and tuples are walked, and a container is copied
+    only where a string changed (shared objects are never edited). Two keys that come out alike keep
+    the FIRST one's value; the collision is logged, never a silent overwrite (A9/A10 fix, Minor 6).
+    A plain-ASCII string with no escape character (& % \\) skips the Unicode reading (A8 fix 2, Minor
+    6: no mark, compatibility form, look-alike or escape can be in it); a string without a trigger
+    comes back as it was, the same object, and so does any other value. `pattern` / `phrases`:
+    `_without_reply_line`'s."""
     if isinstance(value, str):
-        reading = value if value.isascii() else _trigger_reading(value)
+        if value.isascii() and not _TRIGGER_ESCAPE_STARTS.search(value):
+            if not _may_carry_trigger(value, phrases) or not pattern.search(value):
+                return value
+            return pattern.sub(_withheld, value)
+        reading = _trigger_reading(value)
         if not _may_carry_trigger(reading, phrases) or not pattern.search(reading):
             return value
-        return pattern.sub(_withheld, value) if reading is value else _withhold_spans(value, pattern)
+        return _withhold_spans(value, pattern)
     if isinstance(value, dict):
-        changed = {key: new for key, item in value.items()
-                   if (new := _without_rule_triggers(item, pattern, phrases)) is not item}
-        return {**value, **changed} if changed else value
+        out, changed = {}, False
+        for key, item in value.items():
+            new_key = _without_rule_triggers(key, pattern, phrases) if isinstance(key, str) else key
+            new = _without_rule_triggers(item, pattern, phrases)
+            changed = changed or new_key is not key or new is not item
+            if new_key in out:
+                logger.warning("rule-trigger scrub: key %r would collide with an earlier key %r; kept the first",
+                               key, new_key)
+                changed = True
+                continue
+            out[new_key] = new
+        return out if changed else value
     if isinstance(value, (list, tuple)):
         items = [_without_rule_triggers(item, pattern, phrases) for item in value]
         if all(new is old for new, old in zip(items, value)):
@@ -10821,8 +11209,10 @@ def _with_retry_text(result: dict, skill: str) -> dict:
     in front. The single choke point of the rules' triggers: every result execute() returns
     passes here, with or without a ledger, and only a granted one keeps R1's retry trigger --
     every other has it withheld from all its text (`_without_rule_triggers`: an operator's halt
-    reason, an error, a nested step's reason); R5's reply line is withheld from every result, a
-    granted one too (`_without_reply_line`; A8 follow-ups 5). Idempotent."""
+    reason, an error, a nested step's reason); R5's reply line and the `learning_line` field's name
+    are withheld from every result, a granted one too (`_without_reply_line`; A8 follow-ups 5), in
+    its keys as well (A9/A10 fix: a top-level key the agent's words made never reads as the field;
+    two keys that come out alike keep the first). Edits `result` in place. Idempotent."""
     from ..agent.sim_retry import RETRY_ALLOWED, RETRY_STOPPED_NEXT, RETRY_USED
 
     if not isinstance(result, dict):
@@ -10838,17 +11228,24 @@ def _with_retry_text(result: dict, skill: str) -> dict:
             else:
                 own = f"{own} {text}" if own else text
             result["next_action"] = own
-        for key, value in list(result.items()):
-            if (new := _without_reply_line(value)) is not value:
-                result[key] = new
-        return result
+        return _scrubbed_in_place(result, _without_reply_line)
     added = (RETRY_STOPPED_NEXT if state.get("stopped") is True
              else RETRY_USED if state.get("used") is True else None)
     if added is not None and added not in own:
         result["next_action"] = f"{own} {added}" if own else added
+    return _scrubbed_in_place(result, _without_rule_triggers)
+
+
+def _scrubbed_in_place(result: dict, scrub) -> dict:
+    """`result` with `scrub` applied to its values and its string keys, edited in place (the same
+    object: callers and the trace hold it); a dict whose keys all stay is never rebuilt."""
     for key, value in list(result.items()):
-        if (new := _without_rule_triggers(value)) is not value:
+        if (new := scrub(value)) is not value:
             result[key] = new
+    if any(isinstance(key, str) and scrub(key) is not key for key in result):
+        rebuilt = scrub(result)
+        result.clear()
+        result.update(rebuilt)
     return result
 
 
@@ -11681,10 +12078,7 @@ TOOL_SPECS: list[dict] = [
             "by default. Read-only and safe to call at any time. Call this "
             "before using the `arm` parameter, so you use a real name: on a "
             "single-arm rig it reports one arm and `arm` can be omitted "
-            "entirely. An arm mounted off the table origin (its profile "
-            "declares a base_pose) refuses every skill that aims at a "
-            "perceived object or table coordinates until world targets are "
-            "converted; joint-space and relative skills still run on it."
+            "entirely."
         ),
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
@@ -11737,12 +12131,13 @@ def tool_specs_for_config(cfg=None):
     import copy
 
     from .. import sim_profile
-    from ..robot_context import arm_profiles
+    from ..robot_context import arm_profiles, declares_base_pose
 
     specs = copy.deepcopy(TOOL_SPECS)
     if cfg is None:
         return specs
     arms = arm_profiles(cfg)
+    table_frame = declares_base_pose(cfg)
     cameras = cfg.get("cameras") or [cfg.camera]
     camera_names = [c.get("name") for c in cameras if c.get("name")]
     unsupported = set.intersection(*(set(a.get("unsupported_skills", [])) for a in arms))
@@ -11801,4 +12196,26 @@ def tool_specs_for_config(cfg=None):
                 " Bare directions default to the robot base frame; use an explicit frame "
                 "for viewer- or tool-relative requests."
             )
+        if table_frame and spec["name"] in TABLE_FRAME_TOOLS:
+            _say_table_frame(spec)
     return specs
+
+
+#: The coordinate tools: their descriptions name the frame of the positions
+#: they take or return (base_pose spec §3.5, D7).
+TABLE_FRAME_TOOLS: frozenset[str] = frozenset({"localize_object", "place_at", "annotated_view", "probe_point"})
+#: Their base-frame wording and its table-frame replacement, on a rig where
+#: any arm declares a base_pose (the agent's coordinates are table-frame, Q1 a).
+_BASE_FRAME_WORDS = (("base-frame grid", "workspace grid drawn in the table frame"),
+                     ("base-frame", "table-frame"), ("the robot's base frame", "the shared table frame"),
+                     ("the robot base frame", "the shared table frame"))
+_TABLE_FRAME_SENTENCE = " Coordinates are in the shared table frame: the same numbers for every arm on this rig."
+
+
+def _say_table_frame(spec: dict) -> None:
+    """A coordinate tool's description in table-frame words, plus the one
+    sentence that says so (base_pose spec §3.5)."""
+    text = spec["description"]
+    for old, new in _BASE_FRAME_WORDS:
+        text = text.replace(old, new)
+    spec["description"] = text + _TABLE_FRAME_SENTENCE

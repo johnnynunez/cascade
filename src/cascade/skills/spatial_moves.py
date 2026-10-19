@@ -53,7 +53,7 @@ from typing import NamedTuple
 import numpy as np
 
 from ..types import SafetyViolation, SkillError
-from . import carry_attachment
+from . import arm_frame, carry_attachment
 from . import relative_motion as rm
 
 logger = logging.getLogger(__name__)
@@ -264,7 +264,22 @@ def viewer_axes(rt) -> rm.ViewerAxes:
         T = ext.cam_to_base()
     except SkillError as exc:  # missing/rejected record or drift-invalidated at runtime
         raise SkillError(f"viewer frame unavailable: camera {name!r} is not calibrated ({exc})") from exc
-    return rm.viewer_axes(T, camera=name)
+    # The camera's pose is the table's (cam -> W); the moves are the running
+    # arm's (cam -> B): on a base_pose arm "right on the screen" is the
+    # camera's right seen from that arm's base.
+    return rm.viewer_axes(arm_frame.cam_to_arm(_world_from_base(rt), T), camera=name)
+
+
+def _world_from_base(rt):
+    """The running arm's base_pose (table <- base) or None: no base_pose, or
+    a stand-in runtime without one (nothing converts)."""
+    T = getattr(rt, "T_world_base", None)
+    return T if isinstance(T, np.ndarray) else None
+
+
+def _tcp_in_world(rt, T_tcp) -> list:
+    """A TCP pose's position, reported in the table frame (agent coordinates)."""
+    return _vec(arm_frame.to_world(_world_from_base(rt), np.asarray(T_tcp, dtype=float)[:3, 3]))
 
 
 def _screen(rt, delta) -> str:
@@ -288,14 +303,19 @@ class Carried:
 
 def carried(rt, s: Settings) -> Carried:
     """Reconcile the held flag with the jaws (read-only), then describe what
-    hangs below the TCP. Never commands the gripper."""
+    hangs below the TCP. Never commands the gripper.
+
+    On a rig the hold belongs to the arm that grasped it (spec D9): while
+    another arm holds the object, this arm's jaws are empty and it moves
+    and reports as such (no phantom load, no false "holding")."""
     try:
         rt._reconcile_held()
     except (SkillError, SafetyViolation):
         pass  # unknown jaw state: whatever the flag says stands
     half_jaw = float(getattr(rt, "_max_width", 0.09)) / 2.0
     label = rt.held_object
-    if not label:
+    held_by_another_arm = getattr(rt, "_held_by_another_arm", None)    # absent on runtime doubles
+    if not label or (callable(held_by_another_arm) and held_by_another_arm() is not None):
         return Carried(None, 0.0, "empty gripper", half_jaw)
     off = getattr(rt, "_held_support_offset_m", None)
     if off is not None and math.isfinite(float(off)) and 0.0 < float(off) < 0.3:
@@ -372,8 +392,12 @@ def _camera_volume(rt, poses, s: Settings):
         if hits:
             # no escape rule, like the harness's own keep-out check for the TCP
             where = "is already inside" if hits[0] == 0 else "would enter"
+            # The zone is this arm's (its base frame); the agent reads
+            # table-frame numbers (T3 re-review: lifted corners on a base_pose).
+            T = _world_from_base(rt)
+            lo, hi = arm_frame.to_world(T, kmin), arm_frame.to_world(T, kmax)
             return "wrist_camera", (f"{what} {where} keep-out zone "
-                                    f"{np.round(kmin, 3).tolist()}..{np.round(kmax, 3).tolist()}")
+                                    f"{np.round(lo, 3).tolist()}..{np.round(hi, 3).tolist()}")
     if s.camera_occupancy and getattr(harness, "occupancy", None) is not None:
         for b in boxes:
             reason = harness._arm_occupancy_violation(b.points(0.02), None)
@@ -565,8 +589,8 @@ def success(rt, *, tool: str, words: str, frame, camera, delta, T0, load: Carrie
         "camera": camera,
         "displacement_base_m": _vec(delta),
         "as_seen_on_screen": _screen(rt, delta),
-        "tcp_before": _vec(T0[:3, 3]),
-        "tcp_after": _vec(T1[:3, 3]),
+        "tcp_before": _tcp_in_world(rt, T0),
+        "tcp_after": _tcp_in_world(rt, T1),
         "path": "straight line (cartesian)" if route.cartesian else "joint space",
         "holding": load.label,
         "speed": "slow (holding an object)" if load.label else "normal",
@@ -760,8 +784,8 @@ def undo_move(rt, steps=1) -> dict:
         "interpretation": "undid, newest first: " + " | ".join(undone),
         "displacement_base_m": _vec(delta),
         "as_seen_on_screen": _screen(rt, delta),
-        "tcp_before": _vec(T_start[:3, 3]),
-        "tcp_after": _vec(T1[:3, 3]),
+        "tcp_before": _tcp_in_world(rt, T_start),
+        "tcp_after": _tcp_in_world(rt, T1),
         "path": "straight line (cartesian)" if route is not None and route.cartesian else "joint space",
         "holding": load.label,
         "speed": "slow (holding an object)" if load.label else "normal",
@@ -916,6 +940,24 @@ def _target_geometry(rt, label: str, T0, load: Carried) -> dict:
             "top_z_m": round(top, 4), "radius_m": round(radius, 4)}
 
 
+def _target_in_world(rt, target: dict) -> dict:
+    """move_near_object's target as reported: its centre and its top in the
+    table frame (the geometry is measured in the running arm's frame, like
+    every target)."""
+    T = _world_from_base(rt)
+    if T is None:
+        return target
+    c = arm_frame.to_world(T, [*target["center_xy_m"], target["top_z_m"]])
+    return {**target, "center_xy_m": _vec(c[:2]), "top_z_m": round(float(c[2]), 4)}
+
+
+def _top_in_world(rt, centre, top) -> float:
+    """The height of a target's top (measured in the running arm's frame over
+    `centre`) in the table frame, as the agent's coordinates read it."""
+    T = _world_from_base(rt)
+    return top if T is None else float(arm_frame.to_world(T, [float(centre[0]), float(centre[1]), top])[2])
+
+
 def move_near_object(rt, label=None, relation=None, clearance_m=None, side=None, frame=None,
                      distance_m=None, amount=None) -> dict:
     """Position the gripper (and its load) relative to a named object or the
@@ -979,7 +1021,7 @@ def move_near_object(rt, label=None, relation=None, clearance_m=None, side=None,
         goal = np.array([centre[0], centre[1], gz])
         what = "the held object's bottom" if load.label else "the gripper"
         words = (f"{'just ' if rel == 'just_above' else ''}above {target['label']!r}: {what} "
-                 f"{clearance * 100:.1f} cm over its top (top at z={top:.3f} m)")
+                 f"{clearance * 100:.1f} cm over its top (top at z={_top_in_world(rt, centre, top):.3f} m)")
     elif rel == "next_to":
         if side is None or _word(side) == "nearest":
             v = p0[:2] - centre
@@ -1032,7 +1074,7 @@ def move_near_object(rt, label=None, relation=None, clearance_m=None, side=None,
         if transit - goal[2] > 1e-3:
             pts.append(goal)
     if not pts:
-        return {"moved": False, "interpretation": words, "target": target, "relation": rel,
+        return {"moved": False, "interpretation": words, "target": _target_in_world(rt, target), "relation": rel,
                 "holding": load.label, "summary": f"Already there: {words}."}
 
     def goals_for(f):
@@ -1055,7 +1097,7 @@ def move_near_object(rt, label=None, relation=None, clearance_m=None, side=None,
                 feasible = {"feasible_distance_m": round(total * frac, 3), "feasible_fraction": round(frac, 3)}
         out = refusal(rt, err, words=words, frame="base", delta=delta, load=load, feasible=feasible,
                       retry_hint="call move_near_object again with that distance_m")
-        out["target"] = target
+        out["target"] = _target_in_world(rt, target)
         if err.source == "kinematics":
             out["next_action"] += (" The gripper keeps its current orientation on this move; if it "
                                    "points sideways, pointing the jaws down first (rotate_gripper "
@@ -1064,7 +1106,7 @@ def move_near_object(rt, label=None, relation=None, clearance_m=None, side=None,
             out["error"] += f" (segment {err.segment + 1} of {len(pts)} of the carry route)"
         return out
     execute_route(rt, route, duration, tool="move_near_object", words=words)
-    extra = {"relation": rel, "target": target, "path_segments": len(route.segments)}
+    extra = {"relation": rel, "target": _target_in_world(rt, target), "path_segments": len(route.segments)}
     if note:
         extra["note"] = note
     return success(rt, tool="move_near_object", words=words, frame="base", camera=None, delta=delta,

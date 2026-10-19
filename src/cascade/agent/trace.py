@@ -33,6 +33,7 @@ import json
 import os
 import shutil
 import stat
+import threading
 import time
 import uuid
 from datetime import datetime, timezone
@@ -46,6 +47,10 @@ import numpy as np
 _KEEP_NAMES = 100
 #: an earlier run.json larger than this is labelled by its mtime, never parsed
 _LABEL_READ_MAX = 1 << 20
+#: every logger's trace.jsonl appends (`record`) and rewrites (`amend_context`): a row appended while
+#: a rewrite runs is never lost, and each row gets its own step (one lock: a logger built with
+#: `__new__` has no instance state, and a rebuild may log into the same run directory)
+_WRITE_LOCK = threading.Lock()
 
 
 class TraceLogger:
@@ -129,9 +134,10 @@ class TraceLogger:
         context: dict[str, Any] | None = None,
         keyframe_before_wrists: dict[str, str] | None = None,
         keyframe_after_wrists: dict[str, str] | None = None,
-    ) -> None:
+    ) -> int:
+        """Append one row to trace.jsonl; its step (the row's `step`, for `amend_context`)."""
         rec = {
-            "step": self._step,
+            "step": None,   # assigned under the lock below: each row its own step, first key as always
             "t": time.time(),
             "skill": skill,
             "tier": tier,
@@ -148,9 +154,51 @@ class TraceLogger:
             # the note library this run read (`stamp`); null when unstamped
             "library_sha": self.library_sha,
         }
-        with open(self._trace_path, "a") as f:
-            f.write(json.dumps(rec) + "\n")
-        self._step += 1
+        with _WRITE_LOCK:
+            step = rec["step"] = self._step
+            with open(self._trace_path, "a") as f:
+                f.write(json.dumps(rec) + "\n")
+            self._step += 1
+        return step
+
+    def amend_context(self, step: int, key: str, value: Any) -> bool:
+        """Set `context[key] = value` in the row recorded as `step` (`record`'s return value), after the
+        fact: trace.jsonl is rewritten atomically (a temporary file in the run directory, then
+        `os.replace`) under the lock every `record` takes, so a row appended meanwhile is never lost,
+        and every other row keeps its bytes. False, with the file untouched, when no row has that step.
+        The runtime marks a learning line a stop withdrew after its row was written (#398 review,
+        Minor 2: `SkillRuntime._with_learning_grant`)."""
+        with _WRITE_LOCK:
+            try:
+                lines = self._trace_path.read_text().splitlines(keepends=True)
+            except FileNotFoundError:
+                return False
+            for at in range(len(lines) - 1, -1, -1):
+                try:
+                    rec = json.loads(lines[at])
+                except ValueError:
+                    continue
+                if isinstance(rec, dict) and rec.get("step") == step:
+                    break
+            else:
+                return False
+            context = rec.get("context")
+            rec["context"] = {**(context if isinstance(context, dict) else {}), key: _jsonable(value)}
+            lines[at] = json.dumps(rec) + "\n"
+            tmp = self.run_dir / f".trace.jsonl.{os.getpid()}.{uuid.uuid4().hex}.tmp"
+            try:
+                with open(tmp, "w") as f:
+                    f.writelines(lines)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(tmp, self._trace_path)
+            except BaseException:
+                try:
+                    os.unlink(tmp)
+                except OSError:
+                    pass
+                raise
+        return True
 
     def rows(self) -> list[dict[str, Any]]:
         """The recorded steps, oldest first, read back from `trace.jsonl`.

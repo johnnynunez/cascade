@@ -1403,6 +1403,10 @@ def test_reset_scene_while_another_arm_holds_is_refused(make_runtime, gate_off, 
     mark = log.mark()
     result = rt.execute("reset_scene", {"arm": "so101_left"})
     assert result["ok"] is False and "'red cube' " + HELD_TEXT in result["error"], result
+    # Task 5 fix review Minor 2: the default `then` (reset_scene) verbatim
+    assert result["error"] == ("'red cube' is held by arm 'so101_right', not 'so101_left': place it with "
+                               "arm='so101_right' first (place_at), then reset_scene; no motion was sent"), result
+    assert result["stage"] == "release" and result["home_skipped"] is True, result
     assert log.since(mark) == ({"so101_left": 0, "so101_right": 0}, {"so101_left": 0, "so101_right": 0})
     assert rt.held_object == "red cube" and rt._held_arm == "so101_right"
     _assert_one_failed_line(result)
@@ -1448,451 +1452,6 @@ def test_a_real_gripper_reset_names_the_arm_whose_close_left_the_provisional(mak
     assert rt._held_provisional is prov
 
 
-# ── 7b. another arm's provisional hold (Task 5 review Important 1, Minors 1, 2, 6) ──
-
-#: No arm command and no jaw command on either arm of the pair.
-_NOTHING_SENT = ({"so101_left": 0, "so101_right": 0}, {"so101_left": 0, "so101_right": 0})
-_OTHER_ARM = {"so101_left": "so101_right", "so101_right": "so101_left"}
-#: The pair's table-frame camera shift that puts the cube in an arm's reach
-#: (W (0.198, +/-0.10): each arm reaches only the cube on its own side).
-_REACHABLE_SHIFT = {"so101_left": (0.0, 0.10), "so101_right": (0.0, -0.10)}
-
-
-def _pair_reaching(arm_name):
-    return moved_cfg(["so101_left", "so101_right"], {}, move_cameras=False, shift_xy=_REACHABLE_SHIFT[arm_name])
-
-
-def _stalled_provisional(rt, name, label="green block"):
-    """Arm `name`'s grasp stopped after its close (the review's recipe): a
-    `ProvisionalHold` its close left, its jaws stalled half open on it."""
-    from cascade.skills.runtime import ProvisionalHold
-
-    safe = rt.arm_rig.get(name)
-    raw = raw_arm(safe)
-    raw.object_stop_frac = None
-    raw._gripper = raw._grip_closed + 0.5 * (raw._grip_open - raw._grip_closed)
-    rt._held_provisional = ProvisionalHold((label, label, "green"), commanded_open=0.0, expected_open=0.5,
-                                           arm=safe)
-    return rt._held_provisional
-
-
-def _perception_log(rt, monkeypatch):
-    """Every skill-side perception from here on: `_localize` (the label
-    grasps) and `_frame_in_arm` (grasp_at_pixel's frame). execute() itself
-    still observes for its pre-state snapshot."""
-    looked = []
-    for name in ("_localize", "_frame_in_arm"):
-        real = getattr(rt, name)
-        monkeypatch.setattr(rt, name, lambda *a, _real=real, _name=name, **k: (looked.append(_name), _real(*a, **k))[1])
-    return looked
-
-
-def test_a_grasp_on_another_arm_is_refused_while_a_provisional_hold_stands(make_runtime, gate_off, monkeypatch):  # noqa: F811
-    """Task 5 review Important 1 (R5): the right arm's grasp stopped after its
-    close leaves a provisional hold. A grasp on the LEFT arm would take the
-    one provisional slot with its own close, and its promotion (or air
-    verdict) would clear it: the right arm's next reset_scene then opened its
-    jaws on the cube at home. It is refused before any command or perception,
-    naming the right arm and the way out on it; the provisional hold stays."""
-    rt = make_runtime(_pair_world_rig())
-    prov = _interrupted_right_grasp(rt, monkeypatch)
-    log = _JawLog(rt, monkeypatch)
-    looked = _perception_log(rt, monkeypatch)
-    mark = log.mark()
-    result = rt.execute("grasp_object", {"label": "red cube", "arm": "so101_left"})
-    assert result["ok"] is False, result
-    assert "'red cube' may be held by arm 'so101_right'" in result["error"], result
-    assert "not 'so101_left'" in result["error"] and "settle it with arm='so101_right' first" in result["error"]
-    assert "then grasp_object; no motion was sent" in result["error"], result
-    assert len(result["error"]) <= 240, len(result["error"])
-    assert json.dumps(result, default=str).count("this attempt FAILED") <= 1
-    assert looked == [], looked
-    assert log.since(mark) == _NOTHING_SENT
-    assert rt._held_provisional is prov and not rt.held_object
-
-
-@pytest.mark.parametrize("skill,args", [
-    ("grasp_object", {"label": "red cube"}),
-    ("grasp_at_pixel", {"u": 0.5, "v": 0.5, "normalized": True}),
-    ("pick_and_place", {"object": "red cube"}),
-])
-@pytest.mark.parametrize("y_arm", ["so101_left", "so101_right"])
-def test_a_grasp_skill_never_takes_another_arms_provisional_slot(make_runtime, observed_gate, monkeypatch,  # noqa: F811
-                                                                y_arm, skill, args):
-    """Both directions, every grasp entry: arm X's provisional hold stands, arm
-    Y reaches the cube; Y's grasp skill is refused before any perception or
-    command, the hold stays X's."""
-    x_arm = _OTHER_ARM[y_arm]
-    rt = make_runtime(_pair_reaching(y_arm))
-    observed_gate(rt)
-    prov = _stalled_provisional(rt, x_arm)
-    log = _JawLog(rt, monkeypatch)
-    looked = _perception_log(rt, monkeypatch)
-    mark = log.mark()
-    result = rt.execute(skill, {**args, "arm": y_arm})
-    assert result["ok"] is False, result
-    assert f"'green block' may be held by arm {x_arm!r}" in result["error"], result
-    assert f"then {skill}; no motion was sent" in result["error"], result
-    assert looked == [] and log.since(mark) == _NOTHING_SENT
-    assert rt._held_provisional is prov and not rt.held_object
-
-
-@pytest.mark.parametrize("real", [False, True], ids=["sim gripper", "real gripper"])
-@pytest.mark.parametrize("y_arm", ["so101_left", "so101_right"])
-def test_the_stopped_arm_never_opens_on_its_object_after_another_arms_grasp(make_runtime, gate_off, monkeypatch,  # noqa: F811
-                                                                            y_arm, real):
-    """The review's 4 reproduced rows (b9bf044: Y grasped and placed, then
-    X's reset_scene reported `jaws_open_commanded` and opened X's jaws at home,
-    on a real gripper too): Y's grasp is refused, so X's reset never opens
-    X's jaws: the sim reset keeps them shut (a provisional hold may be in
-    them), the real-gripper reset refuses (the stalled jaws hold it)."""
-    x_arm = _OTHER_ARM[y_arm]
-    rt = make_runtime(_pair_reaching(y_arm))
-    prov = _stalled_provisional(rt, x_arm)
-    log = _JawLog(rt, monkeypatch)
-    assert rt.execute("grasp_object", {"label": "red cube", "arm": y_arm})["ok"] is False
-    monkeypatch.setattr(rt, "_drives_real_gripper", lambda: real)
-    mark = log.mark()
-    reset = rt.execute("reset_scene", {"arm": x_arm})
-    assert reset.get("jaws_open_commanded") is not True, reset
-    assert log.since(mark)[1] == {"so101_left": 0, "so101_right": 0}, reset
-    if real:
-        assert reset["ok"] is False and "holding green block" in reset["error"], reset
-        assert rt.held_object == "green block" and rt._held_arm == x_arm   # the stalled jaws: promoted
-    else:
-        assert rt._held_provisional is prov and not rt.held_object
-
-
-def test_a_vla_close_records_its_arm(make_runtime, gate_off, monkeypatch):  # noqa: F811
-    """The VLA executor's close leaves a provisional hold too: it carries the
-    arm whose close left it (a plain tuple counted as every arm's, so the
-    left arm's jaws judged and cleared it), and the left arm's grasp is then
-    refused before any command."""
-    from cascade.grasping import vla_executor
-    from cascade.types import SkillError
-
-    rt = make_runtime(_pair_world_rig())
-    right = _right(rt)
-
-    class _Client:
-        def close(self):
-            pass
-
-    class _Episode:
-        def connect(self):
-            return _Client()
-
-        def run(self, runtime, client, *, provisional, **kw):
-            runtime._held_provisional = provisional                       # the close (vla_executor.run)
-            raise SkillError("VLA chunk deadline (test)")
-
-    monkeypatch.setattr(vla_executor, "executor_name", lambda gcfg: "vla")
-    monkeypatch.setattr(vla_executor, "route_refusal", lambda runtime: None)
-    rt.vla_executor = _Episode()
-    result = rt.execute("grasp_object", {"label": "red cube", "arm": "so101_right"})
-    assert result["ok"] is False and "VLA chunk deadline (test)" in result["error"], result
-    prov = rt._held_provisional
-    assert prov is not None and prov[0] == "red cube" and prov.arm is right
-    log = _JawLog(rt, monkeypatch)
-    mark = log.mark()
-    refused = rt.execute("grasp_object", {"label": "red cube", "arm": "so101_left"})
-    assert refused["ok"] is False and "may be held by arm 'so101_right'" in refused["error"], refused
-    assert log.since(mark) == _NOTHING_SENT and rt._held_provisional is prov
-
-
-@pytest.mark.parametrize("skill", ["handover", "sort_by_color", "restore_scene", "search_for_object", "throw"])
-def test_the_composite_grasps_never_take_another_arms_provisional_slot(make_runtime, gate_off, monkeypatch, skill):  # noqa: F811
-    """Task 6's composites grasp through skill_grasp_object or the persistence
-    loop (whose retries re-home); on an arm without a base_pose they run
-    (called directly here, past execute()'s world-target guard), and each is
-    refused before any command while another arm's provisional hold stands."""
-    from cascade.types import SkillError
-
-    rt = make_runtime(_pair_world_rig())
-    prov = _stalled_provisional(rt, "so101_right")
-    calls = {"handover": lambda: rt.skill_handover("red cube"), "sort_by_color": lambda: rt.skill_sort_by_color(),
-             "restore_scene": lambda: rt.skill_restore_scene("scene"),
-             "search_for_object": lambda: rt.skill_search_for_object("red cube"),
-             "throw": lambda: rt.skill_throw("red cube")}
-    log = _JawLog(rt, monkeypatch)
-    mark = log.mark()
-
-    def refused():
-        with pytest.raises(SkillError, match=re.escape("may be held by arm 'so101_right'")):
-            calls[skill]()
-        return True
-
-    assert _in_bound_call(rt, "so101_left", refused)
-    assert log.since(mark) == _NOTHING_SENT and rt._held_provisional is prov
-
-
-@pytest.mark.parametrize("skill,args", [
-    ("grasp_object", {"label": "red cube"}),
-    ("grasp_at_pixel", {"u": 0.5, "v": 0.5, "normalized": True}),
-    ("restore_scene", {"name": "scene"}),
-    ("search_for_object", {"label": "red cube"}),
-])
-def test_already_holding_on_the_other_arm_names_the_holder(make_runtime, gate_off, monkeypatch, skill, args):  # noqa: F811
-    """Task 5 review Minor 2: on the arm that does not hold the cube, the
-    "already holding" refusal names the holding arm and the way out on it
-    (it used to read "already holding 'red cube'; place it first", which a
-    place on this arm then refused)."""
-    from cascade.types import SkillError
-
-    rt = make_runtime(_pair_world_rig())
-    assert rt.execute("grasp_object", {"label": "red cube", "arm": "so101_right"})["held"] == "red cube"
-    if skill == "restore_scene":
-        assert rt.execute("snapshot_scene", {"name": "scene"}).get("ok", True) is True
-    log = _JawLog(rt, monkeypatch)
-    mark = log.mark()
-    if skill in ("grasp_object", "grasp_at_pixel"):
-        error = rt.execute(skill, {**args, "arm": "so101_left"})["error"]
-    else:                                                                 # Task 6 skills: past the guard
-        def refused():
-            with pytest.raises(SkillError) as raised:
-                getattr(rt, f"skill_{skill}")(**args)
-            return str(raised.value)
-
-        error = _in_bound_call(rt, "so101_left", refused)
-    assert "'red cube' " + HELD_TEXT + ", not 'so101_left'" in error, error
-    assert f"place it with arm='so101_right' first (place_at), then {skill}; no motion was sent" in error, error
-    assert log.since(mark) == _NOTHING_SENT
-    assert (rt.held_object, rt._held_arm) == ("red cube", "so101_right")
-
-
-@pytest.mark.parametrize("state", ["provisional", "held"])
-def test_a_long_label_never_cuts_the_refusals_way_out(make_runtime, gate_off, state):  # noqa: F811
-    """The refusal (with execute()'s "SkillError: ") fits the 240 characters
-    the agent's failure line quotes: the label is shortened, never the way out."""
-    rt = make_runtime(_pair_world_rig())
-    label = "the long-named " + "x" * 80 + " box"
-    if state == "provisional":
-        _stalled_provisional(rt, "so101_right", label=label)
-    else:
-        rt.held_object, rt._held_arm = label, "so101_right"
-    error = rt.execute("grasp_object", {"label": "red cube", "arm": "so101_left"})["error"]
-    assert len(error) <= 240 and error.endswith("then grasp_object; no motion was sent"), (len(error), error)
-    assert error.startswith("SkillError: 'the long-named"), error
-
-
-def test_the_possible_hold_refusal_names_the_arm_whose_close_left_it(make_runtime, gate_off):  # noqa: F811
-    """#379's entry refusal (`_possible_hold_refusal`, the skills that open the
-    jaws first) covers the running arm's OWN possible hold only (#387 review
-    Minor 2): another arm's provisional hold is refused, naming that arm and
-    the way out on it, by `_refuse_on_another_arms_provisional` (the grasp
-    entries, turn_screw, handover), never with this arm's "my jaws" ask."""
-    rt = make_runtime(_pair_world_rig())
-    _stalled_provisional(rt, "so101_right", label="red cube")
-    assert _in_bound_call(rt, "so101_left", rt._possible_hold_refusal) is None
-    # on the arm whose close left it: #379's own refusal (its jaws, unreconciled here)
-    assert _in_bound_call(rt, "so101_right", rt._possible_hold_refusal).startswith("the jaw state could not be read")
-
-
-@pytest.mark.parametrize("skill", ["turn_screw", "handover"])
-def test_turn_screw_and_handover_refuse_another_arms_possible_hold(make_runtime, gate_off, monkeypatch, skill):  # noqa: F811
-    """Both open the jaws first and close later: another arm's provisional
-    hold refuses them before any command, a SkillError naming that arm and
-    the way out on it (main's text), never STUCK with this arm's ask."""
-    from cascade.types import SkillError, SkillStuck
-
-    rt = make_runtime(_pair_world_rig())
-    prov = _stalled_provisional(rt, "so101_right", label="red cube")
-    log = _JawLog(rt, monkeypatch)
-    mark = log.mark()
-
-    def refused():
-        with pytest.raises(SkillError) as raised:
-            getattr(rt, f"skill_{skill}")("red cube")
-        return raised.value
-
-    error = _in_bound_call(rt, "so101_left", refused)
-    assert not isinstance(error, SkillStuck), (type(error), error)
-    assert str(error).startswith("'red cube' may be held by arm 'so101_right' (stopped after its close), "
-                                 "not 'so101_left'"), error
-    assert str(error).endswith("then try again; no motion was sent") and len(f"SkillError: {error}") <= 240, error
-    assert log.since(mark) == _NOTHING_SENT and rt._held_provisional is prov
-
-
-def test_close_gripper_on_the_other_arm_with_its_jaws_unread_closes(make_runtime, gate_off, monkeypatch):  # noqa: F811
-    """#387 review Minor 2: so101_right's grasp stopped after its close; on
-    so101_left, whose own jaws cannot be read and hold nothing, close_gripper
-    went STUCK with "my jaws may still hold an object" and its ask
-    (open_gripper on so101_left, ask again) looped on the same STUCK. Only
-    so101_right's jaws may hold the cube: so101_left closes as on main, and
-    the hold stays so101_right's."""
-    rt = make_runtime(_pair_world_rig())
-    prov = _interrupted_right_grasp(rt, monkeypatch)
-    left = raw_arm(rt.arm_rig.get("so101_left"))
-    real = type(left).get_state.__get__(left)
-    monkeypatch.setattr(left, "get_state", lambda: dataclasses.replace(real(), gripper_valid=False))
-    log = _JawLog(rt, monkeypatch)
-    for _ in range(2):                                   # the re-ask too
-        mark = log.mark()
-        result = rt.execute("close_gripper", {"arm": "so101_left"})
-        assert result["ok"] is True and result.get("outcome") != "stuck", result
-        assert log.since(mark) == ({"so101_left": 0, "so101_right": 0}, {"so101_left": 2, "so101_right": 0})
-        assert rt._held_provisional is prov and not rt.held_object
-
-
-def test_already_holding_on_a_single_arm_reads_as_before(make_runtime, gate_off):  # noqa: F811
-    rt = make_runtime(_world_object_rig())
-    assert rt.execute("grasp_object", {"label": "red cube"})["held"] == "red cube"
-    result = rt.execute("grasp_object", {"label": "red cube"})
-    assert result["error"] == "SkillError: already holding 'red cube'; place it first", result
-
-
-def _kept_column(safe, *, age_s=0.0):
-    """A stop column kept for `safe` (stop_retrace.Kept) at its current pose, `age_s` old."""
-    from cascade.skills import stop_retrace
-
-    q = np.asarray(safe.get_state().q, dtype=float)
-    p = safe.harness.kin.fk(q)[:3, 3]
-    return stop_retrace.Kept(arm=safe, raw=safe.raw, column=(p[:2].copy(), 0.05, 0.0), q_pre=q.copy(),
-                             hover_z=float(p[2]) + 0.05, z_max=float(p[2]) + 0.055, duration_s=2.0,
-                             scene=stop_retrace._scene(safe.harness), kept_at=stop_retrace._clock() - age_s)
-
-
-def test_reset_scene_is_refused_while_another_arms_stop_column_is_live(make_runtime, gate_off, monkeypatch):  # noqa: F811
-    """Task 5 review Minor 1: the right arm was stopped below its pregrasp
-    before its close (no hold, no provisional) and keeps its approach column.
-    reset_scene on the LEFT arm would forget it (the scene changes for every
-    arm), and the right arm's move_home could no longer retrace up it: the
-    reset is refused before any motion, naming the way out. An expired column
-    no longer applies (the reset runs and forgets it); the running arm's own
-    live column is retraced by its reset as before (never this refusal)."""
-    from cascade.skills import stop_retrace
-
-    rt = make_runtime(_pair_world_rig())
-    left, right = rt.arm_rig.get("so101_left"), _right(rt)
-    column = _kept_column(right)
-    rt._stop_retraces = {id(right): column}
-    log = _JawLog(rt, monkeypatch)
-    mark = log.mark()
-    result = rt.execute("reset_scene", {"arm": "so101_left"})
-    assert result["ok"] is False and result["home_skipped"] is True, result
-    assert "call move_home with arm='so101_right' first" in result["error"], result
-    assert "not 'so101_left'" in result["error"] and result["error"].endswith("no motion was sent"), result
-    assert len(result["error"]) <= 240
-    assert log.since(mark) == _NOTHING_SENT
-    assert rt._stop_retraces == {id(right): column}
-    rt._stop_retraces = {id(right): _kept_column(right, age_s=stop_retrace.MAX_AGE_S + 1.0)}
-    result = rt.execute("reset_scene", {"arm": "so101_left"})
-    assert result.get("home_skipped") is not True, result                 # it got as far as its home move
-    assert rt._stop_retraces == {}, result
-    rt._stop_retraces = {id(left): _kept_column(left)}
-    result = rt.execute("reset_scene", {"arm": "so101_left"})
-    assert "keeps its approach column" not in str(result.get("error")), result
-
-
-def test_another_arms_column_comes_before_its_hold_in_the_reset_refusal(make_runtime, gate_off, monkeypatch):  # noqa: F811
-    """The right arm holds the cube AND keeps a live column: the left reset
-    names move_home on the right arm first; the hold refusal's place_at would
-    forfeit that column (execute() forgets the running arm's column on any
-    other motion skill) and freeze the right arm at its object."""
-    rt = make_runtime(_pair_world_rig())
-    right = _right(rt)
-    assert rt.execute("grasp_object", {"label": "red cube", "arm": "so101_right"})["held"] == "red cube"
-    rt._stop_retraces = {id(right): _kept_column(right)}
-    log = _JawLog(rt, monkeypatch)
-    mark = log.mark()
-    result = rt.execute("reset_scene", {"arm": "so101_left"})
-    assert result["ok"] is False and "call move_home with arm='so101_right' first" in result["error"], result
-    assert "place_at" not in result["error"] and log.since(mark) == _NOTHING_SENT
-
-
-def test_one_arms_grasp_failures_never_raise_the_other_arms_grasp(make_runtime, gate_off):  # noqa: F811
-    """Task 5 review Minor 6: the grasp-outcome memory is keyed by object, and
-    "pregrasp IK failed" counts as `pregrasp_unsafe` (+8 mm of grasp height
-    per loss). The cube at W (0.198, -0.10) is out of the left arm's reach:
-    two left attempts fail at IK; the right arm's grasp of the same cube must
-    not inherit that nudge (on a pair the memory rows are per arm). A single
-    arm keeps the bare object rows."""
-    rt = make_runtime(_pair_world_rig())
-    for _ in range(2):
-        failed = rt.execute("grasp_object", {"label": "red cube", "arm": "so101_left"})
-        assert failed["ok"] is False and "IK failed" in failed["error"], failed
-    result = rt.execute("grasp_object", {"label": "red cube", "arm": "so101_right"})
-    assert result.get("held") == "red cube", result
-    keys = sorted(rt.grasp_memory._profiles)
-    assert keys and all(k.split("|")[0] in ("red_cube@so101_left", "red_cube@so101_right") for k in keys), keys
-    air = make_runtime(_pair_world_rig())                                 # an air grasp's loss: the arm's row too
-    raw_arm(_right(air)).object_stop_frac = None
-    assert "air grasp" in air.execute("grasp_object", {"label": "red cube", "arm": "so101_right"})["error"]
-    assert [k.split("|")[0] for k in air.grasp_memory._profiles] == ["red_cube@so101_right"]
-    single = make_runtime(_world_object_rig())
-    assert single.execute("grasp_object", {"label": "red cube"})["held"] == "red cube"
-    assert [k.split("|")[0] for k in single.grasp_memory._profiles] == ["red_cube"]
-
-
-def test_the_grasp_memory_rows_are_read_per_arm(make_runtime, observed_gate):  # noqa: F811
-    """The rows each arm learned are the rows it reads: the preview's prior,
-    the grasp's z nudge (gate off: read in planning; gate on: the frozen
-    prior). The right arm has 2 losses of its own (+16 mm), the left 4 and
-    the bare object row 6 (rows a single arm, or the old key, wrote)."""
-    from cascade.memory.grasp_memory import object_profile
-
-    rt = make_runtime(_pair_world_rig())
-    observed_gate(rt)
-    fix = _in_bound_call(rt, "so101_right", lambda: rt._localize("red cube")[1])
-    for label, losses in (("red cube@so101_right", 2), ("red cube@so101_left", 4), ("red cube", 6)):
-        for _ in range(losses):
-            rt.grasp_memory.record(label, fix, None, success=False, reason="pregrasp unsafe (test)")
-    assert object_profile("red cube@so101_right", fix.extent) in rt.grasp_memory._profiles
-    preview = rt.execute("preview_grasp", {"label": "red cube", "arm": "so101_right"})
-    assert preview["memory_prior"]["seen"] == 2, preview
-    rt.execute("grasp_object", {"label": "red cube", "arm": "so101_right"})
-    assert rt._last_grasp_z_nudge == pytest.approx(0.016, abs=1e-9)
-
-
-def _pair_double(rt):
-    """`rt` (a runtime double) as the right arm of a pair: its rig holds a
-    second arm, so the memory rows are keyed by the running arm's name."""
-    rt.arm_rig = SimpleNamespace(arms={"so101_left": object(), "so101_right": rt.arm})
-
-
-def test_the_planner_reads_and_reranks_with_the_running_arms_row(monkeypatch):
-    """`_plan_grasps` reads the prior and re-ranks with the running arm's row
-    (tests/test_grasping.py's double, on a pair)."""
-    from unittest.mock import Mock
-
-    from test_grasping import make_fix
-
-    from cascade.config import load_demo_config
-    from cascade.skills.runtime import SkillRuntime
-
-    rt = SkillRuntime.__new__(SkillRuntime)
-    rt.cfg = load_demo_config(arm="fr3", camera="d435i", llm="mock")
-    rt._max_width = .08
-    rt.memory = Mock()
-    rt.grasp_memory = Mock()
-    rt.grasp_memory.prior.return_value = {"nudges": {"grasp_z_delta": 0.0}, "profile": "wood",
-                                          "wins": 1, "losses": 0, "success_rate": 1.}
-    rt.grasp_memory.rerank.side_effect = lambda grasps, *args: list(grasps)
-    rt._arm = SimpleNamespace()
-    _pair_double(rt)
-    monkeypatch.setattr("cascade.perception.support_surface.estimate_support_z", lambda frame, fix: 0.)
-    rt._plan_grasps(make_fix(size=(.10, .03, .035)), "wood piece")
-    assert rt.grasp_memory.prior.call_args[0][0] == "wood piece@so101_right"
-    assert rt.grasp_memory.rerank.call_args[0][1] == "wood piece@so101_right"
-
-
-def test_the_frozen_planning_prior_is_the_running_arms_row(monkeypatch):
-    """The observed-finger planning search (gate on, GraspGen-X feasibility
-    batches) freezes one prior per attempt: on a pair, the running arm's row;
-    the attempt's outcome is recorded there too (tests/test_grasp_planning_search.py's double)."""
-    from test_grasp_planning_search import planning_fixture
-
-    rt, calls, fix, frame, h, batches, opts, prior, reads, records, _ = planning_fixture(monkeypatch)
-    labels = []
-    rt.grasp_memory = SimpleNamespace(prior=lambda label, f: (labels.append(label), prior)[1],
-                                      record=lambda *a, **kw: records.append(a[0]))
-    _pair_double(rt)
-    h.vet_pose = lambda *a, **kw: None
-    rt.skill_grasp_object("orange", _fix=fix, _frame=frame)
-    assert batches == [1] and labels == ["orange@so101_right"], labels
-    assert records == ["orange@so101_right"], records
-
-
 def test_an_unreachable_place_quotes_the_table_frame_point(make_runtime, gate_off):  # noqa: F811
     """place_geometry's refusal quotes the TABLE-frame point the agent asked
     for: on the yawed so101_right the world point (0.45, -0.22) is
@@ -1913,6 +1472,17 @@ def test_an_unreachable_place_quotes_the_table_frame_point(make_runtime, gate_of
     assert len(raw.commands) == n0
 
 
+def _kept_column(safe, *, age_s=0.0):
+    """A stop column kept for `safe` (stop_retrace.Kept) at its current pose, `age_s` old."""
+    from cascade.skills import stop_retrace
+
+    q = np.asarray(safe.get_state().q, dtype=float)
+    p = safe.harness.kin.fk(q)[:3, 3]
+    return stop_retrace.Kept(arm=safe, raw=safe.raw, column=(p[:2].copy(), 0.05, 0.0), q_pre=q.copy(),
+                             hover_z=float(p[2]) + 0.05, z_max=float(p[2]) + 0.055, duration_s=2.0,
+                             scene=stop_retrace._scene(safe.harness), kept_at=stop_retrace._clock() - age_s)
+
+
 # ── 8. merge follow-ups (#359 stop retrace, #369 point_at) ────────────────
 
 
@@ -1921,6 +1491,7 @@ def test_a_stop_column_is_forgotten_only_by_its_own_arm(make_runtime, gate_off):
     skill keeps it; the arm's own motion forfeits it; reset_scene (the scene
     changes for every arm) forgets every arm's that still applies to nothing:
     another arm's LIVE column refuses the reset instead (Task 5 review Minor 1,
+    tests/test_base_pose_other_arm_hold.py
     `test_reset_scene_is_refused_while_another_arms_stop_column_is_live`)."""
     from cascade.skills import stop_retrace
 
@@ -2114,3 +1685,338 @@ def test_a_runtime_double_without_the_arm_frame_measures_as_before(T):
     out = held_observation.measure(_plain_double(None if T is None else transform(YAWED)), lambda *a, **k: None)
     assert out.channel == "legacy_pose", out
     np.testing.assert_allclose(out.offset, [0.01, 0.02, -0.03], rtol=0.0, atol=1e-12)
+
+
+# ── 10. the remaining world-target skills and the viewer frame (Task 6) ─────
+
+#: rig A's snapshot entries moved by this (rig A's frame) before restore_scene,
+#: rig B's by R of it: the cube is then displaced from where the snapshot
+#: remembers it (the mock camera never shows a moved cube, so a push could
+#: not displace it).
+_SNAPSHOT_SHIFT = np.array([0.0, -0.06, 0.0])
+_SHIFT_SNAPSHOT = ("shift the snapshot", None)
+
+
+def _no_visitor_sides(cfg):
+    """safety.people.visitor_sides: [] (every throw is refused toward a visitor
+    side, and every side is one by default): the throw rows compare the skill."""
+    from test_people_guard_base_pose import _people
+
+    return _people({"visitor_sides": []})(cfg)
+
+
+def _throw_rig(cfg):
+    """The throw row's rig: no visitor side, and the table 3 cm below the
+    arm's base (`raised_table`). At the shipped table_z 0 the SO-101's
+    wind-up passes 1.9 cm over the table, under its 2 cm clearance: rig A is
+    refused mid-throw and the release would never be compared (#400 review
+    Minor 2)."""
+    return raised_table(_no_visitor_sides(cfg))
+
+
+#: Task 6's oracle sequences: (arm, steps, config edit). Each step runs on both
+#: rigs and is compared (`run_pair`). move_near_object moves `closer` on
+#: `mock`: above / next_to are out of every shipped chain's reach from home
+#: (refused by the arm's reach on both rigs). search_for_object's occluder row
+#: runs on `mock`: on so101 the park spot's place is refused (place pose
+#: unreachable, pre-existing).
+ORACLE_T6 = {
+    "sort_by_color": ("so101_right", [("sort_by_color", {})], None),
+    "search_for_object": ("so101_right", [("search_for_object", {"label": "red cube"})], None),
+    "search_for_object, occluder": ("mock", [("search_for_object", {"label": "blue ball"})], None),
+    "restore_scene": ("so101_right", [("snapshot_scene", {"name": "scene"}), _SHIFT_SNAPSHOT,
+                                      ("restore_scene", {"name": "scene", "max_moves": 1})], None),
+    "turn_screw": ("so101_right", [("turn_screw", {"label": "red cube"})], None),
+    "throw": ("so101_right", [("throw", {"label": "red cube"})], _throw_rig),
+    "handover": ("so101_right", [("handover", {"label": "red cube"})], None),
+    "move_near_object": ("mock", [("move_near_object", {"label": "red cube", "relation": "closer",
+                                                        "distance_m": 0.03})], None),
+    "probe_point": ("so101_right", [("probe_point", {"u": 320, "v": 327})], None),
+}
+#: Steps that move nothing (they still compare their results).
+_LOOKS = {"snapshot_scene", "probe_point", "search_for_object"}
+#: Rows whose rig A verdict is not ok by design; their motion completes and is
+#: compared: the occluder search never sees the ball (exhausted after lifting
+#: the occluder), and turn_screw cannot verify a fastening on the mock stack.
+#: Every other step completes on rig A (#400 review Minor 2: a refusal on both
+#: rigs would compare nothing the skill does).
+_NOT_OK_BY_DESIGN = {"search_for_object, occluder", "turn_screw"}
+
+
+def _shift_snapshots(rt_a, rt_b, T):
+    for rt, d in ((rt_a, _SNAPSHOT_SHIFT), (rt_b, np.asarray(T)[:3, :3] @ _SNAPSHOT_SHIFT)):
+        snap = rt.beliefs.get_snapshot("scene")
+        assert snap is not None and snap.entries, "snapshot_scene memorized the cube"
+        for entry in snap.entries:
+            entry["position"] = (np.asarray(entry["position"], dtype=float) + d).tolist()
+
+
+@pytest.mark.parametrize("pose", [SHIPPED_RIGHT, YAWED], ids=["so101_right", "yawed"])
+@pytest.mark.parametrize("seq", sorted(ORACLE_T6))
+def test_remaining_skills_are_equivariant(make_pair_rigs, observed_gate, pose, seq):  # noqa: F811
+    """Task 6: the arm at base_pose T with the scene moved by T sends rig A's
+    commands and reports rig A's results moved by T (main: refused by #352's
+    guard). The sort zones and the park spots are the arm's; the snapshot
+    targets, beliefs and agent text stay in the table frame."""
+    arm, steps, edit = ORACLE_T6[seq]
+    rt_a, rt_b, T = make_pair_rigs(pose, arm=arm, edit=edit)
+    for rt in (rt_a, rt_b):
+        observed_gate(rt)
+    for skill, args in steps:
+        if (skill, args) == _SHIFT_SNAPSHOT:
+            _shift_snapshots(rt_a, rt_b, T)
+            continue
+        run = run_pair(rt_a, rt_b, T, skill, args)
+        if skill not in _LOOKS or seq == "search_for_object, occluder":
+            assert run["cmds_a"], f"rig A moved for {skill}: {run['result_a']}"
+        assert run["result_a"].get("ok", True) is (seq not in _NOT_OK_BY_DESIGN), (skill, run["result_a"])
+        assert_equivariant(run, T)
+
+
+def test_viewer_directions_follow_the_camera_on_a_yawed_base(make_pair_rigs):  # noqa: F811
+    """The viewer frame is the camera's, taken into the arm frame: on a YAWED
+    base (the camera moved with it) "right" / "left" as seen on the screen
+    send rig A's commands (main: rotated by the 0.4 rad yaw), and the undo
+    retraces them. Arm profile `mock` (its relative moves complete at home)."""
+    rt_a, rt_b, T = make_pair_rigs(YAWED, arm="mock")
+    for skill, args in (("move_relative", {"direction": "right", "frame": "viewer", "distance_m": 0.02}),
+                        ("undo_move", {}),
+                        ("rotate_gripper", {"direction": "left", "angle_deg": 10, "frame": "viewer"})):
+        run = run_pair(rt_a, rt_b, T, skill, args)
+        assert run["result_a"].get("ok", True) is True and run["cmds_a"], (skill, run["result_a"])
+        assert_equivariant(run, T)
+
+
+@pytest.mark.parametrize("skill", ["throw", "handover"])
+def test_throw_and_handover_on_the_arm_that_does_not_hold_are_refused(make_runtime, gate_off, monkeypatch,  # noqa: F811
+                                                                      skill):
+    """Review Focus 2 (spec D9 / §5): the right arm holds the cube; throw or
+    handover on the LEFT arm would swing the left arm and open its empty jaws
+    (the hold is skipped: "already holding"). Refused before any perception or
+    command on either arm, naming the holding arm; the right arm still holds it."""
+    cfg = _pair_world_rig()
+    _no_visitor_sides(cfg)
+    rt = make_runtime(cfg)
+    assert rt.execute("grasp_object", {"label": "red cube", "arm": "so101_right"})["held"] == "red cube"
+    log = _JawLog(rt, monkeypatch)
+    mark = log.mark()
+    looked = []
+    real_localize = rt._localize
+    monkeypatch.setattr(rt, "_localize", lambda *a, **k: (looked.append(a), real_localize(*a, **k))[1])
+    result = rt.execute(skill, {"label": "red cube", "arm": "so101_left"})
+    assert result["ok"] is False, result
+    assert "'red cube' " + HELD_TEXT + ", not 'so101_left'; no motion was sent" in result["error"], result
+    assert looked == [] and log.since(mark) == ({"so101_left": 0, "so101_right": 0},
+                                                {"so101_left": 0, "so101_right": 0})
+    assert rt.held_object == "red cube" and rt._held_arm == "so101_right"
+    _assert_one_failed_line(result)
+
+
+def test_turn_screw_on_the_arm_that_does_not_hold_names_the_holding_arm(make_runtime, gate_off,  # noqa: F811
+                                                                        monkeypatch):
+    """The right arm holds the cube: turn_screw on the LEFT arm is refused
+    before any perception or command, naming the holding arm and the way out
+    on it (Task 5 review Minor 2's text for every grasp skill), not "already
+    holding ...; place it first" (the left arm holds nothing)."""
+    rt = make_runtime(_pair_world_rig())
+    assert rt.execute("grasp_object", {"label": "red cube", "arm": "so101_right"})["held"] == "red cube"
+    log = _JawLog(rt, monkeypatch)
+    mark = log.mark()
+    looked = []
+    real_localize = rt._localize
+    monkeypatch.setattr(rt, "_localize", lambda *a, **k: (looked.append(a), real_localize(*a, **k))[1])
+    result = rt.execute("turn_screw", {"label": "red cube", "arm": "so101_left"})
+    assert result["ok"] is False, result
+    assert ("'red cube' " + HELD_TEXT + ", not 'so101_left': place it with arm='so101_right' first (place_at), "
+            "then turn_screw; no motion was sent") in result["error"], result
+    assert looked == [] and log.since(mark) == ({"so101_left": 0, "so101_right": 0},
+                                                {"so101_left": 0, "so101_right": 0})
+    assert rt.held_object == "red cube" and rt._held_arm == "so101_right"
+    _assert_one_failed_line(result)
+
+
+def test_probe_point_checks_the_workspace_in_the_arm_frame(make_runtime):  # noqa: F811
+    """R10: the probed point is table-frame (the camera's); the configured
+    workspace is the running arm's. so101_right (base at W y -0.22) and the
+    cube at W (0.198, 0.20): B y 0.42, outside its workspace (|y| <= 0.36),
+    though the table-frame numbers read in the arm frame would be inside. The
+    gripper distance is measured from the TCP lifted into the table frame."""
+    T = transform(SHIPPED_RIGHT)
+    rt = make_runtime(moved_cfg("so101_right", SHIPPED_RIGHT, move_cameras=False, shift_xy=(0.0, 0.20)))
+    out = rt.execute("probe_point", {"u": 320, "v": 327})
+    assert out.get("ok") is True, out
+    p = np.asarray(out["position"], dtype=float)
+    assert abs(p[1] - 0.20) < 0.03, p                                        # table frame
+    lo, hi = (np.asarray(rt.cfg.safety.workspace.get(k), dtype=float) for k in ("min", "max"))
+    p_arm = p - np.asarray(T)[:3, 3]
+    assert not np.all((lo <= p_arm) & (p_arm <= hi)) and np.all((lo <= p) & (p <= hi)), (p, lo, hi)
+    assert out["reachable"]["in_workspace"] is False, out["reachable"]
+    tcp = lift(T, rt.kin.fk(rt.arm.get_state().q)[:3, 3])
+    np.testing.assert_allclose(out["from_gripper"]["delta_xyz_m"], p - tcp, rtol=0.0, atol=1.1e-3)
+    assert out["from_gripper"]["distance_m"] == pytest.approx(float(np.linalg.norm(p - tcp)), abs=1.1e-3)
+
+
+def _in_arm_frame(T, p):
+    """A table-frame point in the frame of the arm at T: T^-1 p."""
+    T = np.asarray(T, dtype=float)
+    return (np.asarray(p, dtype=float) - T[:3, 3]) @ T[:3, :3]
+
+
+def test_restore_checks_the_target_in_the_arm_frame(make_runtime, gate_off, monkeypatch):  # noqa: F811
+    """restore_scene's reachability pre-check (an IK solve) gets the snapshot
+    target (table frame) in the running arm's frame; the move it starts goes
+    to the table-frame target (place_at's agent coordinates)."""
+    T = transform(YAWED)
+    rt = make_runtime(moved_cfg("so101_right", YAWED, move_cameras=False, shift_xy=(0.0, -0.10)))
+    checked, placed = [], []
+    real_check, real_move = rt._reachable_place_xy, rt._move_object_to
+    monkeypatch.setattr(rt, "_reachable_place_xy", lambda x, y: (checked.append((x, y)), real_check(x, y))[1])
+    monkeypatch.setattr(rt, "_move_object_to",
+                        lambda query, to, **k: (placed.append(list(to)), real_move(query, to, **k))[1])
+    with _fusion_held(rt):
+        rt._reobserve(1)
+        assert rt.execute("snapshot_scene", {"name": "scene"}).get("ok", True) is True
+        entry = rt.beliefs.get_snapshot("scene").entries[0]
+        target = np.asarray(entry["position"], dtype=float) + np.asarray(T)[:3, :3] @ _SNAPSHOT_SHIFT
+        entry["position"] = target.tolist()
+        rt.execute("restore_scene", {"name": "scene", "max_moves": 1})
+    assert checked and placed, (checked, placed)
+    np.testing.assert_allclose(checked[0], _in_arm_frame(T, target)[:2], rtol=0.0, atol=1e-9)
+    np.testing.assert_allclose(placed[0], target[:2], rtol=0.0, atol=1e-9)
+
+
+@pytest.mark.parametrize("pose", [SHIPPED_RIGHT, YAWED, COMBO], ids=["so101_right", "yawed", "combo"])
+def test_the_park_spot_avoids_its_neighbours_in_the_arm_frame(make_pair_rigs, pose):  # noqa: F811
+    """#400 review Minor 1: `_free_park_spot` takes its neighbours (`avoid`,
+    table-frame (xy, radius)) into the arm frame with `around`. A neighbour on
+    rig A's first candidate (its first direction at the first offset) moves
+    rig A's spot off it; rig B gets the same neighbour moved by T and parks at
+    T of rig A's spot. Left in the table frame, rig B's neighbour sits away
+    from the spot it should block (arm profile `mock`: every candidate in reach)."""
+    rt_a, rt_b, T = make_pair_rigs(pose, arm="mock")
+    around = np.asarray(rt_a.beliefs.find("red cube").position, dtype=float)
+    first = around + np.array([0.0, 0.20, 0.0])
+    assert np.allclose(rt_a._free_park_spot(around[:2], []), first[:2], rtol=0.0, atol=1e-9)
+    spot_a = rt_a._free_park_spot(around[:2], [(first[:2], 0.07)])
+    spot_b = rt_b._free_park_spot(lift(T, around)[:2], [(lift(T, first)[:2], 0.07)])
+    assert spot_a is not None and spot_b is not None, (spot_a, spot_b)
+    assert float(np.linalg.norm(np.asarray(spot_a) - first[:2])) > 0.07, (spot_a, first)
+    np.testing.assert_allclose(spot_b, lift(T, [float(spot_a[0]), float(spot_a[1]), 0.0])[:2], rtol=0.0, atol=1e-9)
+
+
+@pytest.mark.parametrize("cube_y", [-0.10, -0.20], ids=["cube at W y -0.10", "cube at the zone's arm numbers"])
+def test_sort_by_color_zones_are_the_arms_and_reported_in_the_table_frame(make_runtime, gate_off, cube_y):  # noqa: F811
+    """sort_by_color's zones run along the running arm's front edge (its
+    drop_zone x, its base frame); they are placed at and reported as table-frame
+    points: on so101_right (a pure -0.22 m shift in y) every zone's y is 0.22 m
+    lower in the table frame. The "already sorted" check compares in the arm
+    frame: a cube at W (0.198, -0.20) (B y 0.02) is NOT in the first zone (B y
+    -0.20) and moves, though its table-frame numbers equal the zone's arm-frame
+    ones."""
+    rt = make_runtime(moved_cfg("so101_right", SHIPPED_RIGHT, move_cameras=False, shift_xy=(0.0, cube_y)))
+    result = rt.execute("sort_by_color", {})
+    assert result.get("ok", True) is True and result["moved"], result
+    # the arm's zones, B (0.20, -0.20 / -0.10 / 0 / 0.10 / 0.20), first colour first, in the table frame
+    table_zones = [[0.20, y - 0.22] for y in (-0.20, -0.10, 0.0, 0.10, 0.20)]
+    zones = list(result["zones"].values())
+    assert zones and np.allclose(zones, table_zones[:len(zones)], rtol=0.0, atol=1e-9), zones
+    for m in result["moved"]:
+        assert np.allclose(m["zone"], result["zones"][m["color"]], rtol=0.0, atol=1e-9), m
+
+
+# ── 11. the oracle's frame rules (#400 review Minors 3 and 4) ──────────────
+
+
+def _oracle_run(result_a, result_b):
+    """A run_pair record with no command, jaw or belief: results only."""
+    return {"cmds_a": [], "cmds_b": [], "jaws_a": [], "jaws_b": [], "beliefs_a": [], "beliefs_b": [],
+            "result_a": result_a, "result_b": result_b}
+
+
+def _fmt(p):
+    return "[" + ", ".join(f"{float(v):.3f}" for v in p) + "]"
+
+
+def test_the_oracle_maps_a_measured_height_by_the_mounts_height():
+    """#400 review Minor 3: a postcondition's measured `z` (effects.py, the
+    object's pose height) and move_near_object's `top_z_m` are table-frame
+    heights: on RAISED (base 3 cm above the table) rig B's is rig A's + 0.03.
+    An arm-frame height on rig B (equal to rig A's) is caught."""
+    T = transform(RAISED)
+    for where, a, b in (("moves/0/postcondition/measured/z",
+                         {"moves": [{"postcondition": {"measured": {"z": 0.02, "target_err_m": 0.004}}}]},
+                         {"moves": [{"postcondition": {"measured": {"z": 0.05, "target_err_m": 0.004}}}]}),
+                        ("target/top_z_m", {"target": {"top_z_m": -0.03, "radius_m": 0.02}},
+                         {"target": {"top_z_m": 0.0, "radius_m": 0.02}})):
+        assert_equivariant(_oracle_run(a, b), T)
+        with pytest.raises(AssertionError, match=where):
+            assert_equivariant(_oracle_run(a, a), T)
+
+
+def test_the_oracle_holds_error_and_move_text_to_the_table_frame():
+    """#400 review Minor 3: `error` (like its `next_action`) and the spatial
+    moves' `interpretation` / `summary` map their quoted points and heights:
+    "[x, y, z]" by T, "z=<n>" by the mount's height. A refusal quoting the
+    arm frame's numbers on rig B (equal to rig A's) is caught in `error` itself."""
+    T = transform(COMBO)
+    p = [0.144, -0.281, 0.553]
+    for key, text in (("error", "TCP {p} outside workspace; the TCP z={z:.3f} is too high"),
+                      ("interpretation", "above 'table': the gripper 5.0 cm over its top (top at z={z:.3f} m)"),
+                      ("summary", "Moved: next to {p}, top at z={z:.3f} m.")):
+        a = {key: text.format(p=_fmt(p), z=p[2])}
+        b = {key: text.format(p=_fmt(lift(T, p)), z=p[2] + COMBO[2])}
+        assert_equivariant(_oracle_run(a, b), T)
+        with pytest.raises(AssertionError, match=key):
+            assert_equivariant(_oracle_run(a, a), T)
+
+
+def _measured_z(result):
+    """Every postcondition `measured.z` in a result (the composites' moves)."""
+    if isinstance(result, dict):
+        found = [result["measured"]["z"]] if isinstance(result.get("measured"), dict) and "z" in result["measured"] else []
+        return found + [z for k, v in result.items() if k != "measured" for z in _measured_z(v)]
+    if isinstance(result, list):
+        return [z for v in result for z in _measured_z(v)]
+    return []
+
+
+@pytest.mark.parametrize("seq", ["restore_scene", "search_for_object, occluder"])
+def test_a_raised_base_measures_its_placed_heights_in_the_table_frame(make_pair_rigs, gate_off, seq):  # noqa: F811
+    """#400 review Minor 3 end to end: on RAISED (+ `raised_table`) the
+    composites' place postconditions measure the moved object's z in the
+    table frame (beliefs): rig B's is rig A's + 0.03, and the oracle compares
+    it as such (it used to flag the correct value)."""
+    arm, steps, edit = ORACLE_T6[seq]
+    rt_a, rt_b, T = make_pair_rigs(RAISED, arm=arm, edit=lambda cfg: raised_table(edit(cfg) if edit else cfg))
+    heights = []
+    for skill, args in steps:
+        if (skill, args) == _SHIFT_SNAPSHOT:
+            _shift_snapshots(rt_a, rt_b, T)
+            continue
+        run = run_pair(rt_a, rt_b, T, skill, args)
+        assert_equivariant(run, T)
+        heights += list(zip(_measured_z(run["result_a"]), _measured_z(run["result_b"])))
+    assert heights and all(zb == pytest.approx(za + 0.03, abs=1.1e-3) for za, zb in heights), heights
+
+
+@pytest.mark.parametrize("args", [{"label": "table", "relation": "above"},
+                                  {"label": "red cube", "relation": "closer", "distance_m": 0.03}],
+                         ids=["above the table", "closer to the cube"])
+def test_move_near_object_reports_its_target_heights_in_the_table_frame(make_pair_rigs, gate_off, args):  # noqa: F811
+    """#400 review Minor 4: move_near_object's target top (`top_z_m`, and
+    "top at z=" in its words) was the arm frame's height while its centre and
+    the TCPs are table frame. On RAISED (base 3 cm above the table, the table
+    at the arm frame's z -0.03) rig B reports rig A's heights + 0.03: the
+    table's top at the table frame's z 0 (arm `mock`; "above" is refused by
+    its reach on both rigs, after the words are built)."""
+    rt_a, rt_b, T = make_pair_rigs(RAISED, arm="mock", edit=raised_table)
+    run = run_pair(rt_a, rt_b, T, "move_near_object", args)
+    assert_equivariant(run, T)
+    a, b = run["result_a"], run["result_b"]
+    assert b["target"]["top_z_m"] == pytest.approx(a["target"]["top_z_m"] + 0.03, abs=1e-9), (a, b)
+    if args["label"] == "table":
+        assert b["target"]["top_z_m"] == pytest.approx(0.0, abs=1e-9), b
+        assert b["interpretation"] == "above 'table': the gripper 5.0 cm over its top (top at z=0.000 m)", b
+        assert a["interpretation"].endswith("(top at z=-0.030 m)"), a
+    else:
+        assert a.get("ok", True) is True and run["cmds_a"], a

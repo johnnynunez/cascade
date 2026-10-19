@@ -7,7 +7,10 @@ import base64
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import math
+import os
+from pathlib import Path
 import socket
+import stat
 import threading
 import time
 from urllib.parse import urlsplit
@@ -27,6 +30,8 @@ CACHE_S = .5
 HOLD_S = 5.
 #: During a hold the bridge is asked again after this long, not CACHE_S.
 RETRY_S = .1
+#: The robot server's learning.json (ASPIRE spec §4.8) is served in /state only up to this size.
+LEARNING_MAX_BYTES = 64 * 1024
 
 
 def age_s(row, now=None):
@@ -36,6 +41,47 @@ def age_s(row, now=None):
     read it is not counted, so a fresh-looking age can be a slightly older
     image."""
     return (time.monotonic() if now is None else now) - row["advance"]
+
+
+def _no_constant(name):
+    """json.loads' `parse_constant`: NaN / Infinity / -Infinity are no JSON a browser parses."""
+    raise ValueError(f"{name} is not JSON")
+
+
+def _finite_float(text):
+    """json.loads' `parse_float`: a number that overflows a float (`1e999`) reads as inf, which /state's
+    json.dumps would write as `Infinity`, no JSON a browser parses (#398 review, Minor 1)."""
+    value = float(text)
+    if not math.isfinite(value):
+        raise ValueError(f"{text} is no finite number")
+    return value
+
+
+def read_learning(path):
+    """The robot server's `learning.json` (`--learning-file`) for the camera panel: the parsed
+    object when it is a regular file of UTF-8 JSON (no NaN / Infinity, no number that overflows a
+    float), schema 1 and at most
+    LEARNING_MAX_BYTES; None for anything else (no flag, missing, a directory or a FIFO, too
+    large, malformed, nested past the parser's depth, another schema), so /state then carries no
+    `learning` key, as without the flag. Never raises and never blocks: the file is opened
+    non-blocking and read only when fstat says it is a regular file. The extension renders it
+    as text only."""
+    if path is None:
+        return None
+    try:
+        fd = os.open(path, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0))
+        with os.fdopen(fd, "rb") as stream:
+            if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                return None
+            raw = stream.read(LEARNING_MAX_BYTES + 1)
+        if len(raw) > LEARNING_MAX_BYTES:
+            return None
+        data = json.loads(raw.decode("utf-8"), parse_constant=_no_constant, parse_float=_finite_float)
+    except Exception:  # noqa: BLE001 -- any bad file is no panel (RecursionError included), never a /state error
+        return None
+    if not isinstance(data, dict) or type(data.get("schema")) is not int or data["schema"] != 1:
+        return None
+    return data
 
 
 class Frames:
@@ -137,6 +183,10 @@ class CameraHandler(BaseHTTPRequestHandler):
             state["camera_discovery"] = {"version": 1, "base_url": "/", "state_url": "/state",
                 "default_camera": "worktop", "cameras": [
                     {"name": name, "stream_url": "/stream/" + name} for name in CAMERAS]}
+            # ASPIRE learning panel: the same reply, no new route or port
+            learning = read_learning(getattr(self.server, "learning_file", None))
+            if learning is not None:
+                state["learning"] = learning
             return self.respond(200, json.dumps(state).encode())
         snapshots = {f"/snapshot/{name}.jpg": name for name in CAMERAS}
         if path in snapshots:
@@ -178,10 +228,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=8091)
     parser.add_argument("--bridge-port", type=int, default=8611)
+    parser.add_argument("--learning-file", type=Path, default=None,
+                        help="the robot server's learning.json, added to /state as `learning` (schema 1, <= 64 KB)")
     args = parser.parse_args()
     server = ThreadingHTTPServer(("127.0.0.1", args.port), CameraHandler)
     server.daemon_threads = True
     server.frames = Frames(args.bridge_port)
+    server.learning_file = args.learning_file
     server.serve_forever()
 
 

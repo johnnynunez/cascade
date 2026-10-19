@@ -207,13 +207,21 @@ def _no_ambient_aspire_library(monkeypatch, tmp_path_factory):
 
 @pytest.fixture(autouse=True)
 def _point_at_budget_for_slow_runners(monkeypatch):
-    """point_at plans against a 3 s wall-clock budget (`pointing.PLAN_BUDGET_S`).
-    CI runners running ~19k tests are slower and loaded: a test about a refusal
-    reason must not see the budget's refusal instead. The budget's own tests set
-    the shipped 3 s back and drive a fake clock (`pointing._clock`)."""
+    """point_at plans against a budget of 3 s of CPU time and an 8 s wall-clock
+    cap (`pointing.PLAN_BUDGET_S`, `PLAN_WALL_S`), and localizes the target
+    again after a plan longer than 3 s of wall time (`FRESH_PLAN_S`). CI
+    runners running ~19k tests are slower and loaded: a test about a refusal
+    reason must not see the budget's refusal instead, nor a second
+    localization. The budget's own tests set their numbers and drive
+    fake clocks (`pointing._clock`, `_wall`); one pins the shipped values. The
+    slower-core stretch (`pointing.core_factor`) is 1 here: a budget test must
+    not depend on the core the test runs on (its own tests restore it)."""
     from cascade.skills import pointing
 
     monkeypatch.setattr(pointing, "PLAN_BUDGET_S", 30.0)
+    monkeypatch.setattr(pointing, "PLAN_WALL_S", 120.0)
+    monkeypatch.setattr(pointing, "FRESH_PLAN_S", 120.0)
+    monkeypatch.setattr(pointing, "core_factor", lambda: 1.0)
 
 
 @pytest.fixture(autouse=True)

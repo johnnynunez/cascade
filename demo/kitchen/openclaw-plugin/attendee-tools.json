@@ -18,7 +18,7 @@
   },
   {
     "name": "pick_and_place",
-    "description": "Move one named object to a named destination: 'put the green cube in the green square', 'place the orange in the open box', or 'move the tomato can to the green square'. The destination is where the object goes ON/IN. Placing an object next to, beside or near another is not available here: tell the visitor so instead of calling this tool. Handles perception, bounded grasp attempts, placement and return home in one action. Report the actual result; failed or unverified placement is not success. Do not repeat the action after its result unless that result says SIMULATION ONLY and allows one more attempt.",
+    "description": "Move one named object to a named destination: 'put the green cube in the green square' or 'place the orange in the open box'. The destination is where the object goes ON/IN. Placing an object next to, beside or near another is not available here: tell the visitor so instead of calling this tool. Handles perception, bounded grasp attempts, placement and return home in one action. Report the actual result; failed or unverified placement is not success. If the result has a learning_line field, end your reply with that field's text. Do not repeat the action after its result unless that result says SIMULATION ONLY and allows one more attempt.",
     "parameters": {
       "type": "object",
       "properties": {

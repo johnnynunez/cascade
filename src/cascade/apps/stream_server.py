@@ -676,6 +676,9 @@ class StreamServer:
             base["state_error"] = str(e)
         base.update(self.command_state())
         base.setdefault("agent_status", "idle")
+        learning = self._learning()
+        if learning is not None:
+            base["learning"] = learning
         tile = self._map_tile
         if tile is not None:
             # appended LAST: clients that default to the first announced
@@ -688,6 +691,25 @@ class StreamServer:
                                    "error": f"map tile: {e}"[:200]}
             base["cameras"] = cams
         return base
+
+    def _learning(self) -> dict | None:
+        """ASPIRE learning panel (spec §4.8): the runtime's learning.json payload, only
+        from a runtime that built a learning state (the kitchen: `agent.learning_surface`
+        on a sim profile); None everywhere else, so a hardware or default /state keeps
+        exactly its keys. A broken or oversize payload is no key, never a /state error."""
+        runtime = self._runtime_fn() if self._runtime_fn else None
+        learning = getattr(runtime, "learning_state", None)
+        if learning is None:
+            return None
+        try:
+            from ..agent.learning_surface import MAX_BYTES
+
+            payload = learning.payload()
+            if len(json.dumps(payload, ensure_ascii=True)) > MAX_BYTES:
+                return None
+            return payload
+        except Exception:  # noqa: BLE001 -- the panel never breaks /state
+            return None
 
     def map_tile_for(self, name: str):
         """The virtual map camera if `name` is it, else None."""
@@ -740,27 +762,18 @@ class StreamServer:
         if runtime is None:
             return self.annotated_jpeg(name)
         try:
-            from ..perception.visual_interface import VisualInterface, camera_extrinsics, configured_reach_x
+            from ..perception.visual_interface import arm_overlay, camera_extrinsics
 
             stream = self._rig.get(name)
             frame = stream.latest()
             if frame is None:
                 return None
-            cfg = runtime.cfg
-            ws_raw = cfg.safety.get("workspace", {}) or {}
-            vi = VisualInterface(
-                extrinsics=camera_extrinsics(runtime, name),
-                workspace=dict(getattr(ws_raw, "_data", ws_raw)),
-                table_z=float(cfg.safety.get("table_z", 0.0)),
-                reach_x=configured_reach_x(cfg),
-            )
-            try:
-                # a viewer never powers a standby arm (any LAN browser can
-                # switch a tile to this view)
-                tcp = runtime._tcp_if_awake()
-            except Exception:
-                tcp = None
-            img, _ = vi.render(frame, beliefs=list(runtime.beliefs.all()), tcp=tcp)
+            # The primary arm's overlay (this is a viewer thread: nothing is
+            # bound), its TCP lifted into the table frame by its own
+            # base_pose. A viewer never powers a standby arm (any LAN browser
+            # can switch a tile to this view).
+            vi, tcp, T_world_base = arm_overlay(runtime, camera_extrinsics(runtime, name))
+            img, _ = vi.render(frame, beliefs=list(runtime.beliefs.all()), tcp=tcp, T_world_base=T_world_base)
             ok, buf = cv2.imencode(".jpg", img,
                                    [cv2.IMWRITE_JPEG_QUALITY, self._quality])
             return buf.tobytes() if ok else None
@@ -823,9 +836,11 @@ class StreamServer:
                 out["world"] = {"ok": False, "error": str(e)[:200]}
             try:
                 from ..perception.visual_interface import VisualInterface, annotate_frame
+                from ..robot_context import declares_base_pose
 
                 _, marks = annotate_frame(runtime)
-                out["annotated_key"] = VisualInterface.describe(marks)
+                out["annotated_key"] = VisualInterface.describe(
+                    marks, table_frame=declares_base_pose(getattr(runtime, "cfg", None)))
                 out["objects"] = [m.as_dict() for m in marks]
             except Exception:
                 pass

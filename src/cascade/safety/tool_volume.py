@@ -71,7 +71,10 @@ class ToolVolume:
     `names` (what a refusal names); `table_band_m`: occupied voxels at most
     this far above the table are the table itself, which the harness's table
     rule governs -- a box that reaches the fingertip plane would otherwise be
-    refused by the table under every low grasp.
+    refused by the table under every low grasp. `boxes`: each part's box
+    (centre, axes, half) in the TCP frame, in `names` order, the boxes
+    `local` samples (point_at samples their faces, `pointing.tool_body`);
+    empty for a volume built from points alone.
     """
 
     local: np.ndarray
@@ -79,6 +82,7 @@ class ToolVolume:
     names: tuple
     spacing_m: float = 0.02
     table_band_m: float = 0.02
+    boxes: tuple = ()
 
     def points(self, T_tcp: np.ndarray) -> np.ndarray:
         T = np.asarray(T_tcp, dtype=float)
@@ -226,7 +230,7 @@ def build_tool_volume(view, arm_cfg) -> ToolVolume | None:
                     f"safety.tool_volume.{name} is given in (approach, jaw, camera-up) TCP coordinates and "
                     f"needs relative_motion.tool_up_axis = +third tool column {eye[t_col].tolist()} "
                     f"(tool_axis_order {order!r}), got {None if up is None else list(up)}")
-    parts, labels, names = [], [], []
+    parts, labels, names, boxes = [], [], [], []
     if use_camera:
         dims, up = wrist_camera_dims(view.get("relative_motion"))
         if dims is None:
@@ -247,22 +251,26 @@ def build_tool_volume(view, arm_cfg) -> ToolVolume | None:
                             front_m=dims.front_m, bottom_m=dims.bottom_m)
         parts.append(box_grid(box.center, box.axes, box.half, spacing))
         names.append("wrist camera")
+        boxes.append((np.asarray(box.center, dtype=float), np.asarray(box.axes, dtype=float),
+                      np.asarray(box.half, dtype=float)))
     tool_axes = np.column_stack([eye[a_col], eye[j_col], eye[t_col]])
     for name, part in (("housing", housing), ("fingers", fingers)):
         if part is not None:
             lo, hi = part
             parts.append(box_grid(tool_axes @ ((lo + hi) / 2.0), tool_axes, (hi - lo) / 2.0, spacing))
             names.append(name)
+            boxes.append((tool_axes @ ((lo + hi) / 2.0), tool_axes, (hi - lo) / 2.0))
     if use_jaws:
         sweep = ((view.get("grasp") or {}).get("graspgenx") or {}).get("sweep")
         if sweep is None or sweep.get("extents_open") is None:
             raise ValueError("safety.tool_volume.jaws needs grasp.graspgenx.sweep.extents_open")
         parts.append(box_grid(*jaw_box(sweep, order), spacing))
         names.append("jaws")
+        boxes.append(jaw_box(sweep, order))
     for i, p in enumerate(parts):
         labels.append(np.full(len(p), i, dtype=int))
     return ToolVolume(local=np.vstack(parts), part=np.concatenate(labels), names=tuple(names),
-                      spacing_m=spacing, table_band_m=band)
+                      spacing_m=spacing, table_band_m=band, boxes=tuple(boxes))
 
 
 # ── calipers -> camera box (spec §3.4, §8) ─────────────────────────────────

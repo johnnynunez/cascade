@@ -128,6 +128,11 @@ def live_on_another_arm(runtime) -> Kept | None:
     return None
 
 
+def expires_in_s(record: Kept) -> float:
+    """Seconds until `record` expires (MAX_AGE_S after its stop), never below 0."""
+    return max(0.0, MAX_AGE_S - (_clock() - record.kept_at))
+
+
 def forget(runtime, *, every_arm: bool = False) -> int:
     """Drop the running arm's kept column (`every_arm`: every arm's); how
     many were dropped. A column is one arm's approach: another arm's motion

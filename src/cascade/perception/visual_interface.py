@@ -36,6 +36,8 @@ from dataclasses import dataclass, field
 import cv2
 import numpy as np
 
+from ..config import plain
+
 #: BGR palette for marks (distinct under JPEG, readable on a booth screen)
 _COLORS = [
     (60, 220, 60), (60, 160, 255), (255, 120, 60), (200, 80, 255),
@@ -106,6 +108,17 @@ def camera_extrinsics(runtime, camera: str | None = None):
     return None
 
 
+def _in_frame(how: str, T, p):
+    """`arm_frame.<how>(T, p)`, the one place a base_pose multiplies (base_pose
+    spec §3.4); `p` itself without a base_pose. Imported late: the skills
+    package imports the runtime, which imports this module."""
+    if T is None:
+        return p
+    from ..skills import arm_frame
+
+    return getattr(arm_frame, how)(T, p)
+
+
 def _put_label(img, text, org, color, scale=0.5, thick=1):
     """Text with a dark outline so it survives any background."""
     cv2.putText(img, text, org, cv2.FONT_HERSHEY_SIMPLEX, scale, _BLACK, thick + 2, cv2.LINE_AA)
@@ -157,8 +170,16 @@ class VisualInterface:
         grid: bool = True,
         envelope: bool = True,
         now: float | None = None,
+        T_world_base: np.ndarray | None = None,
     ) -> tuple[np.ndarray, list[Mark]]:
-        """-> (annotated BGR image, marks).  Never mutates ``frame``."""
+        """-> (annotated BGR image, marks).  Never mutates ``frame``.
+
+        The camera pose, the beliefs, ``tcp`` and ``target`` are in the frame
+        of the camera extrinsics (the TABLE frame). ``workspace``, ``table_z``
+        and ``reach_x`` are an arm's configuration, in its base frame:
+        ``T_world_base`` (that arm's base_pose, base_pose spec §3.4) lifts the
+        grid and the band onto the table and takes a belief into the base
+        frame for the workspace test. None (no base_pose): as before."""
         img = np.ascontiguousarray(frame.rgb.copy())
         K = getattr(frame, "K", None)
         T = getattr(frame, "T_base_cam", None)
@@ -168,11 +189,11 @@ class VisualInterface:
             return img, []
 
         if grid:
-            self._draw_grid(img, T, K)
+            self._draw_grid(img, T, K, T_world_base)
         if envelope:
-            self._draw_envelope(img, T, K)
+            self._draw_envelope(img, T, K, T_world_base)
 
-        marks = self._draw_marks(img, beliefs or [], T, K, now)
+        marks = self._draw_marks(img, beliefs or [], T, K, now, T_world_base)
 
         if tcp is not None:
             self._draw_tcp(img, np.asarray(tcp, float), T, K)
@@ -183,12 +204,12 @@ class VisualInterface:
                 cv2.drawMarker(img, p, (0, 0, 255), cv2.MARKER_TILTED_CROSS, 18, 2)
                 _put_label(img, "target", (p[0] + 10, p[1] - 8), (0, 0, 255))
 
-        self._draw_legend(img, marks)
+        self._draw_legend(img, marks, T_world_base)
         return img, marks
 
     # ── layers ───────────────────────────────────────────────────────────
 
-    def _draw_grid(self, img, T, K) -> None:
+    def _draw_grid(self, img, T, K, T_world_base=None) -> None:
         ws = self.workspace
         try:
             x0, y0 = float(ws["min"][0]), float(ws["min"][1])
@@ -200,7 +221,7 @@ class VisualInterface:
         overlay = img.copy()
 
         def seg(a, b, color, thick=1):
-            uv = project(np.array([a, b], dtype=float), T, K)
+            uv = project(_in_frame("to_world", T_world_base, np.array([a, b], dtype=float)), T, K)
             if not np.isfinite(uv).all():
                 return
             p0, p1 = (int(uv[0][0]), int(uv[0][1])), (int(uv[1][0]), int(uv[1][1]))
@@ -220,13 +241,17 @@ class VisualInterface:
 
         # Base X coordinate ticks along the y-max edge. Their values are
         # coordinates, not camera depth or distance from the gripper.
+        # With a base_pose the tick sits where the arm's grid line meets the
+        # edge, and its value is that point's table-frame X.
         for i in range(n_x + 1):
             x = x0 + i * step
-            uv = project(np.array([[x, y1, self.table_z]]), T, K)[0]
+            tick = _in_frame("to_world", T_world_base, np.array([[x, y1, self.table_z]]))
+            uv = project(tick, T, K)[0]
             if np.isfinite(uv).all():
-                _put_label(img, f"X={x:.2f}m", (int(uv[0]) - 12, int(uv[1]) + 14), (170, 170, 170), 0.36)
+                _put_label(img, f"X={float(tick[0][0]):.2f}m", (int(uv[0]) - 12, int(uv[1]) + 14), (170, 170, 170),
+                           0.36)
 
-    def _draw_envelope(self, img, T, K) -> None:
+    def _draw_envelope(self, img, T, K, T_world_base=None) -> None:
         """An explicitly configured display hint; no IK claim."""
         if self.reach_x is None:
             return
@@ -240,7 +265,7 @@ class VisualInterface:
             [[xa, y0, self.table_z], [xb, y0, self.table_z],
              [xb, y1, self.table_z], [xa, y1, self.table_z]], dtype=float
         )
-        uv = project(corners, T, K)
+        uv = project(_in_frame("to_world", T_world_base, corners), T, K)
         if not np.isfinite(uv).all():
             return
         poly = uv.astype(np.int32).reshape(-1, 1, 2)
@@ -251,7 +276,7 @@ class VisualInterface:
         anchor = uv[np.argmin(uv[:, 1])]
         _put_label(img, "configured grasp band", (int(anchor[0]), int(anchor[1]) - 8), (0, 220, 0), 0.45)
 
-    def _draw_marks(self, img, beliefs, T, K, now: float | None = None) -> list[Mark]:
+    def _draw_marks(self, img, beliefs, T, K, now: float | None = None, T_world_base=None) -> list[Mark]:
         now = time.monotonic() if now is None else now
         marks: list[Mark] = []
         for i, b in enumerate(beliefs, start=1):
@@ -267,7 +292,7 @@ class VisualInterface:
             if not (-w < u < 2 * w and -h < v < 2 * h):
                 continue
             color = _COLORS[(i - 1) % len(_COLORS)]
-            in_workspace = self._in_workspace(pos)
+            in_workspace = self._in_workspace(_in_frame("to_arm", T_world_base, pos))
             label = str(getattr(b, "label", "?"))
             last_seen_t = getattr(b, "last_seen_t", now)
             age_s = max(0.0, float(now - last_seen_t))
@@ -312,16 +337,20 @@ class VisualInterface:
         cv2.drawMarker(img, p, (0, 255, 255), cv2.MARKER_CROSS, 22, 2)
         _put_label(img, f"TCP z={tcp[2]:.3f}", (p[0] + 12, p[1] + 16), (0, 255, 255), 0.44)
 
-    def _draw_legend(self, img, marks: list[Mark]) -> None:
+    def _draw_legend(self, img, marks: list[Mark], T_world_base=None) -> None:
         h = img.shape[0]
         n_badges = sum(mark.extra["projected_in_image"] for mark in marks)
+        if T_world_base is None:
+            where, axes = f"at base Z={self.table_z:.2f}m", "Base coordinates: X forward | Y left | Z up (metres)"
+        else:
+            z = float(_in_frame("to_world", T_world_base, np.array([0.0, 0.0, self.table_z]))[2])
+            where, axes = f"at table Z={z:.2f}m", "Table-frame coordinates: X forward | Y left | Z up (metres)"
         _put_label(
             img, (f"{n_badges} badges | {len(marks)} tracked objects | "
-                  f"grid={self.grid_step * 100:g} cm at base Z={self.table_z:.2f}m"),
+                  f"grid={self.grid_step * 100:g} cm {where}"),
             (10, h - 28), _WHITE, 0.42,
         )
-        _put_label(img, "Base coordinates: X forward | Y left | Z up (metres)",
-                   (10, h - 12), _WHITE, 0.42)
+        _put_label(img, axes, (10, h - 12), _WHITE, 0.42)
 
     # ── helpers ──────────────────────────────────────────────────────────
 
@@ -336,11 +365,13 @@ class VisualInterface:
     # ── the text half of the interface ───────────────────────────────────
 
     @staticmethod
-    def describe(marks: list[Mark]) -> str:
+    def describe(marks: list[Mark], *, table_frame: bool = False) -> str:
         """Text key for the annotated image (VIA pairs both).
 
         The image alone is ambiguous under JPEG compression; the key makes
         every mark referable and gives the metric values exactly.
+        ``table_frame``: the rig declares a base_pose, and the positions are
+        named as what they are, table-frame (base_pose spec §3.5).
         """
         if not marks:
             return (
@@ -350,8 +381,11 @@ class VisualInterface:
         lines = [
             "Annotated view: badges mark tracked positions projected inside this camera image. "
             "Projection does not establish current visibility or exclude occlusion. "
-            "Entries outside the image have no badge. Coordinates are base-frame metres (x forward, "
-            "y left, z up). Workspace bounds and any configured grasp band "
+            "Entries outside the image have no badge. "
+            + ("Coordinates are table-frame metres (x forward, y left, z up), the same numbers for every arm "
+               "on this rig. " if table_frame else
+               "Coordinates are base-frame metres (x forward, y left, z up). ")
+            + "Workspace bounds and any configured grasp band "
             "do not verify inverse kinematics or grasp reachability."
         ]
         for m in marks:
@@ -385,30 +419,52 @@ def configured_grasp_band(grasp_cfg) -> tuple[float, float] | None:
     return _valid_band((grasp_cfg.get("reach_x_min"), grasp_cfg.get("reach_x_max")))
 
 
+def arm_overlay(runtime, extrinsics) -> tuple[VisualInterface, np.ndarray | None, np.ndarray | None]:
+    """(VisualInterface, table-frame TCP or None, base_pose or None): what an
+    annotated view of `runtime` draws with, read on THIS thread. On a skill
+    thread (annotated_view, analyze_scene) that is the arm the call is bound
+    to; on viewer and MCP threads, the primary (base_pose spec §3.4, R14).
+
+    The TCP is lifted into the table frame with the same base_pose that lifts
+    the workspace overlay (`_tcp_world_if_awake`; a runtime without it gives
+    its look-only `_tcp_if_awake`). A look never powers a standby arm. A
+    base_pose that cannot be read (ArmFrameError, T1 review Minor 6) never
+    breaks a view: the arm's overlay (grid, band, TCP, workspace flags) is
+    left out and the badges stay."""
+    from ..skills.arm_frame import ArmFrameError
+
+    try:
+        T_world_base = getattr(runtime, "T_world_base", None)
+    except ArmFrameError:
+        return VisualInterface(extrinsics=extrinsics), None, None
+    cfg = runtime.cfg
+    # `Cfg` is an attr/dict hybrid but NOT iterable, so dict(...) on a nested
+    # block raises "'Cfg' object is not iterable". `config.plain` is the
+    # public accessor for the raw mapping (`Cfg.as_dict()`, a copy).
+    ws_raw = cfg.safety.get("workspace", {}) or {}
+    vi = VisualInterface(
+        extrinsics=extrinsics,
+        workspace=dict(plain(ws_raw)),
+        table_z=float(cfg.safety.get("table_z", 0.0)),
+        reach_x=configured_reach_x(cfg),
+    )
+    try:
+        lifted = getattr(runtime, "_tcp_world_if_awake", None)
+        tcp = lifted() if callable(lifted) else runtime._tcp_if_awake()
+    except Exception:
+        tcp = None
+    return vi, tcp, T_world_base
+
+
 def annotate_frame(runtime, **kwargs) -> tuple[np.ndarray | None, list[Mark]]:
     """Convenience wrapper: build the annotated view from a live SkillRuntime."""
     frame = runtime.last_frame
     if frame is None:
         return None, []
-    cfg = runtime.cfg
-    # `Cfg` is an attr/dict hybrid but NOT iterable, so dict(...) on a nested
-    # block raises "'Cfg' object is not iterable". `_data` is the sanctioned
-    # accessor for the raw mapping (same idiom as apps/mcp_server.py).
-    ws_raw = cfg.safety.get("workspace", {}) or {}
-    workspace = dict(getattr(ws_raw, "_data", ws_raw))
-    vi = VisualInterface(
-        extrinsics=runtime.extrinsics,
-        workspace=workspace,
-        table_z=float(cfg.safety.get("table_z", 0.0)),
-        reach_x=configured_reach_x(cfg),
-    )
-    try:
-        tcp = runtime._tcp_if_awake()  # a look never powers a standby arm
-    except Exception:
-        tcp = None
+    vi, tcp, T_world_base = arm_overlay(runtime, runtime.extrinsics)
     beliefs = []
     try:
         beliefs = list(runtime.beliefs.all())
     except Exception:
         pass
-    return vi.render(frame, beliefs=beliefs, tcp=tcp, **kwargs)
+    return vi.render(frame, beliefs=beliefs, tcp=tcp, T_world_base=T_world_base, **kwargs)

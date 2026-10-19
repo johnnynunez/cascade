@@ -21,6 +21,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import importlib.util
+import inspect
 import json
 import os
 import re
@@ -114,6 +115,51 @@ def test_brain_profile_binds_the_key_to_the_host_brain_only():
     assert (ep["host"], ep["port"], ep["protocol"], ep["enforcement"]) == (
         "host.openshell.internal", 8123, "rest", "enforce")
     assert "/usr/local/bin/node" in p["binaries"], "OpenClaw runs on the image's node"
+
+
+def test_every_local_brain_is_reachable_from_the_sandbox_only_on_its_openai_api():
+    """The Bolt brain's warm start (scripts/serve_nemotron_bolt_llamacpp.sh) runs llama-server with
+    LLAMA_SERVER_SLOTS_DEBUG=1 and --slot-save-path: GET /slots returns every slot's prompt text and
+    POST /slots/N?action=save|restore|erase works for the key's holders. The sandbox holds the key (OpenShell
+    substitutes it), so its endpoint allows only GET and POST under /v1/ (OpenClaw's chat completions and model
+    list): OpenShell 0.1.3 REST rules, where '**' crosses '/' and anything unmatched is denied. The profile names
+    no model (#403 review, Minor 2): a Bolt served under a custom ALIAS, Qwen and Cosmos get exactly these rules
+    (llama-server's /props, /slots and /tokenize, vLLM's /metrics and /tokenize stay on the host)."""
+    rig = _load()
+    assert rig.DEFAULT_MODEL == "nemotron-3.5-bolt"
+    assert "model" not in inspect.signature(rig.brain_profile).parameters, "keyed on no served id"
+    (ep,) = rig.brain_profile(port=8123)["endpoints"]
+    assert ep["rules"] == [{"allow": {"method": "GET", "path": "/v1/**"}}, {"allow": {"method": "POST", "path": "/v1/**"}}]
+    assert "access" not in ep, "rules and access are mutually exclusive in OpenShell"
+    assert (ep["host"], ep["port"], ep["protocol"], ep["enforcement"]) == ("host.openshell.internal", 8123, "rest",
+                                                                          "enforce")
+
+
+def test_no_brain_keeps_the_read_write_profile():  # #403 review, Minor 2
+    """main's read-write profile (every path, also PUT and PATCH) is gone for every instance."""
+    rig = _load()
+    for inst in (rig.DEFAULT_INSTANCE, rig.instance("sim")):
+        profile = rig.brain_profile(inst=inst)
+        assert _profile_sha(profile) != READ_WRITE_BRAIN_SHA and "access" not in profile["endpoints"][0]
+    assert _profile_sha(rig.brain_profile()) == TODAY_PROFILE_SHA["cascade-brain"]   # the live Bolt route: unchanged
+
+
+@pytest.mark.parametrize("model", [None, "qwen3.8-27b", "nemotron-bolt-q4", "cosmos-reason2"],
+                         ids=["default", "qwen", "custom alias", "cosmos"])
+def test_up_syncs_the_v1_only_brain_profile_whatever_model_it_serves(host, model):  # #403 review, Minor 2
+    """`up --model <id>` (launch_openshell.sh passes the served id, ALIAS included): the same /v1-only profile,
+    byte for byte, as the default Bolt route."""
+    home = host.install(host.user / ".cascade" / "openshell-sim", "sim")
+    host.gateways_up.add(str(home / "0.1.3" / "bin" / "openshell"))
+    argv = ["--instance", "sim", "up"] + ([] if model is None else ["--model", model])
+    assert host.rig.main(argv) == 0
+    upd = [a for a in host.argvs if a[1:4] == ["provider", "profile", "update"] and a[-1] == "cascade-sim-brain"]
+    synced = json.loads(Path(upd[-1][upd[-1].index("--file") + 1]).read_text())
+    synced.pop("resource_version")   # `profile update` needs the stored one (`export`)
+    assert synced == host.rig.brain_profile(inst=host.rig.instance("sim"))
+    assert synced["endpoints"][0]["rules"] == [{"allow": {"method": "GET", "path": "/v1/**"}},
+                                               {"allow": {"method": "POST", "path": "/v1/**"}}]
+    assert "access" not in synced["endpoints"][0]
 
 
 def test_robot_profile_admits_mcp_and_refuses_reset_stop_at_l7():
@@ -746,9 +792,13 @@ TODAY_SETTINGS = {"brain_port": 8081, "mcp_port": 18741, "chat_port": 18799,
 #: sha256 of json.dumps(profile, sort_keys=True): the profiles the live
 #: gateway holds. Any change here is an update pushed to the running sandbox.
 TODAY_PROFILE_SHA = {
-    "cascade-brain": "7e81c98a4f6dfa80dbd0be5b5253d5c1e6c60b2db961e2146e813d634e3a8ba4",
+    # Every local brain (Bolt, the default; Qwen; a custom ALIAS): the sandbox reaches only its /v1/* (the Bolt warm
+    # start opens /slots; #403 review, Minor 2: no served id falls back to read-write).
+    "cascade-brain": "db9aee31e9c2572efa4444d9b453d30fe0571f28569b386041dfc871686d77d5",
     "cascade-robot": "cb34708159f1048412ba6da017c1a953771f47d6ffd3582143ebc089881b2ef7",
 }
+#: The read-write brain profile main shipped before the /v1 path rules (Qwen's until #403's review): no brain gets it.
+READ_WRITE_BRAIN_SHA = "7e81c98a4f6dfa80dbd0be5b5253d5c1e6c60b2db961e2146e813d634e3a8ba4"
 
 
 def _profile_sha(profile: dict) -> str:
@@ -1125,6 +1175,10 @@ def test_valid_instance_names_up_to_five_characters_work(name):
     rig = _load()
     inst = rig.instance(name)
     assert inst.sandbox == f"cascade-{name}-agent" and _openshell_takes_sandbox_name(inst.sandbox)
+
+
+def test_the_name_limit_is_exactly_what_fits_a_19_character_sandbox():
+    rig = _load()
     assert rig.INSTANCE_NAME_MAX == 5 and len(rig.instance("x" * 5).sandbox) == 19, "the limit is exact"
 
 
@@ -1154,6 +1208,45 @@ def test_up_refuses_a_sandbox_name_openshell_would_refuse_before_anything(host):
             host.rig.main(["--instance", "sim", "up", "--sandbox", bad])
     assert host.argvs == []
     assert not (home / "deployed.json").exists()
+
+
+def test_up_with_a_refused_sandbox_name_claims_no_home(host):
+    """A first `up` of a new instance with a bad --sandbox fails before its
+    home is claimed: no empty home with an `instance` mark is left behind."""
+    home = host.user / ".cascade" / "openshell-new"
+    with pytest.raises(SystemExit, match="sandbox name 'cascade-new-agent-two'"):
+        host.rig.main(["--instance", "new", "up", "--sandbox", "cascade-new-agent-two"])
+    assert host.argvs == [] and not home.exists()
+    # A saved sandbox name is checked too (a home claimed earlier, a hand-edited deployed.json).
+    host.install(home, "new")
+    (home / "deployed.json").write_text(json.dumps({"settings": {"sandbox": "Cascade-new"}}))
+    host.gateways_up.add(str(home / "0.1.3" / "bin" / "openshell"))
+    with pytest.raises(SystemExit, match="sandbox name 'Cascade-new'"):
+        host.rig.main(["--instance", "new", "up"])
+    assert host.argvs == []
+
+
+def _rig_cli(tmp_path, *argv):
+    env = {**os.environ, "CASCADE_OPENSHELL_HOME": str(tmp_path / "home"), "HOME": str(tmp_path)}
+    env.pop("CASCADE_OPENSHELL_INSTANCE", None)
+    return subprocess.run([sys.executable, "-B", str(REPO / "scripts" / "openshell_rig.py"), *argv],
+                          env=env, capture_output=True, text=True, timeout=60, check=False)
+
+
+def test_a_refused_name_has_its_own_exit_status(tmp_path):
+    """launch.sh tells a refused name (the reason, exit NAME_REFUSED) from any
+    other failure of the rig (a usage error, a broken interpreter)."""
+    rig = _load()
+    assert rig.NAME_REFUSED not in (0, 1, 2)
+    for argv in (["--instance=boltpr", "instance"], ["--instance=-sim", "instance"],
+                 ["--instance=sim", "up", "--sandbox", "Bad"]):
+        p = _rig_cli(tmp_path, *argv)
+        assert p.returncode == rig.NAME_REFUSED, (argv, p.returncode, p.stderr)
+        assert "OpenShell" in p.stderr and "Traceback" not in p.stderr, p.stderr
+    assert "invalid instance name '-sim'" in _rig_cli(tmp_path, "--instance=-sim", "instance").stderr
+    assert not (tmp_path / "home").exists(), "a refused name touches nothing"
+    assert _rig_cli(tmp_path, "--instance=sim", "instance").returncode == 0
+    assert _rig_cli(tmp_path, "--instance", "-sim", "instance").returncode == 2, "argparse: not a name refusal"
 
 
 SIM_SETTINGS = {**TODAY_SETTINGS, "mcp_port": 17810, "chat_port": 17910, "sandbox": "cascade-sim-agent"}

@@ -123,11 +123,12 @@ class FakeLlamaServer:
     """llama-server's /health, /completion, /slots, /slots/<id>?action=save and /detokenize; requests are recorded."""
 
     def __init__(self, save_dir: Path, *, unready=0, slots=(), completion_delay=0.0, hide_prompts=False,
-                 save_status=200, unreadable=(0, 0)):
+                 save_status=200, unreadable=(0, 0), completion_gate=None):
         self.save_dir = save_dir
         self.unready = unready                  # /health answers 503 this many times first ("Loading model")
         self.slots = list(slots)                # each: {"id", "id_task", "text": the exact rendered prompt}
         self.completion_delay = completion_delay
+        self.completion_gate = completion_gate  # a threading.Event: /completion answers only once it is set
         self.hide_prompts = hide_prompts        # llama-server without LLAMA_SERVER_SLOTS_DEBUG
         self.save_status = save_status
         self.unreadable = unreadable            # /detokenize fails for token counts strictly between these two
@@ -176,6 +177,8 @@ class FakeLlamaServer:
                 url = urlparse(self.path)
                 if url.path == "/completion":
                     time.sleep(fake.completion_delay)
+                    if fake.completion_gate is not None:
+                        fake.completion_gate.wait(60)
                     one = {"content": ".", "timings": {"prompt_n": len(body["prompt"]), "cache_n": 0}}
                     self._reply(200, one if body.get("n_cmpl", 1) == 1 else [one] * body["n_cmpl"])
                 elif url.path.startswith("/slots/") and parse_qs(url.query).get("action") == ["save"]:
@@ -245,6 +248,7 @@ def run(env):
                 "--slots", "2", "--prefix-file", str(env / "state" / "prefix.json"),
                 "--chat-template-file", str(env / "template.jinja"), "--model-file", str(env / "model.gguf"),
                 "--api-key-file", str(env / "brain.key"), "--poll", "0.05", "--record-every", "0.1",
+                "--min-free-gb", "0",                  # whatever the runner's disk holds (the check: Recorder tests)
                 *(("--slot-save-dir", str(env / "slots")) if record else ()), *extra]
         helper = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                                   env={**os.environ, **(env_extra or {})})
@@ -651,16 +655,142 @@ def test_a_capture_file_left_by_a_dead_helper_is_removed(run, env):
 
 
 def test_a_warm_up_that_outlives_its_bound_is_abandoned_and_recording_goes_on(run, env):
+    # The warm-up never answers while the test runs (no wall-clock window to race on a busy runner): recording the
+    # newer prefix proves the helper gave the request up at its bound.
     write_record(env, tokenize(PREFIX))
     newer = PREFIX.replace("Tools policy-filtered.", "Tools policy-filtered!")
+    gate = threading.Event()
     with FakeLlamaServer(env / "slots", slots=[{"id": 0, "id_task": 5, "text": rendered("cccc", prefix=newer)}],
-                         completion_delay=3.0) as fake:
-        proc = run(fake, extra=("--timeout", "0.5"))
-        t0 = time.monotonic()
-        assert wait_for(lambda: record_of(proc).get("tokens") == tokenize(newer))
-        assert time.monotonic() - t0 < 2.5                                     # did not wait the 3 s out
+                         completion_gate=gate) as fake:
+        try:
+            proc = run(fake, extra=("--timeout", "0.5"))
+            assert wait_for(lambda: record_of(proc).get("tokens") == tokenize(newer), timeout=30)
+            assert not gate.is_set()
+            log = stop(proc)
+        finally:
+            gate.set()
+    assert len(fake.seen("POST", "/completion")) == 1 and "gave up the warm-up" in log and "(timed out)" in log
+
+
+def test_a_slot_save_that_would_fill_the_disk_waits(run, env):
+    with FakeLlamaServer(env / "slots", slots=[{"id": 0, "id_task": 4, "text": rendered("aaaa")}]) as fake:
+        proc = run(fake, extra=("--min-free-gb", "1e9"))                     # more than any disk holds
+        assert wait_for(lambda: len(fake.seen("GET", "/slots")) >= 4)
         log = stop(proc)
-    assert len(fake.seen("POST", "/completion")) == 1 and "gave up" in log
+    assert not fake.seen("POST", "/slots/") and not proc["prefix_file"].exists()
+    assert log.count("GiB free in") == 1 and "recorded once there is room" in log
+
+
+def recorder(env, fake, **kw):
+    """The helper's recorder (step 3) in this process, against the fake server: one step() per read of GET /slots."""
+    m = load_module()
+    identity = {"template": m.template_id(str(env / "template.jinja")), "model": m.model_id(str(env / "model.gguf"))}
+    record, _ = m.read_record(env / "state" / "prefix.json", **identity)
+    return m, m.Recorder(m.Server("127.0.0.1", fake.port, KEY), prefix_file=env / "state" / "prefix.json",
+                         slot_save_dir=env / "slots", identity=identity, record=record, **kw)
+
+
+def test_the_recorder_runs_without_a_subprocess_one_read_per_step(env, capsys):
+    now = [100.0]
+    with FakeLlamaServer(env / "slots", slots=[{"id": 0, "id_task": 4, "text": rendered("aaaa")}]) as fake:
+        m, rec = recorder(env, fake, record_every=10.0, clock=lambda: now[0], free_bytes=lambda path: 2**40)
+        assert rec.due()
+        rec.step()
+        assert not rec.due()
+        now[0] += 10.0
+        assert rec.due()
+        rec.step()
+    assert len(fake.seen("GET", "/slots")) == 2 and len(fake.seen("POST", "/slots/")) == 1
+    assert json.loads((env / "state" / "prefix.json").read_text())["tokens"] == tokenize(PREFIX)
+    assert capsys.readouterr().err.count("recorded the latest OpenClaw prefix") == 1
+
+
+def test_slot_save_tries_are_kept_for_the_latest_prefixes_only(env):
+    with FakeLlamaServer(env / "slots", save_status=500) as fake:             # every save fails
+        m, rec = recorder(env, fake, free_bytes=lambda path: 2**40)
+        prefixes = [PREFIX.replace("Reminder", f"Reminder {i}") for i in range(m.KNOWN_PREFIXES + 4)]
+        for n, prefix in enumerate(prefixes):
+            fake.slots = [{"id": 0, "id_task": n, "text": rendered("aaaa", prefix=prefix)}]
+            for _ in range(m.CAPTURE_TRIES + 2):
+                rec.step()
+            assert len(rec.tries) <= m.KNOWN_PREFIXES
+    assert len(fake.seen("POST", "/slots/")) == len(prefixes) * m.CAPTURE_TRIES   # each prefix: its bounded tries
+    kept = [text for text, _ in rec.tries]
+    assert len(kept) == m.KNOWN_PREFIXES and f"Reminder {len(prefixes) - 1}" in kept[-1]
+    assert not [text for text in kept if "Reminder 0" in text]                   # the oldest prefixes are dropped
+
+
+def test_a_slot_is_saved_only_while_the_disk_keeps_room(env, capsys):
+    free = [2**20]
+    with FakeLlamaServer(env / "slots", slots=[{"id": 0, "id_task": 4, "text": rendered("aaaa")}]) as fake:
+        m, rec = recorder(env, fake, min_free_bytes=2**30, free_bytes=lambda path: free[0])
+        for _ in range(m.CAPTURE_TRIES + 2):                                  # low disk costs no try
+            rec.step()
+        assert not fake.seen("POST", "/slots/")
+        assert capsys.readouterr().err.count("0.0 GiB free in") == 1           # logged once, not every read
+        free[0] = 2**31
+        rec.step()
+    assert len(fake.seen("POST", "/slots/")) == 1 and (env / "state" / "prefix.json").exists()
+
+
+def test_min_free_gb_is_the_free_space_a_save_needs_before_it_starts(env, capsys):  # #403 review, Minor 3
+    """The check reads the free space BEFORE the save (exactly --min-free-gb free: it saves), and the save then writes
+    its slot file on top: the help and the low-disk log say "before", never that the save "leaves" that much."""
+    m = load_module()
+    with pytest.raises(SystemExit):
+        m.main(["--help"])
+    usage = " ".join(capsys.readouterr().out.split())
+    option = usage[usage.rindex("--min-free-gb MIN_FREE_GB"):]   # its entry under options, not the usage line
+    option = option[:option.index("--poll") if "--poll" in option else len(option)]
+    assert "free space --slot-save-dir needs before a slot save starts, else it waits" in option, option
+    assert "leaves" not in option
+    free = [2**20]
+    with FakeLlamaServer(env / "slots", slots=[{"id": 0, "id_task": 4, "text": rendered("aaaa")}]) as fake:
+        m, rec = recorder(env, fake, min_free_bytes=2**30, free_bytes=lambda path: free[0])
+        rec.step()
+        log = capsys.readouterr().err
+        assert "under the 1.0 GiB a slot save needs before it starts" in log and "leaves" not in log, log
+        free[0] = 2**30
+        rec.step()
+    assert len(fake.seen("POST", "/slots/")) == 1
+
+
+def test_free_space_that_cannot_be_read_counts_as_low(env):
+    def unreadable(path):
+        raise OSError("no such device")
+
+    with FakeLlamaServer(env / "slots", slots=[{"id": 0, "id_task": 4, "text": rendered("aaaa")}]) as fake:
+        m, rec = recorder(env, fake, free_bytes=unreadable)
+        rec.step()
+    assert not fake.seen("POST", "/slots/")
+
+
+def test_a_capture_file_written_late_is_removed_at_the_next_read(env):
+    with FakeLlamaServer(env / "slots") as fake:
+        m, rec = recorder(env, fake, free_bytes=lambda path: 2**40)
+        rec.step()
+        late = env / "slots" / "brain-warm-capture-31337.bin"               # a save the helper gave up on, written late
+        late.write_bytes(b"x" * 1024)
+        keep = env / "slots" / "other.bin"
+        keep.write_bytes(b"y")
+        rec.step()
+    assert not late.exists() and keep.exists()
+
+
+def test_task_zero_is_the_servers_first_task_not_a_missing_one():
+    m = load_module()
+    slots = [{"id": 0, "id_task": 0, "prompt": rendered("aaaa")}, {"id": 1, "prompt": rendered("bbbb")}]
+    assert [s["id"] for s in m.openclaw_slots(slots)] == [1, 0]            # the slot that ran task 0 is the latest
+
+
+def test_a_failed_record_write_keeps_the_old_record_and_leaves_no_temporary_file(tmp_path):
+    m = load_module()
+    target = tmp_path / "state" / "prefix.json"
+    m.write_record(target, {"tokens": [1, 2]})
+    with pytest.raises(TypeError):
+        m.write_record(target, {"tokens": [3], "unwritable": object()})
+    assert json.loads(target.read_text())["tokens"] == [1, 2]
+    assert [p.name for p in target.parent.iterdir()] == ["prefix.json"]
 
 
 def test_the_helper_ends_with_the_server_process_even_an_unreaped_one(tmp_path):

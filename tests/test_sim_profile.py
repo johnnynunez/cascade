@@ -204,7 +204,10 @@ def test_sim_retry_needs_the_observed_finger_gate(monkeypatch, gate):  # preflig
 def test_learning_surface_reads_its_own_switch_on_any_profile():
     for arm in ("isaac_kitchen_gpu", "rebot_rs"):
         cfg = load_demo_config(arm=arm)
-        assert learning_surface_enabled(cfg) is False  # default off (A9 sets the kitchen profile)
+        # off by default (configs/demo.yaml); A9 turns the kitchen profile on
+        assert learning_surface_enabled(cfg) is (arm == "isaac_kitchen_gpu")
+        cfg._data.setdefault("agent", {})["learning_surface"] = False
+        assert learning_surface_enabled(cfg) is False
         cfg._data.setdefault("agent", {})["learning_surface"] = True
         assert learning_surface_enabled(cfg) is True
         cfg._data["agent"]["learning_surface"] = "yes"

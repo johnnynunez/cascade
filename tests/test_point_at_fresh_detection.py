@@ -147,22 +147,19 @@ def test_a_look_again_on_a_stalled_camera_is_refused(rig, monkeypatch, stall):  
     rt = r.runtime
     _real_long_plan(monkeypatch)
     device = _Device(monkeypatch, rt)
-    stalls = []
+    localized = []
 
     def first_look(frame):
-        timer = threading.Timer(0.0 if stall == "at_the_localization" else 0.5, device.freeze)
-        timer.daemon = True
-        stalls.append(timer)
-        timer.start()
+        localized.append(time.monotonic())
+        device.freeze(None if stall == "at_the_localization" else localized[0] + 0.5)
 
     looks = _looks(monkeypatch, rt, after_first=first_look)
 
     out = rt.execute("point_at", {"label": "red cube"})
-    for timer in stalls:
-        timer.cancel()
 
     assert len(looks) == 2, "test setup: the target must be looked at again"
     assert looks[1].t == device.last.t, "test setup: the look again must get the stalled buffer"
+    assert (looks[1].t > localized[0]) == (stall != "at_the_localization"), "test setup: when it stalled"
     assert out["ok"] is False and _commands(r) == [] and r.jaws == [], out
     why = ("the image it was found on again was taken before the plan started" if stall == "at_the_localization"
            else "the image it was found on again was received during the plan, before this look started")
@@ -202,7 +199,9 @@ class _Device:
 
     - `stamp`: every render carries an Isaac-style producer capture whose clock
       advances one tick per render (`source` names the bridge);
-    - `freeze()`: the driver keeps handing back its last buffer, the same Frame;
+    - `freeze(at)`: the driver keeps handing back its last buffer, the same
+      Frame: from now on (`at` None), else from its first render at or after
+      monotonic time `at`;
     - `resend(frame)`: a bridge re-sends that capture (same pixels, same
       producer clock) in a NEW Frame per request, so `Frame.t`, the client's
       receipt time, is new on every delivery;
@@ -214,6 +213,7 @@ class _Device:
         self.stamp, self.source, self.clock = stamp, ("bridge", 5560), 5000.0
         self.last = None
         self.frozen = False
+        self.freeze_at = None
         self.resent = None
         self.by_stamp = {}
         monkeypatch.setattr(rt.camera._camera, "get_frame", self.get_frame)
@@ -231,11 +231,16 @@ class _Device:
                 frame.capture = _isaac_capture(self.clock, self.source)
                 self.by_stamp[self.clock] = frame
             self.last = frame
+            if self.freeze_at is not None and frame.t >= self.freeze_at:
+                self.frozen = True
         return frame
 
-    def freeze(self):
+    def freeze(self, at=None):
         with self._lock:
-            self.frozen = True
+            if at is None:
+                self.frozen = True
+            else:
+                self.freeze_at = at
 
     def resend(self, frame):
         """Re-send, from now on, the capture `frame` (an analysed image) was made from."""

@@ -74,8 +74,8 @@ class ArmFrame:
 def world_from_base(arm) -> np.ndarray | None:
     """The running arm's `T_world_base`: its harness's `base_pose`, or None.
 
-    Reads instance dicts only (the #352 `_mounted_off_table_origin` pattern):
-    a standby LazyArm is never materialized and a Mock never "has" a pose.
+    Reads instance dicts only, never an attribute probe: a standby LazyArm is
+    never materialized and a Mock never "has" a pose.
     No harness, no base_pose and the exact identity are None. Anything that is
     not a finite rigid 4x4 (last row [0, 0, 0, 1], R^T R = I within 1e-9,
     det R > 0) raises ArmFrameError: fail closed.

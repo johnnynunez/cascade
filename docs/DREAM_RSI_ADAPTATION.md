@@ -2,9 +2,10 @@
 
 **Next action:** inspect what the ASPIRE harvest would admit from your recorded kitchen sim runs,
 without writing notes (seconds; `runs/` is the CLI default and must hold reviewed sessions with
-`trace.jsonl`). Notes come only from runs whose `run.json` shows the sim retry ledger on (the
-kitchen sim at gate 1); every gate-0 and hardware run is skipped with a one-line reason and
-counted (`runs skipped`):
+`trace.jsonl`). Notes come only from live runs whose `run.json` shows the sim retry ledger on
+(the kitchen sim at gate 1) and `"purpose": "live"`; every gate-0 and hardware run, and every
+verify, acceptance or benchmark stack run (`CASCADE_RUN_PURPOSE` set), is skipped with a one-line
+reason and counted (`runs skipped`):
 
 ```bash
 uv run python scripts/learn_from_runs.py --runs runs --dry-run --report
@@ -60,6 +61,10 @@ a failed call (`REPAIR_WINDOW`). A candidate must pass all of these:
    every run whose `run.json` (and any earlier `run.<started>.json` a rebuild kept beside it) does
    not show `sim_retry: true` (`aspire.harvest_skip_reason`): a gate-0 or hardware run teaches
    nothing, stopped or not. A missing or unreadable record is skipped too.
+5. Only live runs teach: every one of those records must also read `"purpose": "live"`
+   (`CASCADE_RUN_PURPOSE` unset, empty or `live` on the robot server). A kitchen verify,
+   acceptance or benchmark stack runs at gate 1 with the ledger, but its run records `verify`,
+   `acceptance` or `unknown` and is skipped; so is a record with no `purpose`.
 
 ## Trace context and generated notes
 

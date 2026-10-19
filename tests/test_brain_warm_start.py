@@ -446,11 +446,13 @@ def test_a_slot_that_ran_another_request_before_it_was_saved_is_not_recorded(run
 def test_a_lone_session_keeps_what_earlier_sessions_shared(run, env):
     # One session this run, nothing to compare it with: the record keeps the shared text of earlier sessions.
     write_record(env, tokenize(PREFIX), ext(SHARED))
+    before = (env / "state" / "prefix.json").stat().st_mtime_ns
     with FakeLlamaServer(env / "slots", slots=[{"id": 0, "id_task": 4, "text": rendered("aaaa")}]) as fake:
         proc = run(fake)
         assert wait_for(lambda: len(fake.seen("GET", "/slots")) >= 4)
         stop(proc)
     assert not fake.seen("POST", "/slots/") and detokenize(record_of(proc)["extension"]) == SHARED
+    assert proc["prefix_file"].stat().st_mtime_ns == before      # nothing changed: the record is not rewritten
 
 
 def test_a_session_whose_system_turn_extends_another_shares_nothing_past_it(run, env):

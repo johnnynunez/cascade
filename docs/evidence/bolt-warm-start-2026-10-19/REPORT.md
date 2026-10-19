@@ -8,8 +8,9 @@ adds a warm start to `scripts/serve_nemotron_bolt_llamacpp.sh` (`scripts/brain_w
 **Brain alone** (controller rule after three hard host resets, each with a brain beside Isaac Newton). llama.cpp v0.7.0
 (`620d2225`), each tree's own `serve_nemotron_bolt_llamacpp.sh` from a `git archive` snapshot (2 slots x 64k, q8_0 KV,
 LiLiCorr drafter, `--load-mode none`) on 127.0.0.1:18499 with a scratch key, one request at a time, temperature 0,
-thinking off, streamed, `max_tokens` 1. Window 5 (`tools/warm5.sh`, 04:10-04:19) ran main and the final head in the
-same window. 0 Xid in all windows.
+thinking off, streamed, `max_tokens` 1. Window 5 (`tools/warm5.sh`, 04:10-04:19) ran main and the head in the same
+window; window 6 (`tools/warm6.sh`, 05:02-05:05) re-ran the first chats on the final code `3fde932`. 0 Xid in all
+windows.
 
 | Window 5 | main `4f137d2` | this PR |
 |---|---|---|
@@ -60,9 +61,9 @@ same window. 0 Xid in all windows.
 | | s | reused / prefilled tokens |
 |---|---|---|
 | main, windows 2-5 (6 starts) | 13.55, 13.60, 13.62, 13.66, 13.65, 13.76 | 0 / 13.6k |
-| this PR, no record yet (first chat on a host; records the prefix), windows 3-5 | 13.69, 13.64, 13.77 | 0 / 13.6k |
-| this PR, prefix only (one session recorded; this chat records what sessions share), windows 3-5 | 1.29, 1.31, 1.29, 1.27, 1.31 | 12,555 / ~1,035 |
-| **this PR, prefix + shared text**, windows 4-5 | **0.58, 0.58, 0.59, 0.61, 0.58, 0.58, 0.60** | 13,292 / ~300 |
+| this PR, no record yet (first chat on a host; records the prefix), windows 3-6 | 13.69, 13.64, 13.77, 13.55 | 0 / 13.6k |
+| this PR, prefix only (one session recorded; this chat records what sessions share), windows 3-6 | 1.29, 1.31, 1.29, 1.27, 1.31, 1.30 | 12,555 / ~1,035 |
+| **this PR, prefix + shared text**, windows 4-6 | **0.58, 0.58, 0.59, 0.61, 0.58, 0.58, 0.60, 0.57, 0.56** | 13,292 / ~300 |
 | this PR, after 12 perception inventories (window 4) | 0.65 | 13,292 / 298 |
 | this PR, the next day (date line changed; window 4) | 1.31 | 12,551 / 1,040 |
 | this PR, sent the moment `/health` answers (before the warm-up; window 4) | 13.74 | 0 / 13.6k (the warm-up waits for it: 26.1 s) |
@@ -103,13 +104,14 @@ near-equal prefixes) or a client-side `id_slot`; neither is cheap, so this PR le
 
 ## 3. Tests
 
-`tests/test_brain_warm_start.py` (34): a fake llama-server on an OS-assigned loopback port (character tokenizer,
+`tests/test_brain_warm_start.py` (39): a fake llama-server on an OS-assigned loopback port (character tokenizer,
 `clean_spaces`-style `/slots` text, slot files in llama.cpp's format) and a child process standing in for the server
 PID. Readiness first, both warm-up steps and their bodies, records from the server's own tokens (not the cleaned text),
 what two sessions share (rendered by cascade's real template; a third session starts with exactly those tokens),
 ids that start alike, follow-ups of one session, pairing across a restart, a new day, alternating agents (one save
 each), a slot reused before its save, saves only while idle, long slots, failing saves (bounded), unusable or foreign
-records, 0600 records, stale capture files, the warm-up bound, a zombie server PID. `tests/test_nemotron_bolt_llamacpp.py`:
+records, 0600 records, stale capture files, the warm-up bound, a zombie server PID, image placeholder tokens, no HTTP
+proxy, unreadable shared text. `mutate.sh` on 32 guards of the helper and the serve script: all KILLED. `tests/test_nemotron_bolt_llamacpp.py`:
 the helper's argv (port, slots, server PID, template, model, key file, slot-save dir), `--slot-save-path` and
 `LLAMA_SERVER_SLOTS_DEBUG` only with the warm start, `WARM_START=0` serves main's argv, a server without
 `--slot-save-path` is refused unless `WARM_START=0`.
@@ -118,6 +120,7 @@ the helper's argv (port, slots, server PID, template, model, key file, slot-save
 
 `tools/warm5.sh <main snapshot> <head snapshot>` as a systemd user unit while holding the brain-gpu lock (brain alone);
 `tools/bench_warm.py` (first / nextday / slots / perception), `tools/warm4.sh` (window 4: next day, early, perception).
-Commits measured: window 2 = `1d1487e` (text record), window 3 = `3de2d25` (tokens, prefix only), window 4 =
-`d05555c` (+ shared text), window 5 = `8a165f7` (saves only while idle; the code of this PR). Raw JSON and the
-driver's log per window in `results/`.
+Commits measured (the logs name them by their pre-rebase SHAs `ff98dae`, `3157aa7`, `b0e5184`): window 2 =
+`1d1487e` (text record), window 3 = `3de2d25` (tokens, prefix only), window 4 = `d05555c` (+ shared text), window 5 =
+`8a165f7` (saves only while idle), window 6 = `3fde932` (the code of this PR: mutation-test fixes, two dead branches
+removed). Raw JSON and the driver's log per window in `results/`.

@@ -91,7 +91,9 @@ def test_a_hung_core_speed_helper_is_the_only_one_and_ends_with_its_hang(monkeyp
     cpus = sorted(os.sched_getaffinity(0))
     fast = cpus[-1]
     _one_fast_core(monkeypatch, fast)
-    monkeypatch.setattr(core_speed, "PER_CORE_S", 0.05)
+    # long enough for its helper to reach its work on a loaded runner: the
+    # hang must happen inside the search
+    monkeypatch.setattr(core_speed, "PER_CORE_S", 0.5)
     _join_probe_helpers()
     assert not _probe_threads(), "test setup: no helper left by an earlier test"
     gate = threading.Event()

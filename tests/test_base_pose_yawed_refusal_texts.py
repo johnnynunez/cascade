@@ -10,9 +10,13 @@ refused TCP lay INSIDE the quoted range. Now:
   corners (lo <= hi on every axis);
 - when the mount turns the box by a quarter turn (or not at all) those bounds
   ARE the box: the text says no more, and a refused TCP lies outside them;
-- otherwise (yaw 45, a tilt) the text adds why: the bounds are of a box this
-  arm's base_pose rotates, quoted in the arm's base frame together with the
-  TCP there (a workspace refusal: outside that box);
+- otherwise (yaw 45, a tilt) the text says the base_pose rotates the box and
+  quotes it in the arm's base frame FIRST, together with the TCP there (a
+  workspace refusal: outside that box), then the table-frame bounds: the
+  agent's FAILED line keeps only the first 240 characters of the error, and
+  the base-frame numbers decide (#412 review Minor 4);
+- a quarter turn written with rounded numbers (yaw 1.5708) is a quarter turn
+  (#412 review Minor 3);
 - an arm without base_pose reads exactly as before, and a mount that only
   shifts / raises quotes the same numbers as main (its corners are the bounds).
 
@@ -28,7 +32,13 @@ import re
 
 import numpy as np
 import pytest
-from base_pose_oracle import lift, transform
+from base_pose_oracle import (  # noqa: F401  (make_runtime: the fixture, by name)
+    lift,
+    make_runtime,
+    moved_cfg,
+    raised_table,
+    transform,
+)
 
 WS_LO, WS_HI = np.array([0.10, -0.30, 0.00]), np.array([0.40, 0.30, 0.40])
 KO_LO, KO_HI = np.array([0.20, -0.05, 0.00]), np.array([0.30, 0.05, 0.20])
@@ -53,9 +63,14 @@ def corner_bounds(T, lo, hi):
     return lifted.min(axis=0), lifted.max(axis=0)
 
 
+#: A rotation within this of turning axes onto axes (per matrix entry) is a
+#: quarter turn: yaw 1.5708 is 3.7e-6 off pi/2, 4.7124 is 1.1e-5 off 3 pi/2.
+QUARTER_TURN_TOL = 1e-4
+
+
 def _turns_axes_onto_axes(T) -> bool:
     R = np.abs(np.asarray(T, dtype=float)[:3, :3])
-    return bool(np.allclose(R, np.round(R), rtol=0.0, atol=1e-9))
+    return bool(np.allclose(R, np.round(R), rtol=0.0, atol=QUARTER_TURN_TOL))
 
 
 def box_text(kind, T, lo, hi, tcp=None) -> str:
@@ -63,22 +78,22 @@ def box_text(kind, T, lo, hi, tcp=None) -> str:
     box [lo, hi] (`kind` "workspace": the refused base-frame `tcp`)."""
     lo_w, hi_w = corner_bounds(T, lo, hi)
     if kind == "workspace":
-        text = f"TCP {_q(lift(T, tcp))} outside workspace [{_q(lo_w)} .. {_q(hi_w)}]"
-        if not _turns_axes_onto_axes(T):
-            text += (" (table-frame bounds of this arm's workspace, which its base_pose rotates: in the arm's "
-                     f"base frame it is [{_q(lo)} .. {_q(hi)}] and the TCP is at {_q(tcp)})")
-        return text
-    text = f"TCP inside keep-out zone {_q(lo_w)}..{_q(hi_w)}"
-    if not _turns_axes_onto_axes(T):
-        text += (" (table-frame bounds of this arm's keep-out zone, which its base_pose rotates: in the arm's "
-                 f"base frame it is {_q(lo)}..{_q(hi)})")
-    return text
+        if _turns_axes_onto_axes(T):
+            return f"TCP {_q(lift(T, tcp))} outside workspace [{_q(lo_w)} .. {_q(hi_w)}]"
+        return (f"TCP {_q(lift(T, tcp))} outside workspace (its base_pose rotates it: in the arm's base frame the TCP "
+                f"{_q(tcp)} is outside [{_q(lo)} .. {_q(hi)}]; table-frame bounds [{_q(lo_w)} .. {_q(hi_w)}])")
+    return f"TCP inside keep-out {zone_text(T, lo, hi)}"
 
 
 def zone_text(T, lo, hi) -> str:
-    """The keep-out zone as a wrist-camera refusal quotes it ("zone <lo>..<hi>"
-    plus the base-frame note on a mount that does not turn axes onto axes)."""
-    return box_text("keep_out", T, lo, hi).removeprefix("TCP inside keep-out ")
+    """A keep-out zone as a refusal quotes it ("zone <lo>..<hi>"): its
+    table-frame bounds, or, on a mount that does not turn axes onto axes, the
+    zone in the arm's base frame first, then those bounds."""
+    lo_w, hi_w = corner_bounds(T, lo, hi)
+    if _turns_axes_onto_axes(T):
+        return f"zone {_q(lo_w)}..{_q(hi_w)}"
+    return (f"zone {_q(lo)}..{_q(hi)} in the arm's base frame (its base_pose rotates it; table-frame bounds "
+            f"{_q(lo_w)}..{_q(hi_w)})")
 
 
 def assert_text_close(actual: str, expected: str, atol: float = 1.1e-3) -> None:
@@ -145,7 +160,7 @@ def test_a_yawed_raised_workspace_refusal_says_why_the_tcp_is_inside_its_bounds(
     assert np.all(tcp_w >= lo_w) and np.all(tcp_w <= hi_w), "the case: the TCP is inside the table-frame bounds"
     text = h._workspace_refusal(tcp)
     assert text == box_text("workspace", T, WS_LO, WS_HI, tcp)
-    q_tcp_w, q_lo_w, q_hi_w, q_lo, q_hi, q_tcp = _quoted(text)
+    q_tcp_w, q_tcp, q_lo, q_hi, q_lo_w, q_hi_w = _quoted(text)
     assert np.all(q_lo_w <= q_hi_w) and np.all(q_lo <= q_hi), text
     assert np.allclose(q_tcp_w, tcp_w, atol=5e-4) and np.allclose(q_tcp, tcp, atol=5e-4)
     assert np.any(q_tcp < q_lo) or np.any(q_tcp > q_hi), "the base-frame TCP is outside the base-frame box"
@@ -156,7 +171,7 @@ def test_a_yawed_raised_keep_out_refusal_names_the_zone_in_the_base_frame():
     h, T = _harness(YAW45_RAISED), transform(YAW45_RAISED)
     text = h._keep_out_refusal(KO_LO, KO_HI)
     assert text == box_text("keep_out", T, KO_LO, KO_HI)
-    lo_w, hi_w, lo, hi = _quoted(text)
+    lo, hi, lo_w, hi_w = _quoted(text)
     assert np.all(lo_w <= hi_w)
     np.testing.assert_allclose(lo, KO_LO)
     np.testing.assert_allclose(hi, KO_HI)
@@ -177,3 +192,162 @@ def test_without_a_base_pose_the_texts_are_unchanged():
     assert h._workspace_refusal(tcp) == (f"TCP {np.round(tcp, 3).tolist()} outside workspace "
                                          f"[{WS_LO.tolist()} .. {WS_HI.tolist()}]")
     assert h._keep_out_refusal(KO_LO, KO_HI) == f"TCP inside keep-out zone {KO_LO.tolist()}..{KO_HI.tolist()}"
+
+
+# ── #412 review Minor 3: a rounded quarter turn is a quarter turn ─────────
+
+
+#: quarter turns as a config writes them (4 decimals), with the exact turn
+_ROUNDED_QUARTER_TURNS = {
+    "yaw1.5708": ([0.0, -0.22, 0.0, 0.0, 0.0, 1.5708], math.pi / 2),
+    "yaw-1.5708": ([0.0, 0.22, 0.0, 0.0, 0.0, -1.5708], -math.pi / 2),
+    "yaw3.1416": ([0.5, 0.0, 0.02, 0.0, 0.0, 3.1416], math.pi),
+    "yaw4.7124": ([0.0, 0.22, 0.0, 0.0, 0.0, 4.7124], 3 * math.pi / 2),
+}
+
+
+@pytest.mark.parametrize("name", list(_ROUNDED_QUARTER_TURNS))
+def test_a_quarter_turn_written_with_rounded_numbers_is_quoted_as_one(name):
+    """main's exactness tolerance was 1e-9, so yaw 1.5708 (3.7e-6 off pi/2)
+    counted as rotated and got the longer base-frame text. It reads as the
+    exact quarter turn does now, and every refused TCP lies outside the
+    quoted box."""
+    from cascade.safety.harness import table_frame_bounds
+
+    pose, exact_yaw = _ROUNDED_QUARTER_TURNS[name]
+    h, T = _harness(pose), transform(pose)
+    T_exact = transform([*pose[:5], exact_yaw])
+    assert table_frame_bounds(T, WS_LO, WS_HI)[2] is True
+    for tcp in _OUTSIDE:
+        text = h._workspace_refusal(tcp)
+        assert "rotates" not in text, text
+        assert_text_close(text, box_text("workspace", T_exact, WS_LO, WS_HI, tcp))
+        tcp_w, lo, hi = _quoted(text)
+        assert np.any(tcp_w < lo - 1e-3) or np.any(tcp_w > hi + 1e-3), text
+    text = h._keep_out_refusal(KO_LO, KO_HI)
+    assert "rotates" not in text, text
+    assert_text_close(text, box_text("keep_out", T_exact, KO_LO, KO_HI))
+
+
+def test_a_turn_a_little_more_than_rounding_off_a_quarter_turn_is_rotated():
+    """3e-4 rad off pi/2 is no rounding of it: the text says the base_pose
+    rotates the box (the tolerance is pinned from both sides)."""
+    pose = [0.0, -0.22, 0.0, 0.0, 0.0, math.pi / 2 + 3e-4]
+    text = _harness(pose)._workspace_refusal(_OUTSIDE[1])
+    assert "its base_pose rotates it" in text, text
+
+
+# ── #412 review Minor 4: the agent's 240-character FAILED line ─────────────
+
+#: what each site puts before the harness's text, and after it
+_SITES = {
+    "move_relative": ("refused by the safety harness: ", ". The arm did not move."),
+    "execute": ("SafetyViolation: ", ""),
+    "wrist_camera": ("refused by the wrist-camera rule: the wrist camera (it sticks out 4.5 cm above the gripper) "
+                     "would enter keep-out zone ", ". The arm did not move."),
+}
+
+#: mounts that rotate the box (the r412 review's rows), and a long-number one
+_ROTATED = {
+    "yaw23": [0.03, -0.22, 0.0, 0.0, 0.0, 0.4],
+    "yaw45": [0.1, 0.2, 0.0, 0.0, 0.0, math.pi / 4],
+    "yaw45_raised": YAW45_RAISED,
+    "yaw-45_raised": [0.1, 0.2, 0.05, 0.0, 0.0, -math.pi / 4],
+    "yaw135_raised": [0.3, 0.1, 0.02, 0.0, 0.0, 3 * math.pi / 4],
+    "roll10": [0.0, 0.0, 0.05, math.radians(10), 0.0, 0.0],
+    "long_numbers": [-0.513, -0.377, 0.041, 0.0, 0.0, -2.2],
+}
+
+
+def _failed_quote(error: str) -> str:
+    """What the agent's FAILED line quotes of `error` (cut at 240 characters:
+    up to the cut marker)."""
+    from cascade.skills.runtime import FAILED_INSTRUCTION, _with_failure_instruction
+
+    line = _with_failure_instruction({"ok": False, "error": error})["next_action"]
+    m = re.match(rf"{FAILED_INSTRUCTION}: (.*?) Tell the user it failed;", line)
+    assert m, line
+    quoted = m.group(1)
+    if "(truncated; see error)" in quoted:
+        quoted = quoted.split(" (truncated; see error)")[0]
+        assert " ".join(error.split()).startswith(quoted), (quoted, error)
+    return quoted
+
+
+def _assert_keeps_the_base_frame(error: str, whole, words: str) -> None:
+    """The FAILED line quotes `words` and every point in `whole` (the
+    base-frame numbers that decide, computed from the box itself) whole, and
+    every [x, y, z] it quotes whole is the error's own: a cut falls only in
+    the table-frame bounds after them, or after every number."""
+    quoted = _failed_quote(error)
+    assert words in quoted, (quoted, error)
+    for point in whole:
+        assert str(_q(point)) in quoted, (_q(point), quoted, error)
+    vectors = _VEC.findall(error)
+    assert _VEC.findall(quoted) == vectors[:len(_VEC.findall(quoted))], (quoted, error)
+
+
+@pytest.mark.parametrize("mount", list(_ROTATED))
+def test_the_failed_line_keeps_a_rotated_mounts_base_frame_numbers(mount):
+    """#412 review Minor 4: the rotated-mount texts ran to ~330 characters, and
+    the agent's FAILED line (240 characters of the error) cut them inside the
+    base-frame note: \"...in the arm's base frame it is [[0.1, -0.3,
+    (truncated; see error)\". The base-frame box (and the TCP there) now come
+    first: the FAILED line keeps them whole at every site, also with long
+    numbers, and a cut falls only in the table-frame bounds after them."""
+    from cascade.safety.harness import SafetyHarness, SafetyLimits, table_frame_zone_text
+
+    rng = np.random.default_rng(412)
+    T = transform(_ROTATED[mount])
+    for _ in range(40):
+        # 3-decimal negatives: the longest numbers a text quotes
+        lo = np.round(rng.uniform(-0.6, 0.2, 3), 3)
+        hi = np.round(lo + rng.uniform(0.05, 0.7, 3), 3)
+        ws_lo, ws_hi = np.round(rng.uniform(-0.6, 0.0, 3), 3), np.round(rng.uniform(0.3, 0.9, 3), 3)
+        h = SafetyHarness(SafetyLimits(ws_lo, ws_hi, table_z=0.0, table_clearance=0.02, keep_out=[(lo, hi)]),
+                          None, base_pose=T)
+        tcp = ws_lo
+        while np.all(tcp >= ws_lo) and np.all(tcp <= ws_hi):
+            tcp = np.round(rng.uniform(ws_lo - 0.2, ws_hi + 0.2), 3)
+        ws = h._workspace_refusal(tcp)
+        assert ws == box_text("workspace", T, ws_lo, ws_hi, tcp)
+        for site in ("move_relative", "execute"):
+            before, after = _SITES[site]
+            _assert_keeps_the_base_frame(before + ws + after, [tcp, ws_lo, ws_hi],
+                                         "outside workspace (its base_pose rotates it: in the arm's base frame the TCP")
+            _assert_keeps_the_base_frame(before + h._keep_out_refusal(lo, hi) + after, [lo, hi],
+                                         "in the arm's base frame (its base_pose rotates it")
+        before, after = _SITES["wrist_camera"]
+        _assert_keeps_the_base_frame(before + table_frame_zone_text(T, lo, hi) + after, [lo, hi],
+                                     "in the arm's base frame (its base_pose rotates it")
+
+
+_E2E = {k: _ROTATED[k] for k in ("yaw23", "yaw45_raised", "yaw-45_raised", "yaw135_raised")}
+
+
+@pytest.mark.parametrize("mount", list(_E2E))
+def test_a_rotated_mounts_move_relative_refusal_keeps_its_numbers_on_the_failed_line(make_runtime, mount):  # noqa: F811
+    """The r412 review's end-to-end rows: move_relative 10 cm forward on the
+    mock at these mounts is refused by the workspace. main's FAILED line cut
+    the base-frame note (\"...in the arm's base frame it is [[0.1, -0.3,
+    (truncated; see error)\"); it keeps the TCP in both frames and the
+    base-frame box whole now, and `error` keeps every number."""
+    pose = _E2E[mount]
+    cfg = moved_cfg("mock", pose)
+    if pose[2] != 0:
+        raised_table(cfg)
+    cfg._data["relative_motion"]["wrist_camera"] = None
+    rt = make_runtime(cfg)
+
+    out = rt.execute("move_relative", {"direction": "forward", "frame": "base", "distance_m": 0.10})
+
+    assert out["ok"] is False and out.get("refused_by") == "safety_harness", out
+    error = " ".join(out["error"].split())
+    assert error.startswith("refused by the safety harness: TCP ") and "outside workspace" in error, error
+    assert len(_VEC.findall(error)) == 6, error
+    quoted = _failed_quote(error)
+    assert out["next_action"].startswith(f"This attempt FAILED: {quoted}"), out["next_action"]
+    limits = rt.arm.harness.limits
+    tcp_table = np.array(_VEC.findall(error)[0], dtype=float)
+    _assert_keeps_the_base_frame(error, [tcp_table, limits.workspace_min, limits.workspace_max],
+                                 "outside workspace (its base_pose rotates it: in the arm's base frame the TCP")

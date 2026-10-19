@@ -586,8 +586,9 @@ def test_a_target_not_found_again_after_a_long_plan_is_refused(rig, monkeypatch)
 
     assert len(calls) == 2
     assert out["ok"] is False and _commands(r) == [] and r.jaws == [], out
-    assert "planning took 4.0 s, and looking at it again before the first command failed (SkillError: No " \
-           "current visual match for 'red cube'); nothing was moved" in out["error"], out
+    assert "cannot point at 'red cube': it was not seen again after a long plan (4.0 s): SkillError: No current " \
+           "visual match for 'red cube'; point_at moves only on a detection newer than the plan, never toward " \
+           "where it was before; nothing was moved" in out["error"], out
 
 
 @needs_pin

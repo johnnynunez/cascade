@@ -76,10 +76,14 @@ holding: the payload in the jaws is not modelled, so that start refuses.
 Planning runs against a budget (`Budget`): PLAN_BUDGET_S of the planning
 thread's CPU time (stretched on a core slower than the host's fastest,
 `core_factor`) and PLAN_WALL_S of wall time; past either, point_at refuses.
-Planning that took longer than FRESH_PLAN_S of wall time looks at the target
-again before the first command (`fix_moved_m`): moved more than FRESH_MOVE_M,
-it is planned once more from where it is now, on what is left of the same
-budget, and refused if it moved again; never a move toward a stale pose.
+When more than FRESH_PLAN_S of wall time passed between the target's
+localization and the end of planning (the budget's core-speed search
+included), point_at looks at the target again before the first command, on a
+detection newer than the plan only (never the remembered belief, never an
+image from before the plan: not seen again, it refuses); moved more than
+FRESH_MOVE_M (`fix_moved_m`), it is planned once more from where it is now,
+on what is left of the same budget, and refused if it moved again; never a
+move toward a stale pose.
 
 The jaws close (`Route.close_at`) at the first pose of the route where their
 `sweep` samples keep `margin` from the target, every neighbour and the table
@@ -163,8 +167,10 @@ PLAN_WALL_S = 8.0
 #: a core within this ratio of the fastest counts as it (timing noise)
 SLOWER_CORE_MIN = 1.25
 #: Up to PLAN_WALL_S can pass between the target's localization and the
-#: first command. Planning that took longer than this (s, wall) looks at the
-#: target again before that command (#399 review Minor 3, `fix_moved_m`) ...
+#: first command. When longer than this (s, wall, from the localization: the
+#: budget's core-speed search counts, #406 review Minor 1) passed, point_at
+#: looks at the target again before that command (#399 review Minor 3,
+#: `fix_moved_m`), on a detection newer than the plan (#406 review) ...
 FRESH_PLAN_S = 3.0
 #: ... and plans once more, from where it is now, when it moved more than
 #: this (m: its centre or its observed top), the pose's own aim tolerance

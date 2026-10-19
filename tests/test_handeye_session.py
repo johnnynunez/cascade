@@ -47,7 +47,7 @@ class FakeHarness:
         self.log.add("vet", key)
         return "TCP outside workspace" if key in self.veto else None
 
-    def heartbeat(self):
+    def heartbeat(self, at=None):
         self.heartbeats += 1
         self.log.add("heartbeat")
 

@@ -30,6 +30,7 @@ escape vertically.
 
 from __future__ import annotations
 
+import math
 import sys
 import time
 import threading
@@ -169,6 +170,10 @@ ESCAPE_NOTE = " (inside the margin: only a strictly retreating step is allowed)"
 ESCAPE_SAMPLE_VOXEL_M = 0.01
 #: At most this many interior configurations per escaping step.
 ESCAPE_MAX_INTERIOR_SAMPLES = 16
+
+#: Serializes `SafetyHarness.heartbeat`'s read-compare-write (the watcher
+#: thread and the skill runtime both beat; one module lock, held for a compare).
+_HEARTBEAT_LOCK = threading.Lock()
 
 
 class GateCtx(NamedTuple):
@@ -351,9 +356,32 @@ class SafetyHarness:
 
     # ── state management ─────────────────────────────────────────────────
 
-    def heartbeat(self) -> None:
-        """Call whenever fresh perception arrives."""
-        self._last_heartbeat = time.monotonic()
+    def heartbeat(self, at: float | None = None) -> None:
+        """Mark perception fresh as of `at`, the client-monotonic time the
+        observation ARRIVED (`perception.freshness.observed_at(frame)`; None:
+        now, for a caller with no frame in hand).
+
+        The watchdog's age is the age of the NEWEST observation: an older
+        stamp never moves it back, and a stamp that is not a finite number, or
+        lies in the future, is ignored. A dead camera's last frame, which
+        `CameraStream.get_frame` returns again after its wait whatever its age
+        (and a driver that repeats its last buffer), therefore never re-arms
+        the watchdog: before this rule every such grab counted as "now"."""
+        now = time.monotonic()
+        if at is None:
+            at = now
+        else:
+            try:
+                at = float(at)
+            except (TypeError, ValueError):
+                return
+            if not math.isfinite(at) or at > now:
+                return
+        with _HEARTBEAT_LOCK:
+            # max(): the watcher thread and the runtime beat concurrently, and
+            # an older frame processed later must not age the newer beat.
+            if at > self._last_heartbeat:
+                self._last_heartbeat = at
 
     def estop(self, reason: str = "manual") -> None:
         with self._observation_lock:

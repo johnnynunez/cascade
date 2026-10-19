@@ -45,6 +45,13 @@ class Frame:
     # Body masking must not substitute a newer pose for this observation.
     robot_joint_positions: dict[str, np.ndarray] | None = None
 
+    # Client-monotonic receipt of the FIRST delivery of this frame's producer
+    # capture, set by CameraStream when a producer (an Isaac bridge) delivers a
+    # capture it already delivered under a new Frame and receipt time `t`; None:
+    # `t` is that first receipt. `freshness.observed_at` reads it: a re-delivered
+    # capture never makes the perception watchdog fresher.
+    observed_t: float | None = None
+
     @property
     def has_depth(self) -> bool:
         return self.depth_m is not None

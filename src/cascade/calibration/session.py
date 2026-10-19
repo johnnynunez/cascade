@@ -41,6 +41,7 @@ from pathlib import Path
 
 import numpy as np
 
+from ..perception.freshness import observed_at
 from ..types import MotionHalted, SafetyViolation, SkillError, pose_to_transform
 from .dataset import MarkerSpec
 from .handeye import EYE_TO_HAND, MODES, HandEyeSample
@@ -177,7 +178,9 @@ class CollectionSession:
         except CameraError as e:
             self.log(f"[calib] camera: {e}")
             return None
-        self.harness.heartbeat()
+        # At the frame's arrival time: a driver that hands back an old frame
+        # never makes the watchdog fresher than that frame.
+        self.harness.heartbeat(at=observed_at(frame))
         self.last_frame = frame
         return frame
 

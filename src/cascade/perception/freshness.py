@@ -41,6 +41,25 @@ def capture_marker(frame) -> dict:
     return {"channel": "local_frame", "clock": "client_monotonic", "t": timestamp}
 
 
+def observed_at(frame) -> float:
+    """Client-monotonic time this observation first ARRIVED, for the
+    perception watchdog (`SafetyHarness.heartbeat(at=...)`).
+
+    `Frame.t` is the client receipt of this delivery; a producer that
+    re-delivers a capture gets a new `t` each time, so CameraStream records the
+    first receipt of that capture in `Frame.observed_t`. A producer's own
+    capture clock is never used: it may be remote and is never comparable with
+    the client's monotonic(). NaN (ignored by the heartbeat: fail closed) for a
+    frame that carries no usable stamp."""
+    stamp = getattr(frame, "observed_t", None)
+    if stamp is None:
+        stamp = getattr(frame, "t", None)
+    try:
+        return float(stamp)
+    except (TypeError, ValueError):
+        return math.nan
+
+
 def newer_capture(frame, previous) -> bool:
     current, prior = capture_marker(frame), capture_marker(previous)
     current_t, prior_t = current.pop("t"), prior.pop("t")

@@ -40,6 +40,7 @@ from ..memory import BeliefStore, EpisodicMemory, FrameObservation
 from ..memory.beliefs import camera_source
 from ..perception.colors import detection_color, parse_color_query
 from ..perception.detector import can_reanchor, detect_vocabulary
+from ..perception.freshness import observed_at
 from ..perception.reference import ReferenceResolutionError, parse_reference
 from typing import TYPE_CHECKING, Any, Callable
 
@@ -1408,6 +1409,12 @@ class SkillRuntime:
     #: runtimes that way and only set the handful of fields they exercise.
     _arm = None
     _arm_override = None
+    #: ((camera stream, watchdog feed), ...) per rig camera, set by
+    #: `apps.demo.build_runtime` (#412's `WatchedCamera.watchdog_feed`): whose
+    #: perception watchdogs a frame of that camera may keep fresh. A feed of
+    #: None (one arm), an unlisted camera or a runtime built any other way:
+    #: the running arm's own harness (`_mark_perception_fresh`).
+    _watchdog_feeds = ()
     _motion_scope = None
     motion_cancel_requested = None
     arm_rig = None
@@ -3179,8 +3186,31 @@ class SkillRuntime:
             if not np.isfinite(age) or age < 0 or age > watchdog_s:
                 raise RuntimeError(f"camera frame is stale or invalid (age {age:.3f}s)")
         self.last_frame = frame
-        self.arm.harness.heartbeat()
+        self._mark_perception_fresh(frame)
         return frame
+
+    def _watchdog_feed_of(self, camera):
+        """Whose perception watchdogs a frame of `camera` keeps fresh: the
+        camera's per-arm feed on a multi-arm rig (a fixed camera: every arm; an
+        eye-in-hand camera: the arm it rides on; a `role: wrist` view: none),
+        else the running arm's harness (one arm: unchanged)."""
+        for stream, feed in self._watchdog_feeds:
+            if stream is camera and feed is not None:
+                return feed
+        return self.arm.harness
+
+    def _mark_perception_fresh(self, frame: Frame, camera=None) -> None:
+        """Every runtime frame grab that feeds the perception watchdog goes
+        through here (`camera`: the frame's camera, the primary by default).
+
+        The beat carries the frame's arrival time (`observed_at`), never the
+        time of the grab: `CameraStream.get_frame` returns a dead camera's
+        last frame again after its wait, of any age, and on main execute()'s
+        BEFORE / AFTER frames and every in-skill observe() then re-armed the
+        watchdog, so an arm with a dead camera kept moving. The feed is the
+        camera's own (`_watchdog_feed_of`): in-skill frame grabs never keep an
+        arm alive from a camera that does not watch it."""
+        self._watchdog_feed_of(self.camera if camera is None else camera).heartbeat(at=observed_at(frame))
 
     def _wrist_streams(self) -> list[tuple[str, Any]]:
         """`(name, stream)` for every rig camera whose profile is a wrist view
@@ -3238,7 +3268,7 @@ class SkillRuntime:
         frame = _fresh_camera_frame(self.camera, self.last_frame)
         frame = self.depth.ensure_depth(frame)
         self.last_frame = frame
-        self.arm.harness.heartbeat()
+        self._mark_perception_fresh(frame)
         return frame
 
     def backends(self) -> dict:
@@ -4549,7 +4579,7 @@ class SkillRuntime:
         def primary_frame1(frame0):
             fresh = self.depth.ensure_depth(_fresh_camera_frame(self.camera, previous=frame0))
             self.last_frame = fresh
-            self.arm.harness.heartbeat()
+            self._mark_perception_fresh(fresh)
             return self._frame_in_arm(fresh)
 
         tries = int(loop_cfg.get("localize_frames", 3))
@@ -9792,7 +9822,7 @@ class SkillRuntime:
                     recovery_generation = self._refresh_halt_generation
                     out["retained_anchor_refresh"] = occupancy.last_capture_refresh
                 self.last_frame = self.depth.ensure_depth(observed[0][2])
-                self.arm.harness.heartbeat()
+                self._mark_perception_fresh(self.last_frame)  # observed[0]: the primary camera
                 out["geometry_recovered"] = True
             except Exception as e:  # noqa: BLE001
                 out.update(ok=False, stage="reset_recovery", home_skipped=True,
@@ -9940,7 +9970,7 @@ class SkillRuntime:
                 if recovery_cancelled():
                     return out
                 self.last_frame = frame
-                self.arm.harness.heartbeat()
+                self._mark_perception_fresh(frame)  # observed[0]: the primary camera
                 obs = self._describe_observation(frame)
                 if recovery_cancelled():
                     return out

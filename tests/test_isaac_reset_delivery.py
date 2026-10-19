@@ -289,7 +289,7 @@ def _runtime(arm, physics, demo_cfg, tmp_path):
         # 1.0 reads CLOSED on the mock profile (open_pos 0.0): reset_scene
         # opens closed empty jaws (PR-A jaws round), recorded here.
         set_gripper=lambda pos, effort=1.0, **_kw: jaws.append(float(pos)), jaws=jaws,
-        harness=SimpleNamespace(heartbeat=lambda: None))
+        harness=SimpleNamespace(heartbeat=lambda at=None: None))
     return SkillRuntime(
         camera=SimpleNamespace(get_frame=camera_frame),
         depth_provider=SimpleNamespace(ensure_depth=lambda frame: frame),

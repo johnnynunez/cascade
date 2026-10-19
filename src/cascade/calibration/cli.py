@@ -204,11 +204,12 @@ def _cleanup(rig: Rig | None, *, park: bool) -> None:
     from types import SimpleNamespace
 
     from ..apps.demo import _park_arm
+    from ..perception.freshness import observed_at
 
     if park:
         try:
-            rig.camera.get_frame()
-            rig.safe_arm.harness.heartbeat()
+            frame = rig.camera.get_frame()
+            rig.safe_arm.harness.heartbeat(at=observed_at(frame))
         except Exception as e:
             print(f"[calib] no camera frame before park ({e}); the watchdog may refuse it")
         _park_arm(SimpleNamespace(arm=rig.safe_arm))

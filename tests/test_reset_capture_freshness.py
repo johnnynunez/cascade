@@ -67,7 +67,7 @@ def runtime(cam):
     rt = object.__new__(SkillRuntime)
     spawn = [0.18, -0.03, 0.04]
     reply = {'ok': True, 'props_reset': ['green_cube'], 'reset_verification': {'channel': 'physics', 'frame': 'robot_base', 'tolerance_m': 0.02, 'props': {'green_cube': {'spawn_position_m': spawn, 'position_m': spawn, 'error_m': 0.0, 'finite': True, 'within_tolerance': True}}}}
-    rt._arm = SimpleNamespace(raw=SimpleNamespace(connected=False, reset_props=lambda: deepcopy(reply)), harness=SimpleNamespace(heartbeat=lambda: None))
+    rt._arm = SimpleNamespace(raw=SimpleNamespace(connected=False, reset_props=lambda: deepcopy(reply)), harness=SimpleNamespace(heartbeat=lambda at=None: None))
     rt._arm_override = threading.local()
     rt.arm_rig = None
     rt.camera, rt.depth = (cam, SimpleNamespace(ensure_depth=lambda frame: frame))
@@ -305,7 +305,7 @@ def test_reset_installs_floors_for_every_fusing_camera_and_skips_audience_only_c
     beliefs = BeliefStore()
     watcher = WorldWatcher([entry[0] for entry in (main, side, audience)],
         SimpleNamespace(detect=lambda *a, **kw: [detection()]), beliefs,
-        harness=SimpleNamespace(heartbeat=lambda: beats.append(True)))
+        harness=SimpleNamespace(heartbeat=lambda at=None: beats.append(True)))
     with watcher.paused():
         observed = watcher.reset_camera_frames(main[0].stream)
     assert [entry[0].name for entry in observed] == ["main", "side"]

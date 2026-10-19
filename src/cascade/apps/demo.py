@@ -221,9 +221,10 @@ class _RigHeartbeat:
     def __init__(self, harnesses):
         self._harnesses = tuple(harnesses)
 
-    def heartbeat(self) -> None:
+    def heartbeat(self, at: float | None = None) -> None:
+        """`at`: the observation's arrival time (`SafetyHarness.heartbeat`)."""
         for harness in self._harnesses:
-            harness.heartbeat()
+            harness.heartbeat(at=at)
 
 
 def _watcher_heartbeat(arm_rig, primary_harness):
@@ -1041,6 +1042,9 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
     # rig has to learn about it; a skill called with `arm="<name>"` is
     # rebound for that one call by SkillRuntime.execute().
     runtime.arm_rig = arm_rig
+    # Whose watchdogs each camera's frames feed, for the runtime's own frame
+    # grabs (`SkillRuntime._mark_perception_fresh`), the rule the watcher uses.
+    runtime._watchdog_feeds = tuple((cam.stream, cam.watchdog_feed) for cam in watched)
     # Each other arm's own Kinematics (the one its harness uses) and resolved
     # profile, bound by execute(arm=<name>) for that call (spec Q4 a, D3). The
     # primary keeps the runtime's own `kin` / `cfg`.

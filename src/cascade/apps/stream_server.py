@@ -676,6 +676,9 @@ class StreamServer:
             base["state_error"] = str(e)
         base.update(self.command_state())
         base.setdefault("agent_status", "idle")
+        learning = self._learning()
+        if learning is not None:
+            base["learning"] = learning
         tile = self._map_tile
         if tile is not None:
             # appended LAST: clients that default to the first announced
@@ -688,6 +691,25 @@ class StreamServer:
                                    "error": f"map tile: {e}"[:200]}
             base["cameras"] = cams
         return base
+
+    def _learning(self) -> dict | None:
+        """ASPIRE learning panel (spec §4.8): the runtime's learning.json payload, only
+        from a runtime that built a learning state (the kitchen: `agent.learning_surface`
+        on a sim profile); None everywhere else, so a hardware or default /state keeps
+        exactly its keys. A broken or oversize payload is no key, never a /state error."""
+        runtime = self._runtime_fn() if self._runtime_fn else None
+        learning = getattr(runtime, "learning_state", None)
+        if learning is None:
+            return None
+        try:
+            from ..agent.learning_surface import MAX_BYTES
+
+            payload = learning.payload()
+            if len(json.dumps(payload, ensure_ascii=True)) > MAX_BYTES:
+                return None
+            return payload
+        except Exception:  # noqa: BLE001 -- the panel never breaks /state
+            return None
 
     def map_tile_for(self, name: str):
         """The virtual map camera if `name` is it, else None."""

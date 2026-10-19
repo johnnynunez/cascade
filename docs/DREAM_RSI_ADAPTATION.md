@@ -153,7 +153,10 @@ evidence that a note causes success.
 2. **Where:** a sim profile with `agent.learning_surface: true` (the kitchen profile). A hardware
    profile never builds it, whatever the switch says: its payloads stay main's.
 3. **`learning.json`:** schema 1, <= 64 KB, in the run directory and the MCP server's launch
-   state, written atomically at build and after each learning event.
+   state, written atomically at build and after each learning event. The Spark camera surface
+   adds it to its existing `/state` reply (`--learning-file`), the rig's live view adds the
+   runtime's own, and the camera extension (1.6.0) renders it as text in a panel that stays
+   hidden without it: no new port, no new request.
 4. **Code:** `agent/learning_surface.py`, `SkillRuntime._grant_learning_line`; tests:
    `tests/test_learning_surface.py`.
 

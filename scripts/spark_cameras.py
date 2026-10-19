@@ -7,6 +7,7 @@ import base64
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import math
+from pathlib import Path
 import socket
 import threading
 import time
@@ -27,6 +28,8 @@ CACHE_S = .5
 HOLD_S = 5.
 #: During a hold the bridge is asked again after this long, not CACHE_S.
 RETRY_S = .1
+#: The robot server's learning.json (ASPIRE spec §4.8) is served in /state only up to this size.
+LEARNING_MAX_BYTES = 64 * 1024
 
 
 def age_s(row, now=None):
@@ -36,6 +39,26 @@ def age_s(row, now=None):
     read it is not counted, so a fresh-looking age can be a slightly older
     image."""
     return (time.monotonic() if now is None else now) - row["advance"]
+
+
+def read_learning(path):
+    """The robot server's `learning.json` (`--learning-file`) for the camera panel: the parsed
+    object when it is UTF-8 JSON, schema 1 and at most LEARNING_MAX_BYTES; None for anything
+    else (no flag, missing, a directory, too large, malformed, another schema), so /state then
+    carries no `learning` key, as without the flag. The extension renders it as text only."""
+    if path is None:
+        return None
+    try:
+        with open(path, "rb") as stream:
+            raw = stream.read(LEARNING_MAX_BYTES + 1)
+        if len(raw) > LEARNING_MAX_BYTES:
+            return None
+        data = json.loads(raw.decode("utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict) or type(data.get("schema")) is not int or data["schema"] != 1:
+        return None
+    return data
 
 
 class Frames:
@@ -137,6 +160,10 @@ class CameraHandler(BaseHTTPRequestHandler):
             state["camera_discovery"] = {"version": 1, "base_url": "/", "state_url": "/state",
                 "default_camera": "worktop", "cameras": [
                     {"name": name, "stream_url": "/stream/" + name} for name in CAMERAS]}
+            # ASPIRE learning panel: the same reply, no new route or port
+            learning = read_learning(getattr(self.server, "learning_file", None))
+            if learning is not None:
+                state["learning"] = learning
             return self.respond(200, json.dumps(state).encode())
         snapshots = {f"/snapshot/{name}.jpg": name for name in CAMERAS}
         if path in snapshots:
@@ -178,10 +205,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=8091)
     parser.add_argument("--bridge-port", type=int, default=8611)
+    parser.add_argument("--learning-file", type=Path, default=None,
+                        help="the robot server's learning.json, added to /state as `learning` (schema 1, <= 64 KB)")
     args = parser.parse_args()
     server = ThreadingHTTPServer(("127.0.0.1", args.port), CameraHandler)
     server.daemon_threads = True
     server.frames = Frames(args.bridge_port)
+    server.learning_file = args.learning_file
     server.serve_forever()
 
 

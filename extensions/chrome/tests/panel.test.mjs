@@ -80,7 +80,8 @@ async function sparkPanel(key) {
     return elements.get(id);
   };
   let frameId = 0, stream = null, stateReads = 0;
-  const fake = {error: null};
+  const fake = {error: null, learning: undefined};
+  const extra = () => (fake.learning === undefined ? {} : {learning: fake.learning});
   const cameras = () => Object.fromEntries(['kitchen', 'worktop', 'side'].map(name =>
     [name, {frame_id: ++frameId, online: true, age_s: 0.1, error: fake.error, fps: 2}]));
   const json = body => new Response(JSON.stringify(body), {headers: {'content-type': 'application/json'}});
@@ -94,7 +95,7 @@ async function sparkPanel(key) {
   };
   performance.now = () => clock.now;
   Object.assign(globalThis, {
-    document: {getElementById: element, querySelectorAll: () => [], createElement: () => ({}),
+    document: {getElementById: element, querySelectorAll: () => [], createElement: tag => ({tag}),
       querySelector: () => ({classList: {toggle() {}}}), body: {classList: {add() {}}},
       addEventListener() {}, hidden: false},
     window: {addEventListener(name, fn) { listeners[name] = fn; }},
@@ -111,7 +112,7 @@ async function sparkPanel(key) {
       if (path === '/api/status') return json({cameras: cameras(), camera_discovery: {version: 1, base_url: '/',
         state_url: '/state', default_camera: 'worktop',
         cameras: ['kitchen', 'worktop', 'side'].map(name => ({name, stream_url: '/stream/' + name}))}});
-      if (path === '/state') { stateReads++; return json({cameras: cameras()}); }
+      if (path === '/state') { stateReads++; return json({cameras: cameras(), ...extra()}); }
       if (path === '/stream/worktop') {
         const body = new ReadableStream({start(controller) { stream = controller; }});
         signal?.addEventListener('abort', () => stream.error(new DOMException('Aborted', 'AbortError')));
@@ -289,5 +290,31 @@ test('the camera badge is no live region: a hidden status region announces the s
   assert.doesNotMatch(tag('status'), /aria-live|role=/);
   for (const attribute of ['class="sr-only"', 'role="status"', 'aria-live="polite"']) {
     assert.ok(tag('status-live').includes(attribute), `${attribute} in ${tag('status-live') || 'no #status-live'}`);
+  }
+});
+
+test('the learning panel shows /state learning as text nodes, and stays hidden without it', async () => {
+  const panel = await sparkPanel('learning');
+  const section = panel.element('learning');
+  const shown = () => section.options.map(node => [node.tag, node.textContent]);
+  const tag = 'learned in sim | verifier 4/5 | lib 3fa9c2d1';
+  try {
+    await panel.until(() => panel.stateReads() > 0 && section.hidden === true, 'no learning key: hidden');
+    assert.deepEqual(section.options, []);
+    panel.fake.learning = {schema: 1, library_sha: '3fa9c2d1' + '0'.repeat(56),
+      served: [{id: 'red-cube', title: '<img src=x onerror=alert(1)>', tag}],
+      last_event: {kind: 'note', line: 'From earlier runs: <b>Cube</b> (x).', outcome: 'placed'}};
+    await panel.until(() => section.hidden === false, 'a schema-1 learning key: shown');
+    assert.deepEqual(shown(), [['p', 'Learned notes · lib 3fa9c2d1'], ['p', `<img src=x onerror=alert(1)> — ${tag}`],
+      ['p', 'From earlier runs: <b>Cube</b> (x).']]);
+    assert.ok(section.options.every(node => !('innerHTML' in node)), 'text only');
+    const nodes = section.options, reads = panel.stateReads();
+    await panel.until(() => panel.stateReads() > reads + 1, 'the panel polls /state again');
+    assert.equal(section.options, nodes, 'an unchanged state is not rewritten');
+    panel.fake.learning = {schema: 2};
+    await panel.until(() => section.hidden === true, 'another schema: hidden again');
+    assert.deepEqual(section.options, []);
+  } finally {
+    panel.close();
   }
 });

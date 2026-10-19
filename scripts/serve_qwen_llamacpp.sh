@@ -62,6 +62,18 @@ case "${1:-}" in
     *) printf 'Usage: serve_qwen_llamacpp.sh [--setup-only|--check]\n' >&2; exit 2 ;;
 esac
 [[ $# == 0 ]] || { printf 'Unexpected arguments\n' >&2; exit 2; }
+# The caller's environment never configures the server. llama-server v0.7.0 also
+# takes every flag from LLAMA_ARG_<FLAG> / LLAMA_ARG_NO_<FLAG> (common/arg.cpp; a
+# flag on argv wins), accepts LLAMA_API_KEY beside the key file, and with
+# AIP_MODE=PREDICTION serves on AIP_HTTP_PORT (argv cannot override it) with a
+# route that reaches every endpoint (tools/server/server-http.cpp). Inherited,
+# LLAMA_ARG_SLOT_SAVE_PATH opens slot save/restore/erase and LLAMA_ARG_ENDPOINT_PROPS
+# POST /props. LLAMA_SERVER_SLOTS_DEBUG puts every slot's prompt text in GET /slots
+# (no warm start here needs it). Everything this server needs is a flag below and
+# the script sets none of these itself, so all of them go.
+for name in $(compgen -e); do
+    case "$name" in LLAMA_ARG_*|LLAMA_API_KEY|AIP_*|LLAMA_SERVER_SLOTS_DEBUG) unset "$name" ;; esac
+done
 
 check_assets() {
     if [[ -z "$CASCADE_QWEN_MODEL" && -z "$CASCADE_QWEN_MMPROJ" ]]; then

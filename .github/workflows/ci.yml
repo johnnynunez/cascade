@@ -69,6 +69,18 @@ jobs:
           CASCADE_SO101_MESHES: ${{ runner.temp }}/so101-assets/mjcf/so101/assets
       - name: verify offline kitchen packaging and portable bundle admission
         run: uv run pytest deploy/brev/tests/test_build_bundle.py deploy/brev/tests/test_prepare_bundle.py -q
+      - name: MuJoCo so101 pair acceptance (CPU MuJoCo, the MJCF where the test reads it)
+        # Only this file, and last: with assets/mjcf/so101 present every
+        # MuJoCo test would turn on (see the mesh step above). The fetch is
+        # pinned to a commit (scripts/fetch_robot_assets.py), like the meshes.
+        # CASCADE_REQUIRE_MUJOCO_PAIR=1 turns the file's skip into a failure:
+        # a missing MJCF, mujoco or pinocchio never passes this step silently
+        # (tests/test_ci_mujoco_pair_step.py pins this step).
+        run: |
+          uv run python scripts/fetch_robot_assets.py so101
+          uv run pytest tests/test_base_pose_mujoco_pair_pick.py -v -rs
+        env:
+          CASCADE_REQUIRE_MUJOCO_PAIR: "1"
 
   booth-ui:
     name: booth pages and camera extension

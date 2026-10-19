@@ -377,12 +377,14 @@ def _hold_on_another_arm(runtime) -> bool:
 
 class _PointTargetMoved(Exception):
     """point_at's target moved while it planned (`_point_at_still_there`):
-    plan once more from `fix`, where it is now. Never leaves
+    plan once more from `fix`, where it is now, localized at `localized`
+    ((`pointing._wall()`, `time.monotonic()`)). Never leaves
     `skill_point_at`."""
 
-    def __init__(self, fix):
+    def __init__(self, fix, localized):
         super().__init__("the target moved while point_at planned")
         self.fix = fix
+        self.localized = localized
 
 
 def _lowest_tool_z(T, tool_points) -> float:
@@ -4341,7 +4343,7 @@ class SkillRuntime:
         if timings is not None:
             timings.append(timing)
 
-    def _localize(self, query: str, spatial_hint: str | None = None):
+    def _localize(self, query: str, spatial_hint: str | None = None, *, memory: bool = True):
         """Fresh frame + color/proximity-aware 3D fix for a user phrase.
 
         A single detector pass at low confidence flickers frame to frame, so
@@ -4352,7 +4354,12 @@ class SkillRuntime:
         (that is the whole point of keeping the model warm). Staleness is
         measured against the moment the current motion skill STARTED, not
         "now" -- the watcher is paused while the arm moves, so beliefs age
-        artificially during exactly the retries that need them."""
+        artificially during exactly the retries that need them.
+
+        `memory` False: never that belief fallback (a detection on a fresh
+        image, or the VLM's, else the miss is raised). point_at's look again
+        after a long plan needs it: inside the skill the belief is what was
+        known before the plan, so it can only read as unmoved (#406 review)."""
         localization_started = time.monotonic()
         r = self._resolve_query(query)
         workspace_bounds = self._localization_workspace_bounds()
@@ -4687,7 +4694,8 @@ class SkillRuntime:
         else:
             ref_t = time.monotonic()
         mem_ok = (
-            belief is not None
+            memory
+            and belief is not None
             and (ref_t - belief.last_seen_t) <= max_age
             # Grasping from memory demands an EXACT color match: the belief
             # store's neighbor tolerance (pink~red) is for conversation, not
@@ -8064,12 +8072,15 @@ class SkillRuntime:
         of CPU, more on a slower core, 8 s of wall time), refuses before any
         arm or jaw command; an e-stop latched while planning, in the last
         close or in the hold is reported as the e-stop, an operator halt
-        received since the call started as the halt (e-stop first). Planning
-        that took longer than 3 s of wall time looks at the object again
-        before the first command: moved more than 1 cm (its centre or its
+        received since the call started as the halt (e-stop first), with the
+        operator's reason. When more than 3 s of wall time passed between the
+        localization and the end of planning, it looks at the object again
+        before the first command, on a detection newer than the plan only
+        (never the remembered belief, never an image from before the plan):
+        not seen again, it refuses; moved more than 1 cm (its centre or its
         top), it is planned once more from where it is now, on what is left
-        of the same budget; moved again, or not found, refuses (nothing was
-        moved). The object top is
+        of the same budget; moved again, refuses (nothing was moved). The
+        object top is
         the observed top raised to the occupancy map's column top (capped as
         the pregrasp reads it) and to the top of an object standing over it
         (a cup over the cube)."""
@@ -8079,14 +8090,18 @@ class SkillRuntime:
         fix = _host_fix(fix)
         from . import pointing
 
+        # the freshness clock starts here, at the localization, before the
+        # budget's core-speed search (#406 review Minor 1): (wall, monotonic)
+        localized = (pointing._wall(), time.monotonic())
         budget = pointing.Budget()
         try:
             try:
-                return self._point_at(label, fix, budget, generation)
+                return self._point_at(label, fix, budget, generation, localized=localized)
             except _PointTargetMoved as moved:
                 # once more, from where the target is now, on what is left of
                 # the same budget (#399 review Minor 3)
-                return self._point_at(label, moved.fix, budget, generation, replanned=True)
+                return self._point_at(label, moved.fix, budget, generation, replanned=True,
+                                      localized=moved.localized)
         except pointing.PlanningTimeout as exc:
             # an e-stop latched while planning vetoes every vet, so the search
             # runs long: it is reported as the e-stop (and a halt as the
@@ -8095,14 +8110,15 @@ class SkillRuntime:
             raise SkillError(f"cannot point at {label!r}: {exc} (the pose and its route are planned before any "
                              f"command); nothing was moved") from None
 
-    def _point_at(self, label: str, fix, budget, generation=None, replanned: bool = False) -> dict:
+    def _point_at(self, label: str, fix, budget, generation=None, replanned: bool = False, *,
+                  localized) -> dict:
         """skill_point_at after the fix: plan within `budget`, then move.
         `generation`: the harness's halt generation when the call started;
         `replanned`: this is the plan from a fix taken again after a long
-        first plan (`_point_at_still_there`)."""
+        first plan (`_point_at_still_there`); `localized`: (`pointing._wall()`,
+        `time.monotonic()`) when `fix` was localized."""
         from . import pointing
 
-        planned_from = pointing._wall()
         gcfg = self.cfg.grasp
         harness = getattr(self.arm, "harness", None)
         margin = float(self.cfg.safety.get("min_clearance_m", 0.03))
@@ -8251,19 +8267,30 @@ class SkillRuntime:
                              f"{exc}; nothing was moved") from None
         # a long plan acted on an old fix: look at the target again before the
         # first command (#399 review Minor 3)
-        self._point_at_still_there(label, fix, planned_from, harness, generation, replanned)
-        if route.withdraw:
-            self._mark_motion_started()
-            if not self.arm.move_joint_path(route.withdraw, duration_s=2.0):
-                raise SkillError("did not settle after backing the jaws straight out")
-        legs = ("did not settle at the rise-first waypoint", "did not settle at the pointing pose")
-        for i, q in enumerate(route.targets):
-            if route.close_at == i:
+        self._point_at_still_there(label, fix, localized, harness, generation, replanned)
+        # a halt since the call started refuses before the first command, with
+        # the operator's reason (outside execute() no skill scope would: the
+        # first command's own check clears that halt and moves)
+        _raise_if_halted_since_start(harness, generation)
+        try:
+            if route.withdraw:
+                self._mark_motion_started()
+                if not self.arm.move_joint_path(route.withdraw, duration_s=2.0):
+                    raise SkillError("did not settle after backing the jaws straight out")
+            legs = ("did not settle at the rise-first waypoint", "did not settle at the pointing pose")
+            for i, q in enumerate(route.targets):
+                if route.close_at == i:
+                    self._set_gripper(self._grip_closed, effort=0.6)
+                if not self._move_joints(q, duration_s=2.0):
+                    raise SkillError(legs[i == len(route.targets) - 1])
+            if route.close_at == len(route.targets):
                 self._set_gripper(self._grip_closed, effort=0.6)
-            if not self._move_joints(q, duration_s=2.0):
-                raise SkillError(legs[i == len(route.targets) - 1])
-        if route.close_at == len(route.targets):
-            self._set_gripper(self._grip_closed, effort=0.6)
+        except MotionHalted:
+            # a halt a command noticed (its own check names no reason) is
+            # reported with the operator's reason (#406 review Minor 3); an
+            # e-stop still wins
+            _raise_if_halted_since_start(harness, generation)
+            raise
         time.sleep(float(self.cfg.get("gesture", {}).get("point_hold_s", 1.2)))
         # the close can be the last command: an e-stop latched in it (or in
         # the hold) is no success (main closed first, and its next move
@@ -8279,28 +8306,39 @@ class SkillRuntime:
             out["backed_out_m"] = round(float(route.withdraw_m), 3)
         return out
 
-    def _point_at_still_there(self, label: str, fix, planned_from: float, harness, generation,
+    def _point_at_still_there(self, label: str, fix, localized, harness, generation,
                               replanned: bool) -> None:
-        """point_at, before its first command: planning that took longer
-        than `pointing.FRESH_PLAN_S` of wall time since `planned_from` acted
-        on an old fix, so the target is localized again (`_localize`: a fresh
-        detection, else the belief it falls back to). Moved more than
-        `pointing.FRESH_MOVE_M` (`fix_moved_m`): raises `_PointTargetMoved`
-        with the fresh fix (planned once more), or, when this already was
-        that plan, refuses; not found again: refuses. Nothing was commanded
-        either way; a stop that came meanwhile is reported first."""
+        """point_at, before its first command: when more than
+        `pointing.FRESH_PLAN_S` of wall time passed since `fix` was localized
+        (`localized`: (`pointing._wall()`, `time.monotonic()`) then), the plan
+        acted on an old fix, so the target is localized again, on a detection
+        newer than the plan only (#406 review): `_localize(memory=False)`, never
+        its belief fallback (inside the skill that is what was known before the
+        plan, read as unmoved), on an image received after `localized`. Not
+        seen again: refuses. Moved more than `pointing.FRESH_MOVE_M`
+        (`fix_moved_m`): raises `_PointTargetMoved` with the fresh fix (planned
+        once more), or, when this already was that plan, refuses. Nothing was
+        commanded either way; a stop that came meanwhile is reported first."""
         from . import pointing
 
+        planned_from, since = localized
         took = pointing._wall() - planned_from
         if took <= pointing.FRESH_PLAN_S:      # NaN looks again
             return
-        try:
-            _, fresh = self._localize(label)
-        except SkillError as exc:
+
+        def not_seen(why: str) -> SkillError:
             _raise_if_halted_since_start(harness, generation)
-            raise SkillError(f"cannot point at {label!r}: planning took {took:.1f} s, and looking at it again "
-                             f"before the first command failed ({type(exc).__name__}: {exc}); nothing was "
-                             f"moved") from None
+            return SkillError(f"cannot point at {label!r}: it was not seen again after a long plan ({took:.1f} s): "
+                              f"{why}; point_at moves only on a detection newer than the plan, never toward where "
+                              f"it was before; nothing was moved")
+
+        try:
+            frame, fresh = self._localize(label, memory=False)
+        except SkillError as exc:
+            raise not_seen(f"{type(exc).__name__}: {exc}") from None
+        seen_again = (pointing._wall(), time.monotonic())
+        if not float(getattr(frame, "t", math.nan)) > since:       # NaN, or no image: not newer
+            raise not_seen("the image it was found on again was taken before the plan started")
         fresh = _host_fix(fresh)
         moved = pointing.fix_moved_m(fix, fresh)
         if moved <= pointing.FRESH_MOVE_M:     # NaN counts as moved
@@ -8309,7 +8347,7 @@ class SkillRuntime:
         if replanned:
             raise SkillError(f"cannot point at {label!r}: it moved {100 * moved:.1f} cm again while point_at "
                              f"planned once more ({took:.1f} s); nothing was moved")
-        raise _PointTargetMoved(fresh)
+        raise _PointTargetMoved(fresh, seen_again)
 
     def _pointing_top(self, label: str, fix, harness) -> tuple[float, list, list]:
         """point_at's object top, computed once, the objects standing over

@@ -226,6 +226,40 @@ def _unknown_blocks(occupancy) -> bool:
     return bool(blocks)
 
 
+def _mm(p) -> list:
+    """A point as a refusal text quotes it (m, rounded to the mm)."""
+    return np.round(np.asarray(p, dtype=float), 3).tolist()
+
+
+def table_frame_bounds(T, lo, hi) -> tuple[np.ndarray, np.ndarray, bool]:
+    """A base-frame box [lo, hi] as the table frame sees it on a mount T
+    (table <- base): `(lo_t, hi_t, exact)`, the axis-aligned bounds of all 8
+    corners lifted by T (lo_t <= hi_t on every axis, whatever the yaw), and
+    whether those bounds ARE the box: T turns axes onto axes (no rotation, or
+    quarter turns). Otherwise (yaw 45, a tilt) the box sits rotated inside
+    them, and a point between the two lies inside the bounds but outside the
+    box: a refusal text must say so (#407 review follow-up 3)."""
+    T = np.asarray(T, dtype=float)
+    lo, hi = np.asarray(lo, dtype=float), np.asarray(hi, dtype=float)
+    corners = np.array([[hi[i] if (k >> i) & 1 else lo[i] for i in range(3)] for k in range(8)])
+    lifted = corners @ T[:3, :3].T + T[:3, 3]
+    R = np.abs(T[:3, :3])
+    exact = bool(np.allclose(R, np.round(R), rtol=0.0, atol=1e-9))
+    return lifted.min(axis=0), lifted.max(axis=0), exact
+
+
+def table_frame_zone_text(T, lo, hi) -> str:
+    """A base-frame keep-out zone [lo, hi] as a refusal quotes it on a mount
+    T: "<lo>..<hi>" in the table frame (`table_frame_bounds`), plus its
+    base-frame corners when the mount rotates it inside those bounds."""
+    lo_t, hi_t, exact = table_frame_bounds(T, lo, hi)
+    text = f"{_mm(lo_t)}..{_mm(hi_t)}"
+    if exact:
+        return text
+    return text + (" (table-frame bounds of this arm's keep-out zone, which its base_pose rotates: in the arm's "
+                   f"base frame it is {_mm(lo)}..{_mm(hi)})")
+
+
 class SafetyHarness:
     #: Arm motions this harness STARTED: counted once per motion, at the
     #: first waypoint approve() passes after begin_motion (every stream --
@@ -1426,7 +1460,12 @@ class SafetyHarness:
         lo_w, hi_w = self.limits.workspace_min, self.limits.workspace_max
         if self.base_pose is None:
             return f"TCP {np.round(tcp, 3).tolist()} outside workspace [{lo_w.tolist()} .. {hi_w.tolist()}]"
-        return f"TCP {self._quoted(tcp)} outside workspace [{self._quoted(lo_w)} .. {self._quoted(hi_w)}]"
+        lo_t, hi_t, exact = table_frame_bounds(self.base_pose, lo_w, hi_w)
+        text = f"TCP {self._quoted(tcp)} outside workspace [{_mm(lo_t)} .. {_mm(hi_t)}]"
+        if exact:
+            return text
+        return text + (" (table-frame bounds of this arm's workspace, which its base_pose rotates: in the arm's "
+                       f"base frame it is [{_mm(lo_w)} .. {_mm(hi_w)}] and the TCP is at {_mm(tcp)})")
 
     def _table_clearance_refusal(self, tcp, floor: float) -> str:
         if self.base_pose is None:
@@ -1442,7 +1481,7 @@ class SafetyHarness:
     def _keep_out_refusal(self, kmin, kmax) -> str:
         if self.base_pose is None:
             return f"TCP inside keep-out zone {kmin.tolist()}..{kmax.tolist()}"
-        return f"TCP inside keep-out zone {self._quoted(kmin)}..{self._quoted(kmax)}"
+        return f"TCP inside keep-out zone {table_frame_zone_text(self.base_pose, kmin, kmax)}"
 
     def _check_level_tool_mount(self, arm_name: str | None = None) -> None:
         """Refuse a tool volume on a tilted mount (fail closed at build).

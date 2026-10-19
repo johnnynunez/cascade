@@ -11,6 +11,8 @@ import sys
 
 import pytest
 
+from inherited_server_env import BENIGN_ENV, HOSTILE_LLAMA_ENV, dropped, leaked
+
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -27,11 +29,11 @@ def prepared(tmp_path):
     server = repo / "explicit-server/bin/llama-server"
     server.parent.mkdir(parents=True)
     server.write_text(f"#!{sys.executable}\n" + """
-import json,sys
+import json,os,sys
 if sys.argv[1:] == ['--help']:
     print('--mmproj --alias --chat-template-kwargs --reasoning')
 else:
-    print(json.dumps({'server_args': sys.argv[1:]}))
+    print(json.dumps({'server_args': sys.argv[1:], 'env': dict(os.environ)}))
 """)
     server.chmod(0o755)
     env = {**os.environ, "HOME": str(tmp_path / "private-home"), "PY": sys.executable}
@@ -297,6 +299,48 @@ def test_authenticated_brain_reads_its_key_from_a_private_file(prepared, tmp_pat
     assert args[args.index("--alias") + 1] == "qwen3.8-27b"
     assert args[args.index("--host") + 1] == "127.0.0.1"
     assert not any("s3cret" in a for a in args)
+
+
+def server_env(result) -> dict:
+    """The environment the (fake) llama-server was started with."""
+    assert result.returncode == 0, result.stdout + result.stderr
+    return next(json.loads(line) for line in result.stdout.splitlines() if '"server_args"' in line)["env"]
+
+
+def keyed(prepared, tmp_path, route):
+    """`route` is "keyless" or "keyed" (the OpenShell / NemoClaw route: PORT=8081, a bare ALIAS, a 0600 key)."""
+    if route == "keyed":
+        key = tmp_path / "brain.key"
+        key.write_text("qwen-env-key-7c\n")
+        key.chmod(0o600)
+        prepared[3].update(API_KEY_FILE=str(key), ALIAS="qwen3.8-27b", PORT="8081")
+
+
+@pytest.mark.parametrize("inherited", ["1", "0", ""])
+@pytest.mark.parametrize("route", ["keyless", "keyed"])
+def test_an_inherited_slots_debug_never_reaches_the_qwen_server(prepared, tmp_path, route, inherited):
+    """#405 review, Minor 1: this script has no warm start, yet it passed the caller's LLAMA_SERVER_SLOTS_DEBUG
+    through. llama.cpp v0.7.0 reads it once at start, and with it GET /slots shows every slot's prompt text (on a
+    keyless server, to any local process)."""
+    keyed(prepared, tmp_path, route)
+    prepared[3]["LLAMA_SERVER_SLOTS_DEBUG"] = inherited
+    assert "LLAMA_SERVER_SLOTS_DEBUG" not in server_env(invoke(prepared))
+
+
+@pytest.mark.parametrize("route", ["keyless", "keyed"])
+def test_inherited_llama_server_settings_never_reach_the_qwen_server(prepared, tmp_path, route):
+    """#405 review, Minor 2: llama-server takes every flag from LLAMA_ARG_<FLAG> too (a flag on argv wins), keys
+    from LLAMA_API_KEY, and AIP_MODE moves its port and adds a route to every endpoint. The script passes what it
+    means as flags, so none of them may come from the caller."""
+    keyed(prepared, tmp_path, route)
+    prepared[3].update(HOSTILE_LLAMA_ENV)
+    assert leaked(server_env(invoke(prepared)), HOSTILE_LLAMA_ENV) == {}
+
+
+def test_the_rest_of_the_callers_environment_reaches_the_qwen_server(prepared, tmp_path):
+    keyed(prepared, tmp_path, "keyed")
+    prepared[3].update({**HOSTILE_LLAMA_ENV, **BENIGN_ENV})
+    assert dropped(server_env(invoke(prepared))) == {}
 
 
 @pytest.mark.parametrize("problem", ["loose", "empty", "missing"])

@@ -105,6 +105,16 @@ else
         *) die "HOST=$HOST without API_KEY_FILE would serve an unauthenticated brain to the network; set API_KEY_FILE (0600) or keep HOST=127.0.0.1" ;;
     esac
 fi
+# ── the caller's environment never adds routes ───────────────────────────
+# vLLM 0.32.0 takes these from the environment: VLLM_SERVER_DEV_MODE adds the dev
+# and RL routes (/collective_rpc, /sleep, /update_weights, ...: outside /v1, which
+# the key does not guard), VLLM_ALLOW_RUNTIME_LORA_UPDATING /v1/load_lora_adapter
+# and /v1/unload_lora_adapter (inside the OpenShell sandbox's /v1/**),
+# VLLM_ENABLE_COHERE_API /cohere/v2/chat, and VLLM_USE_RUST_FRONTEND +
+# VLLM_RUST_FRONTEND_PATH replace the HTTP server with another binary. KEEP IN SYNC
+# with cosmos_serving.py VLLM_ROUTE_ENV. VLLM_API_KEY is the script's own (above).
+unset VLLM_SERVER_DEV_MODE VLLM_ALLOW_RUNTIME_LORA_UPDATING VLLM_ENABLE_COHERE_API \
+    VLLM_USE_RUST_FRONTEND VLLM_RUST_FRONTEND_PATH
 
 # ── venv (uv only) ───────────────────────────────────────────────────────
 if [ ! -x "$VENV/bin/vllm" ]; then

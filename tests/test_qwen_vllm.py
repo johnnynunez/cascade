@@ -27,6 +27,8 @@ from pathlib import Path
 
 import pytest
 
+from inherited_server_env import BENIGN_ENV, HOSTILE_VLLM_ENV, dropped, leaked
+
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "serve_qwen_vllm.sh"
 TARGET = ("Inferact/Qwen3.8-27B-NVFP4", "6128240ebaf4eaa7bad2b3d1c72c37d677c5f462")
@@ -40,7 +42,8 @@ def venv(tmp_path):
     (v / "bin" / "vllm").write_text(f"#!{sys.executable}\n" + """
 import json, os, shutil, sys
 print(json.dumps({"vllm_args": sys.argv[1:], "key": os.environ.get("VLLM_API_KEY"),
-                  "offline": os.environ.get("HF_HUB_OFFLINE"), "nvcc": shutil.which("nvcc")}))
+                  "offline": os.environ.get("HF_HUB_OFFLINE"), "nvcc": shutil.which("nvcc"),
+                  "env": dict(os.environ)}))
 """)
     (v / "bin" / "hf").write_text(f"#!{sys.executable}\n" + f"""
 import json, os, sys
@@ -113,6 +116,35 @@ def test_the_key_comes_from_a_private_file_never_argv(tmp_path, venv):
     assert not any("s3cret" in x for x in out["vllm_args"])
     assert "--api-key" not in out["vllm_args"]
     assert flag(out["vllm_args"], "--port") == "8081"
+
+
+def _key(tmp_path):
+    key = tmp_path / "brain.key"
+    key.write_text("vllm-env-key-31\n")
+    key.chmod(0o600)
+    return {"API_KEY_FILE": str(key), "PORT": "8081"}
+
+
+@pytest.mark.parametrize("route", ["keyless", "keyed"])
+def test_inherited_vllm_route_switches_never_reach_the_server(tmp_path, venv, route):
+    """#405 review follow-up (the LLAMA_ARG_* class on vLLM): vLLM 0.32.0 adds HTTP routes from the environment.
+    VLLM_SERVER_DEV_MODE: /collective_rpc, /sleep, /update_weights... outside /v1, where the key does not reach;
+    VLLM_ALLOW_RUNTIME_LORA_UPDATING: /v1/load_lora_adapter, inside the sandbox's /v1/**; VLLM_ENABLE_COHERE_API;
+    and VLLM_USE_RUST_FRONTEND + VLLM_RUST_FRONTEND_PATH swap the HTTP server for another binary."""
+    env = {**HOSTILE_VLLM_ENV, **(_key(tmp_path) if route == "keyed" else {})}
+    assert leaked(served(run(tmp_path, venv, **env))["env"], HOSTILE_VLLM_ENV) == {}
+
+
+@pytest.mark.parametrize("route", ["keyless", "keyed"])
+def test_an_inherited_vllm_api_key_never_decides_the_key(tmp_path, venv, route):
+    """VLLM_API_KEY is the script's own: the key file's value, or unset on a keyless start."""
+    env = {"VLLM_API_KEY": "inherited-key", **(_key(tmp_path) if route == "keyed" else {})}
+    assert served(run(tmp_path, venv, **env))["key"] == ("vllm-env-key-31" if route == "keyed" else None)
+
+
+def test_the_rest_of_the_callers_environment_reaches_vllm(tmp_path, venv):
+    out = served(run(tmp_path, venv, **_key(tmp_path), **HOSTILE_VLLM_ENV, **BENIGN_ENV))
+    assert dropped(out["env"]) == {}
 
 
 @pytest.mark.parametrize("problem", ["loose", "empty", "missing"])

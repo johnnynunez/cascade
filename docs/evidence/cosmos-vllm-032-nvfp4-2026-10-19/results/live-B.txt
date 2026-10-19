@@ -1,0 +1,9 @@
+.....                                                                    [100%]
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED ../../../../../Projects/cascade-wt/cosmos032/tests/test_cosmos_live.py::test_live_cosmos_text
+PASSED ../../../../../Projects/cascade-wt/cosmos032/tests/test_cosmos_live.py::test_live_cosmos_native_readiness
+PASSED ../../../../../Projects/cascade-wt/cosmos032/tests/test_cosmos_live.py::test_live_cosmos_streamed_native_namespaced_arguments
+PASSED ../../../../../Projects/cascade-wt/cosmos032/tests/test_cosmos_live.py::test_live_cosmos_image_controls_native_namespaced_tool_arguments[red-rgb0]
+PASSED ../../../../../Projects/cascade-wt/cosmos032/tests/test_cosmos_live.py::test_live_cosmos_image_controls_native_namespaced_tool_arguments[blue-rgb1]
+5 passed in 1.47s

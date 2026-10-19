@@ -1,0 +1,96 @@
+{
+ "stack": "vllm 0.32.0, torch 2.13.0+cu130, transformers 5.19.0 (pristine wheels)",
+ "installed": {
+  "rope": {
+   "ok": true,
+   "result": {
+    "cases": 4,
+    "inputs": "text and image+text; video None and empty (0,3)"
+   }
+  },
+  "video": {
+   "ok": true,
+   "result": {
+    "cases": 2,
+    "video_http_verified": false
+   }
+  },
+  "model_config": {
+   "ok": false,
+   "error": "AttributeError: 'Cosmos3EdgeTextConfig' object has no attribute 'hidden_act'",
+   "known": true
+  },
+  "image": {
+   "ok": false,
+   "error": "AttributeError: 'Cosmos3EdgeImageProcessor' object has no attribute 'get_number_of_image_patches'",
+   "known": true
+  },
+  "tool_grammar": {
+   "ok": false,
+   "error": "CompatMismatch: Cosmos tool grammar admits '<function=probe>\\n</function>'",
+   "known": true
+  }
+ },
+ "only vllm#60823 config registry": {
+  "rope": true,
+  "video": true,
+  "model_config": true,
+  "image": false,
+  "tool_grammar": false
+ },
+ "only vllm#60823 processor registry": {
+  "rope": true,
+  "video": true,
+  "model_config": false,
+  "image": true,
+  "tool_grammar": false
+ },
+ "only vllm#62368 unwrapped tool-call grammar": {
+  "rope": true,
+  "video": true,
+  "model_config": false,
+  "image": false,
+  "tool_grammar": true
+ },
+ "all patches": {
+  "rope": {
+   "ok": true,
+   "result": {
+    "cases": 4,
+    "inputs": "text and image+text; video None and empty (0,3)"
+   }
+  },
+  "video": {
+   "ok": true,
+   "result": {
+    "cases": 2,
+    "video_http_verified": false
+   }
+  },
+  "model_config": {
+   "ok": true,
+   "result": {
+    "decoder_layers": 28,
+    "architecture": "TransformersMultiModalForCausalLM",
+    "weights_allocated": false
+   }
+  },
+  "image": {
+   "ok": true,
+   "result": {
+    "cases": 3,
+    "max_image_tokens": 16384,
+    "processor": "transformers.models.cosmos3_edge.processing_cosmos3_edge.Cosmos3EdgeProcessor"
+   }
+  },
+  "tool_grammar": {
+   "ok": true,
+   "result": {
+    "cases": 7,
+    "tool_strict_level": "parameter",
+    "decoding": "schema-constrained auto tools, wrapped and bare",
+    "generation_verified": false
+   }
+  }
+ }
+}

@@ -10,6 +10,7 @@ import pytest
 from pathlib import Path
 import subprocess
 import sys
+from types import SimpleNamespace
 
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "serve_cosmos_vllm.sh"
@@ -38,6 +39,7 @@ def run_script(tmp_path, *args, overrides=None):
         "PORT",
         "CTX",
         "GPU_FRAC",
+        "KV_DTYPE",
     ):
         env.pop(key, None)
     env.update(overrides or {})
@@ -60,15 +62,19 @@ def test_dry_run_pins_isolated_native_openai_contract_without_writes(tmp_path):
         "revision": REVISION,
         "served_name": "cosmos3-edge",
     }
-    assert {"vllm==0.29.0", "torch==2.13.0", "transformers==5.17.0"} <= set(
+    assert {"vllm==0.32.0", "torch==2.13.0", "transformers==5.19.0"} <= set(
         plan["requirements"]
     )
+    assert plan["torch_backend"] == "cu130"
     argv = plan["serve_command"]
     assert argv[0] == str(tmp_path / "isolated cosmos" / "bin" / "vllm")
     assert argv[1] == "serve"
     assert argv[argv.index("--served-model-name") + 1] == "cosmos3-edge"
     assert argv[argv.index("--max-model-len") + 1] == "32768"
     assert argv[argv.index("--tool-call-parser") + 1] == "qwen3_coder"
+    # vLLM 0.32.0 grammars auto tool choice only for strict tools; the server
+    # floor pins every tool's argument schema (OpenClaw sends non-strict ones).
+    assert argv[argv.index("--tool-strict-level") + 1] == "parameter"
     assert argv[argv.index("--reasoning-parser") + 1] == "qwen3"
     assert argv[argv.index("--chat-template") + 1] == str(tmp_path / "isolated cosmos/cosmos-chat-template.jinja")
     assert argv[argv.index("--host") + 1] == "127.0.0.1"
@@ -83,6 +89,49 @@ def test_dry_run_pins_isolated_native_openai_contract_without_writes(tmp_path):
     assert not (tmp_path / "isolated cosmos").exists()
     assert not (tmp_path / "models").exists()
     assert "git+" not in result.stdout
+
+
+def flag(argv, name):
+    return argv[argv.index(name) + 1] if name in argv else None
+
+
+def test_kv_cache_is_nvfp4_on_flashinfer_by_default(tmp_path):
+    """vLLM 0.32.0 writes and reads an NVFP4 KV cache on SM12x through
+    FlashInfer; the FLASHINFER attention backend is the one that has it."""
+    result = run_script(tmp_path, "--dry-run")
+    plan = json.loads(result.stdout)
+    assert plan["kv_cache_dtype"] == "nvfp4"
+    assert flag(plan["serve_command"], "--kv-cache-dtype") == "nvfp4"
+    assert flag(plan["serve_command"], "--attention-backend") == "FLASHINFER"
+
+
+@pytest.mark.parametrize("kv, expected", [("fp8", "fp8"), ("auto", None)])
+def test_kv_dtype_knob(tmp_path, kv, expected):
+    result = run_script(tmp_path, "--dry-run", overrides={"KV_DTYPE": kv})
+    assert result.returncode == 0, result.stderr
+    argv = json.loads(result.stdout)["serve_command"]
+    assert flag(argv, "--kv-cache-dtype") == expected
+    assert argv.count("--kv-cache-dtype") == (expected is not None)
+    assert "--attention-backend" not in argv, "only NVFP4 pins the backend"
+
+
+@pytest.mark.parametrize("mode", ["--dry-run", "--setup-only"])
+def test_an_unknown_kv_dtype_is_refused_before_anything_runs(tmp_path, mode):
+    result = run_script(tmp_path, mode, overrides={"KV_DTYPE": "int4"})
+    assert result.returncode == 2
+    assert "KV_DTYPE must be nvfp4|fp8|auto" in result.stderr
+    assert "UNEXPECTED_INSTALL" not in result.stderr
+    assert not (tmp_path / "isolated cosmos").exists()
+
+
+def test_the_default_venv_is_per_vllm_version_and_torch_build():
+    helper = load_helper()
+    env = {k: v for k, v in os.environ.items() if k != "VENV"}
+    assert helper.serving_plan(env)["venv"] == str(REPO / ".cosmos-vllm-0.32.0-cu130")
+    # git must keep ignoring every per-version environment.
+    probe = subprocess.run(["git", "check-ignore", "-q", ".cosmos-vllm-0.32.0-cu130/bin/vllm"],
+                           cwd=REPO, capture_output=True, check=False)
+    assert probe.returncode == 0
 
 
 def load_helper():
@@ -147,17 +196,70 @@ def test_environment_reconciles_pins_without_recreating_existing_venv(
     sentinel = venv / "keep-me"
     sentinel.write_text("existing data")
     calls = []
-    monkeypatch.setattr(
-        subprocess, "run", lambda command, **kwargs: calls.append(command)
-    )
+    streams = []
+
+    def run(command, **kwargs):
+        calls.append(command)
+        streams.append(kwargs.get("stdout"))
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(subprocess, "run", run)
     plan = helper.serving_plan({"VENV": str(venv)})
     helper.ensure_environment(plan)
     helper.ensure_environment(plan)
-    assert all(c[1:3] == ["pip", "install"] for c in calls)
-    assert len(calls) == 2
-    assert all(c[3:5] == ["--python", str(venv / "bin/python")] for c in calls)
-    assert all(set(plan["requirements"]) <= set(c) for c in calls)
+    # --setup-only's stdout carries only its JSON report.
+    assert streams and all(stream is sys.stderr for stream in streams)
+    installs = [c for c in calls if c[1:3] == ["pip", "install"]]
+    assert len(installs) == 2
+    assert all(c[3:5] == ["--python", str(venv / "bin/python")] for c in installs)
+    # torch cu130 (FlashInfer's prebuilt kernels' CUDA), never uv's auto pick.
+    assert all("--torch-backend=cu130" in c for c in installs)
+    assert all(set(plan["requirements"]) <= set(c) for c in installs)
+    # Precompiled FlashInfer kernels while they are missing, not a JIT next to
+    # the loaded model.
+    assert [c for c in calls if c not in installs] == [[str(venv / "bin/vllm"), "download-kernels"]] * 2
     assert sentinel.read_text() == "existing data"
+
+
+def test_kernel_download_is_skipped_once_installed_and_never_fatal(tmp_path, monkeypatch, capsys):
+    helper = load_helper()
+    venv = tmp_path / "cosmos"
+    (venv / "bin").mkdir(parents=True)
+    (venv / "bin/python").touch()
+    (venv / "pyvenv.cfg").write_text("version = 3.12.14\n")
+    calls = []
+    monkeypatch.setattr(subprocess, "run", lambda command, **kwargs: calls.append(command)
+                        or SimpleNamespace(returncode=1))
+    plan = helper.serving_plan({"VENV": str(venv)})
+    helper.ensure_environment(plan)
+    assert "JIT-compiles" in capsys.readouterr().err
+    site = venv / "lib/python3.12/site-packages"
+    for name, version in (("flashinfer_cubin", "0.7.0.post1"), ("flashinfer_jit_cache", "0.7.0.post1+cu130")):
+        info = site / f"{name}-{version}.dist-info"
+        info.mkdir(parents=True)
+        (info / "METADATA").write_text(f"Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n")
+    calls.clear()
+    helper.ensure_environment(plan)
+    assert [c[1:3] for c in calls] == [["pip", "install"]]
+
+
+def test_another_vllm_versions_venv_is_never_upgraded_in_place(tmp_path, monkeypatch):
+    """One venv per vLLM version: reconciling a 0.29.0 venv would keep its
+    torch build (2.13.0 satisfies the pin whatever its CUDA) and destroy the
+    stack a rollback needs."""
+    helper = load_helper()
+    venv = tmp_path / "old-cosmos"
+    (venv / "bin").mkdir(parents=True)
+    (venv / "bin/python").touch()
+    (venv / "pyvenv.cfg").write_text("version = 3.12.14\n")
+    info = venv / "lib/python3.12/site-packages/vllm-0.29.0.dist-info"
+    info.mkdir(parents=True)
+    (info / "METADATA").write_text("Metadata-Version: 2.1\nName: vllm\nVersion: 0.29.0\n")
+    calls = []
+    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: calls.append(args))
+    with pytest.raises(RuntimeError, match="holds vLLM 0.29.0.*one venv per vLLM version"):
+        helper.ensure_environment(helper.serving_plan({"VENV": str(venv)}))
+    assert calls == []
 
 
 def test_environment_refuses_non_venv_directory(tmp_path):
@@ -270,6 +372,25 @@ def test_atomic_export_promotes_once_only_after_full_validation(tmp_path):
     assert len(seen) == 1
 
 
+@pytest.mark.parametrize("version, valid", [("5.17.0", True), ("5.19.0", True), ("5.18.0", False)])
+def test_export_built_by_the_previous_transformers_pin_is_reused(tmp_path, version, valid):
+    """5.17.0 and 5.19.0 exports hold the same tensors, tokenizer, processor and
+    template (only shard boundaries and version strings differ): no 5 GB
+    re-export on upgrade. New exports record the running version."""
+    helper = load_helper()
+    target = tmp_path / "export"
+    helper.atomic_export(target, write_tiny_export)
+    marker = target / "cosmos-export.json"
+    manifest = json.loads(marker.read_text())
+    assert manifest["transformers"] == "5.19.0"
+    marker.write_text(json.dumps(dict(manifest, transformers=version)))
+    if valid:
+        assert helper.validate_export(target)["transformers"] == version
+    else:
+        with pytest.raises(ValueError, match="provenance"):
+            helper.validate_export(target)
+
+
 def test_failed_export_preserves_old_directory_and_never_leaves_valid_marker(tmp_path):
     helper = load_helper()
     target = tmp_path / "export"
@@ -322,44 +443,6 @@ def test_cached_export_is_not_complete_just_because_config_exists(tmp_path, dama
         p.write_text(json.dumps(metadata))
     with pytest.raises((ValueError, RuntimeError, OSError)):
         helper.validate_export(target)
-
-
-def test_upstream_fixed_rope_is_success_without_rewriting_unknown_source(
-    tmp_path, monkeypatch
-):
-    from types import SimpleNamespace
-
-    helper = load_helper()
-    source = tmp_path / "modeling.py"
-    source.write_text("# future implementation without the old guard\n")
-    module = SimpleNamespace(__file__=str(source))
-    monkeypatch.setattr(helper, "rope_smoke", lambda _: {"cases": 6})
-    assert (
-        helper.ensure_rope_compat(module, version="future", allow_patch=True)["status"]
-        == "upstream-ok"
-    )
-    assert source.read_text() == "# future implementation without the old guard\n"
-
-
-def test_rope_patch_is_exact_version_scoped_and_read_only_check_refuses_patch(
-    tmp_path, monkeypatch
-):
-    from types import SimpleNamespace
-
-    helper = load_helper()
-    source = tmp_path / "modeling.py"
-    source.write_text("# changed upstream\n")
-    module = SimpleNamespace(__file__=str(source))
-
-    def broken(_):
-        raise IndexError("too many indices")
-
-    monkeypatch.setattr(helper, "rope_smoke", broken)
-    with pytest.raises(RuntimeError, match="--setup-only"):
-        helper.ensure_rope_compat(module, version="5.17.0", allow_patch=False)
-    with pytest.raises(RuntimeError, match="Unrecognized"):
-        helper.ensure_rope_compat(module, version="future", allow_patch=True)
-    assert source.read_text() == "# changed upstream\n"
 
 
 def test_real_cuda_availability_not_import_or_nvidia_smi_is_required(monkeypatch):
@@ -443,32 +526,21 @@ def test_export_builder_pins_both_loads_and_rejects_missing_weights(
         helper.build_export(tmp_path)
 
 
-def test_prepared_runtime_runs_cuda_export_and_exec_in_order(tmp_path, monkeypatch):
+def test_prepared_runtime_runs_cuda_export_and_exec_in_order(tmp_path, monkeypatch, capsys):
     helper = load_helper()
     monkeypatch.setenv("VENV", str(tmp_path / "cosmos"))
     monkeypatch.setenv("EXPORT_DIR", str(tmp_path / "export"))
+    monkeypatch.delenv("KV_DTYPE", raising=False)
     monkeypatch.setattr(helper.platform, "system", lambda: "Linux")
     monkeypatch.setattr(helper.sys, "prefix", str(tmp_path / "cosmos"))
     events = []
     monkeypatch.setattr(helper, "check_stack", lambda: events.append("stack"))
     monkeypatch.setattr(helper, "check_cuda", lambda: events.append("cuda"))
     monkeypatch.setattr(
-        helper, "ensure_rope_compat", lambda **kwargs: events.append("rope")
-    )
-    monkeypatch.setattr(
         helper, "atomic_export", lambda path, builder: events.append("export")
     )
     monkeypatch.setattr(
-        helper, "ensure_model_config_compat", lambda path, **kwargs: events.append("model-compat")
-    )
-    monkeypatch.setattr(
-        helper, "ensure_transformers_processor_compat", lambda path, **kwargs: events.append("image-compat")
-    )
-    monkeypatch.setattr(
-        helper, "ensure_video_processor_compat", lambda path, **kwargs: events.append("video-compat")
-    )
-    monkeypatch.setattr(
-        helper, "ensure_native_grammar_compat", lambda path, **kwargs: events.append("native-grammar")
+        helper, "ensure_compat", lambda path, **kwargs: events.append(("compat", kwargs["allow_patch"]))
     )
     monkeypatch.setattr(
         helper, "ensure_chat_template", lambda *args, **kwargs: events.append("chat-template")
@@ -484,13 +556,16 @@ def test_prepared_runtime_runs_cuda_export_and_exec_in_order(tmp_path, monkeypat
         events.append("serve")
         assert arguments[0] == str(tmp_path / "cosmos/bin/vllm")
         assert "--enable-auto-tool-choice" in arguments
+        assert arguments[arguments.index("--kv-cache-dtype") + 1] == "nvfp4"
         assert environment["PATH"].split(os.pathsep)[0] == str(tmp_path / "cosmos/bin")
+        assert environment["VIRTUAL_ENV"] == str(tmp_path / "cosmos")
         raise ExecBoundary
 
     monkeypatch.setattr(helper.os, "execve", exec_server)
     with pytest.raises(ExecBoundary):
         helper.main(["--_prepared"])
-    assert events == ["stack", "cuda", "rope", "export", "model-compat", "image-compat", "video-compat", "native-grammar", "processor", "chat-template", "serve"]
+    assert events == ["stack", "cuda", "export", ("compat", True), "processor", "chat-template", "serve"]
+    assert "KV cache: nvfp4 --kv-cache-dtype nvfp4 --attention-backend FLASHINFER" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize("raw", ["null", "[]", '"broken"'])

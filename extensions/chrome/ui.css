@@ -18,3 +18,4 @@ button.viewer:disabled .zoom-hint{display:none}
 .zoom-placeholder{padding:24px 16px;color:var(--muted);line-height:1.6}
 .zoom-placeholder button{width:100%}
 @media(max-height:520px){.companion.enlarged .panel-header{padding:8px 12px}.companion.enlarged .subtitle,.companion.enlarged footer{display:none}.companion.enlarged .camera-row{margin:8px 0}.companion.enlarged .detail{margin:6px 0}}
+.learning{margin:12px 0 0;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fbfaf6;font-size:11px;line-height:1.5}.learning p{margin:0 0 4px;overflow-wrap:anywhere}.learning p:first-child{font-weight:620;color:#58634b}.learning p:last-child{margin:0}

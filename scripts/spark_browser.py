@@ -125,7 +125,9 @@ def start_surfaces(repo, env):
     created = []
     try:
         for role, port, command in (
-            ("cameras", 8091, ["/usr/bin/python3", str(repo / "scripts/spark_cameras.py")]),
+            # the MCP server writes learning.json to this launch state (ASPIRE panel)
+            ("cameras", 8091, ["/usr/bin/python3", str(repo / "scripts/spark_cameras.py"),
+                               "--learning-file", str(state / "learning.json")]),
             ("visitor", 8092, ["/usr/bin/python3", str(repo / "deploy/brev/visitor.py"),
                                 "--port", "8092", "--camera-origin", CAMERA_URL, "--repo", str(repo)]),
         ):

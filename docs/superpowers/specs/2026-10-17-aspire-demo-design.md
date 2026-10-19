@@ -443,7 +443,8 @@ R5's removal), so R1, R3 and R4 replace or compress existing sentences instead o
   under the 650 cap). Only the runtime writes the trigger (RETRY_ALLOWED, §4.5): the note lint refuses a note that
   carries R1's or R5's trigger words (rule `rule_trigger`: "simulation only", "one more attempt", "another
   attempt", "second attempt", "end your reply", "end your answer", "exact line", "exactly that line", "exactly
-  this line"; across a comma too, except the setting "in / during simulation, only ..." in lower or Title case:
+  this line", "learning line"; R5's words and the field's name also glued to another word and with 0 / 1 / 3 for
+  o / l / e, A9/A10 fix; across a comma too, except the setting "in / during simulation, only ..." in lower or Title case:
   "In simulation, only grasp from above" is served, "SIMULATION, ONLY: ..." is not), so a served note can never
   read as the permission or as the reply line (A8). A note never discourages or works around an operator stop
   either (rule `stop_workaround`, A8 fix: every form of "stop" but "stop sign" / "bus stop", "halt" in any
@@ -457,19 +458,26 @@ R5's removal), so R1, R3 and R4 replace or compress existing sentences instead o
   result the ledger did not grant, an operator's free-text halt reason included (A8 fix, Important 3), and from the
   status line and memory event of every call (MCP `world_state`, `task_memory`), read through NFKD, combining
   marks dropped, Cyrillic / Greek look-alikes, the digit 0, and format characters or spaces between the letters
-  (A8 fix 2). No tool result gives R5's reply line, so the same reading withholds R5's trigger words ("end your
-  reply" / "ends ..." / "ending ...", "end your answer" ..., "exact line", "exactly that line", "exactly this line";
-  "(reply-line wording withheld)") from EVERY result, a granted retry's too, and from the status line and memory
-  event (A8 follow-ups 5). Both rules' words are also withheld from the agent's own halt reason where it is shown:
-  `halt_motion`'s memory note, every call's arguments in its pre-call status line and memory event, and the recalled
-  step's head and frame captions (MCP `world_state` events and `agent_status`, `task_memory`, `recall_step`; the
-  harness keeps the reason whole) (A8 follow-ups fix). Every other line the runtime's episodic memory records
-  (about 30 notes quote the agent's own `{object!r}`, `{label!r}` or `{query!r}`: pick_and_place's "picking up ...",
-  search_for_object's "... not visible") passes one choke point: `SkillRuntime` sets `_without_rule_triggers` as the
-  memory's text filter (`EpisodicMemory.set_text_filter`), applied to every line and label it records (#388 re-review
-  Minor 2). These are listed words: small capitals, other look-alike
-  scripts (an Armenian o) and paraphrases ("Your final line must read: ...") pass, so the scrub is defence in depth
-  only; R5 itself is out of the rules (below).
+  (A8 fix 2). The same reading withholds R5's trigger words ("end your reply" / "ends ..." / "ending ...", "end
+  your answer" ..., "exact line", "exactly that line", "exactly this line") and the `learning_line` field's name
+  ("(reply-line wording withheld)") from EVERY result, a granted retry's too, and from the status line and memory
+  event (A8 follow-ups 5; the field's name: A9/A10 fix). Both rules' words are also withheld from the agent's own
+  halt reason where it is shown: `halt_motion`'s memory note, every call's arguments in its pre-call status line
+  and memory event, and the recalled step's head and frame captions (MCP `world_state` events and `agent_status`,
+  `task_memory`, `recall_step`; the harness keeps the reason whole) (A8 follow-ups fix). Every other line the
+  runtime's episodic memory records (about 30 notes quote the agent's own `{object!r}`, `{label!r}` or
+  `{query!r}`: pick_and_place's "picking up ...", search_for_object's "... not visible") passes one choke point:
+  `SkillRuntime` sets `_without_rule_triggers` as the memory's text filter (`EpisodicMemory.set_text_filter`),
+  applied to every line and label it records (#388 re-review Minor 2). The scrub reads keys as well as strings (a
+  grasp prior or failure model is keyed by the agent's own object name; two keys that come out alike keep the
+  first, logged, never a silent overwrite), and since the A9/A10 fix it also reads R5's words with no word start
+  ("Pleaseend your reply", "thisexact line"; "send your reply" is withheld too: an accepted over-block), small
+  capitals, Armenian, Cherokee and the other single-letter look-alikes of Unicode's confusables.txt, the digits 0 /
+  1 / 3 and a capital I for o / l / e, and escapes a model decodes (HTML character references, %xx, \xHH,
+  \uHHHH, read decoded and withheld as written). These are still listed words: paraphrases ("Finish your reply
+  with this exact text: ...", "Your final line must read: ...") pass, and that residual is ACCEPTED because R5 no
+  longer reads words at all: it keys on the result's `learning_line` field (below), which no text the agent
+  supplies can create. The scrub is defence in depth only.
 - **R2, set objects down** (`open_gripper` description, OpenShell route; RESULTS §4.9, o4): append "To set a
   held object down, use place_at (it lowers the object before opening). open_gripper releases the object where it is,
   in the air if the arm is raised." Added per config by `tool_specs_for_config`, only on a sim-class profile that
@@ -478,12 +486,19 @@ R5's removal), so R1, R3 and R4 replace or compress existing sentences instead o
   first, call anything else 'also visible, not detected', and never describe what you cannot see."
 - **R4, placement recipe** (kitchen visitor block; replaces "If placement is failed, report the failure plainly."):
   "If placement failed, say 'I could not place the <object>:' and the reason from the result."
-- **R5, the learning line: removed until a tool result grants a line** (A8 follow-ups fix, Minor 1). A8 added "If a
-  tool result gives a line to end your reply with, end with exactly that line." to the visitor block, but no tool
-  result gives one, and no word list tells every paraphrase of such a line in a halt reason or other free text from
-  one a result grants. So no rule, identity or tool description asks for a reply line now; A9/A10 bring R5 back
-  together with the result that grants the line (§4.8). The runtime keeps withholding R5's listed words (above) and
-  the note lint keeps refusing them, as defence in depth.
+- **R5, the learning line, field-based** (A9/A10 fix; A9 had keyed it on the quoted instruction, words a paraphrase
+  can imitate; the A8 follow-ups fix, Minor 1, had removed A8's ungranted "If a tool result gives a line to end your
+  reply with, end with exactly that line."): "When a tool result has a learning_line field, end your reply with
+  exactly that field's text." in the visitor block (after R1's remaining prohibition) and the plugin identity
+  (after its retry rule); the attendee pick_and_place description says "End your reply with any learning_line."
+  right before its last sentence (648 of its 650 characters). R5 reads a structured, top-level FIELD, never words:
+  only `SkillRuntime.execute()` writes `learning_line`, as its last step (`_with_learning_grant`), on the one
+  result that grants a line (§4.8), and it drops any top-level `learning_line` it did not grant; no object name,
+  label, destination, halt reason, camera name, task summary, note or tool name creates or overwrites one, at any
+  depth, in any result or channel (the scrub withholds the field's name from every key and string;
+  tests/test_learning_surface.py `test_no_agent_text_forges_the_field`). The instruction "End your reply with this
+  exact line: <line>" stays in that result's `next_action`, derived from the field. The note lint keeps refusing
+  R5's words and the field's name.
 
 ### 4.7 Seeded `reset_scene` (simulation only)
 
@@ -501,19 +516,29 @@ R5's removal), so R1, R3 and R4 replace or compress existing sentences instead o
 
 Switch `agent.learning_surface` (default false; true in `isaac_kitchen.yaml`; B7 decides `rebot_rs`).
 
-**Chat line.** A motion result may carry `learning_line` (one string) and the instruction "End your reply with this
-exact line: <line>". R5 returns to the visitor block in the same change, never before (§4.6; A8 follow-ups fix). Only
+**Chat line.** A motion result may carry the top-level field `learning_line` (one line of text) and, derived from
+it, the instruction "End your reply with this exact line: <line>"; R5 keys on the field (§4.6, A9/A10 fix). Only
 one line per result, priority:
-1. a retry of this order placed the object: "Learning loop: my first grasp was refused, so I retried once in simulation
-   with a different grasp."
-2. the call succeeded and a served note's `when` words overlap the goal words:
-   "From earlier runs: <title> (<tag>)."
-No line on failures, on non-motion tools, or with the switch off.
+1. THE retry of this order (the sim retry ledger's) placed the object: "Learning loop: my first grasp was refused, so I
+   retried once in simulation with a different grasp." after a gate refusal whose refused grasps the retry excluded;
+   otherwise (a perception or planning refusal: no grasp was refused) "Learning loop: my first attempt was refused,
+   so I retried once in simulation after a fresh look." (preflight R30).
+2. the call succeeded and a served note's `when` words contain every word of the order's object (R30: one shared word
+   is no match; the better-ranked note wins): "From earlier runs: <title> (<tag>)."
+"Succeeded": `ok` true, outcome ok, not an unverified placement. No line on failures, on non-motion tools, with the
+switch off, on any real profile (the switch is read on sim-class profiles only), or on a call an operator stop met (a
+stop latched at its end, a halt since the skill started, or an e-stop raised and reset during it), with or without
+the ledger; the stop reading is taken when the line is decided and again when `execute()` returns, so a stop during
+the trace write withdraws it (A9/A10 fix, Minor 2; the trace row keeps the decided `learning` mark). The line is
+built from runtime texts and the served note's title and tag only, never from the agent's arguments; a line that
+is not one plain line of text or reads as a rule trigger is no grant (fail closed).
 
 **Panel.** The robot server writes `learning.json` atomically to `<run_dir>/` and, when started with
-`--launch-state-dir`, to `<launch state>/learning.json`, at build and after each motion call that produced a learning
-event: `{schema: 1, library_sha, profile_class, sim_retry, served: [{id, title, tag}], counts: {promoted, verified,
-candidates, refuted}, last_event: {t, kind: retry|note, line, outcome} | null}`.
+`--launch-state-dir`, to `<launch state>/learning.json` (attached after the build, preflight R31; a runtime without
+the surface deletes a previous stack's file there), under the state's lock, at build and when each motion call that
+produced a learning event returns (a granted line, or THE retry ending without one: `line: null`): `{schema: 1, library_sha, profile_class,
+sim_retry, served: [{id, title, tag}] (at most 5, ids through `notes._shown_name`), counts: {promoted, verified,
+candidates, refuted}, last_event: {t, kind: retry|note, line, outcome} | null}`, at most 64 KB.
 - Spark: `spark_cameras.py --learning-file <launch state>/learning.json` adds the parsed file (<= 64 KB, schema 1) as
   `learning` to its `/state` reply; `spark_browser.start_surfaces` passes the flag.
 - Real rig: `stream_server` adds `learning` to `/state` from the runtime, only with the switch on (the mock golden

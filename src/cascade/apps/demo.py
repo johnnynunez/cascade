@@ -970,6 +970,13 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
     # ASPIRE (spec §4.2): the note library is read ONCE, here; run.json records
     # it and every trace row carries its sha. Config only: no arm is touched.
     _stamp_run(runtime, trace, cfg)
+    # ASPIRE (spec §4.8): the chat line and learning.json, from that snapshot. None on
+    # every real profile and whenever `agent.learning_surface` is off (`learning_state_for`
+    # fails closed); written once here, after each learning event, and by the MCP server
+    # to its launch state (preflight R31). Config only: no arm is touched.
+    from ..agent.learning_surface import learning_state_for
+
+    runtime.learning_state = learning_state_for(cfg, runtime.learned, runtime.sim_retry, trace.run_dir)
     _wire_held_payload(runtime)
     runtime._kitchen_camera_renderer = kitchen_renderer
     # Where to persist the world model on shutdown (None = disabled).

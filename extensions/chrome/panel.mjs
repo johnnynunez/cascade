@@ -1,6 +1,7 @@
 import {cameraNames, MJPEGParser, freshness, frameAgeNote, frameAgeNow} from './core.mjs';
 import {bootstrap,discover,LABELS} from './discovery.mjs';
 import {cameraZoom} from './zoom.mjs';
+import {learningLines} from './learning.mjs';
 // Keep references when the existing camera UI moves into its larger window.
 const elements=new Map([...document.querySelectorAll('[id]')].map(element=>[element.id,element]));
 const $=id=>elements.get(id)||document.getElementById(id);
@@ -14,6 +15,8 @@ let lastFrame=0,lastState=0,lastAdvance=0,hasAdvanced=false,lastId=null,cameraEr
 // X-Frame-Age of the frame on screen (Spark camera viewer only), null = unknown.
 let frameAge=null;
 let authorized=false;
+// The learning panel's lines on screen (null: not drawn yet).
+let learningShown=null;
 const zoom=cameraZoom({viewer:$('viewer'),companion:document.querySelector('.companion'),embedded,
  resizeEmbedded:enlarged=>chrome.runtime.sendMessage({type:'enlarge-camera',enlarged}),window,document});
 const outOfView=()=>document.hidden&&!(zoom.active&&!embedded);
@@ -53,7 +56,15 @@ async function request(url,gen,stream=false){
   return JSON.parse(new TextDecoder().decode(all));
  }finally{clearTimeout(timer);if(!stream)controllers=controllers.filter(c=>c!==control);}
 }
+// ASPIRE (spec §4.8): what the robot learned, from the same /state poll. Text nodes only;
+// an unchanged state is not rewritten; no schema-1 `learning` key: the section stays hidden.
+function showLearning(lines){
+ const key=lines.join('\n');if(key===learningShown)return;learningShown=key;
+ $('learning').replaceChildren(...lines.map(line=>{const p=document.createElement('p');p.textContent=line;return p;}));
+ $('learning').hidden=!lines.length;
+}
 function updateCameras(data){
+ showLearning(learningLines(data.learning));
  const names=cameraNames(data).filter(name=>config.streams[name]);
  if(!names.length)throw new Error('The server has not announced any cameras yet.');
  if(!names.includes(selected))selected=config.defaultCamera||names[0];

@@ -132,10 +132,13 @@ evidence that a note causes success.
    as without the ledger, with no automatic home. Only a granted retry's result carries the
    "SIMULATION ONLY ... one more attempt" wording; every other result has it withheld, an
    operator's halt reason included, and so do `halt_motion`'s memory note, the status line, the
-   memory events and the recalled step that show the agent's own halt reason. No result carries
-   reply-line wording ("end your reply with ... exact line"): it is withheld from every result.
-   These are listed words, defence in depth only (paraphrases pass), so the kitchen rules ask
-   for no reply line until a tool result actually grants one. A call the ledger
+   memory events and the recalled step that show the agent's own halt reason. Reply-line wording
+   ("end your reply with ... exact line") and the `learning_line` field's name are withheld from
+   every key and string of every result and of the server's own answers (world_state,
+   robot_knowledge, verify_last_action, task_memory); only the runtime's own field and
+   instruction on the one result that grants a learning line stand (`agent.learning_surface`,
+   below). These are listed words, defence in depth only (paraphrases pass), so the kitchen rule
+   R5 keys on the result's `learning_line` field, never on words. A call the ledger
    refused ran nothing: like an operator halt (`safety:halt`), it is no loss in the operating
    envelope (live or replayed from the trace) and never the failure ASPIRE credits a retry to
    (`refused_before_motion`).
@@ -143,6 +146,26 @@ evidence that a note causes success.
    (wiring); tests: `tests/test_sim_retry_ledger.py tests/test_sim_retry_runtime.py`. `run.json`'s
    `sim_retry` is written once at build: if the ledger later switches itself off after an internal
    fault, only the trace rows (`context.sim_retry = {"off": true}`) and its `last_event` show it.
+
+## Learning surface (`agent.learning_surface`)
+
+1. **What:** a confirmed kitchen pick may end the agent's reply with ONE line the runtime grants:
+   the learning-loop line when THE sim retry placed the object, else "From earlier runs: <title>
+   (<tag>)." when a served note's `when` words name every word of the object. The granting
+   result alone carries the top-level field `learning_line` (rule R5: "When a tool result has a
+   learning_line field, end your reply with exactly that field's text.") and, derived from it,
+   "End your reply with this exact line: <line>". No text the agent supplies can create the
+   field. No line on failures, unverified placements, non-motion tools, or a call an operator
+   stop met (even one cleared again, or one that arrives as the call returns).
+2. **Where:** a sim profile with `agent.learning_surface: true` (the kitchen profile). A hardware
+   profile never builds it, whatever the switch says: its payloads stay main's.
+3. **`learning.json`:** schema 1, <= 64 KB, in the run directory and the MCP server's launch
+   state, written atomically at build and after each learning event. The Spark camera surface
+   adds it to its existing `/state` reply (`--learning-file`), the rig's live view adds the
+   runtime's own, and the camera extension (1.6.0) renders it as text in a panel that stays
+   hidden without it: no new port, no new request.
+4. **Code:** `agent/learning_surface.py`, `SkillRuntime._grant_learning_line` /
+   `_with_learning_grant`; tests: `tests/test_learning_surface.py`, `tests/test_rule_trigger_scrub.py`.
 
 ## Verify the contract
 

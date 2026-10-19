@@ -87,7 +87,6 @@ with no such close, or no clear waypoint, is refused before any command.
 from __future__ import annotations
 
 import math
-import os
 import threading
 import time
 from dataclasses import dataclass, field
@@ -198,32 +197,13 @@ def _speed_probe_s() -> float:
 
 
 def _fastest_probe_s() -> float:
-    """`_speed_probe_s` on the host's fastest core (the least over every
-    core this process may run on, each timed by a helper thread pinned to
-    it; the caller's own affinity is never touched), measured once. Without
-    per-thread affinity (not Linux): the caller's own core."""
+    """`_speed_probe_s` on the host's fastest core (`core_speed.fastest_seconds`:
+    timed on every core by helper threads pinned there, the planning thread's
+    affinity untouched), measured once per process."""
     if "s" not in _FASTEST:
-        best = min(_speed_probe_s() for _ in range(3))
-        if hasattr(os, "sched_setaffinity") and hasattr(os, "sched_getaffinity"):
-            stop = time.monotonic() + 0.25
-            for cpu in sorted(os.sched_getaffinity(0)):
-                if time.monotonic() > stop:
-                    break
-                out: list = []
+        from ..core_speed import fastest_seconds
 
-                def timed(cpu=cpu, out=out):
-                    try:
-                        os.sched_setaffinity(0, {cpu})          # this helper thread only
-                        out.append(min(_speed_probe_s() for _ in range(3)))
-                    except OSError:
-                        pass
-
-                helper = threading.Thread(target=timed, daemon=True, name="pointing-core-probe")
-                helper.start()
-                helper.join(0.05)
-                if out:
-                    best = min(best, out[0])
-        _FASTEST["s"] = best
+        _FASTEST["s"] = fastest_seconds(lambda: _speed_probe_s())
     return _FASTEST["s"]
 
 

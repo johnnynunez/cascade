@@ -12,6 +12,8 @@ import subprocess
 import sys
 from types import SimpleNamespace
 
+from inherited_server_env import BENIGN_ENV, HOSTILE_VLLM_ENV, dropped, leaked
+
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "serve_cosmos_vllm.sh"
 REVISION = "a9d944e2c6a1bf9f48b92ad16348e70c5f1836ba"
@@ -566,6 +568,52 @@ def test_prepared_runtime_runs_cuda_export_and_exec_in_order(tmp_path, monkeypat
         helper.main(["--_prepared"])
     assert events == ["stack", "cuda", "export", ("compat", True), "processor", "chat-template", "serve"]
     assert "KV cache: nvfp4 --kv-cache-dtype nvfp4 --attention-backend FLASHINFER" in capsys.readouterr().err
+
+
+def test_inherited_vllm_route_switches_never_reach_the_cosmos_server(tmp_path, monkeypatch):
+    """#405 review follow-up (the LLAMA_ARG_* class on vLLM): vLLM 0.32.0 adds HTTP routes from the environment
+    (VLLM_SERVER_DEV_MODE, VLLM_ALLOW_RUNTIME_LORA_UPDATING, VLLM_ENABLE_COHERE_API) or swaps its HTTP server
+    (VLLM_USE_RUST_FRONTEND + VLLM_RUST_FRONTEND_PATH); the sandbox reaches Cosmos through the same /v1-only profile.
+    VLLM_API_KEY stays: exporting it is how an operator keys this sidecar, which has no key file of its own."""
+    helper = load_helper()
+    monkeypatch.setenv("VENV", str(tmp_path / "cosmos"))
+    monkeypatch.setenv("EXPORT_DIR", str(tmp_path / "export"))
+    monkeypatch.delenv("KV_DTYPE", raising=False)
+    for name, value in {**HOSTILE_VLLM_ENV, **BENIGN_ENV, "VLLM_API_KEY": "operator-cosmos-key"}.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setattr(helper.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(helper.sys, "prefix", str(tmp_path / "cosmos"))
+    for step in ("check_stack", "check_cuda", "processor_smoke"):
+        monkeypatch.setattr(helper, step, lambda *a, **k: None)
+    for step in ("atomic_export", "ensure_compat", "ensure_chat_template"):
+        monkeypatch.setattr(helper, step, lambda *a, **k: None)
+
+    class ExecBoundary(Exception):
+        pass
+
+    served = {}
+
+    def exec_server(executable, arguments, environment):
+        served.update(environment)
+        raise ExecBoundary
+
+    monkeypatch.setattr(helper.os, "execve", exec_server)
+    with pytest.raises(ExecBoundary):
+        helper.main(["--_prepared"])
+    assert leaked(served, HOSTILE_VLLM_ENV) == {}
+    assert dropped(served) == {} and served["VLLM_API_KEY"] == "operator-cosmos-key"
+
+
+def test_both_native_vllm_brains_drop_the_same_route_switches():
+    """serve_qwen_vllm.sh and cosmos_serving.py keep one list (vLLM 0.32.0): the test's list is that list."""
+    lines = (REPO / "scripts" / "serve_qwen_vllm.sh").read_text().splitlines()
+    at = next(i for i, line in enumerate(lines) if line.startswith("unset VLLM_SERVER_DEV_MODE"))
+    words = lines[at].rstrip("\\").split()
+    while lines[at].endswith("\\"):
+        at += 1
+        words += lines[at].rstrip("\\").split()
+    assert words[0] == "unset"
+    assert set(words[1:]) == set(HOSTILE_VLLM_ENV) == set(load_helper().VLLM_ROUTE_ENV)
 
 
 @pytest.mark.parametrize("raw", ["null", "[]", '"broken"'])

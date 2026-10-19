@@ -2144,7 +2144,10 @@ def main() -> int:
         os.environ["CASCADE_RUN_DIR"] = str(run_dir)
         register_process(args.launch_state_dir, owner, os.getpid(), "mcp", run_dir=run_dir)
 
-    server = McpSkillServer(launch_state_dir=args.launch_state_dir)
+    server = McpSkillServer()
+    # ASPIRE panel (spec §4.8, preflight R31): where `_attach_learning_file` keeps
+    # learning.json; set after construction, so the constructor stays main's
+    server._launch_state_dir = args.launch_state_dir
     previous_stderr = sys.stderr
     with StopSignals(staff_reset=True) as signals:
         server._signals = signals

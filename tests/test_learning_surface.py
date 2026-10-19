@@ -644,10 +644,28 @@ def test_the_mcp_server_keeps_the_launch_state_file_current(monkeypatch, tmp_pat
             server.shutdown()
 
 
-def test_mcp_main_hands_the_launch_state_to_the_server():
-    import inspect
+@pytest.mark.parametrize("launched", [True, False], ids=["launcher", "plain"])
+def test_mcp_main_hands_the_launch_state_to_the_server(monkeypatch, tmp_path, launched):
+    """main() gives the server `--launch-state-dir` (None without it), after constructing it with main's own
+    constructor call: a replaced server class (tests/test_runtime_teardown_receipt.py) keeps working."""
+    from types import SimpleNamespace
 
-    from cascade.apps import mcp_server
+    from cascade.apps import mcp_server, process_owner
 
-    assert "McpSkillServer(launch_state_dir=args.launch_state_dir)" in inspect.getsource(mcp_server.main)
-    assert mcp_server.McpSkillServer()._launch_state_dir is None  # in-process callers: no launch state
+    server = SimpleNamespace(_signals=None, shutdown=lambda: {"ok": True, "complete": True})
+    monkeypatch.setattr(mcp_server, "McpSkillServer", lambda: server)
+    monkeypatch.setattr(mcp_server, "_serve_stdio", lambda *_: 0)
+    monkeypatch.setattr(process_owner, "load_owner", lambda *a, **k: {"owner": "owner-1"})
+    monkeypatch.setattr(process_owner, "register_process", lambda *a, **k: None)
+    monkeypatch.setenv("CASCADE_RUN_DIR", str(tmp_path / "run"))  # main() replaces it; restored after
+    argv = ["cascade-mcp"] + (["--launch-owner", "owner-1", "--launch-state-dir", str(tmp_path)] if launched else [])
+    monkeypatch.setattr("sys.argv", argv)
+    assert mcp_server.main() == 0
+    assert server._launch_state_dir == (tmp_path if launched else None)
+    assert mcp_server.McpSkillServer is not None
+
+
+def test_an_in_process_server_has_no_launch_state():
+    from cascade.apps.mcp_server import McpSkillServer
+
+    assert McpSkillServer()._launch_state_dir is None

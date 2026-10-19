@@ -337,6 +337,14 @@ def _raise_if_halted_since_start(harness, generation) -> None:
         raise
 
 
+def _hold_on_another_arm(runtime) -> bool:
+    """The rig-wide hold belongs to ANOTHER arm of a pair than the one this
+    call drives (`SkillRuntime._held_by_another_arm`; getattr-guarded: absent
+    on runtime doubles, whose hold stays this arm's)."""
+    elsewhere = getattr(runtime, "_held_by_another_arm", None)
+    return bool(callable(elsewhere) and elsewhere())
+
+
 class _PointTargetMoved(Exception):
     """point_at's target moved while it planned (`_point_at_still_there`):
     plan once more from `fix`, where it is now. Never leaves
@@ -8039,7 +8047,9 @@ class SkillRuntime:
 
         approach_col = _TOOL_COLUMNS[self._tool_axis_order][0]
         sweep = (gcfg.get("graspgenx") or {}).get("sweep")
-        held = self.held_object
+        # a hold on ANOTHER arm of a pair is not this arm's: its jaws are
+        # empty and it points as if nothing were held (#400 re-review Minor 1)
+        held = None if _hold_on_another_arm(self) else self.held_object
         state = self.arm.get_state()
         q_now = state.q
         try:
@@ -8255,7 +8265,10 @@ class SkillRuntime:
         top = observed + _map_top_lift(self.cfg.grasp, harness, fix, observed)
         table_z = float(getattr(getattr(harness, "limits", None), "table_z", self.cfg.safety.get("table_z", 0.0)))
         target = self.beliefs.find(label)
-        in_jaws = self.beliefs.find(self.held_object) if self.held_object else None
+        # only an object in THIS arm's jaws rides along; one in another arm's
+        # jaws is a neighbour like any other (#400 re-review Minor 1)
+        in_jaws = (self.beliefs.find(self.held_object)
+                   if self.held_object and not _hold_on_another_arm(self) else None)
         centre = np.asarray(fix.position, dtype=float)[:2]
         occluders, neighbours = [], []
         for b in self.beliefs.all():

@@ -20,6 +20,10 @@
 4. `pointing.tool_body` refuses a tool part known only by its points (no box
    in `ToolVolume.boxes`): its sampled distance could overstate the part's by
    up to spacing / sqrt(2) (14 mm on the harness's 2 cm grid).
+5. On a pair (#400 fix re-review, Minor 1), a hold on the OTHER arm is not
+   this arm's: the empty arm points exactly as if nothing were held (main
+   refused it "while holding"), the object in the other arm's jaws stays a
+   neighbour, and the holding arm keeps its hold rules.
 """
 
 from __future__ import annotations
@@ -32,6 +36,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+from base_pose_oracle import make_runtime  # noqa: F401  (the fixture, by name)
 from conftest import needs_pin
 
 from cascade.control.mock_arm import MockArm
@@ -255,7 +260,9 @@ def test_a_core_that_cannot_be_pinned_gives_way_to_the_next_of_its_class(monkeyp
         return real_pin(pid, cores)
 
     monkeypatch.setattr(os, "sched_setaffinity", pin)
-    work = lambda: 1e-3 if os.sched_getaffinity(0) == {fast} else 3e-3  # noqa: E731
+    def work():
+        return 1e-3 if os.sched_getaffinity(0) == {fast} else 3e-3
+
     ref = core_speed.fastest(work)
     assert ref == core_speed.Reference(1e-3, True), ref
 
@@ -693,3 +700,127 @@ def test_the_missing_box_slack_would_have_been_real():
     face = np.array([[x, y, 0.0] for x in np.arange(-0.04, 0.0401, s) for y in np.arange(-0.04, 0.0401, s)])
     point_between = np.array([s / 2, s / 2, 0.0])
     assert np.min(np.linalg.norm(face - point_between, axis=1)) == pytest.approx(s / math.sqrt(2))
+
+
+# ── 5. a pair: the empty arm points as if nothing were held ────────────────
+
+_PAIR = ("so101_left", "so101_right")
+_OTHER = {"so101_left": "so101_right", "so101_right": "so101_left"}
+#: puts the cube in reach of that arm (the pair's table-frame camera shift)
+_SHIFT = {"so101_left": (0.0, 0.10), "so101_right": (0.0, -0.10)}
+
+
+def _pair_point_at(make_runtime, monkeypatch, *, side, caller, holder, box, cup=False,  # noqa: F811
+                   camera_part=False):
+    """point_at by `caller` on the shipped so101 pair (the cube on `side`'s
+    side); `holder` (None: nothing held) holds the red cube (what a completed
+    grasp leaves, injected), or the yellow cup when `cup`. `camera_part`:
+    the caller's harness models a small wrist-camera box (a reBot-like tool
+    volume).
+    Returns (result fields, every arm's commands, every arm's jaws, the hold)."""
+    from contextlib import ExitStack
+
+    from base_pose_oracle import moved_cfg, raw_arm
+
+    from cascade.safety.tool_volume import ToolVolume, box_grid
+
+    cfg = moved_cfg(list(_PAIR), {}, move_cameras=False, shift_xy=_SHIFT[side])
+    if box == "nobox":
+        cfg._data["relative_motion"]["wrist_camera"] = None
+    rt = make_runtime(cfg)
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline and rt.beliefs.find("red cube") is None:
+        time.sleep(0.05)
+    cube = rt.beliefs.find("red cube")
+    assert cube is not None, "test setup: the cube must be seen"
+    with ExitStack() as stack:
+        if rt.watcher is not None:
+            stack.enter_context(rt.watcher.paused())
+        if cup:
+            # a tall cup 6 cm beside the cube: a neighbour that crowds a top-down pose
+            c = np.asarray(cube.position, float) + [0.0, 0.06, 0.0]
+            rt.beliefs.update("cup", np.array([c[0], c[1], 0.075]), 0.95, extent=np.array([0.15, 0.04, 0.04]),
+                              top_z=0.15, color="yellow")
+        raws = {n: raw_arm(rt.arm_rig.get(n)) for n in _PAIR}
+        jaws = {n: [] for n in _PAIR}
+        for n, raw in raws.items():
+            real = raw.set_gripper
+            monkeypatch.setattr(raw, "set_gripper",
+                                lambda *a, _r=real, _l=jaws[n], **k: (_l.append(float(a[0])), _r(*a, **k))[1])
+        if holder is not None:
+            raw = raws[holder]
+            raw._gripper = raw._grip_closed + 0.5 * (raw._grip_open - raw._grip_closed)
+            rt.held_object, rt._held_arm = ("yellow cup" if cup else "red cube"), holder
+            rt._held_det_label, rt._held_color = rt.held_object, ("yellow" if cup else "red")
+            rt._held_width_m, rt._held_support_offset_m = 0.025, 0.04
+        if camera_part:
+            c, axes, half = np.array([0.0, 0.0, 0.0]), np.eye(3), np.full(3, 0.006)
+            rt.arm_rig.get(caller).harness.tool_volume = ToolVolume(
+                local=box_grid(c, axes, half, 0.004), part=np.zeros(len(box_grid(c, axes, half, 0.004)), dtype=int),
+                names=("wrist camera",), boxes=((c, axes, half),))
+        n0 = {n: len(raw.commands) for n, raw in raws.items()}
+        out = rt.execute("point_at", {"label": "red cube", "arm": caller})
+        cmds = {n: [np.round(np.asarray(q, float), 9).tolist() for q in raws[n].commands[n0[n]:]] for n in _PAIR}
+        keep = ("ok", "error", "pointed_at", "position", "lean_deg", "rose_first", "backed_out_m")
+        return {k: out.get(k) for k in keep}, cmds, jaws, (rt.held_object, getattr(rt, "_held_arm", None))
+
+
+@needs_pin
+@pytest.mark.parametrize("box", ["shipped", "nobox"])
+@pytest.mark.parametrize("mover", _PAIR)
+@pytest.mark.parametrize("cup", [False, True], ids=["holds_the_cube", "holds_a_cup_beside_it"])
+def test_on_a_pair_the_empty_arm_points_as_if_nothing_were_held(make_runtime, monkeypatch, mover, box, cup):  # noqa: F811
+    """The #400 re-review's probe rows (8/8 refused on main: "cannot point at
+    'red cube' while holding 'red cube'"): the empty arm's point_at equals the
+    same call with nothing held (result, its commands, both arms' jaws), the
+    holding arm gets no command, and the hold stays where it was. With a cup
+    in the other arm's jaws, the cup's remembered place still counts as a
+    neighbour (main skipped it as if it were in this arm's jaws)."""
+    none = _pair_point_at(make_runtime, monkeypatch, side=mover, caller=mover, holder=None, box=box, cup=cup)
+    held = _pair_point_at(make_runtime, monkeypatch, side=mover, caller=mover, holder=_OTHER[mover], box=box, cup=cup)
+
+    assert held[0] == none[0]
+    assert held[1] == none[1] and held[1][_OTHER[mover]] == []
+    assert held[2] == none[2]
+    assert held[3] == (("yellow cup" if cup else "red cube"), _OTHER[mover])
+    if not cup:
+        assert none[0]["ok"] is True and none[1][mover], "test setup: the empty arm must point"
+
+
+@needs_pin
+def test_on_a_pair_the_empty_arm_keeps_its_own_tool_parts(make_runtime, monkeypatch):  # noqa: F811
+    """The camera-box clearance stays on the empty arm: its harness's tool
+    parts plan every route whether or not the other arm holds something."""
+    from cascade.skills import pointing
+
+    mover = "so101_left"
+    seen = {"none": [], "held": []}
+    now = ["none"]
+    real_route = pointing.plan_route
+
+    def route(*a, **k):
+        seen[now[0]].append(sorted(part.name for part in k.get("body", ())))
+        return real_route(*a, **k)
+
+    monkeypatch.setattr(pointing, "plan_route", route)
+    none = _pair_point_at(make_runtime, monkeypatch, side=mover, caller=mover, holder=None, box="shipped",
+                          camera_part=True)
+    now[0] = "held"
+    held = _pair_point_at(make_runtime, monkeypatch, side=mover, caller=mover, holder=_OTHER[mover], box="shipped",
+                          camera_part=True)
+
+    assert seen["none"] and seen["held"] == seen["none"] and all(b == ["wrist camera"] for b in seen["held"]), seen
+    assert held[:3] == none[:3] and none[0]["ok"] is True, (none[0], held[0])
+
+
+@needs_pin
+@pytest.mark.parametrize("holder", _PAIR)
+def test_on_a_pair_the_holding_arm_keeps_its_hold_rules(make_runtime, monkeypatch, holder):  # noqa: F811
+    """Holder control: the arm that holds the cube still points as a holding
+    arm does (never leans in, never commands its jaws), and keeps its hold."""
+    out, cmds, jaws, hold = _pair_point_at(make_runtime, monkeypatch, side=holder, caller=holder, holder=holder,
+                                           box="shipped")
+    assert hold == ("red cube", holder)
+    assert jaws == {n: [] for n in _PAIR}, jaws
+    assert cmds[_OTHER[holder]] == []
+    assert out["ok"] is False and "while holding 'red cube'" in out["error"], out

@@ -1,7 +1,7 @@
 {
   "id": "cascade-franka-prompt",
   "name": "CASCADE Franka commands",
-  "description": "Dispatch explicit operator commands through native Franka tools and scope Cosmos observations to this workspace.",
+  "description": "Dispatch explicit operator commands through native Franka tools and scope brain observations to this workspace.",
   "activation": {"onStartup": true},
   "configSchema": {
     "type": "object",

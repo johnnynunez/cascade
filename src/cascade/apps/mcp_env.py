@@ -124,14 +124,14 @@ NOT_FORWARDED: dict[str, tuple[str, str]] = {
     "CASCADE_ARM": ("registration", "the arm: launch.sh --arm / setup_agents --arm write it"),
     "CASCADE_OPENCLAW_PROFILE": ("registration", "launch.sh always writes the profile it registered under; the "
                                  "server checks it against --launch-owner, which only launch.sh passes"),
-    "CASCADE_START_STOPPED": ("registration", "only the dedicated Franka launchers (scripts/franka_openclaw.py, "
-                              "scripts/run_franka_http_mcp.sh) set it on the server they start; a generic "
-                              "registration must not inherit a latched STOP that holds every motion "
-                              "until an explicit resume"),
-    "CASCADE_GROUNDING_LLM_PROFILE": ("registration", "vision brain profile for grounding, chosen by the Franka "
-                                      "launcher (scripts/run_franka_http_mcp.sh sets local_cosmos on hardware); "
-                                      "franka_openclaw.py deliberately drops an inherited one, and generic "
-                                      "registrations stay offline"),
+    "CASCADE_START_STOPPED": ("registration", "only the Franka routes set it on the server they start "
+                              "(scripts/launch.sh --arm fr3 writes it; the legacy scripts/franka_openclaw.py "
+                              "and scripts/run_franka_http_mcp.sh); a generic registration must not inherit "
+                              "a latched STOP that holds every motion until an explicit resume"),
+    "CASCADE_GROUNDING_LLM_PROFILE": ("registration", "vision brain profile for grounding, chosen only by the "
+                                      "legacy Franka launcher (scripts/run_franka_http_mcp.sh sets local_cosmos "
+                                      "on hardware); scripts/launch.sh identifies objects with the brain "
+                                      "detector (CASCADE_PERCEPTION_*), and generic registrations stay offline"),
     "CASCADE_ARMS": ("selection", "the server prefers it over CASCADE_ARM, so an inherited list would silently "
                      "replace the arm the registration names; pass several arms with --arm a,b"),
     "CASCADE_CAMERA": ("selection", "legacy single-camera selector, read only when CASCADE_CAMERAS is unset; "

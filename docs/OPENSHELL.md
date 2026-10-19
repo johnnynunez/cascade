@@ -246,6 +246,6 @@ reasoning parser ignores the server's default for non-streaming requests.
 |---|---|
 | `scripts/openshell_rig.py` | the route: install, gateway, serve-mcp, mcp-start, up, motion, open, chat-url, exec, status, down, teardown, instance |
 | `scripts/launch_openshell.sh` | `scripts/launch.sh` steps 4-6 on Linux: brain, robot server, sandbox, proof inside it, chat |
-| `deploy/openshell/` | `Dockerfile` (node 24 by digest, OpenClaw pinned, Landlock-safe), `openclaw.json` (placeholders, never secrets), `render-config.mjs` (first-start render: ports, model, chat origin, token), `cascade-openclaw` (entrypoint) |
+| `deploy/openshell/` | `Dockerfile` (node 24 by digest, OpenClaw pinned, Landlock-safe), `openclaw.json` (placeholders, never secrets), `render-config.mjs` (first-start render: ports, model, chat origin, token, agent profile), `cascade-openclaw` (entrypoint), `franka-plugin/` (the FR3 operator profile, `up --agent-profile franka`: [FRANKA_OPENCLAW.md](FRANKA_OPENCLAW.md)) |
 | `tests/test_openshell_rig.py`, `tests/test_launch_openshell_route.py` | the contract above incl. the default instance's golden values; the real `launch.sh` on Linux end to end with rig, Docker, model and OpenClaw doubled |
 | `~/.cascade/openshell/` | binaries, gateway config + mTLS, profiles, `mcp.token`, `deployed.json` (named: `~/.cascade/openshell-<name>/` plus its `instance` file) |

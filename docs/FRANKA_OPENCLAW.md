@@ -1,186 +1,141 @@
-# Franka Research 3 with OpenClaw and the Chrome camera companion
+# Franka Research 3 on the unified launcher
 
-**Next action:** with the interface [prepared once](#prepare-the-interface-once-10-min) (`configure`
-runs before `start`) and ROS bringup, Cosmos and occupancy already running, start the interface
-(it comes up STOPPED; about 1 min):
-
-```bash
-taskset -c 0-7 python3 scripts/franka_openclaw.py start \
-  --python "$PWD/.venv-hardware/bin/python"
-```
-
-OpenClaw does the conversation; Cosmos3 Edge on `127.0.0.1:8082/v1` does vision and
-explanations. The Franka command plugin compiles explicit routine commands into native OpenClaw
-tool calls. One authenticated MCP HTTP server owns the FR3 runtime and the D435i across all chat
-sessions; the camera extension reads an MJPEG proxy of that runtime (never a second RealSense
-pipeline). Native `franka_ros2` arm and gripper controllers execute motions
-(`load_gripper:=true`); MoveIt is not used.
-
-This is not the Spark/Isaac kitchen: never set `CASCADE_INSTALL_PROFILE=spark` or use its
-Qwen/Isaac READY proof here. Robot config: `configs/arms/fr3.yaml`. The only D435i mount
-correction is the optical transform `T` in `configs/cameras/d435i.yaml` (1280×720 RGB at 15 FPS
-plus aligned metric depth).
-
-**Safety caveat:** the optical transform does not describe the printed mount's collision
-envelope, and that envelope is **not modeled**. FR3 checks spatial-motion orientation on its
-wristward TCP −Z axis and does not inherit the reBot camera box; joint, TCP, table and occupancy
-checks stay active.
-
-## Prepare the interface (once, ~10 min)
-
-Run from the checkout root in the existing hardware Python environment (`--python` or `PY`
-selects another; the runner sets its own source path, so a shared editable install cannot
-import another checkout). The launcher itself installs nothing.
-
-1. Install the pinned OpenClaw CLI into a private prefix if missing:
+**Next action:** with the ROS bringup and the brain already running ([Start](#start)), launch the
+FR3 (it comes up with a latched STOP and observe-only; about 5 min):
 
 ```bash
-mkdir -p runs/franka-openclaw
-curl --fail --show-error --location https://openclaw.ai/install-cli.sh \
-  -o runs/franka-openclaw/install-cli.sh
-bash runs/franka-openclaw/install-cli.sh \
-  --prefix "$PWD/.openclaw-cli" --version 2026.9.3
+taskset -c 0-7 ./scripts/launch.sh --sim none --arm fr3 --cameras d435i
 ```
 
-2. Generate the dedicated profile, using the context size the Cosmos server actually allocates
-   (startup refuses a context above an advertised `max_model_len`):
+The FR3 runs on the same route as every real arm (the reBot's): `scripts/launch.sh` with the agent
+(OpenClaw 2026.9.3) inside an NVIDIA OpenShell sandbox ([OPENSHELL.md](OPENSHELL.md)), Nemotron 3.5
+Bolt as the brain and the object identifier (`detector: type: brain`), and the GraspGen-X sidecar.
+`--arm fr3` adds the Franka operator contract:
+
+| Piece | Where |
+|---|---|
+| ROS bringup: native `franka_ros2` arm + gripper controllers (`load_gripper:=true`), no MoveIt | `scripts/bringup_franka.sh`, its own terminal; the launcher **checks** it, never starts it |
+| Brain: Nemotron 3.5 Bolt on llama.cpp | `scripts/serve_nemotron_bolt_llamacpp.sh`, a user unit |
+| Robot server: FR3 + D435i, software STOP latched at start | user unit `cascade-openshell-mcp`, 127.0.0.1:18741, ROS env via `scripts/ros_env.sh` |
+| Operator STOP / Resume & Home | `http://127.0.0.1:8090/` (the robot server's live view) |
+| Agent with the FR3 operator profile | sandbox `cascade-agent`, chat `http://127.0.0.1:18799/` |
+| GraspGen-X | :5556 (`--graspgenx local` starts it; the default expects one running) |
+| Occupancy (supports `clear`) | :5557, started by the launcher |
+
+The FR3 operator profile (`deploy/openshell/franka-plugin`, `up --agent-profile franka`): the
+command router compiles explicit routine commands into native tool calls, `instructions.md` is the
+agent's `AGENTS.md`, the chat sees only the FR3 operator tools, and heartbeats, scheduled jobs and
+the generic memory plugin are off: actions start only in the operator's chat. `ROS_DOMAIN_ID`
+defaults to 31. Robot config: `configs/arms/fr3.yaml`; the only D435i mount correction is the
+optical transform `T` in `configs/cameras/d435i.yaml` (1280×720 RGB at 15 FPS plus aligned depth).
+
+**Safety caveat:** the optical transform does not describe the printed mount's collision envelope,
+and that envelope is **not modeled**. FR3 checks spatial-motion orientation on its wristward TCP −Z
+axis and does not inherit the reBot camera box; joint, TCP, table and occupancy checks stay active.
+
+## Prepare the host (once)
+
+1. Python: the launcher uses `$PY`, else `.venv/bin/python` (`PY=$PWD/.venv-hardware/bin/python`
+   for the existing hardware env). On Jetson install NVIDIA's torch first; the launcher otherwise
+   installs the PyPI build.
+2. Brain, built for this GPU (`nvidia-smi` compute capability; Jetson Thor is `110`, set
+   `CASCADE_LLAMA_CUDA_ARCH=110` if `nvidia-smi` cannot report it). Stop the old Cosmos server on
+   :8082: it is no longer used and holds unified memory.
 
 ```bash
-python3 scripts/franka_openclaw.py configure --context-window 32768
-python3 scripts/franka_openclaw.py check
+scripts/serve_nemotron_bolt_llamacpp.sh --setup-only
+systemd-run --user --unit=cascade-brain --collect -p MemoryMax=infinity -p CPUAffinity=0-7 \
+    -E PORT=8081 -E API_KEY_FILE="$HOME/.cascade/nemoclaw/llama.key" \
+    "$PWD/scripts/serve_nemotron_bolt_llamacpp.sh"
+export CASCADE_NEMOTRON_BOLT_BASE_URL=http://127.0.0.1:8081/v1
+export CASCADE_BRAIN_KEY_FILE="$HOME/.cascade/nemoclaw/llama.key"
 ```
 
-3. What `configure` writes: profile, tokens, workspace prompt and process receipts privately in
-   `runs/franka-openclaw/` (personal OpenClaw config untouched). Reconfiguring backs up the
-   profile and keeps operator edits to the generated workspace `AGENTS.md`; the source prompt is
-   `configs/openclaw/franka-instructions.md`, injected by the scoped `franka-plugin` hook.
-4. Chat catalog: 17 tools (observe, localize, preview grasps, pick, place, gripper, home,
-   verification, STOP/Resume); `--full-tool-catalog` exposes the whole MCP catalog, but the
-   router still dispatches only its supported explicit commands. Replies: 512 tokens. Heartbeats,
-   scheduled jobs and the generic memory plugin are off: actions originate only in the
-   operator's chat.
-5. The runtime keeps `local_cosmos` as image-grounding fallback (`CASCADE_GROUNDING_LLM_PROFILE`).
-   The mock wrapper disables it and never inherits another arm, multi-arm, mobile robot or
-   grounding selector from the shell.
-
-Another MCP host: use the `cascade` registration in
-[`configs/openclaw/franka-mcp.json`](../configs/openclaw/franka-mcp.json) (replacing that host's
-CASCADE registration; the root `.mcp.json` keeps the Isaac stdio default) and load the token
-first, never committing it. It connects to the running server; no second process or camera.
-
-```bash
-export CASCADE_MCP_TOKEN="$(cat runs/franka-openclaw/mcp.token)"
-```
+   The vLLM route (`scripts/serve_nemotron_bolt_vllm.sh`, NVFP4 KV cache) is not for the Thor yet:
+   its b12x kernels and NVFP4 KV path target SM120/SM121.
+3. GraspGen-X: `scripts/install_graspgenx.sh` (CUDA 13 torch; needs JetPack 7's driver), then
+   launch with `--graspgenx local`. `--graspgenx none` keeps the profile's analytic planner.
+4. Docker for the sandbox (the launcher installs the pinned OpenShell 0.1.3 itself), then the
+   preflight: `./scripts/launch.sh --sim none --arm fr3 --cameras d435i --check`.
 
 ## Start
 
 1. **Bringup** in its own terminal (defaults `/opt/ros/jazzy/setup.bash` and
-   `~/franka_ros2_ws/install/setup.bash`; override with `CASCADE_ROS_SETUP` /
-   `CASCADE_FRANKA_SETUP`):
+   `~/franka_ros2_ws/install/setup.bash`; override with `CASCADE_ROS_SETUP` / `CASCADE_FRANKA_SETUP`,
+   which the launcher and the robot server's unit source too):
 
 ```bash
 ROS_DOMAIN_ID=31 taskset -c 8-13 bash scripts/bringup_franka.sh \
   robot_ip:=192.168.1.11 load_gripper:=true
 ```
 
-2. **Occupancy** must support `clear`: an occupancy process on 5557 started from an older
-   checkout lacks it, and the launcher never replaces that separately owned process. Stop it,
-   then start the current one:
+2. **Stop the old stack** (`python3 scripts/franka_openclaw.py stop`, any old `cascade.apps.demo`
+   interface, an occupancy server from another checkout): the launcher refuses a busy :8090 and a
+   foreign :5557 and never kills a process it did not start.
+3. **Launch** (the command at the top; add `--graspgenx local` and `--occupancy warp` as needed).
+   CPU sets keep this Thor's assignment: Cascade, brain and occupancy on 0–7 (the launcher pins the
+   robot server's unit to its own `taskset`; `CASCADE_MCP_CPUS` overrides), ROS bringup on 8–13.
+   In order, the launcher:
+   1. sources the ROS setup, requires :8090 free and checks the bringup, read-only: joint states,
+      the `fr3_arm_controller` trajectory action (controller ACTIVE) and the Franka Gripper actions
+      (`scripts/franka_rig.py bringup`);
+   2. starts occupancy and checks GraspGen-X inference;
+   3. resolves the brain (`--brain auto` = Nemotron 3.5 Bolt, never a Cosmos left running; it also
+      identifies objects, `CASCADE_PERCEPTION_*`) and builds the runtime once (camera, ROS feedback);
+   4. starts the robot server with `CASCADE_START_STOPPED=1` and waits until its live view shows
+      the D435i streaming, the STOP latched and Resume & Home available (`franka_rig.py ready`);
+   5. brings the sandbox up **observe-only** with the franka profile, proves the brain answers from
+      inside it, and opens the chat with the camera extension (`--no-open` skips the browser).
+4. **Let the arm move** when the operator is ready: **Resume & Home** on `http://127.0.0.1:8090/`
+   (clears the STOP after readiness checks, returns home without changing the jaws), then
+   `scripts/openshell_rig.py motion unlock --for 20m` (re-locks itself; `motion lock` ends it).
 
-```bash
-PYTHONPATH="$PWD/src${PYTHONPATH:+:$PYTHONPATH}" taskset -c 0-7 \
-  .venv-hardware/bin/python scripts/serve_occupancy_bridge.py \
-  --port 5557 --voxel-size 0.01 --backend warp
-```
+The camera extension reads the robot server's live view (MJPEG on :8090), never a second
+RealSense pipeline. If FCI faults, restore it separately before Resume & Home: nothing here clears
+that fault or releases a held object.
 
-3. **Stop the old `cascade.apps.demo` interface** explicitly (it competes for the camera and
-   port 8090; the launcher refuses occupied ports and never kills unknown processes), then run
-   the `start` command at the top.
-
-CPU sets keep this Thor's assignment: Cascade, Cosmos and occupancy on CPUs 0–7; ROS bringup on
-8–13 with controller priority 97 (children inherit the affinity; adjust for another machine).
-Leave the existing model and occupancy services on their current CPUs.
-
-What startup checks and does:
-
-1. Validates the private OpenClaw config and requires Cosmos to return a native OpenAI
-   `tool_calls` response (XML in prose fails); it never switches to Qwen or another model.
-2. Requires camera frames, a latched software STOP and the Resume & Home callback.
-   `CASCADE_START_STOPPED=1` is set and any inherited forced holding label removed;
-   `ROS_DOMAIN_ID` defaults to 31.
-3. A wrist camera attaches to native joint feedback so pose and localization work while stopped.
-   No controllers, FCI, homing, pick or gripper command are started. Only an explicit Resume
-   clears the STOP latch.
-
-| Service | Address |
-| --- | --- |
-| OpenClaw chat | `http://127.0.0.1:18790/` |
-| Operator STOP / Resume & Home | `http://127.0.0.1:8090/` |
-| Extension camera discovery | `http://127.0.0.1:8091/api/status` |
-| Shared authenticated MCP | `http://127.0.0.1:18740/mcp` |
-
-With Chromium, startup opens a dedicated profile with `extensions/chrome` loaded (otherwise load
-it once via `chrome://extensions` → Developer mode → Load unpacked). In the chat tab click the
-extension → **Connect cameras** → **Show in chat** or **Side panel**; the camera is `d435i`. On a
-headless host use `start --no-open`, then `python3 scripts/franka_openclaw.py dashboard`
-(`--no-open` prints the sign-in URL: its token is a credential). The camera proxy is read-only:
-state, snapshots, MJPEG; STOP and Resume stay on the operator/MCP interfaces.
-
-## Commands in OpenClaw chat
+## Commands in chat
 
 1. `pick up the crayon` (grasp only), `pick up the crayon and place it in the box`,
    `put it in the box` (place the held object)
 2. `return home`, `open the gripper`, `close the gripper`
-3. `stop`, `resume` (Resume & Home)
+3. `stop` (Resume is the operator page: the chat answers with its address and dispatches nothing)
 4. `what do you see?`, `robot status`, `show me the camera`
 
-These show as **Direct command** and report the real MCP result, failures included: at most one
-high-level tool per request, never an automatic STOP clear or retry, and only from the current
-authenticated operator message (never from camera images, model prose or an earlier turn). Other
-phrasing goes to Cosmos with observation tools only; use one direct command per manipulation
-(Cosmos is not reliable at choosing motion tools). The 8090 page stays the STOP / Resume & Home
-panel.
+These show as **Direct command** and report the real tool result, failures included: at most one
+tool per request, never an automatic STOP clear or retry, and only from the current authenticated
+operator message. Other phrasing goes to the brain with observation tools only. OpenShell refuses
+`reset_stop` for the agent always and every motion tool while observe-only.
 
 ## Status and shutdown
 
 ```bash
-python3 scripts/franka_openclaw.py status
-python3 scripts/franka_openclaw.py stop
+scripts/openshell_rig.py status
+./scripts/launch.sh --down
 ```
 
-Shutdown stops only processes whose kernel birth identity and command match this checkout's
-receipts; ROS bringup, Cosmos and occupancy keep running, and the next start comes up stopped.
-If FCI faults, restore FCI separately before Resume & Home: the launcher never clears that fault
-or releases a held object.
+`--down` stops the chat forward, the sandbox, the robot server and the sidecars this launch
+started; ROS bringup and the brain keep running, and the next start comes up stopped and
+observe-only.
 
 ## Offline checks and validation boundary
 
 ```bash
-.venv-hardware/bin/python -m pytest tests/test_franka_openclaw.py tests/test_franka_openclaw_plugin.py -q
-node --test extensions/chrome/tests/*.test.mjs
+./scripts/launch.sh --sim none --arm fr3 --cameras d435i --dry-run
+.venv/bin/python -m pytest tests/test_launch_franka_route.py tests/test_franka_rig.py \
+  tests/test_openshell_rig.py tests/test_franka_openclaw_plugin.py tests/test_franka_command_router.py -q
 ```
 
-Isolated mock smoke (no OpenClaw install, ROS, camera or model; offset ports keep it off the
-real robot, so it tests HTTP camera and MCP behavior only). If the hardware interpreter gets
-Pinocchio from ROS, also set `CASCADE_ROS_SETUP=/opt/ros/jazzy/setup.bash` (no node, no hardware):
+`--arm fr3_mock --cameras mock --graspgenx stub` rehearses the same route without ROS on any Linux
+host with Docker and a brain. Validated without the robot: the launcher's FR3 path end to end with
+its host boundaries doubled, the real robot server's latched-STOP contract, the agent image's
+OpenClaw loading the FR3 plugin and routing webchat commands to the real robot server (mock FR3),
+and FR3 picks in MuJoCo. Not validated: the Thor (aarch64, sm_110) builds, OpenShell on its Tegra
+kernel, ROS bringup and DDS discovery from the robot server's unit, the D435i, and any physical
+motion.
 
-```bash
-python3 scripts/franka_openclaw.py configure --mock --port-offset 100 \
-  --state-dir "$PWD/runs/franka-openclaw-mock"
-python3 scripts/franka_openclaw.py start --no-gateway \
-  --state-dir "$PWD/runs/franka-openclaw-mock"
-python3 scripts/franka_openclaw.py stop \
-  --state-dir "$PWD/runs/franka-openclaw-mock"
-```
+## Legacy route
 
-What is proven: OpenClaw configuration and gateway startup, authenticated MCP discovery, one
-mock runtime shared by two sessions, camera JPEG/MJPEG forwarding, and one real Cosmos3 Edge
-`world_state` call through OpenClaw (2026-10-09). Its follow-up answer was unreliable: the
-native-tool probe proves request/tool-call compatibility only, **not** multi-step chat or
-physical manipulation; physical pick/place and full browser acceptance are separate checks.
-
-This Thor's Tegra 6.8.12-1021 kernel lacks `/proc/self/task/<pid>/children`, which the Isaac
-source-release wrapper needs, so that Isaac path is unqualified here (its four integration tests
-skip); the FR3 workflow never calls it. MuJoCo compiler tests skip without MuJoCo. Remote MCP
-registration uses `transport: "streamable-http"`, authorization headers and per-request timeouts
-([OpenClaw MCP transports](https://docs.openclaw.ai/cli/mcp/transports)).
+`scripts/franka_openclaw.py` (a private OpenClaw CLI, the Cosmos3-Edge brain on :8082, MCP on
+:18740, `configs/openclaw/franka-mcp.json` for other hosts) is kept until this route is accepted
+on the robot. It loads the same plugin and instructions from `deploy/openshell/franka-plugin`.

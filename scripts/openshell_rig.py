@@ -30,6 +30,7 @@ through that one child's environment, never argv.
     scripts/openshell_rig.py open            # OpenClaw's web UI + the cascade camera extension
     scripts/openshell_rig.py chat-url        # http://127.0.0.1:<chat>/#token=... (secret!)
     scripts/openshell_rig.py motion lock     # observe-only: OpenShell denies every motion tool
+    scripts/openshell_rig.py up --agent-profile franka   # the Franka FR3 operator agent (docs/FRANKA_OPENCLAW.md)
     scripts/openshell_rig.py status | down
 
 Everything this route owns lives under $CASCADE_OPENSHELL_HOME (default
@@ -114,6 +115,13 @@ DEFAULT_MODEL = "nemotron-3.5-bolt"   # scripts/serve_nemotron_bolt_llamacpp.sh'
 LOCAL_BRAIN_MODELS = (DEFAULT_MODEL, "qwen3.8-27b")
 DEFAULT_CONTEXT_WINDOW = 65536   # deploy/openshell/openclaw.json's contextWindow
 DEFAULT_SANDBOX = "cascade-agent"   # NemoClaw's sandbox is `cascade`
+#: The agent's robot profiles (deploy/openshell/render-config.mjs): `generic`
+#: is the config every route rendered before profiles existed; `franka` adds
+#: the FR3 operator command plugin, its instructions and tool catalog.
+AGENT_PROFILES = ("generic", "franka")
+#: Runs a command after sourcing the ROS 2 + franka_ros2 setup (native-controller arms).
+ROS_ENV = REPO / "scripts" / "ros_env.sh"
+_CPU_LIST = re.compile(r"\d+(-\d+)?(,\d+(-\d+)?)*")
 SANDBOX_CHAT_PORT = 18789   # OpenClaw's gateway, on the sandbox's own loopback
 DEFAULT_DENY_TOOLS = ("reset_stop",)  # clearing an e-stop is staff-only (BOOTH_RUNBOOK.md)
 # Binaries allowed to use the credentials: OpenClaw runs on the image's node.
@@ -138,6 +146,8 @@ class Settings:
     #: the brain's context window, as the sandbox's OpenClaw must size prompts
     #: (deploy/openshell/openclaw.json carries this default)
     context_window: int = DEFAULT_CONTEXT_WINDOW
+    #: the agent's robot profile (AGENT_PROFILES); a change recreates the sandbox
+    agent_profile: str = "generic"
 
 
 # ── instances: several isolated routes on one host ────────────────────────
@@ -451,6 +461,8 @@ def sandbox_create_argv(cfg: Settings, image: str, *, inst: Instance = DEFAULT_I
            "CASCADE_CHAT_PORT": cfg.chat_port, "CASCADE_MODEL": cfg.model}
     if cfg.context_window != DEFAULT_CONTEXT_WINDOW:   # the template's value needs no variable
         env["CASCADE_CONTEXT_WINDOW"] = cfg.context_window
+    if cfg.agent_profile != "generic":   # the generic profile is the template's own
+        env["CASCADE_AGENT_PROFILE"] = cfg.agent_profile
     argv = ["sandbox", "create", "--name", cfg.sandbox, "--from", image,
             "--provider", inst.brain_provider, "--provider", inst.robot_provider]
     for k, v in env.items():
@@ -470,6 +482,22 @@ def serve_mcp_argv(cfg: Settings, token_file: Path, python: str = sys.executable
     sandbox reaches it as host.openshell.internal through the supervisor."""
     return [python, "-m", "cascade.apps.mcp_server", "--http", f"127.0.0.1:{cfg.mcp_port}",
             "--token-file", str(token_file)]
+
+
+def ros_env_argv(argv: list[str]) -> list[str]:
+    """`argv` inside the ROS 2 environment of a native-controller arm (the
+    Franka FR3): scripts/ros_env.sh sources CASCADE_ROS_SETUP and
+    CASCADE_FRANKA_SETUP and defaults ROS_DOMAIN_ID to 31, then execs it. A
+    user unit inherits none of the launcher's shell, so the unit sources the
+    same setup itself (the launcher's --env-file names the files)."""
+    return ["/bin/bash", str(ROS_ENV), *argv]
+
+
+def cpu_list(text: str) -> str:
+    """A CPU list for systemd's CPUAffinity= (`0-7`, `0,2,4-6`), else refuse."""
+    if not _CPU_LIST.fullmatch(str(text)):
+        raise SystemExit(f"--cpus {text!r}: use a CPU list such as 0-7 or 0,2,4-6")
+    return str(text)
 
 
 def default_brain_key_file() -> Path:
@@ -610,14 +638,17 @@ def registered_gateways(home: Path, run=_default_run) -> set[str]:
     return {cols[0] for cols in (line.replace("*", " ").split() for line in out[1:]) if cols}
 
 
-def _systemd_run(unit: str, argv: list[str], env: dict, log: Path) -> None:
+def _systemd_run(unit: str, argv: list[str], env: dict, log: Path, properties: tuple[str, ...] = ()) -> None:
     """A transient user unit (survives this shell; MemoryMax=infinity because
-    agent shells on the Spark run in a memory-capped scope)."""
+    agent shells on the Spark run in a memory-capped scope). `properties`
+    adds unit properties (e.g. CPUAffinity=0-7)."""
     subprocess.run(["systemctl", "--user", "stop", unit], capture_output=True, check=False)
     subprocess.run(["systemctl", "--user", "reset-failed", unit], capture_output=True, check=False)
     cmd = ["systemd-run", "--user", f"--unit={unit}", "--collect", "-p", "UMask=0077",
            "-p", "MemoryMax=infinity", "-p", f"StandardOutput=append:{log}",
            "-p", f"StandardError=append:{log}"]
+    for prop in properties:
+        cmd += ["-p", prop]
     for k in ("XDG_CONFIG_HOME", "XDG_STATE_HOME", "OPENSHELL_LOCAL_TLS_DIR", "PATH", "HOME"):
         if k in env:
             cmd += ["-E", f"{k}={env[k]}"]
@@ -890,6 +921,8 @@ def cmd_serve_mcp(inst: Instance, home: Path, args) -> int:
     token_file = Path(args.mcp_token_file or home / "mcp.token")
     ensure_token(token_file)
     argv = serve_mcp_argv(cfg, token_file) + list(args.extra)
+    if getattr(args, "ros_env", False):
+        argv = ros_env_argv(argv)
     base = dict(os.environ)
     if args.env_file:
         base.update(read_env_file(Path(args.env_file)))
@@ -922,13 +955,16 @@ def cmd_mcp_start(inst: Instance, home: Path, args) -> int:
     saved.unlink(missing_ok=True)
     serve = [sys.executable, str(Path(__file__).resolve()), *(["--instance", inst.name] if inst.name else []),
              "serve-mcp", "--mcp-port", str(cfg.mcp_port), "--mcp-token-file", str(token_file)]
+    if args.ros_env:
+        serve.append("--ros-env")
+    properties = (f"CPUAffinity={cpu_list(args.cpus)}",) if args.cpus else ()
     if runtime_env is not None:
         fd = os.open(saved, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, "w") as f:
             json.dump(runtime_env, f)
         serve += ["--env-file", str(saved)]
     log = home / "mcp-server.log"
-    _systemd_run(unit, [*serve, "--", *args.extra] if args.extra else serve, openshell_env(home), log)
+    _systemd_run(unit, [*serve, "--", *args.extra] if args.extra else serve, openshell_env(home), log, properties)
     code: int | str = "not probed"
     for _ in range(max(1, int(args.wait))):
         code = _check_mcp(cfg, token)
@@ -1160,6 +1196,8 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument("--brain-key-file", default=str(default_brain_key_file()),
             help="0600 file with the brain's bearer key")
         p.add_argument("--mcp-token-file", default=None, help="0600 MCP token file (default <home>/mcp.token)")
+        p.add_argument("--agent-profile", choices=AGENT_PROFILES, default=None,
+                       help="the agent's robot profile (default generic; franka = the FR3 operator agent)")
 
     add("install", "download + verify OpenShell, write gateway config and certs")
     g = add("gateway", "cascade's own OpenShell gateway (systemd user unit)")
@@ -1185,12 +1223,17 @@ def main(argv: list[str] | None = None) -> int:
             p.add_argument("--gateway", action="store_true", help="also stop the gateway")
         if name == "serve-mcp":
             p.add_argument("--env-file", help="JSON object of the server's runtime environment (0600)")
+            p.add_argument("--ros-env", action="store_true",
+                           help="run the server through scripts/ros_env.sh (ROS 2 + franka_ros2 setup)")
     ms = add("mcp-start", "serve-mcp as this instance's user unit, then wait until it answers; "
                           "`-- ARGS` reach the server (e.g. its launch-owner flags)")
     settings_flags(ms)
     ms.add_argument("--env-file", help="JSON object of the server's runtime environment (copied 0600 into the home)")
     ms.add_argument("--replace", action="store_true", help="restart the unit if it runs (only if you own it)")
     ms.add_argument("--wait", type=int, default=180, help="seconds to wait for the server to answer (default 180)")
+    ms.add_argument("--ros-env", action="store_true",
+                    help="the server sources the ROS 2 + franka_ros2 setup first (scripts/ros_env.sh)")
+    ms.add_argument("--cpus", default=None, help="CPU affinity of the server's unit (e.g. 0-7)")
     ex = add("exec", "run `-- COMMAND` inside this instance's sandbox (the launcher's OpenClaw CLI)")
     settings_flags(ex)
     td = add("teardown", "stop the chat forward, delete the sandbox, stop the robot server and the re-lock")

@@ -81,18 +81,19 @@ def _texts_equivariant(a, b, T):
 
 
 #: A box a refusal quotes: the workspace with the TCP it refused, or a
-#: keep-out zone, each with the base-frame note of a mount that rotates it.
+#: keep-out zone; on a mount that rotates it, in the arm's base frame first
+#: (#412 review Minor 4).
 _BOX_QUOTE = re.compile(
-    r"TCP (\[[^\]]*\]) outside workspace \[(\[[^\]]*\]) \.\. (\[[^\]]*\])\]"
-    r"( \(table-frame bounds of this arm's workspace, which its base_pose rotates: [^)]*\))?"
+    r"TCP (\[[^\]]*\]) outside workspace (?:\[(\[[^\]]*\]) \.\. (\[[^\]]*\])\]"
+    r"|(\(its base_pose rotates it: in the arm's base frame [^)]*\)))"
     r"|keep-out (zone (\[[^\]]*\])\.\.(\[[^\]]*\])"
-    r"( \(table-frame bounds of this arm's keep-out zone, which its base_pose rotates: [^)]*\))?)")
+    r"( in the arm's base frame \(its base_pose rotates it; [^)]*\))?)")
 
 
 def _honest_boxes(a: str, b: str, T):
     """Rig B's quoted boxes are the texts rig A's base-frame numbers owe on a
     base_pose arm (#407 review follow-up 3: the table-frame bounds of all 8
-    corners, plus the base frame's box when the mount rotates it), not two
+    corners, after the base frame's box when the mount rotates it), not two
     lifted corners; returns both texts with those quotes blanked, for the
     equivariance oracle to compare the rest. A shifted / raised mount's bounds
     are its lifted corners: the same numbers as T a."""

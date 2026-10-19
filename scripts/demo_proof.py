@@ -66,12 +66,24 @@ def readiness_prompt(model: str) -> str:
 #: other brain keeps main's wording.
 WORLD_PROMPT = "What is the session status?"
 RESET_PROMPT = "Let's start over, then show the session status."
-TOOL_NAMING_PROMPTS = {
-    NEMOTRON_BOLT_MODEL: {
-        WORLD_PROMPT: "What is the session status? Read it with the world_state tool.",
-        RESET_PROMPT: "Let's start over, then show the session status with the world_state tool.",
-    },
+_NAMED_WORLD_STATE = {
+    WORLD_PROMPT: "What is the session status? Read it with the world_state tool.",
+    RESET_PROMPT: "Let's start over, then show the session status with the world_state tool.",
 }
+#: Cosmos3-Edge (its compact OpenClaw profile, greedy) calls reset_scene for
+#: "What is the session status?" and writes the tool's schema as text when the
+#: question names "the world_state tool"; "What is the current world state?"
+#: calls world_state (each 4/4 on the captured proof request, 2026-10-19).
+_COSMOS_WORLD_STATE = {
+    WORLD_PROMPT: "What is the current world state?",
+    RESET_PROMPT: "Let's start over, then show the current world state.",
+}
+TOOL_NAMING_PROMPTS = {NEMOTRON_BOLT_MODEL: _NAMED_WORLD_STATE, "cosmos3-edge": _COSMOS_WORLD_STATE}
+#: Brains whose OpenClaw profile runs ONE tool per request (deploy/openshell/
+#: cosmos-plugin): the proof's reset turn becomes "Let's start over." (reset_scene)
+#: followed by its own session-status turn (world_state); same checks.
+ONE_TOOL_BRAINS = frozenset({"cosmos3-edge"})
+RESET_ONLY_PROMPT = "Let's start over."
 
 
 def proof_prompt(model: str, prompt: str) -> str:
@@ -581,9 +593,14 @@ def run_proof(repo, state_dir, sim: str, robot_turn: bool = True, *, spark_case_
         validate_pick_trace(trace, started, target)
         reset_started = time.time()
         print("[proof] resetting the SAME world", file=sys.stderr, flush=True)
-        agent_turn(session, model,
-                   proof_prompt(model, RESET_PROMPT),
-                   evidence / "04-reset.json", 150, ("reset_scene", "world_state"))
+        if model.partition("/")[2] in ONE_TOOL_BRAINS:
+            agent_turn(session, model, RESET_ONLY_PROMPT, evidence / "04-reset.json", 150, "reset_scene")
+            agent_turn(session, model, proof_prompt(model, WORLD_PROMPT),
+                       evidence / "05-world-reset.json", 150, "world_state")
+        else:
+            agent_turn(session, model,
+                       proof_prompt(model, RESET_PROMPT),
+                       evidence / "04-reset.json", 150, ("reset_scene", "world_state"))
         _bound_world(state_dir, owner, baseline, report["started_at"], process, persistent=persistent_mcp)
         props = validate_reset_trace(trace, reset_started, sim, target)
         report.update(verified=True, trace=str(trace), props_reset=props)

@@ -31,7 +31,7 @@ import numpy as np
 
 from .colors import detection_color
 from .detector import can_reanchor
-from .freshness import capture_marker, frames_after_reset, newer_capture
+from .freshness import capture_marker, frames_after_reset, newer_capture, observed_at
 from .grounding import Extrinsics, mask_to_points_cam, oriented_bbox
 from .thread_join import cancel_stop_before_exit, join_thread, stop_before_exit
 from .workspace import WorkspaceFilter
@@ -501,10 +501,13 @@ class WorldWatcher:
         # its success; a dead camera still stops it. Also with an empty table
         # or the arm mid-motion (motion skills outlast the watchdog window and
         # rely on this). On a multi-arm rig the camera names whose watchdog it
-        # feeds (`WatchedCamera.watchdog_feed`).
+        # feeds (`WatchedCamera.watchdog_feed`). The beat carries the frame's
+        # arrival time (`observed_at`), so the watchdog's age is this frame's
+        # age: a driver that repeats its last buffer under new frame ids, or a
+        # producer that re-delivers an old capture, never makes it fresher.
         feed = self._harness if cam.watchdog_feed is None else cam.watchdog_feed
         if feed is not None:
-            feed.heartbeat()
+            feed.heartbeat(at=observed_at(frame))
         # One heartbeat per tick: a call that blocks for the watchdog window
         # (5 s) would starve it all the same. detect_nowait never waits for a
         # slow backend (the brain detector answers from its cache and asks the

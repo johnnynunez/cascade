@@ -43,7 +43,7 @@ def rig(monkeypatch, demo_cfg, tmp_path):
     def never_materialize():
         pytest.fail("Localization materialized LazyArm")
     lazy = LazyArm(never_materialize)
-    arm = SimpleNamespace(raw=lazy, harness=SimpleNamespace(heartbeat=lambda: None))
+    arm = SimpleNamespace(raw=lazy, harness=SimpleNamespace(heartbeat=lambda at=None: None))
     demo_cfg._data.update(perception_loop={"localize_frames": 3}, grounder=None)
     rt = SkillRuntime(SimpleNamespace(get_frame=lambda: primary),
         DepthProvider(Cfg({})), None, Extrinsics(), None, arm,

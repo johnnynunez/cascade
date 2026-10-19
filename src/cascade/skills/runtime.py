@@ -40,6 +40,7 @@ from ..memory import BeliefStore, EpisodicMemory, FrameObservation
 from ..memory.beliefs import camera_source
 from ..perception.colors import detection_color, parse_color_query
 from ..perception.detector import can_reanchor, detect_vocabulary
+from ..perception.freshness import observed_at
 from ..perception.reference import ReferenceResolutionError, parse_reference
 from typing import TYPE_CHECKING, Any, Callable
 
@@ -270,10 +271,11 @@ def _belief_footprint(belief, table_z: float = 0.0) -> tuple[np.ndarray, float]:
     ValueError when its position, top or extents (or points) are not finite:
     an object point_at cannot place is never skipped."""
     name = f"the {belief.color + ' ' if getattr(belief, 'color', None) else ''}{belief.label}"
-    position = np.asarray(belief.position, dtype=float).reshape(-1)
-    ext = getattr(belief, "extent", None)
+    # strict CUDA mode remembers clouds on the GPU (cuda_math.remember_cloud)
+    position = np.asarray(_host(belief.position), dtype=float).reshape(-1)
+    ext = _host(getattr(belief, "extent", None))
     ext = None if ext is None else np.asarray(ext, dtype=float).reshape(-1)
-    pts = getattr(belief, "points", None)
+    pts = _host(getattr(belief, "points", None))
     pts = None if pts is None or not len(pts) else np.asarray(pts, dtype=float).reshape(-1, 3)
     top = getattr(belief, "top_z", None)
     unsized = ext is None and pts is None
@@ -316,6 +318,34 @@ def _raise_if_estopped(harness) -> None:
     operator's halt.)"""
     if getattr(harness, "estopped", False):
         raise SafetyViolation("e-stop latched")
+
+
+def _host_fix(fix):
+    """`fix` with host numpy geometry, for a host-side planner (point_at).
+
+    Strict CUDA perception (CASCADE_REQUIRE_CUDA=1, the GPU kitchen) keeps
+    the fix's cloud a CUDA tensor (`cuda_math.backproject`), and numpy
+    refuses one ("can't convert cuda:0 device type tensor to numpy"), so
+    point_at's object column, top and footprints failed on that stack before
+    any command. This is the deliberate host boundary after CUDA perception
+    that the belief box and the GraspGen-X wire take too: a copy of the
+    already localized cloud (at most a few thousand points), never a CPU
+    re-localization. A fix that is already on the host comes back as is."""
+    import dataclasses
+
+    host = {name: _host(getattr(fix, name, None)) for name in ("position", "points", "extent", "axes")}
+    host = {name: value for name, value in host.items() if value is not getattr(fix, name, None)}
+    return dataclasses.replace(fix, **host) if host else fix
+
+
+def _host(value):
+    """`value` as host data: a torch tensor (strict CUDA mode: localized and
+    remembered clouds stay on the GPU) is copied to numpy, anything else comes
+    back as is. For host-side geometry only (point_at's planner, a belief's
+    footprint); never a CPU re-run of perception."""
+    if hasattr(value, "detach"):
+        return value.detach().cpu().numpy()
+    return value
 
 
 def _raise_if_halted_since_start(harness, generation) -> None:
@@ -1027,11 +1057,29 @@ class SlowPerceptionError(SkillError):
     false -- the caller may analyze a newer frame instead."""
 
 
-def _analyzed_frame_age_s(frame: Frame, analysis_s: float, max_age_s: float = 5.0) -> float:
+class StaleFrameError(SlowPerceptionError):
+    """The frame was ALREADY past the age limit when its analysis began: the
+    camera stopped delivering (`CameraStream.get_frame` returns a dead
+    camera's last frame after its wait). "The camera is live -- retry" would be
+    false. A SlowPerceptionError subclass, so every path that ends on slow
+    perception (no memory fallback, no motion recovery) ends on this too; only
+    the text differs."""
+
+
+def _analyzed_frame_age_s(frame: Frame, analysis_s: float, max_age_s: float = 5.0, *,
+                          age_at_start: float | None = None) -> float:
     """Age of a frame whose freshness was checked BEFORE analysis: past the
-    limit now only because the analysis was slow, reported as exactly that."""
+    limit now only because the analysis was slow, reported as exactly that.
+
+    `age_at_start`: the frame's age when it was grabbed, from a caller whose
+    frame was NOT checked before (`_localize`'s fallbacks). A frame already
+    past the limit then was stale before any analysis (a dead camera's last
+    frame): StaleFrameError, which says so, instead of "fresh at capture ...
+    the camera is live"."""
     age = _frame_age_s(frame, max_age_s=float("inf"))
     if age > max_age_s:
+        if age_at_start is not None and age_at_start > max_age_s:
+            raise StaleFrameError(f"Camera frame is {age:.1f}s old; wait for the camera to reconnect")
         raise SlowPerceptionError(
             f"Perception took {analysis_s:.1f}s on a frame that was fresh at capture, so the "
             f"result is {age:.1f}s old; the camera is live -- retry the observation"
@@ -1062,6 +1110,8 @@ def _perception_stop(exc: BaseException, attempt: int) -> str | None:
     the second attempt on."""
     if isinstance(exc, SceneChangedError):
         what = "the scene changed while the object was localized"
+    elif isinstance(exc, StaleFrameError):
+        what = "the camera stopped delivering frames"
     elif isinstance(exc, SlowPerceptionError):
         what = "localization analysis expired"
     elif isinstance(exc, ReanchorError) and attempt >= 2:
@@ -1408,6 +1458,12 @@ class SkillRuntime:
     #: runtimes that way and only set the handful of fields they exercise.
     _arm = None
     _arm_override = None
+    #: ((camera stream, watchdog feed), ...) per rig camera, set by
+    #: `apps.demo.build_runtime` (#412's `WatchedCamera.watchdog_feed`): whose
+    #: perception watchdogs a frame of that camera may keep fresh. A feed of
+    #: None (one arm), an unlisted camera or a runtime built any other way:
+    #: the running arm's own harness (`_mark_perception_fresh`).
+    _watchdog_feeds = ()
     _motion_scope = None
     motion_cancel_requested = None
     arm_rig = None
@@ -1583,8 +1639,8 @@ class SkillRuntime:
             return belief
         from dataclasses import replace
 
-        position = np.asarray(belief.position, dtype=float).reshape(3)
-        points = getattr(belief, "points", None)
+        position = np.asarray(_host(belief.position), dtype=float).reshape(3)
+        points = _host(getattr(belief, "points", None))
         return replace(
             belief,
             position=arm_frame.to_arm(T, position),
@@ -3179,8 +3235,33 @@ class SkillRuntime:
             if not np.isfinite(age) or age < 0 or age > watchdog_s:
                 raise RuntimeError(f"camera frame is stale or invalid (age {age:.3f}s)")
         self.last_frame = frame
-        self.arm.harness.heartbeat()
+        self._mark_perception_fresh(frame)
         return frame
+
+    def _watchdog_feed_of(self, camera):
+        """Whose perception watchdogs a frame of `camera` keeps fresh: the
+        camera's per-arm feed on a multi-arm rig (a fixed camera: every arm; an
+        eye-in-hand camera: the arm it rides on; a `role: wrist` view: none),
+        else the running arm's harness (one arm: unchanged)."""
+        for stream, feed in self._watchdog_feeds:
+            if stream is camera and feed is not None:
+                return feed
+        return self.arm.harness
+
+    def _mark_perception_fresh(self, frame: Frame, camera=None) -> None:
+        """Every runtime frame grab that feeds the perception watchdog goes
+        through here (`camera`: the frame's camera, the primary by default).
+
+        The beat carries the frame's arrival time (`observed_at`), never the
+        time of the grab: `CameraStream.get_frame` returns a dead camera's
+        last frame again after its wait, of any age, and on main execute()'s
+        BEFORE / AFTER frames and every in-skill observe() then re-armed the
+        watchdog, so an arm with a dead camera kept moving. The feed is the
+        camera's own (`_watchdog_feed_of`): in-skill frame grabs never keep an
+        arm alive from a camera that does not watch it."""
+        if camera is None:
+            camera = getattr(self, "camera", None)  # bare `__new__` runtimes have none
+        self._watchdog_feed_of(camera).heartbeat(at=observed_at(frame))
 
     def _wrist_streams(self) -> list[tuple[str, Any]]:
         """`(name, stream)` for every rig camera whose profile is a wrist view
@@ -3238,7 +3319,7 @@ class SkillRuntime:
         frame = _fresh_camera_frame(self.camera, self.last_frame)
         frame = self.depth.ensure_depth(frame)
         self.last_frame = frame
-        self.arm.harness.heartbeat()
+        self._mark_perception_fresh(frame)
         return frame
 
     def backends(self) -> dict:
@@ -4355,6 +4436,19 @@ class SkillRuntime:
             return (np.all(np.isfinite(point)) and np.all(point >= workspace_bounds[0])
                     and np.all(point <= workspace_bounds[1]))
         frame = None
+        # The primary frame's age when it was grabbed: a dead camera's last
+        # frame is already past the limit then, and the fallbacks below say so
+        # (StaleFrameError) instead of "fresh at capture ... the camera is live".
+        frame_age_at_grab = None
+
+        def grabbed(f):
+            nonlocal frame_age_at_grab
+            try:
+                frame_age_at_grab = time.monotonic() - float(f.t)
+            except (AttributeError, TypeError, ValueError):
+                frame_age_at_grab = None
+            return f
+
         last_err: SkillError | None = None
         reserve = getattr(self.detector, "reserve", nullcontext)
         loop_cfg = self.cfg.get("perception_loop", {})
@@ -4543,13 +4637,13 @@ class SkillRuntime:
         # (table-frame) capture for the VLM fallback, which converts its views.
         def primary_frame0():
             nonlocal frame
-            frame = self.observe()
+            frame = grabbed(self.observe())
             return self._frame_in_arm(frame)
 
         def primary_frame1(frame0):
             fresh = self.depth.ensure_depth(_fresh_camera_frame(self.camera, previous=frame0))
             self.last_frame = fresh
-            self.arm.harness.heartbeat()
+            self._mark_perception_fresh(fresh)
             return self._frame_in_arm(fresh)
 
         tries = int(loop_cfg.get("localize_frames", 3))
@@ -4564,7 +4658,7 @@ class SkillRuntime:
                         analyzed, fix = localize_two_phase(primary_frame0, primary_frame1,
                                                            lambda _frame: self.extrinsics)
                         return self._note_localized(query, analyzed, fix)
-                    frame = self.observe()
+                    frame = grabbed(self.observe())
                     analyzed = self._frame_in_arm(frame)
                     fix = analyze(analyzed, self.extrinsics)
                 return self._note_localized(query, analyzed, fix)
@@ -4675,7 +4769,7 @@ class SkillRuntime:
             and in_workspace(belief_in_arm.position)
         )
         if mem_ok:
-            _analyzed_frame_age_s(frame, time.monotonic() - localization_started)
+            _analyzed_frame_age_s(frame, time.monotonic() - localization_started, age_at_start=frame_age_at_grab)
             self.memory.add(
                 "note",
                 f"localize {query!r}: instant detection missed; using the "
@@ -4686,7 +4780,7 @@ class SkillRuntime:
                 self._fix_from_belief(query, belief_in_arm)
         # Last filter: VLM grounding of this one query, when the detector
         # missed it; one slow call only ever runs on this failure path.
-        _analyzed_frame_age_s(frame, time.monotonic() - localization_started)
+        _analyzed_frame_age_s(frame, time.monotonic() - localization_started, age_at_start=frame_age_at_grab)
         grounded = self._vlm_ground_fix(frame, query)
         if grounded is not None and in_workspace(grounded[1].position):
             return grounded
@@ -8059,6 +8153,7 @@ class SkillRuntime:
         harness = getattr(self.arm, "harness", None)
         generation = getattr(harness, "_halt_generation", None)
         frame, fix = self._localize(label)
+        fix = _host_fix(fix)
         from . import pointing
 
         # the freshness clock starts here, at the localization, before the
@@ -8332,6 +8427,7 @@ class SkillRuntime:
                 raise not_seen(f"its capture cannot be compared with the one the plan was made from ({exc})") from None
             if not newer:
                 raise not_seen("its camera re-sent a capture no newer than the one the plan was made from")
+        fresh = _host_fix(fresh)
         moved = pointing.fix_moved_m(fix, fresh)
         if moved <= pointing.FRESH_MOVE_M:     # NaN counts as moved
             return
@@ -9815,7 +9911,7 @@ class SkillRuntime:
                     recovery_generation = self._refresh_halt_generation
                     out["retained_anchor_refresh"] = occupancy.last_capture_refresh
                 self.last_frame = self.depth.ensure_depth(observed[0][2])
-                self.arm.harness.heartbeat()
+                self._mark_perception_fresh(self.last_frame)  # observed[0]: the primary camera
                 out["geometry_recovered"] = True
             except Exception as e:  # noqa: BLE001
                 out.update(ok=False, stage="reset_recovery", home_skipped=True,
@@ -9963,7 +10059,7 @@ class SkillRuntime:
                 if recovery_cancelled():
                     return out
                 self.last_frame = frame
-                self.arm.harness.heartbeat()
+                self._mark_perception_fresh(frame)  # observed[0]: the primary camera
                 obs = self._describe_observation(frame)
                 if recovery_cancelled():
                     return out

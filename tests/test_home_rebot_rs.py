@@ -28,6 +28,7 @@ from __future__ import annotations
 import sys
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 from conftest import needs_pin
@@ -61,7 +62,7 @@ class FakeCamera:
             if self.left <= 0:
                 raise CameraError("unplugged")
             self.left -= 1
-        return object()
+        return SimpleNamespace(t=time.monotonic())  # a new frame, stamped at its arrival
 
     def close(self):
         self.closed = True
@@ -317,7 +318,7 @@ def test_only_frames_that_arrive_beat_the_harness():
     class H:
         beats = 0
 
-        def heartbeat(self):
+        def heartbeat(self, at=None):
             H.beats += 1
 
     hb = hr.CameraHeartbeat(FakeCamera(frames=0))
@@ -333,3 +334,28 @@ def test_only_frames_that_arrive_beat_the_harness():
     hb.attach(H())
     assert hb.wait_beat(2.0) is True and H.beats > 0
     hb.stop()
+
+
+def test_a_camera_handing_back_an_old_frame_never_makes_the_watchdog_fresher():
+    """The beat carries the frame's arrival time: a driver that hands back its
+    last frame (here 30 s old) never re-arms the harness's watchdog."""
+    import home_rebot_rs as hr
+
+    from cascade.safety.harness import SafetyHarness, SafetyLimits
+
+    old = SimpleNamespace(t=time.monotonic() - 30.0)
+
+    class Stuck(FakeCamera):
+        def get_frame(self):
+            time.sleep(0.002)
+            return old
+
+    h = SafetyHarness(SafetyLimits(workspace_min=np.full(3, -1.0), workspace_max=np.ones(3)))
+    h._last_heartbeat = time.monotonic() - 60.0
+    hb = hr.CameraHeartbeat(Stuck())
+    hb.start()
+    hb.attach(h)
+    assert hb.wait_beat(2.0) is True
+    hb.stop()
+    assert h._last_heartbeat == old.t
+    assert time.monotonic() - h._last_heartbeat > h.limits.watchdog_s

@@ -19,6 +19,8 @@ from pathlib import Path
 
 import pytest
 
+from inherited_server_env import BENIGN_ENV, HOSTILE_LLAMA_ENV, dropped, leaked
+
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = "scripts/serve_nemotron_bolt_llamacpp.sh"
 MANIFEST = "deploy/brev/profiles/nemotron-3.5-bolt-24gb.json"
@@ -54,7 +56,7 @@ if sys.argv[1:] == ['--help']:
     print({HELP!r})
 else:
     print(json.dumps({{'server_args': sys.argv[1:], 'pid': os.getpid(),
-                      'slots_debug': os.environ.get('LLAMA_SERVER_SLOTS_DEBUG')}}))
+                      'slots_debug': os.environ.get('LLAMA_SERVER_SLOTS_DEBUG'), 'env': dict(os.environ)}}))
 """)
     server.chmod(0o755)
     (repo / WARM).write_text("import json, os, sys\n"
@@ -135,7 +137,8 @@ import json, os, sys
 if sys.argv[1:] == ['--help']:
     print({help_text!r})
 else:
-    print(json.dumps({{'server_args': sys.argv[1:], 'slots_debug': os.environ.get('LLAMA_SERVER_SLOTS_DEBUG')}}))
+    print(json.dumps({{'server_args': sys.argv[1:], 'slots_debug': os.environ.get('LLAMA_SERVER_SLOTS_DEBUG'),
+                      'env': dict(os.environ)}}))
 """)
 
 
@@ -300,6 +303,30 @@ def test_the_warm_start_sets_slots_debug_to_1_whatever_was_inherited(prepared, k
     """With the warm start on, the helper needs GET /slots prompts: an inherited 0 or empty value would hide them."""
     result = invoke(prepared, API_KEY_FILE=str(key), LLAMA_SERVER_SLOTS_DEBUG=inherited)
     assert started_server(result)["slots_debug"] == "1" and helper_runs(prepared)
+
+
+@pytest.mark.parametrize("route", ["keyless", "WARM_START=0", "warm start"])
+def test_inherited_llama_server_settings_never_reach_the_bolt_server(prepared, key, route):
+    """#405 review, Minor 2: llama-server v0.7.0 takes every flag from LLAMA_ARG_<FLAG> too (a flag on argv wins), so
+    an inherited LLAMA_ARG_SLOT_SAVE_PATH opened slot save/restore/erase on a keyless or WARM_START=0 start, and
+    LLAMA_ARG_ENDPOINT_PROPS POST /props. Keys accumulate from LLAMA_API_KEY, and AIP_MODE moves the port and adds a
+    route to every endpoint. The script passes what it means as flags; none of these may come from the caller."""
+    env = dict(HOSTILE_LLAMA_ENV)
+    if route == "WARM_START=0":
+        env.update(WARM_START="0", API_KEY_FILE=str(key))
+    elif route == "warm start":
+        env.update(API_KEY_FILE=str(key))
+    result = invoke(prepared, **env)
+    assert leaked(started_server(result)["env"], HOSTILE_LLAMA_ENV) == {}
+    args = served(result)
+    assert ("--slot-save-path" in args) == (route == "warm start")
+    # The one variable the script sets on purpose: SLOTS_DEBUG=1 for the warm start's helper, never otherwise.
+    assert started_server(result)["slots_debug"] == ("1" if route == "warm start" else None)
+
+
+def test_the_rest_of_the_callers_environment_reaches_the_bolt_server(prepared, key):
+    result = invoke(prepared, API_KEY_FILE=str(key), **HOSTILE_LLAMA_ENV, **BENIGN_ENV)
+    assert dropped(started_server(result)["env"]) == {}
 
 
 def test_a_missing_warm_start_helper_serves_without_the_warm_start(prepared, key):

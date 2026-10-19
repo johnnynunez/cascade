@@ -219,10 +219,9 @@ def test_the_harness_reads_visitor_zones_in_the_table_frame(build, pose):
 def test_a_throw_side_is_the_table_side_the_mounted_arm_swings_to(build, sides, refused):
     """A quarter-turned mount: the arm's forward swing goes to the TABLE's
     left. visitor_sides name table sides (where people stand), so `left`
-    refuses that throw and `forward` does not. Through execute() a base_pose
-    arm's throw is still refused by #352's world-target refusal before the
-    guard runs, so the side is checked on `check_call` itself (the same call
-    execute() makes, on the running arm)."""
+    refuses that throw and `forward` does not, on `check_call` and through
+    execute() alike: since base_pose Task 6 a level base_pose arm's throw
+    reaches the guard (#352's world-target refusal is gone)."""
     rt = _single(build, QUARTER, {"visitor_sides": sides})
     _, release = rt._throw_keyframes("forward")
     assert rt.kin.fk(release)[0, 3] > 0.3            # forward in the arm frame
@@ -234,7 +233,37 @@ def test_a_throw_side_is_the_table_side_the_mounted_arm_swings_to(build, sides, 
         assert refusal is None
     mark = _mark(rt)
     out = rt.execute("throw", {"label": "red cube", "direction": "forward"})
-    assert out["ok"] is False and _sent(rt, mark) == (0, 0), out
+    if refused:
+        _refused_before_any_command(rt, out, mark, rule="throw_toward_visitor_side")
+        assert out["people_guard"]["side"] == "left"
+    else:
+        assert out.get("refused_by") != "people_guard", out
+        assert "mounted off the table origin" not in str(out.get("error")), out
+        assert _sent(rt, mark)[0] > 0, out           # it grasped and swung (the harness vets the swing)
+
+
+@pytest.mark.parametrize("pose", ["yawed", "quarter"])
+def test_a_handover_is_vetted_where_the_mounted_arm_presents(build, pose):
+    """Through execute() (base_pose Task 6): the handover pose's TABLE-frame
+    TCP in a visitor zone refuses the handover before any command; the same
+    zone at the arm-frame numbers does not stop it at the guard."""
+    T = transform(POSES[pose])
+    probe = _single(build, POSES[pose])
+    hand_b = probe.kin.fk(probe._profile_q("handover_q", "present the object to a human"))[:3, 3]
+    hand_w = lift(T, hand_b)
+    assert not _inside(hand_b, hand_w)
+
+    rt = _single(build, POSES[pose], {"visitor_zones": [_zone("front row", hand_w)]})
+    mark = _mark(rt)
+    out = rt.execute("handover", {"label": "red cube"})
+    _refused_before_any_command(rt, out, mark)
+    assert out["people_guard"]["what"] == "the handover pose" and out["people_guard"]["zone"] == "front row"
+
+    rt = _single(build, POSES[pose], {"visitor_zones": [_zone("arm-frame numbers", hand_b)]})
+    mark = _mark(rt)
+    out = rt.execute("handover", {"label": "red cube"})
+    assert out.get("refused_by") != "people_guard", out
+    assert _sent(rt, mark)[0] > 0, out
 
 
 # ── 4. the shipped so101 pair: each arm vetted where IT stands ────────────

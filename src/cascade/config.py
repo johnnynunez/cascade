@@ -53,6 +53,13 @@ class Cfg:
         return f"Cfg({self._data!r})"
 
 
+def plain(value: Any) -> Any:
+    """A Cfg section as a plain dict, a deep copy (`Cfg.as_dict()`): a reader
+    can never change the running configuration through it. Anything else
+    (a dict, a list, a scalar, None) comes back as it is."""
+    return value.as_dict() if isinstance(value, Cfg) else value
+
+
 def _load_yaml(path: Path) -> dict[str, Any]:
     with open(path) as f:
         data = yaml.safe_load(f) or {}

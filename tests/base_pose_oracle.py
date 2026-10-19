@@ -42,38 +42,70 @@ ORACLE_SKILLS: frozenset[str] = frozenset({
     "grasp_object", "grasp_at_pixel",
     # Task 5: releases and pushes
     "place_at", "place_on_object", "push_object", "pick_and_place",
+    # Task 6: the remaining world-target skills, the viewer frame, the probe (R10)
+    "sort_by_color", "search_for_object", "snapshot_scene", "restore_scene", "turn_screw", "throw", "handover",
+    "move_near_object", "move_relative", "undo_move", "rotate_gripper", "probe_point",
 })
 
 #: Result keys whose numeric 3-vector is a POINT: rig B's is T a. Task 5:
 #: place_at's `at` / `tcp_at`, pick_and_place's `placed_at`, the retreat's
 #: `tcp_at`, push's `new_position_estimate`, a postcondition's `final` pose.
+#: Task 6: the spatial moves' `tcp_before` / `tcp_after`, the probe's `center`
+#: (the belief it hit).
 POINT_KEYS: frozenset[str] = frozenset({"position", "tcp_xyz", "object_xyz", "at", "tcp_at", "placed_at",
-                                        "new_position_estimate", "final"})
+                                        "new_position_estimate", "final", "tcp_before", "tcp_after", "center"})
 #: Result keys whose numeric 2-vector is an xy in the table frame: rig B's is
-#: the xy of T (x, y, 0). Task 5: a failed pick's configured `target`.
-XY_KEYS: frozenset[str] = frozenset({"position_xy_m", "target"})
+#: the xy of T (x, y, 0). Task 5: a failed pick's configured `target`. Task 6:
+#: move_near_object's `center_xy_m`, sort_by_color's `zone`, the composites'
+#: move records (`from`, `to`; restore_scene's `target`), search_for_object's
+#: postcondition `reported` sighting.
+XY_KEYS: frozenset[str] = frozenset({"position_xy_m", "target", "center_xy_m", "zone", "from", "to",
+                                     "reported"})
+#: Mappings whose every value is such an xy (sort_by_color's `zones`, by colour).
+XY_MAP_KEYS: frozenset[str] = frozenset({"zones"})
 #: Scalar distances in metres measured between two perceived poses (a
 #: postcondition's errors and travel): frame-free, but read from perception,
 #: so compared at the point tolerance instead of 1e-9.
-DISTANCE_KEYS: frozenset[str] = frozenset({"target_err_m", "dest_err_m", "moved_m", "err_m"})
-#: Result keys whose numeric 3-vector is a DIRECTION: rig B's is R a.
-DIRECTION_KEYS: frozenset[str] = frozenset()
+DISTANCE_KEYS: frozenset[str] = frozenset({"target_err_m", "dest_err_m", "moved_m", "err_m",
+                                           "offset_m", "distance_m"})   # Task 6: restore's / the probe's
+#: Result keys whose numeric 3-vector is a DIRECTION: rig B's is R a. Task 6:
+#: the probe's `delta_xyz_m` (gripper -> point, table frame).
+DIRECTION_KEYS: frozenset[str] = frozenset({"delta_xyz_m"})
 #: Result keys whose numeric vector does not depend on the frame: equal.
-FRAME_FREE_KEYS: frozenset[str] = frozenset({"extent_m", "q_deg"})
+#: Task 6: `displacement_base_m` and `rotation_axis_base` (directions are the
+#: arm base's, D8), the probe's `pixel` and `image_size`.
+FRAME_FREE_KEYS: frozenset[str] = frozenset({"extent_m", "q_deg", "displacement_base_m", "rotation_axis_base",
+                                             "pixel", "image_size"})
 #: Clock- or capture-counter-dependent keys: never compared (frame counters,
 #: ages, the visible/remembered state derived from an age, timings).
 VOLATILE_KEYS: frozenset[str] = frozenset({
     "age_s", "frame_age_s", "frame_id", "state", "perception_timing", "observation_retry",
     "selection_s",    # the observed-finger choice time (wall clock)
-    "duration_s", "timings"})   # pick_and_place's wall-clock stage times
+    "duration_s", "timings",    # pick_and_place's wall-clock stage times
+    "snapshot_age_s"})          # Task 6: restore_scene's snapshot age (wall clock)
+#: Heights in the table frame: rig B's is a + T[2, 3] (a level mount; a
+#: tilted one refuses every world-target skill). #400 review Minor 3: a
+#: postcondition's measured `z` (the object's pose); Minor 4: move_near_object's
+#: target `top_z_m`.
+HEIGHT_KEYS: frozenset[str] = frozenset({"z", "top_z_m"})
 #: Prose that quotes xy positions as "[x, y]": the numbers map like XY_KEYS,
-#: the rest of the text stays equal.
-TEXT_XY_KEYS: frozenset[str] = frozenset({"description"})
+#: the rest of the text stays equal. Task 6: the same prose may quote a point
+#: "[x, y, z]" (search_for_object's resume note): it maps like POINT_KEYS.
+#: #400 review Minor 3: a height "z=<n>" maps like HEIGHT_KEYS, and `error` is
+#: prose like its `next_action` (a refusal that quotes the arm frame's numbers
+#: is caught there too), as are the spatial moves' `interpretation` / `summary`.
+TEXT_XY_KEYS: frozenset[str] = frozenset({"description", "next_action", "error", "interpretation", "summary"})
 
 _POINT_ATOL = 1.1e-3
 _CMD_ATOL = 1e-6
 _BELIEF_ATOL = 1e-6
 _XY_IN_TEXT = re.compile(r"\[(-?\d+(?:\.\d+)?), (-?\d+(?:\.\d+)?)\]")
+#: A printed zero with a minus sign ("-0.000"): the float noise of a frame
+#: round trip (T^-1 T) can flip the sign of an exact zero; the text is equal.
+_SIGNED_ZERO = re.compile(r"-(?=0\.0*(?![0-9]*[1-9]))")
+_XYZ_IN_TEXT = re.compile(r"\[(-?\d+(?:\.\d+)?), (-?\d+(?:\.\d+)?), (-?\d+(?:\.\d+)?)\]")
+#: "z=<n>" (a height; "+0.000" after `_SIGNED_ZERO`), never "dz=" / "wz=".
+_Z_IN_TEXT = re.compile(r"\bz=([-+]?\d+(?:\.\d+)?)")
 
 
 def transform(pose) -> np.ndarray:
@@ -375,12 +407,15 @@ def _compare(a, b, T, path, problems) -> None:
     where = "/".join(str(p) for p in path) or "<result>"
     if key in VOLATILE_KEYS:
         return
+    if isinstance(a, str) and isinstance(b, str):
+        a, b = _SIGNED_ZERO.sub("+", a), _SIGNED_ZERO.sub("+", b)
     if isinstance(a, dict) and isinstance(b, dict):
         if set(a) != set(b):
             problems.append(f"{where}: keys differ {sorted(set(a) ^ set(b), key=str)}")
             return
         for k in sorted(a, key=str):
-            _compare(a[k], b[k], T, (*path, k), problems)
+            # a mapping of xy values (`zones`): each value classified as an xy
+            _compare(a[k], b[k], T, (*path, k, "target") if key in XY_MAP_KEYS else (*path, k), problems)
         return
     if _is_vector(a) and _is_vector(b) and len(a) == len(b):
         va, vb = np.asarray(a, dtype=float), np.asarray(b, dtype=float)
@@ -406,14 +441,32 @@ def _compare(a, b, T, path, problems) -> None:
             _compare(x, y, T, (*path, i), problems)
         return
     if key in TEXT_XY_KEYS and isinstance(a, str) and isinstance(b, str):
-        xa, xb = _XY_IN_TEXT.findall(a), _XY_IN_TEXT.findall(b)
-        if _XY_IN_TEXT.sub("[x, y]", a) != _XY_IN_TEXT.sub("[x, y]", b) or len(xa) != len(xb):
+        pa3, pb3 = _XYZ_IN_TEXT.findall(a), _XYZ_IN_TEXT.findall(b)
+        a2, b2 = _XYZ_IN_TEXT.sub("[x, y, z]", a), _XYZ_IN_TEXT.sub("[x, y, z]", b)
+        za, zb = _Z_IN_TEXT.findall(a2), _Z_IN_TEXT.findall(b2)
+        a2, b2 = _Z_IN_TEXT.sub("z=<z>", a2), _Z_IN_TEXT.sub("z=<z>", b2)
+        xa, xb = _XY_IN_TEXT.findall(a2), _XY_IN_TEXT.findall(b2)
+        if (_XY_IN_TEXT.sub("[x, y]", a2) != _XY_IN_TEXT.sub("[x, y]", b2) or len(xa) != len(xb)
+                or len(pa3) != len(pb3) or len(za) != len(zb)):
             problems.append(f"{where}: text differs: {a!r} != {b!r}")
             return
+        for ha, hb in zip(za, zb):
+            if not np.isclose(float(hb), float(ha) + float(np.asarray(T)[2, 3]), rtol=0.0, atol=_POINT_ATOL):
+                problems.append(f"{where}: z={hb} != z={ha} + {float(np.asarray(T)[2, 3]):g}")
+        for pa, pb in zip(pa3, pb3):
+            want = lift(T, [float(v) for v in pa])
+            if not np.allclose([float(v) for v in pb], want, rtol=0.0, atol=_POINT_ATOL):
+                problems.append(f"{where}: [{', '.join(pb)}] != T [{', '.join(pa)}]")
         for pa, pb in zip(xa, xb):
             want = lift(T, [float(pa[0]), float(pa[1]), 0.0])[:2]
             if not np.allclose([float(v) for v in pb], want, rtol=0.0, atol=_POINT_ATOL):
                 problems.append(f"{where}: [{pb[0]}, {pb[1]}] != T [{pa[0]}, {pa[1]}]")
+        return
+    if (key in HEIGHT_KEYS and isinstance(a, (int, float)) and isinstance(b, (int, float))
+            and not isinstance(a, bool) and not isinstance(b, bool)):
+        want = float(a) + float(np.asarray(T)[2, 3])
+        if not np.isclose(b, want, rtol=0.0, atol=_POINT_ATOL):
+            problems.append(f"{where}: {b!r} != {a!r} + {float(np.asarray(T)[2, 3]):g} (a table-frame height)")
         return
     if key in DISTANCE_KEYS and isinstance(a, (int, float)) and isinstance(b, (int, float)):
         if not np.isclose(a, b, rtol=0.0, atol=_POINT_ATOL):

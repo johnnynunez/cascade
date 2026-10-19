@@ -353,7 +353,7 @@ def test_a_rig_that_fails_otherwise_is_not_reported_as_a_refused_name(linux_laun
     p = _run(h, env={**h["env"], "RIG_BROKEN": "1"})
     assert p.returncode != 0
     assert "could not check OpenShell instance 'default'" in p.stderr, p.stderr
-    assert "rig failed for another reason" in p.stderr and "refused" not in p.stderr
+    assert "rig failed for another reason" in p.stderr and "' refused:" not in p.stderr
     assert not Path(h["env"]["HOST_LOG"]).exists() and not Path(h["env"]["SANDBOX_LOG"]).exists()
 
 
@@ -370,6 +370,12 @@ def test_check_reports_a_refused_name_as_a_failed_row_and_keeps_the_others(linux
         if "OpenShell" not in row:
             assert row in p.stdout, (row, p.stdout)
     assert not Path(h["env"]["HOST_LOG"]).exists() and not Path(h["env"]["SANDBOX_LOG"]).exists()
+    # A rig that fails for another reason is a failed row too, never reported as a refused name.
+    p = _run(h, "--check", env={**h["env"], "RIG_BROKEN": "1"})
+    assert p.returncode == 3, p.stdout + p.stderr
+    assert ("[MISSING] OpenShell instance 'default' could not be checked (scripts/openshell_rig.py exited 1): "
+            "rig failed for another reason") in p.stdout, p.stdout
+    assert "' refused:" not in p.stdout
 
 
 def test_macos_keeps_openclaw_on_the_host(launcher_boundary):

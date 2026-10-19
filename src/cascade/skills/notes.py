@@ -533,16 +533,24 @@ _TURNS = frozenset({"turn", "turns"})
 _TURN_QUALIFIERS = frozenset({"full", "quarters"})
 _TURN_REACH = 3
 #: the triggers the kitchen agent's rules act on (ASPIRE A8, spec §4.6): R1 repeats a motion
-#: order once when ITS result says SIMULATION ONLY and allows one more attempt; R5's reply line
-#: ("End your reply with this exact line: ...") is out of the rules until a tool result grants
-#: one (A8 follow-ups fix; A9/A10), and its words stay refused. Only the runtime writes them
+#: order once when ITS result says SIMULATION ONLY and allows one more attempt; R5 ends the reply
+#: with a result's top-level `learning_line` field (A9/A10 fix: the field, never words), and its
+#: words and the field's name stay refused. Only the runtime writes them
 #: (the sim retry ledger; the learning line, A9/A10). A note is shown inside a
 #: tool result (robot_knowledge) and beside the rules (LEARNED.md): one that carries a trigger
 #: would turn advice into a permission to move again or a line repeated verbatim, so it is
 #: refused wherever the trigger stands
 _RULE_TRIGGERS = (("simulation*", "only"), ("one", "more", "attempt*"), ("another", "attempt*"),
                   ("second", "attempt*"), ("end*", "your", "reply*"), ("end*", "your", "answer*"),
-                  ("exact", "line*"), ("exactly", "that", "line*"), ("exactly", "this", "line*"))
+                  ("exact", "line*"), ("exactly", "that", "line*"), ("exactly", "this", "line*"),
+                  ("learning", "line*"))
+#: R5's words and the `learning_line` field's name, squeezed: read anywhere in a field's letters,
+#: no word start ("Pleaseend your reply", "thisexact line", "learningline"; A9/A10 fix), with the
+#: digits 0 / 1 / 3 read as o / l / e and i and l alike (`_reply_line_stem`)
+_REPLY_LINE_FOLD = str.maketrans("013i", "olel")
+_REPLY_LINE_STEMS = tuple(stem.translate(_REPLY_LINE_FOLD) for stem in (
+    "endyourreply", "endsyourreply", "endingyourreply", "endyouranswer", "endsyouranswer", "endingyouranswer",
+    "exactline", "exactlythatline", "exactlythisline", "learningline"))
 #: the words that make "<word> simulation, only ..." a setting, not the trigger (`_first_trigger`)
 _SIMULATION_SETTING = frozenset({"in", "during"})
 # ── stop_workaround (A8 fix, Important 2; the owner's rule: ANY advice that discourages or
@@ -959,6 +967,14 @@ def _first_trigger(view: _View) -> str | None:
     return None
 
 
+def _reply_line_stem(text: str) -> str | None:
+    """The first of R5's words (or the field's name) the field's letters spell anywhere, glued to
+    another word or not (`_REPLY_LINE_STEMS`; A9/A10 fix: the runtime's scrub reads them the same
+    way), else None."""
+    letters = re.sub(r"[^a-z]+", "", unicodedata.normalize("NFKC", text).lower().translate(_REPLY_LINE_FOLD))
+    return next((stem for stem in _REPLY_LINE_STEMS if stem in letters), None)
+
+
 def _simulation_setting(view: _View, i: int, n: int) -> bool:
     """Words i..i+n-1 are "simulation, only" right after "in" / "during", in lower or Title case."""
     return (n == 2 and i > 0 and view.words[i - 1] in _SIMULATION_SETTING and view.breaks[i] == ""
@@ -1338,7 +1354,7 @@ def _structure_problems(text: str, skill: str) -> list[tuple[str, str]]:
     found.append(("weaken", f"'{weakened[0]}' near '{weakened[1]}'" if weakened else None))
     claim = followed(_CLAIM_AS, _SUCCESS, _TREAT_REACH) or followed(_CLAIM_SAY, _SUCCESS, _SAY_REACH)
     found.append(("success_claim", f"claims success ('{claim[0]}' ... '{claim[1]}')" if claim else None))
-    trigger = next((hit for view in views if (hit := _first_trigger(view))), None)
+    trigger = next((hit for view in views if (hit := _first_trigger(view))), None) or _reply_line_stem(text)
     found.append(("rule_trigger", f"carries a rule trigger only tool results give ('{trigger}')" if trigger else None))
     # a note never discourages or works around an operator stop (A8 fix, Important 2)
     workaround = (hidden.get("stop_workaround") or phrase(_STOP_TOPIC) or _stop_word(views)

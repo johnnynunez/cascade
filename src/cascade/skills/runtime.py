@@ -10759,65 +10759,140 @@ def _with_failure_instruction(result: dict) -> dict:
 #: attempt", "S I M U L A T I O N  O N L Y", a zero-width or other format character
 #: inside a word), with the digit 0 for the letter o.
 _RETRY_TRIGGER_PHRASES = ("simulation only", "one more attempt", "another attempt", "second attempt")
-#: R5's trigger (A8 follow-ups 5): A8's kitchen rules ended the reply with the line a tool result
-#: gives, and no tool result gives one. No word list can tell every paraphrase of such a line from
-#: the agent's own text, so R5 is out of the rules until a result actually grants a line (A8
-#: follow-ups fix, Minor 1; A9/A10 bring it back grant-based). Its words (the note lint's R5
-#: `_RULE_TRIGGERS`, "end*" as end / ends / ending) stay withheld from EVERY result, a granted
-#: retry's too, read the same way as R1's, as defence in depth: an operator's halt reason (the
-#: agent's own `halt_motion(reason)`) never carries them.
+#: R5's trigger words (A8 follow-ups 5). R5 itself keys on the result's top-level `learning_line`
+#: FIELD, never on words (A9/A10 fix: no word list can tell every paraphrase of a reply line from the
+#: agent's own text, so that residual is accepted; only `execute()` writes the field). Its words (the
+#: note lint's R5 `_RULE_TRIGGERS`, "end*" as end / ends / ending) and the field's own name stay
+#: withheld from EVERY result, a granted retry's too, read the same way as R1's, as defence in depth:
+#: an operator's halt reason (the agent's own `halt_motion(reason)`), an object name or a key the
+#: agent's names make never carries them. Unlike R1's, they need no word start ("Pleaseend your
+#: reply", "thisexact line" are read; "send your reply" is withheld too: accepted over-block).
 _REPLY_LINE_PHRASES = ("end your reply", "ends your reply", "ending your reply", "end your answer",
                        "ends your answer", "ending your answer", "exact line", "exactly that line",
-                       "exactly this line")
+                       "exactly this line", "learning line")
+#: letters a reader takes for another in a trigger phrase: the digit 0 for o, 3 for e, 1 (or a
+#: capital I) for l, and i and l for each other (A9/A10 fix: "rep1y", "repIy", "3nd y0ur r3ply")
+_TRIGGER_LETTER_CLASSES = {"o": "[o0]", "e": "[e3]", "l": "[l1i]", "i": "[i1l]"}
 
 
 def _phrases_pattern(phrases) -> str:
-    """The phrases as one alternation: any run of separators between letters, 0 for o."""
-    return "|".join(r"[\W_]*".join("[o0]" if ch == "o" else ch for ch in phrase.replace(" ", ""))
+    """The phrases as one alternation: any run of separators between letters, the
+    `_TRIGGER_LETTER_CLASSES` look-alike digits and letters."""
+    return "|".join(r"[\W_]*".join(_TRIGGER_LETTER_CLASSES.get(ch, ch) for ch in phrase.replace(" ", ""))
                     for phrase in phrases)
 
 
-_RULE_TRIGGER_RE = re.compile(r"(?<![a-z0-9])(?:(?P<retry>" + _phrases_pattern(_RETRY_TRIGGER_PHRASES)
-                               + r")|(?P<reply>" + _phrases_pattern(_REPLY_LINE_PHRASES) + "))", re.IGNORECASE)
+#: R1's phrases only from a word start (the note lint's "in simulation, only" reading); R5's anywhere
+_RULE_TRIGGER_RE = re.compile(r"(?:(?<![a-z0-9])(?P<retry>" + _phrases_pattern(_RETRY_TRIGGER_PHRASES)
+                              + r"))|(?P<reply>" + _phrases_pattern(_REPLY_LINE_PHRASES) + ")", re.IGNORECASE)
 #: R5's words alone: what a granted retry's result has withheld (it keeps R1's permission)
-_REPLY_LINE_RE = re.compile(r"(?<![a-z0-9])(?P<reply>" + _phrases_pattern(_REPLY_LINE_PHRASES) + ")",
-                            re.IGNORECASE)
+_REPLY_LINE_RE = re.compile(r"(?P<reply>" + _phrases_pattern(_REPLY_LINE_PHRASES) + ")", re.IGNORECASE)
 #: what stands in a trigger's place: R1's in a result the ledger did not grant, R5's in any result
 _RETRY_TRIGGER_WITHHELD = "(retry wording withheld)"
 _REPLY_LINE_WITHHELD = "(reply-line wording withheld)"
 _WITHHELD = {"retry": _RETRY_TRIGGER_WITHHELD, "reply": _REPLY_LINE_WITHHELD}
-#: Cyrillic, Greek and Latin look-alikes of the trigger's letters, read as those letters
-_TRIGGER_LOOKALIKES = str.maketrans({
-    "\u0430": "a", "\u0410": "a", "\u0391": "a", "\u03b1": "a", "\u0251": "a", "\u0441": "c", "\u0421": "c",
-    "\u03f2": "c", "\u0501": "d", "\u0435": "e", "\u0415": "e", "\u0395": "e", "\u03b5": "e", "\u04bb": "h",
-    "\u041d": "h", "\u0397": "h", "\u0456": "i", "\u0406": "i", "\u0399": "i", "\u03b9": "i", "\u0131": "i",
-    "\u04cf": "l", "\u04c0": "l", "\u043c": "m", "\u041c": "m", "\u039c": "m", "\u039d": "n", "\u043e": "o",
-    "\u041e": "o", "\u039f": "o", "\u03bf": "o", "\u03c3": "o", "\u0440": "p", "\u0420": "p", "\u03a1": "p",
-    "\u03c1": "p", "\u0433": "r", "\u0455": "s", "\u0405": "s", "\u0442": "t", "\u0422": "t", "\u03a4": "t",
-    "\u03c4": "t", "\u03c5": "u", "\u0443": "y", "\u0423": "y", "\u03a5": "y", "\u04af": "y",
-    # R5's letters R1 lacks (A8 follow-ups 5)
-    "\u0445": "x", "\u0425": "x", "\u03a7": "x", "\u051d": "w", "\u051c": "w"})
-#: the trigger squeezed (no separators, lower case, 0 read as o): a cheap first look, a
-#: superset of `_RULE_TRIGGER_RE` (no word-start guard) on bytes
-_TRIGGER_SQUEEZED = tuple(phrase.replace(" ", "").encode() for phrase in _RETRY_TRIGGER_PHRASES + _REPLY_LINE_PHRASES)
-_REPLY_LINE_SQUEEZED = tuple(phrase.replace(" ", "").encode() for phrase in _REPLY_LINE_PHRASES)
-_TRIGGER_SQUEEZE = bytes.maketrans(b"ABCDEFGHIJKLMNOPQRSTUVWXYZ0", b"abcdefghijklmnopqrstuvwxyzo")
+#: look-alikes of the triggers' letters (a c d e g h i l m n o p r s t u w x y), read as those
+#: letters: Cyrillic, Greek, Armenian, Cherokee (capital and small), Latin small capitals
+#: (U+1D00-U+1D2B and the IPA ones) and other Latin letters, from Unicode's confusables.txt
+#: (security data, single-letter targets), plus Greek nu read as n (A9/A10 fix). NFKD has already
+#: folded fullwidth, mathematical and other compatibility forms.
+_TRIGGER_LOOKALIKE_LETTERS = {
+    "a": "\u0251\u0391\u03b1\u0410\u0430\u13aa\u1d00\uab64\uab7a",
+    "c": "\u03f2\u03f9\u0421\u0441\u13df\u1c83\u1d04\uabaf",
+    "d": "\u0501\u13a0\u13e7\u1d05\uab70\uabb7\U0001018b",
+    "e": "\u0395\u03b5\u0415\u0435\u04bd\u13ac\u1d07\uab32\uab7c",
+    "g": "\u018d\u0261\u0262\u050c\u0581\u13c0\u13f3\u13fb\u1d83\uab90",
+    "h": "\u029c\u0397\u041d\u04ba\u04bb\u0570\u13bb\u13c2\uab8b\uab92",
+    "i": "\u0131\u0269\u026a\u0399\u03b9\u0406\u0456\u0582\u13a5\ua647\uab75",
+    "l": "\u0196\u01c0\u029f\u04c0\u04cf\u13de\ua781\ua7ae\ua7fe\uabae\U0001d22a",
+    "m": "\u039c\u03fa\u041c\u043c\u13b7\u1d0d\uab87",
+    "n": "\u0274\u039d\u03bd\u0578\u057c",
+    "o": "\u039f\u03bf\u03c3\u041e\u043e\u0555\u0585\u1c82\u1d0f\u1d11\uab3d",
+    "p": "\u00fe\u01bf\u03a1\u03c1\u03f1\u03f8\u0420\u0440\u13e2\u1d18\uabb2",
+    "r": "\u01a6\u024c\u0280\u0433\u13a1\u13d2\u1d26\uab47\uab48\uab71\uab81\uaba2\U0001d216",
+    "s": "\u01bd\u0405\u0455\u054f\u13d5\u13da\ua731\uaba5\uabaa",
+    "t": "\u03a4\u03c4\u0422\u0442\u13a2\u1d1b\uab72",
+    "u": "\u028b\u03c5\u054d\u057d\u1d1c\ua79f\uab4e\uab52",
+    "w": "\u026f\u0448\u0461\u051c\u051d\u0561\u13b3\u13d4\u1d21\ua7fa\uab83\uaba4\U0001d20c",
+    "x": "\u03a7\u0425\u0445\u04b2\u04b3\ua7b3",
+    "y": "\u0263\u028f\u03a5\u03b3\u03d2\u0423\u0443\u04ae\u04af\u13a9\u13bd\u1d8c\u1eff\uab5a\uab79\uab8d",
+}
+_TRIGGER_LOOKALIKES = str.maketrans({ch: letter for letter, chars in _TRIGGER_LOOKALIKE_LETTERS.items()
+                                     for ch in chars})
+#: escapes a model decodes, read decoded (A9/A10 fix): HTML character references, %xx (a UTF-8
+#: run), \xHH, \uHHHH, \UHHHHHHHH and \n \r \t written out
+_TRIGGER_ESCAPE_RE = re.compile(r"&#[0-9]{1,7};?|&#[xX][0-9a-fA-F]{1,6};?|&[A-Za-z][A-Za-z0-9]{1,31};"
+                                r"|(?:%[0-9A-Fa-f]{2})+|\\x[0-9A-Fa-f]{2}|\\u[0-9A-Fa-f]{4}|\\U[0-9A-Fa-f]{8}"
+                                r"|\\[nrt]")
+#: the characters every escape starts with: an ASCII string without any is read as written
+_TRIGGER_ESCAPE_STARTS = re.compile(r"[&%\\]")
+#: the trigger squeezed (no separators, lower case, the `_TRIGGER_LETTER_CLASSES` digits and
+#: letters folded alike): a cheap first look, a superset of `_RULE_TRIGGER_RE` on bytes
+_TRIGGER_SQUEEZE = bytes.maketrans(b"ABCDEFGHIJKLMNOPQRSTUVWXYZ013i", b"abcdefghljklmnopqrstuvwxyzolel")
 _TRIGGER_SEPARATORS = bytes(byte for byte in range(128) if not chr(byte).isalnum())
+_TRIGGER_SQUEEZED = tuple(phrase.replace(" ", "").encode().translate(_TRIGGER_SQUEEZE)
+                          for phrase in _RETRY_TRIGGER_PHRASES + _REPLY_LINE_PHRASES)
+_REPLY_LINE_SQUEEZED = tuple(phrase.replace(" ", "").encode().translate(_TRIGGER_SQUEEZE)
+                             for phrase in _REPLY_LINE_PHRASES)
+
+
+def _decoded_escape(token: str) -> str | None:
+    """What a `_TRIGGER_ESCAPE_RE` token reads as, or None (not a character)."""
+    import html
+
+    try:
+        if token.startswith("&"):
+            decoded = html.unescape(token if token.endswith(";") else token + ";")
+            return None if decoded == token else decoded
+        if token.startswith("%"):
+            return bytes.fromhex(token.replace("%", "")).decode("utf-8", "replace")
+        if token[1] in "nrt":
+            return " "
+        code = int(token[2:], 16)
+        return chr(code) if code <= 0x10FFFF and not 0xD800 <= code <= 0xDFFF else None
+    except (ValueError, OverflowError):
+        return None
+
+
+def _trigger_units(text: str) -> list[tuple[str, int, int]]:
+    """`text` as it is read, unit by unit: (reading, start, end) with text[start:end] the characters
+    it was read from. Escapes are decoded first (up to three nested levels, `%2520`), then each
+    character is read on its own: NFKD, combining marks dropped (an empty reading), look-alike
+    letters as Latin letters (`_TRIGGER_LOOKALIKES`). Format characters stay: they are separators to
+    `_RULE_TRIGGER_RE` like any other non-letter."""
+    chars = [(ch, i, i + 1) for i, ch in enumerate(text)]
+    for _ in range(3):
+        joined = "".join(ch for ch, _, _ in chars)
+        out, last, changed = [], 0, False
+        for match in _TRIGGER_ESCAPE_RE.finditer(joined):
+            decoded = _decoded_escape(match.group(0))
+            if decoded is None:
+                continue
+            start, end = chars[match.start()][1], chars[match.end() - 1][2]
+            out += chars[last:match.start()] + [(ch, start, end) for ch in decoded]
+            last, changed = match.end(), True
+        if not changed:
+            break
+        chars = out + chars[last:]
+    units = []
+    for ch, start, end in chars:
+        if ch.isascii():
+            units.append((ch, start, end))
+            continue
+        decomposed = unicodedata.normalize("NFKD", ch)
+        kept = "".join(c for c in decomposed if c.isascii() or unicodedata.category(c) not in ("Mn", "Me"))
+        units.append((kept.translate(_TRIGGER_LOOKALIKES), start, end))
+    return units
 
 
 def _trigger_reading(text: str) -> str:
-    """`text` as the trigger is read: NFKD, combining marks dropped, look-alike letters
-    as Latin letters (`_TRIGGER_LOOKALIKES`). Format characters stay: they are separators
-    to `_RULE_TRIGGER_RE` like any other non-letter."""
-    decomposed = unicodedata.normalize("NFKD", text)
-    hidden = {ord(ch): None for ch in set(decomposed)
-              if not ch.isascii() and unicodedata.category(ch) in ("Mn", "Me")}
-    return decomposed.translate({**_TRIGGER_LOOKALIKES, **hidden} if hidden else _TRIGGER_LOOKALIKES)
+    """`text` as the trigger is read (`_trigger_units`, joined)."""
+    return "".join(reading for reading, _, _ in _trigger_units(text))
 
 
 def _may_carry_trigger(reading: str, phrases: tuple = _TRIGGER_SQUEEZED) -> bool:
     """A cheap first look (C-level byte ops): False only when `reading` cannot match
-    `_RULE_TRIGGER_RE` (its letters, squeezed, contain no trigger phrase; `phrases`:
+    `_RULE_TRIGGER_RE` (its letters, squeezed and folded, contain no trigger phrase; `phrases`:
     the squeezed phrases of the pattern in use)."""
     squeezed = reading.encode("ascii", "ignore").translate(_TRIGGER_SQUEEZE, _TRIGGER_SEPARATORS)
     return any(phrase in squeezed for phrase in phrases)
@@ -10829,47 +10904,58 @@ def _withheld(match: re.Match) -> str:
 
 
 def _withhold_spans(text: str, pattern: re.Pattern = _RULE_TRIGGER_RE) -> str:
-    """`text` with each span that reads as a trigger of `pattern` replaced by its
-    placeholder (`_withheld`; the rest kept as written: other scripts, accents, numbers), read character by
-    character so every match maps back to its own characters (the same reading as
-    `_trigger_reading` of the whole text: NFKD decomposes each character on its own,
-    and the marks it could reorder are dropped)."""
-    pieces, origin = [], []
-    for i, ch in enumerate(text):
-        reading = ch if ch.isascii() else _trigger_reading(ch)
-        pieces.append(reading)
-        origin.extend([i] * len(reading))
+    """`text` with each span that reads as a trigger of `pattern` replaced by its placeholder
+    (`_withheld`; the rest kept as written: other scripts, accents, numbers, escapes), read unit by
+    unit (`_trigger_units`) so every match maps back to the characters it was read from; the marks
+    that only decorate a match's last letter go with it."""
+    units = _trigger_units(text)
+    origin = [k for k, (reading, _, _) in enumerate(units) for _ in reading]
     out, last = [], 0
-    for match in pattern.finditer("".join(pieces)):
-        start, end = origin[match.start()], origin[match.end() - 1] + 1
-        while end < len(text) and not pieces[end]:  # marks that only decorate the last letter
-            end += 1
+    for match in pattern.finditer("".join(reading for reading, _, _ in units)):
+        first, final = origin[match.start()], origin[match.end() - 1]
+        start, end = units[first][1], units[final][2]
+        while final + 1 < len(units) and not units[final + 1][0]:
+            final += 1
+            end = units[final][2]
+        if start < last:  # an escape both matches share: already withheld
+            start = last
         out += [text[last:start], _withheld(match)]
-        last = end
+        last = max(last, end)
     out.append(text[last:])
     return "".join(out)
 
 
 def _without_rule_triggers(value, pattern: re.Pattern = _RULE_TRIGGER_RE, phrases: tuple = _TRIGGER_SQUEEZED):
     """`value` with every span that reads as a rule trigger (`_RULE_TRIGGER_RE` on
-    `_trigger_reading`: R1's retry permission and R5's reply line) withheld from every
-    string in it: dicts (their string keys too: a failure model or a grasp prior is keyed
-    by the agent's own object name), lists and tuples are walked, and a container is
-    copied only where a string changed (shared objects are never edited). A plain-ASCII
-    string skips the Unicode reading (A8 fix 2, Minor 6: no mark, compatibility form or
-    look-alike can be in it); a string without a trigger comes back as it was, the same
-    object, and so does any other value. `pattern` / `phrases`: `_without_reply_line`'s."""
+    `_trigger_units`: R1's retry permission, R5's reply line and the `learning_line` field's name)
+    withheld from every string in it: dicts (their string keys too: a failure model or a grasp prior
+    is keyed by the agent's own object name), lists and tuples are walked, and a container is copied
+    only where a string changed (shared objects are never edited). Two keys that come out alike keep
+    the FIRST one's value; the collision is logged, never a silent overwrite (A9/A10 fix, Minor 6).
+    A plain-ASCII string with no escape character (& % \\) skips the Unicode reading (A8 fix 2, Minor
+    6: no mark, compatibility form, look-alike or escape can be in it); a string without a trigger
+    comes back as it was, the same object, and so does any other value. `pattern` / `phrases`:
+    `_without_reply_line`'s."""
     if isinstance(value, str):
-        reading = value if value.isascii() else _trigger_reading(value)
+        if value.isascii() and not _TRIGGER_ESCAPE_STARTS.search(value):
+            if not _may_carry_trigger(value, phrases) or not pattern.search(value):
+                return value
+            return pattern.sub(_withheld, value)
+        reading = _trigger_reading(value)
         if not _may_carry_trigger(reading, phrases) or not pattern.search(reading):
             return value
-        return pattern.sub(_withheld, value) if reading is value else _withhold_spans(value, pattern)
+        return _withhold_spans(value, pattern)
     if isinstance(value, dict):
         out, changed = {}, False
         for key, item in value.items():
             new_key = _without_rule_triggers(key, pattern, phrases) if isinstance(key, str) else key
             new = _without_rule_triggers(item, pattern, phrases)
             changed = changed or new_key is not key or new is not item
+            if new_key in out:
+                logger.warning("rule-trigger scrub: key %r would collide with an earlier key %r; kept the first",
+                               key, new_key)
+                changed = True
+                continue
             out[new_key] = new
         return out if changed else value
     if isinstance(value, (list, tuple)):
@@ -10894,8 +10980,10 @@ def _with_retry_text(result: dict, skill: str) -> dict:
     in front. The single choke point of the rules' triggers: every result execute() returns
     passes here, with or without a ledger, and only a granted one keeps R1's retry trigger --
     every other has it withheld from all its text (`_without_rule_triggers`: an operator's halt
-    reason, an error, a nested step's reason); R5's reply line is withheld from every result, a
-    granted one too (`_without_reply_line`; A8 follow-ups 5). Idempotent."""
+    reason, an error, a nested step's reason); R5's reply line and the `learning_line` field's name
+    are withheld from every result, a granted one too (`_without_reply_line`; A8 follow-ups 5), in
+    its keys as well (A9/A10 fix: a top-level key the agent's words made never reads as the field;
+    two keys that come out alike keep the first). Edits `result` in place. Idempotent."""
     from ..agent.sim_retry import RETRY_ALLOWED, RETRY_STOPPED_NEXT, RETRY_USED
 
     if not isinstance(result, dict):
@@ -10911,17 +10999,24 @@ def _with_retry_text(result: dict, skill: str) -> dict:
             else:
                 own = f"{own} {text}" if own else text
             result["next_action"] = own
-        for key, value in list(result.items()):
-            if (new := _without_reply_line(value)) is not value:
-                result[key] = new
-        return result
+        return _scrubbed_in_place(result, _without_reply_line)
     added = (RETRY_STOPPED_NEXT if state.get("stopped") is True
              else RETRY_USED if state.get("used") is True else None)
     if added is not None and added not in own:
         result["next_action"] = f"{own} {added}" if own else added
+    return _scrubbed_in_place(result, _without_rule_triggers)
+
+
+def _scrubbed_in_place(result: dict, scrub) -> dict:
+    """`result` with `scrub` applied to its values and its string keys, edited in place (the same
+    object: callers and the trace hold it); a dict whose keys all stay is never rebuilt."""
     for key, value in list(result.items()):
-        if (new := _without_rule_triggers(value)) is not value:
+        if (new := scrub(value)) is not value:
             result[key] = new
+    if any(isinstance(key, str) and scrub(key) is not key for key in result):
+        rebuilt = scrub(result)
+        result.clear()
+        result.update(rebuilt)
     return result
 
 

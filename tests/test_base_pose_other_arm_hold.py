@@ -479,3 +479,120 @@ def test_the_frozen_planning_prior_is_the_running_arms_row(monkeypatch):
     rt.skill_grasp_object("orange", _fix=fix, _frame=frame)
     assert batches == [1] and labels == ["orange@so101_right"], labels
     assert records == ["orange@so101_right"], records
+
+# ── #400 review Important 1: the arm that does not hold moves with its own empty jaws ──
+
+
+def _pair_without_wrist_box():
+    """`_pair_reaching("so101_right")` with `relative_motion.wrist_camera: null`:
+    the so101's TCP approach is parallel to the default camera-up axis, so with
+    the shipped box every spatial move on it raises before it is vetted."""
+    cfg = _pair_reaching("so101_right")
+    cfg._data["relative_motion"]["wrist_camera"] = None
+    return cfg
+
+
+def _loads_planned(rt, monkeypatch):
+    """The `load` of every route the spatial moves plan from here on."""
+    from cascade.skills import spatial_moves
+
+    loads, real = [], spatial_moves.plan_route
+    monkeypatch.setattr(spatial_moves, "plan_route",
+                        lambda *a, _real=real, **k: (loads.append(k.get("load")), _real(*a, **k))[1])
+    return loads
+
+
+def _no_hold_claimed(result, loads):
+    text = json.dumps(result, default=str)
+    assert result.get("holding") is None and result.get("speed") in (None, "normal"), result
+    assert "held_object_bottom_below_gripper_m" not in result, result
+    for words in ("held object", "I am holding", "olding 'red cube'"):
+        assert words not in text, (words, result)
+    assert all(load is not None and load.label is None and load.drop_m == 0.0 for load in loads), loads
+
+
+#: Spatial moves on so101_left, by rig: on the pair without the wrist box each
+#: completes (or is refused by reach) the same with nothing held anywhere; on
+#: the shipped pair, the review's probe H rows.
+_EMPTY_ARM_MOVES = {
+    "just above the table": ("move_near_object", {"label": "table", "relation": "just_above"}),
+    "closer to the cube": ("move_near_object", {"label": "red cube", "relation": "closer", "distance_m": 0.03}),
+    "down": ("move_relative", {"direction": "down", "frame": "base", "distance_m": 0.02}),
+    "left": ("move_relative", {"direction": "left", "frame": "base", "distance_m": 0.02}),
+    "roll": ("rotate_gripper", {"direction": "clockwise", "angle_deg": 10}),
+    "above the table": ("move_near_object", {"label": "table", "relation": "above"}),
+}
+_EMPTY_ARM_ROWS = [("no wrist box", c) for c in ("just above the table", "closer to the cube", "down", "left", "roll")] \
+    + [("shipped pair", c) for c in ("above the table", "closer to the cube")]
+_REPORTED = ("ok", "moved", "holding", "speed", "interpretation", "summary", "error", "refused_by")
+
+
+@pytest.mark.parametrize("rig,call", _EMPTY_ARM_ROWS, ids=[f"{r}: {c}" for r, c in _EMPTY_ARM_ROWS])
+def test_the_arm_that_does_not_hold_moves_as_if_nothing_were_held(make_runtime, gate_off, monkeypatch,  # noqa: F811
+                                                                   rig, call):
+    """#400 review Important 1 (spec D9: the held offset belongs to the
+    grasping arm): so101_right holds the cube. A spatial move on so101_left
+    read the rig-wide hold as its own: a phantom load 6 cm under its empty
+    jaws refused moves by "the held-object clearance check" or by reach,
+    slowed the rest and reported "holding 'red cube'" ("the held object's
+    bottom 5.0 cm over its top"); a move toward the cube was refused with "I
+    am holding the 'red cube'". so101_left now sends the commands and reports
+    what the same move gives with nothing held; the hold stays so101_right's."""
+    skill, args = _EMPTY_ARM_MOVES[call]
+    runs = []
+    for hold in (False, True):
+        rt = make_runtime(_pair_without_wrist_box() if rig == "no wrist box" else _pair_reaching("so101_right"))
+        if hold:
+            assert rt.execute("grasp_object", {"label": "red cube", "arm": "so101_right"})["held"] == "red cube"
+        left = raw_arm(rt.arm_rig.get("so101_left"))
+        n0, loads = len(left.commands), _loads_planned(rt, monkeypatch)
+        result = rt.execute(skill, {**args, "arm": "so101_left"})
+        runs.append(({k: result.get(k) for k in _REPORTED}, [list(q) for q in left.commands[n0:]]))
+        _no_hold_claimed(result, loads)
+    (nothing_held, cmds_free), (other_holds, cmds_held) = runs
+    assert other_holds == nothing_held, (other_holds, nothing_held)
+    assert len(cmds_held) == len(cmds_free) and all(
+        max(abs(a - b) for a, b in zip(x, y)) <= 1e-9 for x, y in zip(cmds_held, cmds_free)), (len(cmds_held),
+                                                                                                len(cmds_free))
+    if rig == "no wrist box" and call != "closer to the cube":
+        assert nothing_held["moved"] is True and cmds_free, nothing_held          # a completed move compared
+    assert (rt.held_object, rt._held_arm) == ("red cube", "so101_right")
+
+
+def test_a_runtime_double_without_the_rig_hold_query_keeps_its_hold():
+    """carried() asks `_held_by_another_arm` only where the runtime has one
+    (getattr-guarded): a stand-in runtime that holds the cube still carries it."""
+    from cascade.skills.spatial_moves import carried
+
+    rt = SimpleNamespace(held_object="red cube", _reconcile_held=lambda: None, _max_width=0.09)
+    load = carried(rt, SimpleNamespace(held_drop_default_m=0.06))
+    assert (load.label, load.drop_m, load.radius_m) == ("red cube", 0.06, 0.045), load
+
+
+def test_the_undo_on_the_arm_that_does_not_hold_retraces_with_its_empty_jaws(make_runtime, gate_off,  # noqa: F811
+                                                                             monkeypatch):
+    """undo_move on so101_left retraces its own move at its own speed while
+    so101_right holds the cube (the same class as the moves above)."""
+    rt = make_runtime(_pair_without_wrist_box())
+    assert rt.execute("grasp_object", {"label": "red cube", "arm": "so101_right"})["held"] == "red cube"
+    loads = _loads_planned(rt, monkeypatch)
+    moved = rt.execute("move_relative", {"direction": "left", "frame": "base", "distance_m": 0.02,
+                                         "arm": "so101_left"})
+    assert moved.get("moved") is True, moved
+    result = rt.execute("undo_move", {"arm": "so101_left"})
+    assert result.get("moved") is True and len(loads) == 2, (result, loads)
+    _no_hold_claimed(result, loads)
+    assert (rt.held_object, rt._held_arm) == ("red cube", "so101_right")
+
+
+def test_the_holding_arm_still_moves_with_its_load(make_runtime, gate_off, monkeypatch):  # noqa: F811
+    """The other side of D9: so101_right, the arm that holds the cube, plans
+    the same move with its load (the cube's drop) and reports it (here its
+    reach refuses the move, after the plan)."""
+    rt = make_runtime(_pair_without_wrist_box())
+    assert rt.execute("grasp_object", {"label": "red cube", "arm": "so101_right"})["held"] == "red cube"
+    loads = _loads_planned(rt, monkeypatch)
+    result = rt.execute("move_relative", {"direction": "up", "frame": "base", "distance_m": 0.02,
+                                          "arm": "so101_right"})
+    assert result["holding"] == "red cube" and result["refused_by"] == "kinematics", result
+    assert loads and all(load.label == "red cube" and load.drop_m > 0.0 for load in loads), loads

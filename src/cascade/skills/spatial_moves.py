@@ -303,14 +303,19 @@ class Carried:
 
 def carried(rt, s: Settings) -> Carried:
     """Reconcile the held flag with the jaws (read-only), then describe what
-    hangs below the TCP. Never commands the gripper."""
+    hangs below the TCP. Never commands the gripper.
+
+    On a rig the hold belongs to the arm that grasped it (spec D9): while
+    another arm holds the object, this arm's jaws are empty and it moves
+    and reports as such (no phantom load, no false "holding")."""
     try:
         rt._reconcile_held()
     except (SkillError, SafetyViolation):
         pass  # unknown jaw state: whatever the flag says stands
     half_jaw = float(getattr(rt, "_max_width", 0.09)) / 2.0
     label = rt.held_object
-    if not label:
+    held_by_another_arm = getattr(rt, "_held_by_another_arm", None)    # absent on runtime doubles
+    if not label or (callable(held_by_another_arm) and held_by_another_arm() is not None):
         return Carried(None, 0.0, "empty gripper", half_jaw)
     off = getattr(rt, "_held_support_offset_m", None)
     if off is not None and math.isfinite(float(off)) and 0.0 < float(off) < 0.3:

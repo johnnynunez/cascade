@@ -84,14 +84,65 @@ The limits:
    REST rules): `/slots`, `/completion`, `/props` and `/tokenize` (llama-server), `/metrics`
    (vLLM) get 403. The profile names no model: Bolt under a custom `ALIAS`, `--model
    qwen3.8-27b` and Cosmos get the same one (OpenClaw only calls `<brain>/v1`).
-4. Not yet verified live (next `up` after this change, ~1 min per brain): `up` prints no
-   `openshell provider profile update failed`; a chat still answers with no `policy_denied`
-   in the sandbox log; and, with `P=/v1/models`, then `P=/slots` (llama-server) or `P=/metrics`
-   (vLLM), then `P=/props`,
-   `scripts/openshell_rig.py exec -- node -e "fetch('http://host.openshell.internal:8081'+process.argv[1],{headers:{authorization:'Bearer '+process.env.CASCADE_BRAIN_API_KEY}}).then(r=>console.log(r.status))" $P`
-   prints 200, then 403, 403. Do it for Bolt (`up`) and Qwen (`up --model qwen3.8-27b`).
+4. Proven live only by the [live check](#live-check-of-the-brain-profile) after an `up` that
+   changes the profile (~1 min per brain); if it fails, [roll back](#rollback-of-the-brain-profile).
 5. Still trusted with the key: host processes that read `llama.key` (the robot server's
    perception, the helper). `WARM_START=0` closes all of the above.
+
+The caller's environment never configures a brain server. The llama.cpp scripts drop every
+inherited `LLAMA_ARG_*` (llama-server reads one per flag), `LLAMA_API_KEY` (an extra accepted key)
+and `AIP_*` (`AIP_MODE=PREDICTION` moves the port and adds a route to every endpoint); the Qwen
+one also drops `LLAMA_SERVER_SLOTS_DEBUG`. The native vLLM brains (Qwen, Cosmos) drop
+`VLLM_SERVER_DEV_MODE`, `VLLM_ALLOW_RUNTIME_LORA_UPDATING`, `VLLM_ENABLE_COHERE_API`,
+`VLLM_USE_RUST_FRONTEND` and `VLLM_RUST_FRONTEND_PATH` (each adds routes or swaps the HTTP
+server); Bolt's vLLM container gets only the variables its script names. Not covered: llama-server
+v0.7.0 also reads `/etc/llama.cpp/config.ini` and `${XDG_CONFIG_HOME:-~/.config}/llama.cpp/config.ini`;
+keep neither on a brain host.
+
+## Live check of the brain profile
+
+Run it after every `up` that changes the brain profile, once per brain (about 1 min each). It
+sends read-only requests from inside the sandbox with raw `http.request` (`fetch()` rewrites
+`/v1/../slots` to `/slots` before sending) and prints PASS or FAIL per row; exit 0 = all pass.
+
+1. **Bolt.** `scripts/openshell_rig.py up` exits 0 with no `openshell provider profile update
+   failed` line. Then:
+   `scripts/openshell_rig.py exec -- node -e "$(cat scripts/brain_v1_live_check.js)" nemotron-3.5-bolt`
+2. **Qwen.** Serve it on :8081 with the same key file (vLLM: `PORT=8081 API_KEY_FILE=...
+   scripts/serve_qwen_vllm.sh`; llama.cpp: `PORT=8081 ALIAS=qwen3.8-27b API_KEY_FILE=...
+   scripts/serve_qwen_llamacpp.sh`), run `scripts/openshell_rig.py up --model qwen3.8-27b` (exits
+   0), then the same `exec` with `qwen3.8-27b`.
+3. Send one chat turn in the web UI: it answers, with no `policy_denied` in the sandbox log.
+
+| Row | Expected |
+|---|---|
+| `GET /v1/models`, `POST /v1/chat/completions` | 200 |
+| `POST /v1/chat/completions` with `stream: true` | 200 `text/event-stream` |
+| `GET /slots`, `GET /props`, `GET /metrics`, `POST /tokenize` | 403 `policy_denied` |
+| `GET /v1/../slots`, `GET /v1/%2e%2e/slots` | 403 `policy_denied` (400 also passes) |
+
+Reading a FAIL:
+
+1. 401 on a `/v1` row: the key placeholder was not swapped (brain provider or profile not in force).
+2. 200, 401, 404 or 400 on a non-`/v1` row: the request reached the brain, so the profile is not in
+   force. On vLLM the `/metrics` row decides: vLLM answers it without a key.
+3. Any FAIL in steps 1-3: [roll back](#rollback-of-the-brain-profile).
+
+## Rollback of the brain profile
+
+From the live checkout, about 2 min. It replaces only the brain profile; the sandbox keeps running.
+
+1. If Bolt is the brain, restart it without the warm start (read-write plus the warm start would
+   show `/slots` prompt text to the sandbox; step 2 refuses while it runs):
+   ```bash
+   systemctl --user stop cascade-brain
+   systemd-run --user --unit=cascade-brain --collect -p MemoryMax=infinity \
+       -E PORT=8081 -E API_KEY_FILE="$HOME/.cascade/nemoclaw/llama.key" -E WARM_START=0 \
+       "$PWD/scripts/serve_nemotron_bolt_llamacpp.sh"
+   ```
+2. `scripts/openshell_rig.py brain-profile --read-write`: main's old read-write brain profile
+   (sha256 `7e81c98a…`), nothing else.
+3. Back to `/v1`-only once fixed: `scripts/openshell_rig.py brain-profile`, or the next `up`.
 
 ## Bring-up
 
@@ -282,7 +333,8 @@ reasoning parser ignores the server's default for non-streaming requests.
 
 | Path | What |
 |---|---|
-| `scripts/openshell_rig.py` | the route: install, gateway, serve-mcp, mcp-start, up, motion, open, chat-url, exec, status, down, teardown, instance |
+| `scripts/openshell_rig.py` | the route: install, gateway, serve-mcp, mcp-start, up, motion, open, chat-url, exec, status, down, teardown, instance, brain-profile |
+| `scripts/brain_v1_live_check.js` | the [live check](#live-check-of-the-brain-profile) of the brain profile, run inside the sandbox |
 | `scripts/launch_openshell.sh` | `scripts/launch.sh` steps 4-6 on Linux: brain, robot server, sandbox, proof inside it, chat |
 | `deploy/openshell/` | `Dockerfile` (node 24 by digest, OpenClaw pinned, Landlock-safe), `openclaw.json` (placeholders, never secrets), `render-config.mjs` (first-start render: ports, model, chat origin, token, agent profile), `cascade-openclaw` (entrypoint), `franka-plugin/` (the FR3 operator profile, `up --agent-profile franka`: [FRANKA_OPENCLAW.md](FRANKA_OPENCLAW.md)) |
 | `tests/test_openshell_rig.py`, `tests/test_launch_openshell_route.py` | the contract above incl. the default instance's golden values; the real `launch.sh` on Linux end to end with rig, Docker, model and OpenClaw doubled |

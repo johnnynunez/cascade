@@ -76,6 +76,18 @@ KV_CACHE_ARGS = {
     "fp8": ["--kv-cache-dtype", "fp8"],
     "auto": [],
 }
+# vLLM 0.32.0 adds HTTP routes from these, or swaps its HTTP server: the dev and
+# RL routes (/collective_rpc, /sleep, /update_weights; outside /v1, where a key
+# does not reach), /v1/load_lora_adapter (inside the OpenShell sandbox's /v1/**),
+# /cohere/v2/chat, a Rust frontend binary. The server never takes them from the
+# caller. KEEP IN SYNC with serve_qwen_vllm.sh (tests pin both).
+VLLM_ROUTE_ENV = (
+    "VLLM_SERVER_DEV_MODE",
+    "VLLM_ALLOW_RUNTIME_LORA_UPDATING",
+    "VLLM_ENABLE_COHERE_API",
+    "VLLM_USE_RUST_FRONTEND",
+    "VLLM_RUST_FRONTEND_PATH",
+)
 
 
 class UsageError(ValueError):
@@ -1088,6 +1100,9 @@ def build_export(stage):
 
 def serve_environment(plan, environ=None):
     environ = os.environ if environ is None else environ
+    # Never from the caller: the variables that add vLLM routes or swap its HTTP
+    # server (VLLM_ROUTE_ENV). VLLM_API_KEY stays: exporting it keys this sidecar.
+    environ = {k: v for k, v in environ.items() if k not in VLLM_ROUTE_ENV}
     path = str(Path(plan["venv"]) / "bin") + os.pathsep + environ.get("PATH", "")
     # FlashInfer (the NVFP4 KV backend) JIT-compiles kernels its prebuilt
     # cache lacks with nvcc: on the first NVFP4 start, the fp4 prefill and the

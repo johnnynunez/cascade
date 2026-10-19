@@ -115,6 +115,19 @@ case "$SPEC" in dflash|none) ;; *) die "SPEC must be dflash|none (got '$SPEC')" 
 [[ "$ALIAS" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]*$ ]] || die "ALIAS must be a bare id (no '/'): $ALIAS" 2
 case "$WARM_START" in 0|1) ;; *) die "WARM_START must be 0|1 (got '$WARM_START')" 2 ;; esac
 WARM_PREFIX_FILE="${WARM_PREFIX_FILE:-${XDG_STATE_HOME:-$HOME/.local/state}/cascade/bolt-openclaw-prefix-$PORT.json}"
+# The caller's environment never configures the server. llama-server v0.7.0 also
+# takes every flag from LLAMA_ARG_<FLAG> / LLAMA_ARG_NO_<FLAG> (common/arg.cpp; a
+# flag on argv wins), accepts LLAMA_API_KEY beside the key file, and with
+# AIP_MODE=PREDICTION serves on AIP_HTTP_PORT (argv cannot override it) with a
+# route that reaches every endpoint (tools/server/server-http.cpp). Inherited,
+# LLAMA_ARG_SLOT_SAVE_PATH opens slot save/restore/erase on a keyless or
+# WARM_START=0 start and LLAMA_ARG_ENDPOINT_PROPS POST /props. Everything this
+# server needs is a flag below, so all of them go. The one server variable the
+# script sets itself is LLAMA_SERVER_SLOTS_DEBUG: 1 for the warm start, else unset
+# (below).
+for name in $(compgen -e); do
+    case "$name" in LLAMA_ARG_*|LLAMA_API_KEY|AIP_*) unset "$name" ;; esac
+done
 
 # CUDA architecture of the GPU that runs the brain (GB10 = 121, RTX PRO 6000 = 120).
 cuda_arch() {

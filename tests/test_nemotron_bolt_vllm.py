@@ -43,6 +43,8 @@ from pathlib import Path
 
 import pytest
 
+from inherited_server_env import HOSTILE_VLLM_ENV
+
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "serve_nemotron_bolt_vllm.sh"
 TARGET = ("nvidia/NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB", "c6cc2e8ffa353403213d6b9b18aaf8eb684d705a")
@@ -240,6 +242,17 @@ def test_the_key_reaches_docker_by_name_never_argv(host):
         assert "bolt-secret-91f" not in json.dumps(c["argv"])
     assert "bolt-secret-91f" not in r.stdout + r.stderr
     assert "ready: nemotron-3.5-bolt on http://0.0.0.0:8080/v1" in r.stderr
+
+
+def test_the_container_gets_only_the_environment_the_script_names(host):
+    """The vLLM route-switch variables (VLLM_SERVER_DEV_MODE, ...) never reach this brain: docker passes a container
+    only the variables named on its argv, and the script names its own (the key by name, the rest with values)."""
+    args = dry(host, **HOSTILE_VLLM_ENV)
+    named = [args[i + 1] for i, a in enumerate(args) if a == "-e"]
+    assert {n.split("=", 1)[0] for n in named} == {
+        "HOME", "USER", "LOGNAME", "HF_HUB_CACHE", "HF_HUB_OFFLINE", "TRANSFORMERS_OFFLINE",
+        "VLLM_USE_V2_MODEL_RUNNER", "TRITON_CACHE_DIR", "TORCHINDUCTOR_CACHE_DIR", "MAX_JOBS"}
+    assert not [a for a in args if a.startswith(("--env", "-e=")) or any(k in a for k in HOSTILE_VLLM_ENV)]
 
 
 def test_a_signal_stops_the_container_it_started(host):

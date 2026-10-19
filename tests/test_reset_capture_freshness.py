@@ -67,7 +67,8 @@ def runtime(cam):
     rt = object.__new__(SkillRuntime)
     spawn = [0.18, -0.03, 0.04]
     reply = {'ok': True, 'props_reset': ['green_cube'], 'reset_verification': {'channel': 'physics', 'frame': 'robot_base', 'tolerance_m': 0.02, 'props': {'green_cube': {'spawn_position_m': spawn, 'position_m': spawn, 'error_m': 0.0, 'finite': True, 'within_tolerance': True}}}}
-    rt._arm = SimpleNamespace(raw=SimpleNamespace(connected=False, reset_props=lambda: deepcopy(reply)), harness=SimpleNamespace(heartbeat=lambda at=None: None))
+    beats = []  # the `at` of every watchdog beat (the frame's arrival time)
+    rt._arm = SimpleNamespace(raw=SimpleNamespace(connected=False, reset_props=lambda: deepcopy(reply)), harness=SimpleNamespace(heartbeat=lambda at=None: beats.append(at), beats=beats))
     rt._arm_override = threading.local()
     rt.arm_rig = None
     rt.camera, rt.depth = (cam, SimpleNamespace(ensure_depth=lambda frame: frame))

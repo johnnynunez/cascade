@@ -30,7 +30,6 @@ escape vertically.
 
 from __future__ import annotations
 
-import math
 import sys
 import time
 import threading
@@ -381,7 +380,7 @@ class SafetyHarness:
                 at = float(at)
             except (TypeError, ValueError):
                 return
-            if not math.isfinite(at) or at > now:
+            if not at <= now:  # a future stamp, +inf or NaN; -inf never beats below
                 return
         with _HEARTBEAT_LOCK:
             # max(): the watcher thread and the runtime beat concurrently, and

@@ -3229,7 +3229,9 @@ class SkillRuntime:
         watchdog, so an arm with a dead camera kept moving. The feed is the
         camera's own (`_watchdog_feed_of`): in-skill frame grabs never keep an
         arm alive from a camera that does not watch it."""
-        self._watchdog_feed_of(self.camera if camera is None else camera).heartbeat(at=observed_at(frame))
+        if camera is None:
+            camera = getattr(self, "camera", None)  # bare `__new__` runtimes have none
+        self._watchdog_feed_of(camera).heartbeat(at=observed_at(frame))
 
     def _wrist_streams(self) -> list[tuple[str, Any]]:
         """`(name, stream)` for every rig camera whose profile is a wrist view

@@ -83,10 +83,15 @@ def test_retry_after_camera_returns_rebuilds_map_before_requesting_home(watched)
         occupancy.clearance(np.zeros((1, 3)))
 
     events.clear()
+    rt.arm.harness.beats.clear()
     state["frozen"] = None
     result = reset()
 
     assert result["ok"] and result["geometry_recovered"], result
+    # The recovered geometry frame and the reset's analysed frame each feed the
+    # watchdog at their own arrival time (never "now").
+    assert len(rt.arm.harness.beats) == 2 and None not in rt.arm.harness.beats
+    assert rt.arm.harness.beats[-1] == rt.last_frame.t
     assert result["observation_refreshed"] and not occupancy.scene_reset_pending
     home = next(event for event in events if event[0] == "home")
     assert home[1] == ({"main", "side"} if watched else {"main"})

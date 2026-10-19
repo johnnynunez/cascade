@@ -29,6 +29,7 @@ import time
 import numpy as np
 import pytest
 from base_pose_oracle import make_runtime, raw_arm  # noqa: F401  (make_runtime: a fixture, by name)
+from test_brain_two_phase_localize import make, tp  # noqa: F401  (fixtures, by name)
 
 from cascade.perception.stream import CameraStream
 from cascade.safety.harness import SafetyHarness, SafetyLimits
@@ -258,14 +259,31 @@ def test_live_camera_grasp_at_pixel_still_grasps(make_runtime, monkeypatch):  # 
     assert all(n > 0 for n in sent.values()), sent
 
 
-def test_a_live_frame_beats_the_watchdog_at_its_own_arrival_time(make_runtime):  # noqa: F811
-    """The watchdog's age equals the newest frame's age (not the time of the grab)."""
+def test_every_runtime_grab_beats_the_watchdog_at_the_frames_own_arrival_time(make_runtime):  # noqa: F811
+    """The watchdog's age equals the newest frame's age, never the time of the grab: observe()
+    and observe_fresh() (the watcher stopped, so only the runtime beats)."""
+    from cascade.perception.freshness import observed_at
+
     rt = _mock(make_runtime)
+    rt.watcher.stop()
     h = next(iter(_harnesses(rt).values()))
-    h._last_heartbeat = time.monotonic() - 100.0
+    for grab in (rt.observe, rt.observe_fresh):
+        h._last_heartbeat = time.monotonic() - 100.0
+        frame = grab()
+        assert h._last_heartbeat == observed_at(frame) == frame.t
+        assert time.monotonic() > frame.t
+
+
+def test_a_fixed_cameras_frame_grab_feeds_every_arm_of_the_pair(make_runtime):  # noqa: F811
+    """The runtime's grabs use the camera's own feed (#412): the shipped pair's fixed scene camera
+    watches both arms, as the watcher's beats from the same frames do."""
+    rt = _so101_pair(make_runtime)
+    rt.watcher.stop()
+    hs = _harnesses(rt)
+    for h in hs.values():
+        h._last_heartbeat = time.monotonic() - 100.0
     frame = rt.observe()
-    assert h._last_heartbeat >= frame.t - 1e-9
-    assert h._last_heartbeat <= time.monotonic()
+    assert {name: h._last_heartbeat for name, h in hs.items()} == {name: frame.t for name in hs}
 
 
 # ── the shipped so101 pair (one fixed scene camera) ───────────────────────
@@ -446,6 +464,19 @@ def test_slow_analysis_of_a_fresh_frame_keeps_its_own_text():
     assert _analyzed_frame_age_s(frame, 1.0, max_age_s=10.0) == pytest.approx(7.0, abs=0.5)
 
 
+# ── the two-phase localization's fresh frame ──────────────────────────────
+
+
+def test_the_two_phase_fresh_frame_beats_at_its_arrival_time(tp):  # noqa: F811
+    """`primary_frame1` (the brain + SAM localization's fresh frame) feeds the watchdog at that
+    frame's arrival time (no watcher on this rig: only the runtime beats)."""
+    h = tp.rt.arm.harness
+    h._last_heartbeat = time.monotonic() - 100.0
+    frame, _fix = tp.rt._localize("red cube")
+    assert h._last_heartbeat == frame.t
+    assert time.monotonic() > frame.t
+
+
 # ── a producer that re-delivers its capture ───────────────────────────────
 
 
@@ -493,6 +524,35 @@ def test_local_frames_are_never_restamped():
     stream._note_first_receipt(f)
     assert f.observed_t is None and observed_at(f) == f.t
     assert math.isnan(observed_at(object()))
+
+
+def test_the_stream_restamps_a_re_delivered_producer_capture():
+    """Through the stream's own pump: a frozen Isaac render, delivered again and again under new
+    Frames, keeps the first delivery's arrival time."""
+    from cascade.perception.freshness import observed_at
+
+    class FrozenBridge:
+        has_depth = False
+
+        def open(self):
+            pass
+
+        def close(self):
+            pass
+
+        def get_frame(self):
+            time.sleep(0.01)
+            return _isaac_frame(42.0)
+
+    stream = CameraStream(FrozenBridge(), name="isaac", rate_hz=60.0)
+    stream.open()
+    try:
+        first = stream.get_frame(timeout_s=2.0)
+        later = [stream.get_frame(timeout_s=2.0) for _ in range(3)]
+    finally:
+        stream.close()
+    assert all(f is not first and f.t > first.t for f in later)
+    assert {observed_at(f) for f in later} == {observed_at(first)}
 
 
 # ── calibration grabs ──────────────────────────────────────────────────────

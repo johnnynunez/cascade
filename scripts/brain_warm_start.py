@@ -30,9 +30,10 @@ tokens (13.6 s with the brain alone). So the helper:
    - writes them (0600) to --prefix-file with the system turn of the latest session (to pair it with the next
      session after a restart). A record made with another chat template or model file is not prefilled (the next
      chat replaces it); before the first chat on a host there is nothing to prefill.
-   A slot is saved only while the save directory keeps --min-free-gb free (4 GiB): with less, the changed prefix
-   waits (logged once) instead of pushing other writers on the robot host into "disk full". Capture files are
-   deleted right after each read and swept at every read of GET /slots (one a timed-out save wrote late).
+   A slot is saved only while the save directory has --min-free-gb free before the save starts (4 GiB; the save
+   then writes its slot file on top, deleted right after the read): with less, the changed prefix waits (logged once)
+   instead of pushing other writers on the robot host into "disk full". Capture files are deleted right after each
+   read and swept at every read of GET /slots (one a timed-out save wrote late).
 
 It exits when the server process ends. Standard library only; the key is read from its file, never from argv.
 What this needs from llama-server (LLAMA_SERVER_SLOTS_DEBUG=1, --slot-save-path) widens its API for every holder of
@@ -63,7 +64,9 @@ CAPTURE_GLOB = "brain-warm-capture-*.bin"
 CAPTURE_TRIES = 3   # slot saves per new prefix (one succeeds unless the slot was reused in between)
 KNOWN_PREFIXES = 8  # prefixes kept in memory, so OpenClaw agents that alternate never cost another slot save
 SESSIONS = 4        # system turns of recent OpenClaw sessions kept to find what sessions share
-MIN_FREE_GB = 4.0   # free space a slot save leaves at least (a slot file: ~0.5 GB at 13.6k tokens, more when longer)
+#: free space a slot save needs before it starts; the save then writes its slot file on top (its context checkpoints
+#: alone ~0.5 GB at 13.6k tokens, more when longer), so less than this stays free while the file exists
+MIN_FREE_GB = 4.0
 _OPENER = build_opener(ProxyHandler({}))   # loopback only: never through an HTTP(S)_PROXY
 
 
@@ -403,7 +406,7 @@ class Recorder:
         if self.low != want:
             self.low = want
             log(f"{free / 2**30:.1f} GiB free in {self.save_dir}{why}, under the {self.min_free_bytes / 2**30:.1f} GiB "
-                "a slot save leaves: the changed OpenClaw prefix is recorded once there is room")
+                "a slot save needs before it starts: the changed OpenClaw prefix is recorded once there is room")
         return True
 
 
@@ -422,7 +425,8 @@ def main(argv=None) -> int:
     p.add_argument("--record-every", type=float, default=10.0, help="seconds between reads of the latest prompt")
     p.add_argument("--max-capture-tokens", type=int, default=32768, help="larger slots are not saved to record")
     p.add_argument("--min-free-gb", type=float, default=MIN_FREE_GB,
-                   help="free space a slot save leaves in --slot-save-dir at least (else it waits)")
+                   help="free space --slot-save-dir needs before a slot save starts, else it waits (the save then "
+                        "writes its slot file on top: ~0.5 GB of context checkpoints at 13.6k tokens, more when longer)")
     p.add_argument("--poll", type=float, default=0.5, help=argparse.SUPPRESS)
     args = p.parse_args(argv)
 

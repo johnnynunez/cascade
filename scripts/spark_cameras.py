@@ -48,9 +48,19 @@ def _no_constant(name):
     raise ValueError(f"{name} is not JSON")
 
 
+def _finite_float(text):
+    """json.loads' `parse_float`: a number that overflows a float (`1e999`) reads as inf, which /state's
+    json.dumps would write as `Infinity`, no JSON a browser parses (#398 review, Minor 1)."""
+    value = float(text)
+    if not math.isfinite(value):
+        raise ValueError(f"{text} is no finite number")
+    return value
+
+
 def read_learning(path):
     """The robot server's `learning.json` (`--learning-file`) for the camera panel: the parsed
-    object when it is a regular file of UTF-8 JSON (no NaN / Infinity), schema 1 and at most
+    object when it is a regular file of UTF-8 JSON (no NaN / Infinity, no number that overflows a
+    float), schema 1 and at most
     LEARNING_MAX_BYTES; None for anything else (no flag, missing, a directory or a FIFO, too
     large, malformed, nested past the parser's depth, another schema), so /state then carries no
     `learning` key, as without the flag. Never raises and never blocks: the file is opened
@@ -66,7 +76,7 @@ def read_learning(path):
             raw = stream.read(LEARNING_MAX_BYTES + 1)
         if len(raw) > LEARNING_MAX_BYTES:
             return None
-        data = json.loads(raw.decode("utf-8"), parse_constant=_no_constant)
+        data = json.loads(raw.decode("utf-8"), parse_constant=_no_constant, parse_float=_finite_float)
     except Exception:  # noqa: BLE001 -- any bad file is no panel (RecursionError included), never a /state error
         return None
     if not isinstance(data, dict) or type(data.get("schema")) is not int or data["schema"] != 1:

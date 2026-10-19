@@ -490,8 +490,10 @@ R5's removal), so R1, R3 and R4 replace or compress existing sentences instead o
   can imitate; the A8 follow-ups fix, Minor 1, had removed A8's ungranted "If a tool result gives a line to end your
   reply with, end with exactly that line."): "When a tool result has a learning_line field, end your reply with
   exactly that field's text." in the visitor block (after R1's remaining prohibition) and the plugin identity
-  (after its retry rule); the attendee pick_and_place description says "End your reply with any learning_line."
-  right before its last sentence (648 of its 650 characters). R5 reads a structured, top-level FIELD, never words:
+  (after its retry rule); the attendee pick_and_place description says "If the result has a learning_line field,
+  end your reply with that field's text." right before its last sentence (645 of its 650 characters; #398 review,
+  Minor 3, replaced "End your reply with any learning_line." and dropped its third example order, which the
+  "Move one named object" opening already covers). R5 reads a structured, top-level FIELD, never words:
   only `SkillRuntime.execute()` writes `learning_line`, as its last step (`_with_learning_grant`), on the one
   result that grants a line (§4.8), and it drops any top-level `learning_line` it did not grant; no object name,
   label, destination, halt reason, camera name, task summary, note or tool name creates or overwrites one, at any

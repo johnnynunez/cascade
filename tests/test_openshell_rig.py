@@ -21,6 +21,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import importlib.util
+import inspect
 import json
 import os
 import re
@@ -116,42 +117,49 @@ def test_brain_profile_binds_the_key_to_the_host_brain_only():
     assert "/usr/local/bin/node" in p["binaries"], "OpenClaw runs on the image's node"
 
 
-def test_the_bolt_brain_is_reachable_from_the_sandbox_only_on_its_openai_api():
+def test_every_local_brain_is_reachable_from_the_sandbox_only_on_its_openai_api():
     """The Bolt brain's warm start (scripts/serve_nemotron_bolt_llamacpp.sh) runs llama-server with
     LLAMA_SERVER_SLOTS_DEBUG=1 and --slot-save-path: GET /slots returns every slot's prompt text and
     POST /slots/N?action=save|restore|erase works for the key's holders. The sandbox holds the key (OpenShell
     substitutes it), so its endpoint allows only GET and POST under /v1/ (OpenClaw's chat completions and model
-    list): OpenShell 0.1.3 REST rules, where '**' crosses '/' and anything unmatched is denied."""
+    list): OpenShell 0.1.3 REST rules, where '**' crosses '/' and anything unmatched is denied. The profile names
+    no model (#403 review, Minor 2): a Bolt served under a custom ALIAS, Qwen and Cosmos get exactly these rules
+    (llama-server's /props, /slots and /tokenize, vLLM's /metrics and /tokenize stay on the host)."""
     rig = _load()
-    (ep,) = rig.brain_profile(port=8123)["endpoints"]
     assert rig.DEFAULT_MODEL == "nemotron-3.5-bolt"
+    assert "model" not in inspect.signature(rig.brain_profile).parameters, "keyed on no served id"
+    (ep,) = rig.brain_profile(port=8123)["endpoints"]
     assert ep["rules"] == [{"allow": {"method": "GET", "path": "/v1/**"}}, {"allow": {"method": "POST", "path": "/v1/**"}}]
     assert "access" not in ep, "rules and access are mutually exclusive in OpenShell"
     assert (ep["host"], ep["port"], ep["protocol"], ep["enforcement"]) == ("host.openshell.internal", 8123, "rest",
                                                                           "enforce")
 
 
-def test_every_other_brain_keeps_the_profile_main_shipped():
+def test_no_brain_keeps_the_read_write_profile():  # #403 review, Minor 2
+    """main's read-write profile (every path, also PUT and PATCH) is gone for every instance."""
     rig = _load()
-    for model in ("qwen3.8-27b", "cosmos-reason2"):
-        p = rig.brain_profile(model=model)
-        assert _profile_sha(p) == PRE_WARM_START_BRAIN_SHA, model
-        assert p["endpoints"][0]["access"] == "read-write" and "rules" not in p["endpoints"][0]
+    for inst in (rig.DEFAULT_INSTANCE, rig.instance("sim")):
+        profile = rig.brain_profile(inst=inst)
+        assert _profile_sha(profile) != READ_WRITE_BRAIN_SHA and "access" not in profile["endpoints"][0]
+    assert _profile_sha(rig.brain_profile()) == TODAY_PROFILE_SHA["cascade-brain"]   # the live Bolt route: unchanged
 
 
-def test_up_syncs_the_brain_profile_of_the_model_it_serves(host):
+@pytest.mark.parametrize("model", [None, "qwen3.8-27b", "nemotron-bolt-q4", "cosmos-reason2"],
+                         ids=["default", "qwen", "custom alias", "cosmos"])
+def test_up_syncs_the_v1_only_brain_profile_whatever_model_it_serves(host, model):  # #403 review, Minor 2
+    """`up --model <id>` (launch_openshell.sh passes the served id, ALIAS included): the same /v1-only profile,
+    byte for byte, as the default Bolt route."""
     home = host.install(host.user / ".cascade" / "openshell-sim", "sim")
     host.gateways_up.add(str(home / "0.1.3" / "bin" / "openshell"))
-
-    def synced() -> dict:
-        upd = [a for a in host.argvs if a[1:4] == ["provider", "profile", "update"] and a[-1] == "cascade-sim-brain"]
-        return json.loads(Path(upd[-1][upd[-1].index("--file") + 1]).read_text())["endpoints"][0]
-
-    assert host.rig.main(["--instance", "sim", "up"]) == 0
-    assert synced()["rules"] == [{"allow": {"method": "GET", "path": "/v1/**"}},
-                                 {"allow": {"method": "POST", "path": "/v1/**"}}]
-    assert host.rig.main(["--instance", "sim", "up", "--model", "qwen3.8-27b"]) == 0
-    assert synced()["access"] == "read-write" and "rules" not in synced()
+    argv = ["--instance", "sim", "up"] + ([] if model is None else ["--model", model])
+    assert host.rig.main(argv) == 0
+    upd = [a for a in host.argvs if a[1:4] == ["provider", "profile", "update"] and a[-1] == "cascade-sim-brain"]
+    synced = json.loads(Path(upd[-1][upd[-1].index("--file") + 1]).read_text())
+    synced.pop("resource_version")   # `profile update` needs the stored one (`export`)
+    assert synced == host.rig.brain_profile(inst=host.rig.instance("sim"))
+    assert synced["endpoints"][0]["rules"] == [{"allow": {"method": "GET", "path": "/v1/**"}},
+                                               {"allow": {"method": "POST", "path": "/v1/**"}}]
+    assert "access" not in synced["endpoints"][0]
 
 
 def test_robot_profile_admits_mcp_and_refuses_reset_stop_at_l7():
@@ -774,12 +782,13 @@ TODAY_SETTINGS = {"brain_port": 8081, "mcp_port": 18741, "chat_port": 18799,
 #: sha256 of json.dumps(profile, sort_keys=True): the profiles the live
 #: gateway holds. Any change here is an update pushed to the running sandbox.
 TODAY_PROFILE_SHA = {
-    # The Bolt brain (the default model): the sandbox reaches only its /v1/* (the warm start opens /slots).
+    # Every local brain (Bolt, the default; Qwen; a custom ALIAS): the sandbox reaches only its /v1/* (the Bolt warm
+    # start opens /slots; #403 review, Minor 2: no served id falls back to read-write).
     "cascade-brain": "db9aee31e9c2572efa4444d9b453d30fe0571f28569b386041dfc871686d77d5",
     "cascade-robot": "cb34708159f1048412ba6da017c1a953771f47d6ffd3582143ebc089881b2ef7",
 }
-#: Every other brain (--model qwen3.8-27b): the profile main shipped before the Bolt path rules, byte for byte.
-PRE_WARM_START_BRAIN_SHA = "7e81c98a4f6dfa80dbd0be5b5253d5c1e6c60b2db961e2146e813d634e3a8ba4"
+#: The read-write brain profile main shipped before the /v1 path rules (Qwen's until #403's review): no brain gets it.
+READ_WRITE_BRAIN_SHA = "7e81c98a4f6dfa80dbd0be5b5253d5c1e6c60b2db961e2146e813d634e3a8ba4"
 
 
 def _profile_sha(profile: dict) -> str:

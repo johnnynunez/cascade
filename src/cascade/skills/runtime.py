@@ -312,10 +312,48 @@ def _harness_tool_volume(harness):
 def _raise_if_estopped(harness) -> None:
     """A latched e-stop vetoes every route the harness vets: when point_at
     finds no route, an e-stop is reported as the e-stop, never as the
-    geometry it made fail. (An operator halt since the skill started is
-    reported as the halt by `execute`.)"""
+    geometry it made fail. (`_raise_if_halted_since_start` adds the
+    operator's halt.)"""
     if getattr(harness, "estopped", False):
         raise SafetyViolation("e-stop latched")
+
+
+def _raise_if_halted_since_start(harness, generation) -> None:
+    """A stop that came while point_at planned is what the agent must hear,
+    never the geometry or the clock it made fail (#399 review Minor 2): a
+    latched e-stop first (`_raise_if_estopped`), then an operator halt
+    received since `generation` (the harness's halt generation when point_at
+    started) or since the motion skill running on this thread started
+    (`skill_halt_baseline`), named as the halt."""
+    _raise_if_estopped(harness)
+    check = getattr(harness, "_check_halt_generation", None)
+    if not callable(check):
+        return
+    try:
+        check(generation)
+    except MotionHalted:
+        halted = getattr(harness, "halted", None)
+        if halted:
+            raise MotionHalted(f"halted: {halted}") from None
+        raise
+
+
+def _hold_on_another_arm(runtime) -> bool:
+    """The rig-wide hold belongs to ANOTHER arm of a pair than the one this
+    call drives (`SkillRuntime._held_by_another_arm`; getattr-guarded: absent
+    on runtime doubles, whose hold stays this arm's)."""
+    elsewhere = getattr(runtime, "_held_by_another_arm", None)
+    return bool(callable(elsewhere) and elsewhere())
+
+
+class _PointTargetMoved(Exception):
+    """point_at's target moved while it planned (`_point_at_still_there`):
+    plan once more from `fix`, where it is now. Never leaves
+    `skill_point_at`."""
+
+    def __init__(self, fix):
+        super().__init__("the target moved while point_at planned")
+        self.fix = fix
 
 
 def _lowest_tool_z(T, tool_points) -> float:
@@ -786,13 +824,16 @@ _LEARNING_LINE_FIELD = "learning_line"
 @dataclasses.dataclass(frozen=True)
 class _LearningGrant:
     """What `_grant_learning_line` decided for the call `execute()` is finishing: the
-    learning event (`kind`, `line` -- None for THE retry without one -- and `outcome`)
-    and `stopped`, the call's operator-stop reading, taken again on delivery."""
+    learning event (`kind`, `line` -- None for THE retry without one -- and `outcome`),
+    `stopped`, the call's operator-stop reading, taken again on delivery, and
+    `trace_step`, the step of the call's trace row (`_bind_trace_step`; None before
+    the row is written), where a line withdrawn on delivery is marked withheld."""
     learning: Any
     kind: str
     line: str | None
     outcome: str
     stopped: Callable[[], bool]
+    trace_step: int | None = None
 
 
 def _take_learning_grant(runtime) -> _LearningGrant | None:
@@ -800,6 +841,15 @@ def _take_learning_grant(runtime) -> _LearningGrant | None:
     the call `execute()` is finishing, removed (None when there is none)."""
     scope = getattr(runtime, "_motion_scope", None)
     return None if scope is None else scope.__dict__.pop("learning_grant", None)
+
+
+def _bind_trace_step(runtime, step) -> None:
+    """Note on this thread's pending learning grant the step of the trace row that
+    carries its line (`TraceLogger.record`'s return value; a double's None binds nothing)."""
+    scope = getattr(runtime, "_motion_scope", None)
+    grant = getattr(scope, "learning_grant", None)
+    if grant is not None and isinstance(step, int):
+        scope.learning_grant = dataclasses.replace(grant, trace_step=step)
 
 
 def _without_refused(grasps, excluded):
@@ -1890,7 +1940,8 @@ class SkillRuntime:
         on delivery (A9/A10 fix, Minor 2). The line is built from runtime texts and
         the served note's title and tag only, never from the agent's arguments; one
         that would read as a rule trigger is no line. Marks the trace row's
-        `learning` with the decided line. Never fails the call."""
+        `learning` with the decided line; a line a stop withdraws on delivery is
+        marked withheld there (`_mark_line_withheld`). Never fails the call."""
         from ..agent import learning_surface as surface
 
         def stopped() -> bool:
@@ -2378,7 +2429,8 @@ class SkillRuntime:
         put one there; and when `_grant_learning_line` decided a learning event, that
         event delivered (spec §4.8; A9/A10 fix). The operator-stop reading is taken
         again here, so a stop that came after the decision (during the trace write,
-        the status line, the memory event) withdraws the line (Minor 2); the event is
+        the status line, the memory event) withdraws the line (Minor 2) and marks it
+        withheld in the call's trace row (#398 review, Minor 2); the event is
         written to learning.json here too: a note line withdrawn writes nothing, THE
         retry writes `line: null, outcome: halted`. R5 keys on this field only."""
         if isinstance(result, dict) and _LEARNING_LINE_FIELD in result:
@@ -2390,17 +2442,33 @@ class SkillRuntime:
             return result
         from ..agent import learning_surface as surface
 
-        line, outcome = grant.line, grant.outcome
+        line, outcome, withheld = grant.line, grant.outcome, None
         try:
             if grant.stopped():
-                line, outcome = None, "halted"
+                line, outcome, withheld = None, "halted", "stopped"
         except Exception:  # noqa: BLE001 -- fail closed: an unreadable stop is a stop
             logger.exception("learning line withdrawn: the stop reading failed")
-            line, outcome = None, "halted"
+            line, outcome, withheld = None, "halted", "stop unreadable"
+        if withheld is not None and grant.line is not None:
+            self._mark_line_withheld(grant, withheld)
         if line is None and grant.kind != "retry":
             return result
         grant.learning.write(surface.learning_event(grant.kind, line, outcome))
         return result if line is None else surface.with_learning_line(result, line)
+
+    def _mark_line_withheld(self, grant: _LearningGrant, why: str) -> None:
+        """The call's trace row, which `_grant_learning_line` marked with the decided line,
+        rewritten to say the line was withheld (`why`: "stopped", or "stop unreadable") when a
+        stop withdrew it on delivery, so the audit trail never shows a line the agent did not
+        get (#398 review, Minor 2). A trace without `amend_context` or an unwritten row: nothing.
+        Never fails the call."""
+        amend = getattr(self.trace, "amend_context", None)
+        if grant.trace_step is None or amend is None:
+            return
+        try:
+            amend(grant.trace_step, "learning", {"kind": grant.kind, "line": None, "withheld": why})
+        except Exception:  # noqa: BLE001 -- the learning surface never fails a call
+            logger.exception("trace row %s: the withheld learning line was not marked", grant.trace_step)
 
     def _execute_with_obligations(self, name: str, args: dict) -> dict:
         """Dispatch with task obligations covering all tiers and preparation faults."""
@@ -3059,9 +3127,11 @@ class SkillRuntime:
             # after the ledger (its verdict on THE retry), before the trace row
             self._grant_learning_line(learning, name, args, result, trace_context, retry=retry, arm=effective_arm,
                                       baselines=skill_halt, stop_token0=learning_token0)
-        self.trace.record(name, args, result, dur, before, after,
-                          tier=self.current_tier, context=trace_context,
-                          keyframe_before_wrists=before_wrists, keyframe_after_wrists=after_wrists)
+        traced = self.trace.record(name, args, result, dur, before, after,
+                                   tier=self.current_tier, context=trace_context,
+                                   keyframe_before_wrists=before_wrists, keyframe_after_wrists=after_wrists)
+        if learning is not None:
+            _bind_trace_step(self, traced)  # the row a line withdrawn on delivery is marked withheld in
         err = str(result.get("error", "failed"))
         stuck = result.get("outcome") == OUTCOME_STUCK
         # one tail for the status line and the memory event: ok / the ask / the error,
@@ -7964,25 +8034,45 @@ class SkillRuntime:
         jaws. No clear pose, route or close, or planning past its budget (3 s
         of CPU, more on a slower core, 8 s of wall time), refuses before any
         arm or jaw command; an e-stop latched while planning, in the last
-        close or in the hold is reported as the e-stop. The object top is
+        close or in the hold is reported as the e-stop, an operator halt
+        received since the call started as the halt (e-stop first). Planning
+        that took longer than 3 s of wall time looks at the object again
+        before the first command: moved more than 1 cm (its centre or its
+        top), it is planned once more from where it is now, on what is left
+        of the same budget; moved again, or not found, refuses (nothing was
+        moved). The object top is
         the observed top raised to the occupancy map's column top (capped as
         the pregrasp reads it) and to the top of an object standing over it
         (a cup over the cube)."""
+        harness = getattr(self.arm, "harness", None)
+        generation = getattr(harness, "_halt_generation", None)
         _, fix = self._localize(label)
         from . import pointing
 
         budget = pointing.Budget()
         try:
-            return self._point_at(label, fix, budget)
+            try:
+                return self._point_at(label, fix, budget, generation)
+            except _PointTargetMoved as moved:
+                # once more, from where the target is now, on what is left of
+                # the same budget (#399 review Minor 3)
+                return self._point_at(label, moved.fix, budget, generation, replanned=True)
         except pointing.PlanningTimeout as exc:
             # an e-stop latched while planning vetoes every vet, so the search
-            # runs long: it is reported as the e-stop, never as the clock
-            _raise_if_estopped(getattr(self.arm, "harness", None))
+            # runs long: it is reported as the e-stop (and a halt as the
+            # halt), never as the clock
+            _raise_if_halted_since_start(harness, generation)
             raise SkillError(f"cannot point at {label!r}: {exc} (the pose and its route are planned before any "
                              f"command); nothing was moved") from None
 
-    def _point_at(self, label: str, fix, budget) -> dict:
-        """skill_point_at after the fix: plan within `budget`, then move."""
+    def _point_at(self, label: str, fix, budget, generation=None, replanned: bool = False) -> dict:
+        """skill_point_at after the fix: plan within `budget`, then move.
+        `generation`: the harness's halt generation when the call started;
+        `replanned`: this is the plan from a fix taken again after a long
+        first plan (`_point_at_still_there`)."""
+        from . import pointing
+
+        planned_from = pointing._wall()
         gcfg = self.cfg.grasp
         harness = getattr(self.arm, "harness", None)
         margin = float(self.cfg.safety.get("min_clearance_m", 0.03))
@@ -7993,7 +8083,6 @@ class SkillRuntime:
         z_max = float(gcfg.get("topdown_z_max", 0.15)) - 0.01
         hover[2] = min(top + float(gcfg.get("pregrasp_offset_m", 0.08)), z_max)
         from ..grasping.obb_grasp import _yaw_rotation
-        from . import pointing
 
         table_z = float(getattr(getattr(harness, "limits", None), "table_z",
                                 self.cfg.safety.get("table_z", 0.0)))
@@ -8001,7 +8090,9 @@ class SkillRuntime:
 
         approach_col = _TOOL_COLUMNS[self._tool_axis_order][0]
         sweep = (gcfg.get("graspgenx") or {}).get("sweep")
-        held = self.held_object
+        # a hold on ANOTHER arm of a pair is not this arm's: its jaws are
+        # empty and it points as if nothing were held (#400 re-review Minor 1)
+        held = None if _hold_on_another_arm(self) else self.held_object
         state = self.arm.get_state()
         q_now = state.q
         try:
@@ -8081,8 +8172,9 @@ class SkillRuntime:
             else:
                 from_above = "from above, no pose solved"
             # an e-stop latched while planning is what the agent must hear,
-            # never the geometry that failed after it (#385 review M1)
-            _raise_if_estopped(harness)
+            # never the geometry that failed after it (#385 review M1), and so
+            # is a halt received since the call started (#399 review Minor 2)
+            _raise_if_halted_since_start(harness, generation)
             if held:
                 # the payload is not modelled: no new motion with it in the jaws (main's top-down rule)
                 raise SkillError(f"cannot point at {label!r} while holding {held!r}: {from_above}; it leans in "
@@ -8090,7 +8182,7 @@ class SkillRuntime:
             lean = pointing.lean_in(self.kin, column, jaws.closed + body, approach_col, q_now, margin=margin,
                                     table_z=table_z, vet=vet, neighbours=near, budget=budget)
             if lean.q is None:
-                _raise_if_estopped(harness)
+                _raise_if_halted_since_start(harness, generation)
                 best = "" if lean.clearance is None else f" (the best solved pose had {lean.clearance.worst(margin)})"
                 raise SkillError(
                     f"cannot point at {label!r} on this arm: {from_above}; leaning in "
@@ -8124,9 +8216,12 @@ class SkillRuntime:
         except pointing.PlanningTimeout:
             raise
         except pointing.RouteRefused as exc:
-            _raise_if_estopped(harness)
+            _raise_if_halted_since_start(harness, generation)
             raise SkillError(f"cannot reach the pointing pose over {label!r} keeping {margin:.3f} m from it: "
                              f"{exc}; nothing was moved") from None
+        # a long plan acted on an old fix: look at the target again before the
+        # first command (#399 review Minor 3)
+        self._point_at_still_there(label, fix, planned_from, harness, generation, replanned)
         if route.withdraw:
             self._mark_motion_started()
             if not self.arm.move_joint_path(route.withdraw, duration_s=2.0):
@@ -8141,8 +8236,9 @@ class SkillRuntime:
             self._set_gripper(self._grip_closed, effort=0.6)
         time.sleep(float(self.cfg.get("gesture", {}).get("point_hold_s", 1.2)))
         # the close can be the last command: an e-stop latched in it (or in
-        # the hold) is no success (main closed first, and its next move refused)
-        _raise_if_estopped(harness)
+        # the hold) is no success (main closed first, and its next move
+        # refused), and neither is a halt (never noted as pointed)
+        _raise_if_halted_since_start(harness, generation)
         self.memory.add("action", f"pointed at {label!r}")
         out = {"pointed_at": label, "position": [round(float(x), 3) for x in self._to_world(fix.position)]}
         if lean is not None:
@@ -8152,6 +8248,37 @@ class SkillRuntime:
         if route.withdraw:
             out["backed_out_m"] = round(float(route.withdraw_m), 3)
         return out
+
+    def _point_at_still_there(self, label: str, fix, planned_from: float, harness, generation,
+                              replanned: bool) -> None:
+        """point_at, before its first command: planning that took longer
+        than `pointing.FRESH_PLAN_S` of wall time since `planned_from` acted
+        on an old fix, so the target is localized again (`_localize`: a fresh
+        detection, else the belief it falls back to). Moved more than
+        `pointing.FRESH_MOVE_M` (`fix_moved_m`): raises `_PointTargetMoved`
+        with the fresh fix (planned once more), or, when this already was
+        that plan, refuses; not found again: refuses. Nothing was commanded
+        either way; a stop that came meanwhile is reported first."""
+        from . import pointing
+
+        took = pointing._wall() - planned_from
+        if took <= pointing.FRESH_PLAN_S:      # NaN looks again
+            return
+        try:
+            _, fresh = self._localize(label)
+        except SkillError as exc:
+            _raise_if_halted_since_start(harness, generation)
+            raise SkillError(f"cannot point at {label!r}: planning took {took:.1f} s, and looking at it again "
+                             f"before the first command failed ({type(exc).__name__}: {exc}); nothing was "
+                             f"moved") from None
+        moved = pointing.fix_moved_m(fix, fresh)
+        if moved <= pointing.FRESH_MOVE_M:     # NaN counts as moved
+            return
+        _raise_if_halted_since_start(harness, generation)
+        if replanned:
+            raise SkillError(f"cannot point at {label!r}: it moved {100 * moved:.1f} cm again while point_at "
+                             f"planned once more ({took:.1f} s); nothing was moved")
+        raise _PointTargetMoved(fresh)
 
     def _pointing_top(self, label: str, fix, harness) -> tuple[float, list, list]:
         """point_at's object top, computed once, the objects standing over
@@ -8181,7 +8308,10 @@ class SkillRuntime:
         top = observed + _map_top_lift(self.cfg.grasp, harness, fix, observed)
         table_z = float(getattr(getattr(harness, "limits", None), "table_z", self.cfg.safety.get("table_z", 0.0)))
         target = self.beliefs.find(label)
-        in_jaws = self.beliefs.find(self.held_object) if self.held_object else None
+        # only an object in THIS arm's jaws rides along; one in another arm's
+        # jaws is a neighbour like any other (#400 re-review Minor 1)
+        in_jaws = (self.beliefs.find(self.held_object)
+                   if self.held_object and not _hold_on_another_arm(self) else None)
         centre = np.asarray(fix.position, dtype=float)[:2]
         occluders, neighbours = [], []
         for b in self.beliefs.all():

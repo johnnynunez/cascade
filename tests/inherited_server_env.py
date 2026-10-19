@@ -23,6 +23,13 @@ vLLM 0.32.0 (entrypoints/): `VLLM_SERVER_DEV_MODE` adds the dev and RL routes (/
 `VLLM_USE_RUST_FRONTEND` + `VLLM_RUST_FRONTEND_PATH` replace the whole HTTP server with another binary.
 `VLLM_ENABLE_RESPONSES_API_STORE` (vllm/envs.py) keeps every stored /v1/responses request and answer in memory until
 the server exits: a caller inside /v1/** grows the brain's memory without bound.
+
+SGLang 0.5.22 (sglang/srt/): `SGLANG_GRPC_PORT` starts a native gRPC listener beside HTTP that the HTTP key does not
+cover, `SGLANG_RUST_SERVER` swaps in the embedded Rust HTTP server, `SGLANG_OLLAMA_*_ROUTE` and `AIP_PREDICT_ROUTE`
+move the Ollama routes and /vertex_generate anywhere (/v1/** too), `DUMPER_SERVER_PORT` starts a keyless control server
+on 0.0.0.0 (`reuse`: /dumper/{method}) and the other `DUMPER_*` dump tensors or load code,
+`SGLANG_ENABLE_REQUEST_HEADER_OVERRIDES` lets x-override-* headers set request fields, and `EXA_API_KEY` adds a web
+search tool behind /v1/responses.
 """
 from __future__ import annotations
 
@@ -54,6 +61,31 @@ HOSTILE_VLLM_ENV = {
     "VLLM_USE_RUST_FRONTEND": "1",
     "VLLM_RUST_FRONTEND_PATH": "/tmp/other-frontend",
     "VLLM_ENABLE_RESPONSES_API_STORE": "1",
+}
+
+#: Inherited by serve_cosmos_sglang.sh; none may reach SGLang 0.5.22 (sglang/srt/environ.py, entrypoints/http_server.py,
+#: arg_groups/fields/serving.py, debug_utils/dumper.py; read from the 0.5.22 wheel).
+HOSTILE_SGLANG_ENV = {
+    "SGLANG_GRPC_PORT": "50051",                         # a native gRPC listener beside HTTP, outside the HTTP key
+    "SGLANG_RUST_SERVER": "1",                           # the embedded Rust HTTP server instead of FastAPI
+    "SGLANG_OLLAMA_ROOT_ROUTE": "/v1/ollama",            # the Ollama routes moved anywhere, /v1/** included
+    "SGLANG_OLLAMA_CHAT_ROUTE": "/v1/ollama/chat",
+    "SGLANG_OLLAMA_GENERATE_ROUTE": "/v1/ollama/generate",
+    "SGLANG_OLLAMA_TAGS_ROUTE": "/v1/ollama/tags",
+    "SGLANG_OLLAMA_SHOW_ROUTE": "/v1/ollama/show",
+    "AIP_PREDICT_ROUTE": "/v1/predict",                  # /vertex_generate (raw /generate parameters) inside /v1/**
+    "DUMPER_SERVER_PORT": "40000",                       # a keyless dumper control server on 0.0.0.0
+    "DUMPER_ENABLE": "1",                                # tensor dumps to disk
+    "SGLANG_ENABLE_REQUEST_HEADER_OVERRIDES": "1",       # x-override-* headers set request fields
+    "EXA_API_KEY": "inherited-exa-key",                  # a web search tool behind /v1/responses
+}
+
+#: Inherited SGLang-looking names the server keeps: tuning of features it never starts, and look-alikes.
+BENIGN_SGLANG_ENV = {
+    "SGLANG_GRPC_WORKER_THREADS": "4",   # only used with a gRPC listener, which never starts
+    "SGLANG_OLLAMA": "kept",             # not SGLANG_OLLAMA_*
+    "XDUMPER_SERVER_PORT": "kept",       # not DUMPER_*
+    "SGLANG_TORCH_PROFILER_DIR": "/tmp/profiles",
 }
 
 #: A llama.cpp config.ini as an attacker would write it: every tool (exec_shell_command, write_file) at /tools, and

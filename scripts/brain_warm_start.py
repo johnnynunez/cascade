@@ -30,8 +30,13 @@ tokens (13.6 s with the brain alone). So the helper:
    - writes them (0600) to --prefix-file with the system turn of the latest session (to pair it with the next
      session after a restart). A record made with another chat template or model file is not prefilled (the next
      chat replaces it); before the first chat on a host there is nothing to prefill.
+   A slot is saved only while the save directory keeps --min-free-gb free (4 GiB): with less, the changed prefix
+   waits (logged once) instead of pushing other writers on the robot host into "disk full". Capture files are
+   deleted right after each read and swept at every read of GET /slots (one a timed-out save wrote late).
 
 It exits when the server process ends. Standard library only; the key is read from its file, never from argv.
+What this needs from llama-server (LLAMA_SERVER_SLOTS_DEBUG=1, --slot-save-path) widens its API for every holder of
+the key: docs/OPENSHELL.md, "Brain warm start".
 """
 from __future__ import annotations
 
@@ -39,6 +44,7 @@ import argparse
 import hashlib
 import json
 import os
+import shutil
 import struct
 import sys
 import time
@@ -57,6 +63,7 @@ CAPTURE_GLOB = "brain-warm-capture-*.bin"
 CAPTURE_TRIES = 3   # slot saves per new prefix (one succeeds unless the slot was reused in between)
 KNOWN_PREFIXES = 8  # prefixes kept in memory, so OpenClaw agents that alternate never cost another slot save
 SESSIONS = 4        # system turns of recent OpenClaw sessions kept to find what sessions share
+MIN_FREE_GB = 4.0   # free space a slot save leaves at least (a slot file: ~0.5 GB at 13.6k tokens, more when longer)
 _OPENER = build_opener(ProxyHandler({}))   # loopback only: never through an HTTP(S)_PROXY
 
 
@@ -151,9 +158,13 @@ def write_record(path: Path, record: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w") as stream:
-        json.dump({"format": FORMAT, **record}, stream)
-    os.replace(tmp, path)
+    try:
+        with os.fdopen(fd, "w") as stream:
+            json.dump({"format": FORMAT, **record}, stream)
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)       # a failed write leaves the old record and nothing else
+        raise
 
 
 def slot_file_tokens(path: Path) -> list[int] | None:
@@ -243,7 +254,13 @@ def openclaw_slots(slots) -> list[dict]:
     """The slots whose last request came from OpenClaw, oldest request first."""
     found = [s for s in slots if isinstance(s, dict) and system_turn(s.get("prompt")) is not None] \
         if isinstance(slots, list) else []
-    return sorted(found, key=lambda s: s.get("id_task") or -1)
+    return sorted(found, key=lambda s: s["id_task"] if isinstance(s.get("id_task"), int) else -1)   # task 0 is a task
+
+
+def sweep_captures(save_dir: Path) -> None:
+    """Delete capture files: one left by a helper that died mid-capture, or written late after a save timed out."""
+    for stale in save_dir.glob(CAPTURE_GLOB):
+        stale.unlink(missing_ok=True)
 
 
 def read_slot(server: Server, slot: dict, save_dir: Path) -> tuple[list[int], str] | None:
@@ -288,6 +305,108 @@ def cut_points(server: Server, got: tuple[list[int], str], prompt: str, end: int
     return n1, tokens_within(server, tokens, exact[:at], n1) if at else n1
 
 
+class Recorder:
+    """Step 3: keeps the record equal to what OpenClaw last sent. Each step() reads GET /slots once and, for a changed
+    prefix, saves one idle slot to read its exact tokens."""
+
+    def __init__(self, server: Server, *, prefix_file: Path, slot_save_dir: Path, identity: dict,
+                 record: dict | None, record_every: float = 10.0, max_capture_tokens: int = 32768,
+                 min_free_bytes: int = int(MIN_FREE_GB * 2**30), clock=time.monotonic, free_bytes=None):
+        self.server, self.prefix_file, self.save_dir, self.identity = server, prefix_file, slot_save_dir, identity
+        self.record_every, self.max_capture_tokens, self.min_free_bytes = record_every, max_capture_tokens, min_free_bytes
+        self.clock = clock
+        self.free_bytes = free_bytes or (lambda path: shutil.disk_usage(path).free)
+        self.seen = (record["text"], record["shared"]) if record else None
+        self.known = {self.seen: (record["tokens"], record["extension"])} if record else {}
+        self.turns = [record["last"]] if record and record["last"] else []
+        self.tries: dict = {}            # slot saves per changed prefix, the latest KNOWN_PREFIXES prefixes
+        self.next_read, self.hidden, self.large, self.low = clock(), False, None, None
+
+    def due(self) -> bool:
+        return self.clock() >= self.next_read
+
+    def step(self) -> None:
+        self.next_read = self.clock() + self.record_every
+        sweep_captures(self.save_dir)
+        status, slots = self.server.call("/slots")
+        if status == 200 and not self.hidden and prompts_hidden(slots):
+            self.hidden = True
+            log("GET /slots shows no prompts (llama-server without LLAMA_SERVER_SLOTS_DEBUG=1): nothing to record")
+        found = openclaw_slots(slots) if status == 200 else []
+        for older in found[:-1]:          # the sessions of the other slots, to compare the latest one with
+            if (t := system_turn(older["prompt"]) or "") not in self.turns:
+                self.turns = (self.turns + [t])[-SESSIONS:]
+        if not found:
+            return
+        slot = found[-1]
+        prompt = slot["prompt"]
+        turn, text = system_turn(prompt) or "", openclaw_prefix(prompt) or ""
+        end = next((e for other in reversed(self.turns) if (e := shared_end(turn, other))), None)
+        if turn not in self.turns:
+            self.turns = (self.turns + [turn])[-SESSIONS:]
+        want = (text, turn[turn.find(BOUNDARY):end] if end else "")
+        if not end and self.seen and self.seen[0] == text:
+            want = self.seen               # one session so far: keep what earlier sessions shared
+        entry, how = self.known.get(want), "read before"
+        if entry is None:
+            entry, want, how = self._capture(slot, slots, want, text, end)
+        if entry and want != self.seen:
+            try:
+                write_record(self.prefix_file, {**self.identity, "text": want[0], "tokens": entry[0],
+                                                "shared": want[1], "extension": entry[1], "last": turn})
+            except OSError as e:
+                log(f"cannot write {self.prefix_file}: {e}")
+            else:
+                log(f"recorded the latest OpenClaw prefix ({len(entry[0])} tokens + {len(entry[1])} its sessions "
+                    f"share; {how}) for the next start")
+                self.seen = want
+
+    def _capture(self, slot: dict, slots: list, want: tuple, text: str, end: int | None):
+        """(entry or None, want, how) for a prefix not read before: at most CAPTURE_TRIES slot saves, each while the
+        server is idle and the save directory keeps its free space."""
+        if (slot.get("n_prompt_tokens") or 0) > self.max_capture_tokens:
+            if self.large != want:
+                self.large = want
+                log(f"a changed OpenClaw prefix sits in a {slot['n_prompt_tokens']}-token slot; "
+                    "recording it from a shorter one")
+            return None, want, ""
+        if any(s.get("is_processing") for s in slots if isinstance(s, dict)):
+            self.next_read = self.clock() + min(self.record_every, 2.0)    # save a slot only while idle
+            return None, want, ""
+        if self.tries.get(want, 0) >= CAPTURE_TRIES or self._disk_low(want):
+            return None, want, ""
+        n = self.tries.pop(want, 0) + 1
+        self.tries = {**dict(list(self.tries.items())[-(KNOWN_PREFIXES - 1):]), want: n}
+        t1 = self.clock()
+        got = read_slot(self.server, slot, self.save_dir)
+        cuts = cut_points(self.server, got, slot["prompt"], end) if got else None
+        if not cuts:
+            if n == CAPTURE_TRIES:
+                log(f"could not read the tokens of a changed OpenClaw prefix {CAPTURE_TRIES} times; "
+                    "the next start prefills the previous record")
+            return None, want, ""
+        if cuts[1] == cuts[0]:            # nothing shared, or it could not be read: the prefix alone
+            want = (text, "")
+        entry = (got[0][:cuts[0]], got[0][cuts[0]:cuts[1]])
+        self.known = {**dict(list(self.known.items())[-(KNOWN_PREFIXES - 1):]), want: entry}
+        return entry, want, f"slot {slot['id']} read in {self.clock() - t1:.1f} s"
+
+    def _disk_low(self, want: tuple) -> bool:
+        """True while a slot save could fill the disk (logged once per changed prefix); it is retried later."""
+        try:
+            free, why = self.free_bytes(self.save_dir), ""
+        except OSError as e:
+            free, why = 0, f" (cannot read it: {e})"
+        if free >= self.min_free_bytes:
+            self.low = None
+            return False
+        if self.low != want:
+            self.low = want
+            log(f"{free / 2**30:.1f} GiB free in {self.save_dir}{why}, under the {self.min_free_bytes / 2**30:.1f} GiB "
+                "a slot save leaves: the changed OpenClaw prefix is recorded once there is room")
+        return True
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description="Prefill the recorded OpenClaw prefix into a starting llama-server.")
     p.add_argument("--host", default="127.0.0.1")
@@ -302,6 +421,8 @@ def main(argv=None) -> int:
     p.add_argument("--timeout", type=float, default=120.0, help="bound of each warm-up request, seconds")
     p.add_argument("--record-every", type=float, default=10.0, help="seconds between reads of the latest prompt")
     p.add_argument("--max-capture-tokens", type=int, default=32768, help="larger slots are not saved to record")
+    p.add_argument("--min-free-gb", type=float, default=MIN_FREE_GB,
+                   help="free space a slot save leaves in --slot-save-dir at least (else it waits)")
     p.add_argument("--poll", type=float, default=0.5, help=argparse.SUPPRESS)
     args = p.parse_args(argv)
 
@@ -314,8 +435,7 @@ def main(argv=None) -> int:
     identity = {"template": template_id(args.chat_template_file), "model": model_id(args.model_file)}
     server = Server(args.host, args.port, key)
     if args.slot_save_dir:
-        for stale in args.slot_save_dir.glob(CAPTURE_GLOB):       # left by a helper that died mid-capture
-            stale.unlink(missing_ok=True)
+        sweep_captures(args.slot_save_dir)
     log(f"warm start for {args.host}:{args.port}: {args.slots} slot(s), prefix record {args.prefix_file}")
 
     t0 = time.monotonic()
@@ -337,66 +457,15 @@ def main(argv=None) -> int:
     else:
         log(why)
 
-    # 3. keep the record equal to what OpenClaw last sent
-    seen = (record["text"], record["shared"]) if record else None
-    known = {seen: (record["tokens"], record["extension"])} if record else {}
-    turns = [record["last"]] if record and record["last"] else []
-    next_read, hidden, large, tries = time.monotonic(), False, None, {}
-    while alive() and args.slot_save_dir:
-        if time.monotonic() >= next_read:
-            next_read = time.monotonic() + args.record_every
-            status, slots = server.call("/slots")
-            if status == 200 and not hidden and prompts_hidden(slots):
-                hidden = True
-                log("GET /slots shows no prompts (llama-server without LLAMA_SERVER_SLOTS_DEBUG=1): nothing to record")
-            found = openclaw_slots(slots) if status == 200 else []
-            for older in found[:-1]:          # the sessions of the other slots, to compare the latest one with
-                if (t := system_turn(older["prompt"]) or "") not in turns:
-                    turns = (turns + [t])[-SESSIONS:]
-            if found:
-                slot = found[-1]
-                prompt = slot["prompt"]
-                turn, text = system_turn(prompt) or "", openclaw_prefix(prompt) or ""
-                end = next((e for other in reversed(turns) if (e := shared_end(turn, other))), None)
-                if turn not in turns:
-                    turns = (turns + [turn])[-SESSIONS:]
-                want = (text, turn[turn.find(BOUNDARY):end] if end else "")
-                if not end and seen and seen[0] == text:
-                    want = seen               # one session so far: keep what earlier sessions shared
-                entry, how = known.get(want), "read before"
-                if entry is None and (slot.get("n_prompt_tokens") or 0) > args.max_capture_tokens:
-                    if large != want:
-                        large = want
-                        log(f"a changed OpenClaw prefix sits in a {slot['n_prompt_tokens']}-token slot; "
-                            "recording it from a shorter one")
-                elif entry is None and any(s.get("is_processing") for s in slots if isinstance(s, dict)):
-                    next_read = time.monotonic() + min(args.record_every, 2.0)  # save a slot only while idle
-                elif entry is None and tries.get(want, 0) < CAPTURE_TRIES:
-                    tries[want] = tries.get(want, 0) + 1
-                    t1 = time.monotonic()
-                    got = read_slot(server, slot, args.slot_save_dir)
-                    cuts = cut_points(server, got, prompt, end) if got else None
-                    if cuts:
-                        if cuts[1] == cuts[0]:        # nothing shared, or it could not be read: the prefix alone
-                            want = (text, "")
-                        entry = (got[0][:cuts[0]], got[0][cuts[0]:cuts[1]])
-                        known = {**dict(list(known.items())[-(KNOWN_PREFIXES - 1):]), want: entry}
-                        how = f"slot {slot['id']} read in {time.monotonic() - t1:.1f} s"
-                    elif tries[want] == CAPTURE_TRIES:
-                        log(f"could not read the tokens of a changed OpenClaw prefix {CAPTURE_TRIES} times; "
-                            "the next start prefills the previous record")
-                if entry and want != seen:
-                    try:
-                        write_record(args.prefix_file, {**identity, "text": want[0], "tokens": entry[0],
-                                                        "shared": want[1], "extension": entry[1], "last": turn})
-                    except OSError as e:
-                        log(f"cannot write {args.prefix_file}: {e}")
-                    else:
-                        if want != seen:
-                            log(f"recorded the latest OpenClaw prefix ({len(entry[0])} tokens + {len(entry[1])} "
-                                f"its sessions share; {how}) for the next start")
-                        seen = want
-        time.sleep(args.poll)
+    if args.slot_save_dir:                            # 3. keep the record equal to what OpenClaw last sent
+        recorder = Recorder(server, prefix_file=args.prefix_file, slot_save_dir=args.slot_save_dir,
+                            identity=identity, record=record, record_every=args.record_every,
+                            max_capture_tokens=args.max_capture_tokens,
+                            min_free_bytes=int(args.min_free_gb * 2**30))
+        while alive():
+            if recorder.due():
+                recorder.step()
+            time.sleep(args.poll)
     while alive():
         time.sleep(args.poll)
     return 0

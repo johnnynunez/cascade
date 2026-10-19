@@ -409,8 +409,20 @@ def test_an_arm_no_camera_feeds_is_named_at_build_and_in_its_refusal(make_runtim
     assert "fixed scene camera" in error
 
 
-def test_a_rig_with_a_fixed_camera_warns_about_no_arm(make_runtime, capsys):  # noqa: F811
-    rt = _so101_pair(make_runtime)
+@pytest.mark.parametrize("rig", ["so101_pair", "one_arm_wrist_only"])
+def test_a_rig_whose_arms_are_all_fed_warns_about_no_arm(make_runtime, capsys, rig):  # noqa: F811
+    """The shipped pair (one fixed camera), and one arm whose only camera is a wrist view (one
+    arm: every camera feeds it, unchanged)."""
+    from cascade.config import load_demo_config
+
+    if rig == "so101_pair":
+        rt = _so101_pair(make_runtime)
+    else:
+        cfg = load_demo_config(arm="mock", camera="mock_small", llm="mock")
+        cfg._data["camera"]["extrinsics"]["mode"] = "eye_in_hand"
+        cfg._data["camera"]["extrinsics"]["T"] = np.eye(4).tolist()
+        cfg._data["relative_motion"]["wrist_camera"] = None
+        rt = make_runtime(cfg)
     assert "no camera feeds its perception watchdog" not in capsys.readouterr().err
     assert all(h.watchdog_note == "" for h in _harnesses(rt).values())
 
@@ -418,9 +430,11 @@ def test_a_rig_with_a_fixed_camera_warns_about_no_arm(make_runtime, capsys):  # 
 # ── localization on a dead camera says so ─────────────────────────────────
 
 
-def test_localize_on_a_dead_camera_says_the_camera_stopped_not_that_it_is_live(make_runtime, monkeypatch):  # noqa: F811
+@pytest.mark.parametrize("fallback", ["memory", "vlm"])
+def test_localize_on_a_dead_camera_says_the_camera_stopped_not_that_it_is_live(make_runtime, monkeypatch, fallback):  # noqa: F811
     """Main: "Perception took 9.0s on a frame that was fresh at capture ... the camera is live --
-    retry the observation" for a frame that was already stale when it was grabbed."""
+    retry the observation" for a frame that was already stale when it was grabbed. Both
+    fallbacks check it: the remembered belief (`memory`) and, without one, the VLM's (`vlm`)."""
     from cascade.skills.runtime import StaleFrameError
 
     rt = _mock(make_runtime)
@@ -431,8 +445,11 @@ def test_localize_on_a_dead_camera_says_the_camera_stopped_not_that_it_is_live(m
     assert rt.beliefs.find("red cube") is not None
     rt.observe()
     _kill(rt)
-    for belief in rt.beliefs.all():
-        belief.last_seen_t = time.monotonic()  # recent enough for the memory fallback
+    if fallback == "memory":
+        for belief in rt.beliefs.all():
+            belief.last_seen_t = time.monotonic()  # recent enough for the memory fallback
+    else:
+        rt.beliefs.clear()
     with pytest.raises(StaleFrameError) as raised:
         rt._localize("red cube")
     text = str(raised.value)
@@ -442,6 +459,15 @@ def test_localize_on_a_dead_camera_says_the_camera_stopped_not_that_it_is_live(m
     assert out["ok"] is False and sent == {name: 0 for name in sent}, out
     assert "wait for the camera to reconnect" in str(out.get("error")), out
     assert "camera is live" not in str(out.get("error")), out
+
+
+def test_a_grasp_retry_loop_ending_on_a_stale_frame_names_the_camera():
+    from cascade.skills.runtime import SlowPerceptionError, StaleFrameError, _perception_stop
+
+    assert _perception_stop(StaleFrameError("Camera frame is 9.0s old"), 1) == (
+        "the camera stopped delivering frames; no automatic motion recovery")
+    assert _perception_stop(SlowPerceptionError("Perception took 6.0s"), 1) == (
+        "localization analysis expired; no automatic motion recovery")
 
 
 def test_slow_analysis_of_a_fresh_frame_keeps_its_own_text():
@@ -569,3 +595,20 @@ def test_a_calibration_grab_beats_at_the_frames_arrival_time():
     session.log = lambda *_a, **_k: None
     assert session.grab() is old
     assert h._last_heartbeat == old.t
+
+
+def test_the_calibration_park_beats_at_the_frames_arrival_time(monkeypatch):
+    from types import SimpleNamespace
+
+    from cascade.apps import demo
+    from cascade.calibration import cli
+
+    old = SimpleNamespace(t=time.monotonic() - 30.0)
+    h = _harness()
+    h._last_heartbeat = time.monotonic() - 60.0
+    parked = []
+    monkeypatch.setattr(demo, "_park_arm", lambda rt: parked.append(h._last_heartbeat))
+    rig = SimpleNamespace(camera=SimpleNamespace(get_frame=lambda: old, close=lambda: None),
+                          safe_arm=SimpleNamespace(harness=h), raw_arm=SimpleNamespace(disconnect=lambda: None))
+    cli._cleanup(rig, park=True)
+    assert parked == [old.t]

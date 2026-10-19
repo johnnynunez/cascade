@@ -234,6 +234,7 @@ __marimo__/
 /.cosmos-omni/
 /.llama.cpp/
 /models/qwen3.8-27b/
+/models/nemotron-3.5-bolt/
 /models/Cosmos3-Edge-hf/
 /models/.Cosmos3-Edge-hf.lock
 /models/.Cosmos3-Edge-hf.staging-*/

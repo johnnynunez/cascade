@@ -2741,13 +2741,15 @@ def _stl_meshes_or_skip(stl_dir: Path, env) -> None:
 
 
 def test_the_stl_check_fails_where_its_meshes_are_expected(tmp_path):
-    """CI must run the STL check, never report it as a quiet skip."""
-    for env in ({"CI": "true"}, {"CASCADE_SO101_MESHES": str(tmp_path)}):
-        with pytest.raises(pytest.fail.Exception, match="expected here"):
+    """CI must run the STL check, never report it as a quiet skip. (Caught
+    as BaseException: a skip raised here would otherwise skip THIS test.)"""
+    for env, outcome, text in (({"CI": "true"}, pytest.fail.Exception, "expected here"),
+                               ({"CASCADE_SO101_MESHES": str(tmp_path)}, pytest.fail.Exception, "expected here"),
+                               ({}, pytest.skip.Exception, "fetch_robot_assets"),
+                               ({"CI": "false"}, pytest.skip.Exception, "fetch_robot_assets")):
+        with pytest.raises(BaseException) as raised:
             _stl_meshes_or_skip(tmp_path, env)
-    for env in ({}, {"CI": "false"}):
-        with pytest.raises(pytest.skip.Exception, match="fetch_robot_assets"):
-            _stl_meshes_or_skip(tmp_path, env)
+        assert raised.type is outcome and text in str(raised.value), (env, raised.type, raised.value)
     (tmp_path / "moving_jaw_so101_v1.stl").write_bytes(b"solid x")
     _stl_meshes_or_skip(tmp_path, {"CI": "true"})
 

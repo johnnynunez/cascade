@@ -603,6 +603,37 @@ def test_a_rise_first_waypoint_carries_the_body_after_the_jaws_close():
         plan((_camera_part(),))
 
 
+def test_a_waypoint_leg_with_the_jaws_still_open_carries_the_body():
+    """The jaws may close neither where they start nor at any waypoint (their
+    close sweeps 5 cm sideways into a tall bottle) but at the pointing pose:
+    the waypoint's second leg runs with the jaws as they are, and the camera
+    part with them. A low wall between: the jaws alone clear it from the
+    12 cm waypoint, the camera only from the 15 cm one."""
+    from cascade.skills import pointing
+
+    class _Kin(_SlideKin):
+        def ik(self, T, q_init=None, *a, **k):
+            return SimpleNamespace(q=np.asarray(T, float)[:3, 3].copy(), success=True, error=0.0)
+
+        def ik_approach(self, p, *a, **k):
+            return SimpleNamespace(q=np.asarray(p, float).copy(), success=False, error=1.0)
+
+    bottle = pointing.neighbour_column(_square(0.06, 0.10, -0.02, 0.02), 0.5, 0.0, "the blue bottle")
+    wall = pointing.neighbour_column(_square(-0.17, -0.13, -0.10, 0.10), 0.08, 0.0, "the low wall")
+    tcp = (np.zeros((1, 3)),)
+    jaws = pointing.Jaws(closed=tcp, now=tcp, sweep=(np.array([[0.0, 0.0, 0.0], [0.05, 0.0, 0.0]]),))
+    start, goal = np.array([0.0, 0.0, 0.07]), np.array([-0.3, 0.0, 0.12])
+
+    def plan(body):
+        return pointing.plan_route(_Kin(), start, goal, _target(), jaws, 2, margin=MARGIN, table_z=0.0,
+                                   neighbours=(bottle, wall), body=body)
+
+    alone = plan(())
+    assert alone.close_at == 2 and alone.targets[0][2] == pytest.approx(0.12), "test setup: the 12 cm waypoint"
+    route = plan((_camera_part(),))
+    assert route.close_at == 2 and route.targets[0][2] == pytest.approx(0.15), route.targets
+
+
 # ── back-out while holding (#385 review M5) ────────────────────────────────
 
 

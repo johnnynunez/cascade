@@ -448,6 +448,11 @@ Each converted site gets a RED test on a base 3 cm above the table plane (`base_
   Minor 4): loudly, never a wrong target. No base_pose + Isaac combination ships.
 - The viewers draw the running arm's workspace grid lifted onto the table; on a yawed mount its lines follow the
   arm's axes, and the tick values are the table-frame X of the points where they sit.
+- Found by the MuJoCo pair acceptance (Task 8), fixed with it: the WorldWatcher heartbeat fed only the PRIMARY
+  arm's perception watchdog, so a motion on another arm of ANY multi-arm rig stopped "perception watchdog: last
+  observation 7.7s old" once its own observes were further apart than `watchdog_s` (the MuJoCo pick; the right
+  arm's shutdown park). The watcher now heartbeats every arm's harness (the cameras watch the shared table);
+  a single arm keeps its own harness object. `watchdog_s` is unchanged.
 
 ## 10. Open questions
 

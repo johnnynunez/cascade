@@ -208,6 +208,32 @@ class _MeshArmState:
         return _body_mask_state(arm)
 
 
+class _RigHeartbeat:
+    """Fresh perception keeps EVERY arm's watchdog alive on a rig: the cameras
+    watch the shared table, not one arm. The watcher heartbeats this; with one
+    harness per arm (#400 follow-up, the MuJoCo pair acceptance): only the
+    primary's was kept alive, so a motion on another arm longer than
+    `watchdog_s` between its skill's own observes (a MuJoCo pick, the park at
+    shutdown) stopped with "perception watchdog: last observation 7.7s old"."""
+
+    def __init__(self, harnesses):
+        self._harnesses = tuple(harnesses)
+
+    def heartbeat(self) -> None:
+        for harness in self._harnesses:
+            harness.heartbeat()
+
+
+def _watcher_heartbeat(arm_rig, primary_harness):
+    """What the watcher heartbeats: the primary's harness itself on one arm
+    (unchanged), every arm's harness on a rig of two or more. Harnesses are
+    read from the SafeArm's instance dict (never a LazyArm attribute probe)."""
+    arms = list(getattr(arm_rig, "arms", {}).values()) if arm_rig is not None else []
+    if len(arms) < 2:
+        return primary_harness
+    return _RigHeartbeat([a.__dict__["harness"] for a in arms])
+
+
 class _ArmPrepass(NamedTuple):
     """One arm's pure-config build (`_arm_safety`), made before its backend."""
 
@@ -1018,7 +1044,7 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
             # that silently turns the always-on world model into a closed set.
             classes=list(cfg.get("detect_classes") or []) or None,
             rate_hz=float(pcfg.get("rate_hz", 3.0)),
-            harness=harness,
+            harness=_watcher_heartbeat(arm_rig, harness),
             workspace=workspace_filter,
             occupancy=occupancy,
             link_mask=link_self_mask,

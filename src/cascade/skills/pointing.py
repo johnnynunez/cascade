@@ -33,7 +33,8 @@ apart, its own pair in every rule below (from each object and from the
 table), named in a refusal. A part's distance from an object is its sampled
 distance less `slack_m` (`part_slack`), a lower bound on the BOX's distance
 wherever it keeps the margin, so a pose or leg a part clears keeps the whole
-box the margin away. A profile without a tool volume has no part.
+box the margin away. A profile without a tool volume has no part; a part
+whose box the volume does not give refuses (its points alone bound nothing).
 
 A pose is admissible (`PoseClearance.admissible`) when, on its solved FK,
 every closed-jaw sample and every part keeps `margin` from the column and
@@ -75,6 +76,10 @@ holding: the payload in the jaws is not modelled, so that start refuses.
 Planning runs against a budget (`Budget`): PLAN_BUDGET_S of the planning
 thread's CPU time (stretched on a core slower than the host's fastest,
 `core_factor`) and PLAN_WALL_S of wall time; past either, point_at refuses.
+Planning that took longer than FRESH_PLAN_S of wall time looks at the target
+again before the first command (`fix_moved_m`): moved more than FRESH_MOVE_M,
+it is planned once more from where it is now, on what is left of the same
+budget, and refused if it moved again; never a move toward a stale pose.
 
 The jaws close (`Route.close_at`) at the first pose of the route where their
 `sweep` samples keep `margin` from the target, every neighbour and the table
@@ -157,6 +162,13 @@ PLAN_WALL_S = 8.0
 #: core is than the host's fastest (`core_factor`), never past PLAN_WALL_S;
 #: a core within this ratio of the fastest counts as it (timing noise)
 SLOWER_CORE_MIN = 1.25
+#: Up to PLAN_WALL_S can pass between the target's localization and the
+#: first command. Planning that took longer than this (s, wall) looks at the
+#: target again before that command (#399 review Minor 3, `fix_moved_m`) ...
+FRESH_PLAN_S = 3.0
+#: ... and plans once more, from where it is now, when it moved more than
+#: this (m: its centre or its observed top), the pose's own aim tolerance
+FRESH_MOVE_M = AIM_TOLERANCE_M
 #: the planning clocks (tests replace them): the calling thread's CPU time,
 #: and wall time
 _clock = time.thread_time
@@ -175,7 +187,7 @@ class PlanningTimeout(RouteRefused):
     """Planning ran past its time budget; nothing was commanded."""
 
 
-#: `_fastest_probe_s`, measured once per process
+#: `_fastest_probe_s`, kept for the process once a search completed
 _FASTEST: dict = {}
 
 
@@ -197,13 +209,20 @@ def _speed_probe_s() -> float:
 
 
 def _fastest_probe_s() -> float:
-    """`_speed_probe_s` on the host's fastest core (`core_speed.fastest_seconds`:
-    timed on every core by helper threads pinned there, the planning thread's
-    affinity untouched), measured once per process."""
+    """`_speed_probe_s` on the host's fastest core (`core_speed.fastest`:
+    timed by helper threads pinned to one core of each capacity class of the
+    process's CPU set, fastest class first, the planning thread's affinity
+    untouched), measured at the first use and kept for the process once a
+    search completed. A search that ran out of time serves this call only
+    (it can only understate how much slower a core is) and the next call
+    searches again (#399 review Minor 1)."""
     if "s" not in _FASTEST:
-        from ..core_speed import fastest_seconds
+        from ..core_speed import fastest
 
-        _FASTEST["s"] = fastest_seconds(lambda: _speed_probe_s())
+        ref = fastest(lambda: _speed_probe_s())
+        if not ref.complete:
+            return ref.seconds
+        _FASTEST["s"] = ref.seconds
     return _FASTEST["s"]
 
 
@@ -262,6 +281,19 @@ class Budget:
 def _check(budget) -> None:
     if budget is not None:
         budget.check()
+
+
+def fix_moved_m(before, after) -> float:
+    """How far a target moved between two fixes (`ObjectFix`): its centre,
+    or its observed top (the highest point, what point_at keeps the margin
+    above), whichever moved more (m). NaN when either is not finite."""
+    def top(fix):
+        pts = np.asarray(fix.points, dtype=float).reshape(-1, 3)
+        return float(pts[:, 2].max()) if len(pts) else math.nan
+
+    centre = float(np.linalg.norm(np.asarray(after.position, dtype=float) - np.asarray(before.position, dtype=float)))
+    raised = abs(top(after) - top(before))
+    return max(centre, raised) if math.isfinite(centre) and math.isfinite(raised) else math.nan
 
 
 # ── the object columns ─────────────────────────────────────────────────────
@@ -572,23 +604,25 @@ def tool_body(tool_volume, margin: float, spacing: float = BODY_SPACING_M) -> tu
     `tool_volume` is the arm harness's `safety.tool_volume.ToolVolume` (or
     None). Its "jaws" part is the open-jaw sweep box, which every jaw sample
     group already holds (`tool_samples`: the same `jaw_box`), so it is not
-    repeated. Every other part whose box is known (`ToolVolume.boxes`) is
-    that box's faces at most `spacing` apart, with `part_slack` at `margin`;
-    a volume built without boxes keeps its own samples (no slack)."""
+    repeated. Every other part is its box (`ToolVolume.boxes`) sampled on its
+    faces at most `spacing` apart, with `part_slack` at `margin`. A part
+    without its box raises ValueError (#399 review Minor 4): its own samples
+    alone (the harness's 2 cm grid) could overstate its distance from an
+    object by up to their spacing / sqrt(2), with no slack to cover it.
+    (`build_tool_volume` gives every part its box.)"""
     if tool_volume is None:
         return ()
     names = tuple(tool_volume.names)
-    local = np.asarray(tool_volume.local, dtype=float).reshape(-1, 3)
-    which = np.asarray(tool_volume.part).reshape(-1)
     boxes = tuple(getattr(tool_volume, "boxes", ()) or ())
     parts = []
     for k, name in enumerate(names):
         if name == "jaws":
             continue
-        if len(boxes) == len(names):
-            parts.append(Part(_box_surface(*boxes[k], spacing), str(name), part_slack(spacing, margin)))
-        else:
-            parts.append(Part(local[which == k], str(name)))
+        if len(boxes) != len(names):
+            raise ValueError(f"the harness's tool part {name!r} has no box (safety.tool_volume's "
+                             f"ToolVolume.boxes): point_at keeps the margin from a part's box, never from its "
+                             f"sample points alone")
+        parts.append(Part(_box_surface(*boxes[k], spacing), str(name), part_slack(spacing, margin)))
     return tuple(parts)
 
 

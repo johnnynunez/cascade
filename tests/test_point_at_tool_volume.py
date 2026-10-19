@@ -252,7 +252,71 @@ def test_a_rebot_point_keeps_its_wrist_camera_off_a_bottle_at_any_side(rig, prof
         _refused_untouched(r, out)
 
 
-# ── the model: the harness's parts beyond the jaws ─────────────────────────
+@needs_pin
+@pytest.mark.parametrize("profile, parts", [("rebot_rs", ["wrist camera"]), ("rebot_rs_reach", ["wrist camera"]),
+                                            ("mock", [])])
+def test_every_check_gets_the_camera_and_a_profile_without_one_gets_nothing(rig, monkeypatch, profile, parts):
+    """Wiring: the top-down rung's neighbour check, the lean-in search and the
+    route all get the harness's parts. A check without them is not unsafe
+    (the route still keeps the camera off) but it refuses what another yaw or
+    lean clears. Every top-down pose is made crowded here, so it leans in."""
+    from cascade.skills import pointing
+
+    seen = {}
+    real_lean, real_route = pointing.lean_in, pointing.plan_route
+
+    def names(tool):
+        return sorted(g.name for g in tool if isinstance(g, pointing.Part)) if isinstance(tool, (tuple, list)) else []
+
+    def crowded(kin, q, tool, neighbours=()):
+        seen.setdefault("top-down", names(tool))
+        return 0.0, "a crowding stub"
+
+    def lean(kin, column, tool, *a, **k):
+        seen["lean-in"] = names(tool)
+        return real_lean(kin, column, tool, *a, **k)
+
+    def route(*a, **k):
+        seen["route"] = sorted(p.name for p in k.get("body", ()))
+        return real_route(*a, **k)
+
+    monkeypatch.setattr(pointing, "neighbour_clearance", crowded)
+    monkeypatch.setattr(pointing, "lean_in", lean)
+    monkeypatch.setattr(pointing, "plan_route", route)
+    r = rig(profile)
+
+    r.runtime.execute("point_at", {"label": "red cube"})
+
+    assert seen.get("top-down") == parts and seen.get("lean-in") == parts, seen
+    assert seen.get("route") == parts, seen
+
+
+@needs_pin
+def test_an_estop_latched_in_the_lean_in_search_is_reported_not_the_failed_lean(rig, monkeypatch):
+    """#385 review M1, the second place: the e-stop latches while the lean-in
+    search runs and the search then finds no pose. The e-stop is reported."""
+    from cascade.skills import pointing
+
+    r = rig("mock")
+    harness = r.runtime.arm.harness
+    real_lean = pointing.lean_in
+    fired = []
+
+    def lean(*a, **k):
+        found = real_lean(*a, **k)
+        fired.append(True)
+        harness.estop("operator e-stop")
+        return pointing.LeanIn(q=None, clearance=found.clearance, solved=found.solved)
+
+    monkeypatch.setattr(pointing, "lean_in", lean)
+    monkeypatch.setattr(pointing, "neighbour_clearance", lambda kin, q, tool, neighbours=(): (0.0, "a crowding stub"))
+
+    out = r.runtime.execute("point_at", {"label": "red cube"})
+
+    assert fired, "the lean-in search never ran"
+    assert out["ok"] is False and _commands(r) == [] and r.jaws == [], out
+    assert "e-stop latched" in out["error"], out
+    assert "leaning in" not in out["error"], out
 
 
 def _rebot_tool_volume():
@@ -394,6 +458,23 @@ def test_a_route_keeps_the_margin_with_every_part_and_names_it():
                                         why), why
 
 
+def test_a_route_counts_a_parts_slack():
+    """The camera's samples pass 3.2 cm from the bottle: with no slack that
+    keeps the margin; with 5 mm of slack (what its sampling may overstate)
+    it is 2.7 cm and the leg is refused."""
+    from cascade.skills import pointing
+
+    bottle = pointing.neighbour_column(_square(-0.02, 0.02, 0.132, 0.172), 0.3, 0.0, "the blue bottle")
+    start, goal = np.array([-0.2, 0.0, 0.1]), np.array([0.2, 0.0, 0.1])
+    jaws = (np.zeros((1, 3)),)
+    exact = _camera_part()
+    assert pointing.segment_violation(_SlideKin(), start, goal, (_target(), bottle), jaws + (exact,),
+                                      MARGIN, 0.0) is None
+    slack = pointing.Part(exact.samples, exact.name, 0.005)
+    why = pointing.segment_violation(_SlideKin(), start, goal, (_target(), bottle), jaws + (slack,), MARGIN, 0.0)
+    assert why is not None and re.match(r"the wrist camera 0\.02[7-9] m from the blue bottle \d+% of the way$", why), why
+
+
 def test_each_part_is_its_own_pair_against_the_table():
     """The table pair of a part is its own: a camera part 1 cm over the
     table refuses as 'the wrist camera ... above the table' while the jaws
@@ -455,6 +536,71 @@ def test_a_withdrawal_and_a_rise_carry_the_body():
     with pytest.raises(pointing.RouteRefused, match="the wrist camera"):
         pointing.plan_route(_Kin(), start, goal, _target(), np.zeros((1, 3)), 2, margin=MARGIN, table_z=0.0,
                             neighbours=(bottle,), body=(_camera_part(),))
+
+
+def test_a_withdrawal_carries_the_body():
+    """The jaws start 2 mm over the cube's top on a 45 deg approach and back
+    straight out (up and to -x). The camera part starts 3.2 cm from a bottle
+    on the -x side and the first 5 mm step takes it to 2.85 cm: refused,
+    naming the camera. Without the part the back-out would pass and the
+    route would start with the camera inside the margin."""
+    from cascade.skills import pointing
+
+    s = 1.0 / math.sqrt(2.0)
+    R = np.array([[-s, 0.0, s], [0.0, 1.0, 0.0], [-s, 0.0, -s]])      # approach (column 2) = down and +x
+
+    class _TiltKin(_SlideKin):
+        def fk(self, q):
+            T = super().fk(q)
+            T[:3, :3] = R
+            return T
+
+        def ik(self, T, q_init=None, *a, **k):
+            return SimpleNamespace(q=np.asarray(T, float)[:3, 3].copy(), success=True, error=0.0)
+
+    bottle = pointing.neighbour_column(_square(-0.20, -0.16, -0.02, 0.02), 0.3, 0.0, "the blue bottle")
+    start = np.array([0.0, 0.0, 0.052])
+    world = np.stack(np.meshgrid(*[np.linspace(-0.02, 0.02, 9)] * 3, indexing="ij"), -1).reshape(-1, 3)
+    camera = pointing.Part((world + [-0.108, 0.0, 0.06]) @ R, "wrist camera", 0.0)     # TCP frame
+    assert pointing.neighbour_clearance(_TiltKin(), start, (np.zeros((1, 3)), camera), (bottle,))[0] == \
+        pytest.approx(0.032)
+    goal = np.array([0.0, 0.0, 0.15])
+
+    def plan(body):
+        return pointing.plan_route(_TiltKin(), start, goal, _target(), np.zeros((1, 3)), 2, margin=MARGIN,
+                                   table_z=0.0, neighbours=(bottle,), close=False, body=body)
+
+    assert plan(()).withdraw, "test setup: the jaws must start touching and back out"
+    with pytest.raises(pointing.RouteRefused, match=r"the wrist camera 0\.02\d m from the blue bottle"):
+        plan((camera,))
+
+
+def test_a_rise_first_waypoint_carries_the_body_after_the_jaws_close():
+    """The jaws start 2 cm over the cube (they may not close there), so a
+    route closes them at a rise-first waypoint and goes on with them closed.
+    The camera part passes 1 cm from a tall bottle on the straight leg and on
+    every waypoint's second leg: refused. The jaws alone go straight."""
+    from cascade.skills import pointing
+
+    class _Kin(_SlideKin):
+        def ik(self, T, q_init=None, *a, **k):
+            return SimpleNamespace(q=np.asarray(T, float)[:3, 3].copy(), success=True, error=0.0)
+
+        def ik_approach(self, p, *a, **k):
+            return SimpleNamespace(q=np.asarray(p, float).copy(), success=False, error=1.0)
+
+    bottle = pointing.neighbour_column(_square(0.13, 0.17, 0.11, 0.15), 0.5, 0.0, "the blue bottle")
+    start, goal = np.array([0.0, 0.0, 0.07]), np.array([0.3, 0.0, 0.07])
+
+    def plan(body):
+        return pointing.plan_route(_Kin(), start, goal, _target(), np.zeros((1, 3)), 2, margin=MARGIN,
+                                   table_z=0.0, neighbours=(bottle,), body=body)
+
+    route = plan(())
+    assert route.targets == [goal] and route.close_at == 1, "test setup: jaws alone go straight, closing there"
+    with pytest.raises(pointing.RouteRefused, match=r"going straight, the wrist camera 0\.0[0-2]\d m from the blue "
+                                                    r"bottle \d+% of the way, and no rise-first waypoint clears it"):
+        plan((_camera_part(),))
 
 
 # ── back-out while holding (#385 review M5) ────────────────────────────────

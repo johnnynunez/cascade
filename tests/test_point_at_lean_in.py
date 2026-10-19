@@ -30,7 +30,9 @@ from __future__ import annotations
 
 import dataclasses
 import math
+import os
 import time
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -38,6 +40,7 @@ import pytest
 from conftest import REPO, SO101_URDF, needs_pin, needs_pin_so101
 
 from cascade.control.mock_arm import MockArm
+from cascade.skills.pointing import core_factor as _CORE_FACTOR
 
 #: safety.min_clearance_m in configs/demo.yaml (no arm profile overrides it)
 MARGIN = 0.03
@@ -1758,6 +1761,198 @@ def test_planning_past_its_budget_refuses_before_any_command(rig, monkeypatch, p
     assert "planning took longer than its 3.0 s budget" in out["error"], out
 
 
+# ── the budget holds under host load, and it is pinned (#385 review M2, M3) ─
+
+
+def test_the_shipped_planning_budget_is_pinned():
+    """The conftest raises PLAN_BUDGET_S to 30 s for every test and the
+    budget's own tests set their numbers, so the SHIPPED values are read from
+    the source: 3 s of the planning thread's CPU time, an 8 s wall-clock cap,
+    those clocks, and point_at's Budget() takes them (no override)."""
+    import ast
+    import inspect
+
+    from cascade.skills import pointing, runtime
+
+    shipped = {}
+    for node in ast.parse(Path(pointing.__file__).read_text()).body:
+        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            shipped[node.targets[0].id] = ast.unparse(node.value)
+    assert shipped["PLAN_BUDGET_S"] == "3.0"
+    assert shipped["PLAN_WALL_S"] == "8.0"
+    assert shipped["SLOWER_CORE_MIN"] == "1.25"
+    assert shipped["_clock"] == "time.thread_time"
+    assert shipped["_wall"] == "time.monotonic"
+    assert inspect.signature(pointing.Budget).parameters["seconds"].default is None
+    assert inspect.signature(pointing.Budget).parameters["wall"].default is None
+    source = inspect.getsource(runtime.SkillRuntime.skill_point_at)
+    assert source.count("pointing.Budget(") == 1 and "pointing.Budget()" in source
+
+
+def test_the_budget_counts_the_planning_threads_cpu_time_not_a_loaded_hosts_wall_time():
+    """Host load stretches wall time while planning waits for a core (or for
+    the GIL): waiting is not planning. 0.6 s asleep on a 0.3 s budget does
+    not refuse; 0.6 s of CPU does."""
+    from cascade.skills import pointing
+
+    budget = pointing.Budget(0.3, wall=30.0)
+    time.sleep(0.6)
+    budget.check()
+    spin = time.thread_time() + 0.6
+    while time.thread_time() < spin:
+        pass
+    with pytest.raises(pointing.PlanningTimeout, match=r"planning took longer than its 0\.3 s budget"):
+        budget.check()
+
+
+def test_the_wall_clock_cap_bounds_planning_on_a_starved_host(monkeypatch):
+    """However little CPU it gets, planning never runs past PLAN_WALL_S of
+    wall time: never unbounded."""
+    from cascade.skills import pointing
+
+    monkeypatch.setattr(pointing, "core_factor", lambda: 1.0)
+
+    now = [100.0]
+    monkeypatch.setattr(pointing, "_wall", lambda: now[0])
+    monkeypatch.setattr(pointing, "_clock", lambda: 0.0)          # no CPU at all
+    monkeypatch.setattr(pointing, "PLAN_WALL_S", 8.0)
+    budget = pointing.Budget(3.0)
+    assert budget.wall_s == 8.0
+    now[0] += 8.0
+    budget.check()
+    now[0] += 1e-6
+    with pytest.raises(pointing.PlanningTimeout, match=r"planning took longer than its 8\.0 s wall-clock cap"):
+        budget.check()
+    now[0] = math.nan
+    with pytest.raises(pointing.PlanningTimeout):
+        pointing.Budget(3.0).check()
+
+
+def test_a_slower_core_is_measured_against_the_hosts_fastest(monkeypatch):
+    """`core_factor`: the planner's own kernel timed on this thread's core
+    over its time on the host's fastest core. A core within 25 % of the
+    fastest counts as it (timing noise); a GB10 Cortex-A725 (~2.5x an X925
+    on this kernel) stretches the budget. (The conftest pins the factor to 1
+    for every other test.)"""
+    from cascade.skills import pointing
+
+    monkeypatch.setattr(pointing, "core_factor", _CORE_FACTOR)
+    monkeypatch.setattr(pointing, "_fastest_probe_s", lambda: 0.4e-3)
+    for now, factor in ((0.4e-3, 1.0), (0.48e-3, 1.0), (1.0e-3, 2.5), (math.nan, 1.0), (math.inf, 1.0)):
+        monkeypatch.setattr(pointing, "_speed_probe_s", lambda now=now: now)
+        assert pointing.core_factor() == pytest.approx(factor), now
+    assert 1.0 <= _CORE_FACTOR() < 10.0                   # the real one, on this host
+
+
+def test_the_budget_stretches_on_a_slower_core_never_past_the_wall_cap(monkeypatch):
+    from cascade.skills import pointing
+
+    now = [0.0]
+    monkeypatch.setattr(pointing, "_clock", lambda: now[0])
+    monkeypatch.setattr(pointing, "core_factor", lambda: 2.0)
+    budget = pointing.Budget(3.0, wall=30.0)
+    now[0] = 6.0
+    budget.check()
+    now[0] = 6.01
+    with pytest.raises(pointing.PlanningTimeout, match=r"planning took longer than its 3\.0 s budget \(x2\.0 "):
+        budget.check()
+    monkeypatch.setattr(pointing, "core_factor", lambda: 9.0)
+    now[0] = 0.0
+    capped = pointing.Budget(3.0, wall=8.0)
+    assert capped.factor == pytest.approx(8.0 / 3.0)
+
+
+def test_the_budget_measures_the_core_again_before_it_refuses(monkeypatch):
+    """The thread moved to a slower core while planning: measured again
+    before refusing (at most 3 times), so the stretch follows it."""
+    from cascade.skills import pointing
+
+    now = [0.0]
+    factors = iter([1.0, 2.0, 2.0, 2.0, 2.0])
+    monkeypatch.setattr(pointing, "_clock", lambda: now[0])
+    monkeypatch.setattr(pointing, "core_factor", lambda: next(factors))
+    budget = pointing.Budget(3.0, wall=30.0)
+    assert budget.factor == 1.0
+    now[0] = 3.5
+    budget.check()                     # measured again: 2.0
+    assert budget.factor == 2.0
+    now[0] = 6.5
+    with pytest.raises(pointing.PlanningTimeout):
+        budget.check()
+
+
+def test_the_core_is_measured_again_at_most_three_times(monkeypatch):
+    """Measuring costs ~1 ms: a budget long spent refuses on every check,
+    measuring the core again at most 3 times in all."""
+    from cascade.skills import pointing
+
+    calls = []
+    now = [0.0]
+    monkeypatch.setattr(pointing, "_clock", lambda: now[0])
+    monkeypatch.setattr(pointing, "core_factor", lambda: calls.append(1) or 1.0 + 0.1 * len(calls))
+    budget = pointing.Budget(3.0, wall=30.0)
+    now[0] = 100.0
+    for _ in range(6):
+        with pytest.raises(pointing.PlanningTimeout):
+            budget.check()
+    assert len(calls) == 1 + 3
+
+
+@pytest.mark.skipif(not hasattr(os, "sched_setaffinity") or len(os.sched_getaffinity(0)) < 2,
+                    reason="Linux: per-thread CPU affinity, two cores")
+def test_the_fastest_core_is_timed_on_that_core(monkeypatch):
+    """The reference is the probe on each core in turn (a helper thread
+    pinned there), not on the caller's core: here only the last core is
+    fast, and the caller may run anywhere."""
+    from cascade.skills import pointing
+
+    fast = max(os.sched_getaffinity(0))
+    monkeypatch.setattr(pointing, "_speed_probe_s", lambda: 1e-3 if os.sched_getaffinity(0) == {fast} else 3e-3)
+    monkeypatch.setattr(pointing, "_FASTEST", {})
+    assert pointing._fastest_probe_s() == 1e-3
+
+
+@pytest.mark.skipif(not hasattr(os, "sched_setaffinity"), reason="Linux: per-thread CPU affinity")
+def test_the_fastest_core_is_found_without_moving_the_planning_thread():
+    from cascade.skills import pointing
+
+    before = os.sched_getaffinity(0)
+    monkey = pointing._FASTEST.copy()
+    try:
+        pointing._FASTEST.clear()
+        ref = pointing._fastest_probe_s()
+        assert os.sched_getaffinity(0) == before
+        assert 0.0 < ref <= 1.5 * min(pointing._speed_probe_s() for _ in range(3))
+        assert pointing._fastest_probe_s() == ref          # measured once per process
+    finally:
+        pointing._FASTEST.clear()
+        pointing._FASTEST.update(monkey)
+
+
+def test_a_budget_read_from_another_thread_counts_wall_time_against_its_cpu_budget():
+    """A thread's CPU clock means nothing in another thread: there the budget
+    is the CPU budget in wall time (the old, strict rule)."""
+    import threading
+
+    from cascade.skills import pointing
+
+    budget = pointing.Budget(0.2, wall=30.0)
+    time.sleep(0.3)
+    budget.check()                     # this thread: barely any CPU
+    seen = []
+
+    def other():
+        try:
+            budget.check()
+        except pointing.PlanningTimeout as exc:
+            seen.append(str(exc))
+
+    worker = threading.Thread(target=other)
+    worker.start()
+    worker.join()
+    assert seen and "planning took longer than its 0.2 s budget" in seen[0], seen
+
+
 # ── remembered objects without a size (#378 review M6) ─────────────────────
 
 
@@ -2527,7 +2722,51 @@ def test_the_so101_jaw_volume_holds_the_mujoco_jaws_at_every_angle():
                                   f"{np.round(bad[0] * 1000, 1).tolist()} mm (TCP frame)")
 
 
-STL_DIR = REPO / "assets" / "mjcf" / "so101" / "assets"
+#: the SO-101 URDF's STL meshes (`python scripts/fetch_robot_assets.py so101`,
+#: gitignored); CI fetches them outside the checkout and names the folder in
+#: CASCADE_SO101_MESHES (.github/workflows/ci.yml)
+STL_DIR = Path(os.environ.get("CASCADE_SO101_MESHES") or REPO / "assets" / "mjcf" / "so101" / "assets")
+
+
+def _stl_meshes_or_skip(stl_dir: Path, env) -> None:
+    """Where the meshes are EXPECTED (CI, or CASCADE_SO101_MESHES set) a
+    missing mesh fails the check, never skips it silently (#385 review M4);
+    elsewhere it skips, naming what to fetch."""
+    if (stl_dir / "moving_jaw_so101_v1.stl").exists():
+        return
+    why = f"the SO-101 STL meshes are missing from {stl_dir} (`python scripts/fetch_robot_assets.py so101`)"
+    if env.get("CASCADE_SO101_MESHES") or str(env.get("CI", "")).strip().lower() in ("1", "true", "yes"):
+        pytest.fail(f"{why}; they are expected here, so this check fails instead of skipping")
+    pytest.skip(why)
+
+
+def test_the_stl_check_fails_where_its_meshes_are_expected(tmp_path):
+    """CI must run the STL check, never report it as a quiet skip. (Caught
+    as BaseException: a skip raised here would otherwise skip THIS test.)"""
+    for env, outcome, text in (({"CI": "true"}, pytest.fail.Exception, "expected here"),
+                               ({"CASCADE_SO101_MESHES": str(tmp_path)}, pytest.fail.Exception, "expected here"),
+                               ({}, pytest.skip.Exception, "fetch_robot_assets"),
+                               ({"CI": "false"}, pytest.skip.Exception, "fetch_robot_assets")):
+        with pytest.raises(BaseException) as raised:
+            _stl_meshes_or_skip(tmp_path, env)
+        assert raised.type is outcome and text in str(raised.value), (env, raised.type, raised.value)
+    (tmp_path / "moving_jaw_so101_v1.stl").write_bytes(b"solid x")
+    _stl_meshes_or_skip(tmp_path, {"CI": "true"})
+
+
+def test_ci_fetches_the_so101_meshes_for_the_stl_check():
+    """The CI test job fetches the meshes OUTSIDE the checkout (assets/mjcf
+    would turn on every MuJoCo test) and hands the folder to pytest."""
+    import yaml
+
+    jobs = yaml.safe_load((REPO / ".github" / "workflows" / "ci.yml").read_text())["jobs"]
+    steps = jobs["tests"]["steps"]
+    fetch = next(i for i, st in enumerate(steps) if "fetch_robot_assets.py so101" in str(st.get("run", "")))
+    assert "--assets" in steps[fetch]["run"] and "RUNNER_TEMP" in steps[fetch]["run"], steps[fetch]
+    run = next(i for i, st in enumerate(steps) if str(st.get("run", "")).startswith("uv run pytest tests/"))
+    assert fetch < run, "the meshes must be there before the tests run"
+    where = steps[run].get("env", {}).get("CASCADE_SO101_MESHES", "")
+    assert where.endswith("/mjcf/so101/assets") and "runner.temp" in where, steps[run]
 
 
 def _read_stl(path) -> np.ndarray:
@@ -2559,8 +2798,6 @@ def _triangle_samples(tris, step=0.0015) -> np.ndarray:
 
 
 @needs_pin_so101
-@pytest.mark.skipif(not (STL_DIR / "moving_jaw_so101_v1.stl").exists(),
-                    reason="needs `python scripts/fetch_robot_assets.py so101` (the STL meshes)")
 def test_the_so101_jaw_volume_holds_the_urdf_stl_meshes_at_every_angle():
     """The same check on the real parts, without MuJoCo: the URDF's own
     visual meshes (the STL files, read here) placed by the URDF through
@@ -2571,6 +2808,8 @@ def test_the_so101_jaw_volume_holds_the_urdf_stl_meshes_at_every_angle():
     import pinocchio as pin
 
     from cascade.skills import pointing
+
+    _stl_meshes_or_skip(STL_DIR, os.environ)
 
     acfg, vol = _so101_jaw_volume()
     urdf = SO101_URDF

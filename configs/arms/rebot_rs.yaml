@@ -71,6 +71,10 @@ overrides:
     # `spacing_m`, at every vetted pose and every 50 Hz step. Rig incident
     # 2026-10-11: a side grasp swept the wrist camera into clutter beside the
     # target while TCP and joints stayed clear (tests/test_harness_tool_volume.py).
+    # point_at keeps the same boxes (all but the jaws, which it models
+    # itself) its margin from every known object at its pose, on its route
+    # and on a back-out (skills/pointing.py `tool_body`,
+    # tests/test_point_at_tool_volume.py).
     # Voxels within `table_band_m` of the table plane are the table (governed
     # by the table rule), and the grasp target's own voxels inside its
     # exemption cylinder are not obstacles to it; neighbours are.

@@ -299,6 +299,15 @@ def _belief_footprint(belief, table_z: float = 0.0) -> tuple[np.ndarray, float]:
     return np.vstack(xy), top
 
 
+def _harness_tool_volume(harness):
+    """The arm harness's `safety.tool_volume` (`ToolVolume`), or None: a
+    profile without one, or a harness double that is not a SafetyHarness."""
+    from ..safety.tool_volume import ToolVolume
+
+    tv = getattr(harness, "tool_volume", None)
+    return tv if isinstance(tv, ToolVolume) else None
+
+
 def _raise_if_estopped(harness) -> None:
     """A latched e-stop vetoes every route the harness vets: when point_at
     finds no route, an e-stop is reported as the e-stop, never as the
@@ -7964,22 +7973,26 @@ class SkillRuntime:
         the tilted gripper at the centre of the top from the arm's side
         (`skills/pointing.py`: tilt 15-45 deg, 4-10 cm from the top, the
         jaws sampled at <= 5 mm, the joints too). Either pose keeps the same
-        margin from every other known object. The route there is checked as
-        well: the straight joint segment from where the arm is, else one
+        margin from every other known object, and so does the rest of the
+        tool the arm's harness models (`safety.tool_volume`: the reBot's
+        wrist camera box), at every pose and leg. The route there is checked
+        as well: the straight joint segment from where the arm is, else one
         rise-first waypoint (both keep every known object's margin; on the
         rise the jaws never come closer to the target). Jaws that start
         touching an object (within 5 mm, on their real geometry) first back
-        straight out along their approach. The jaws close only where
+        straight out along their approach (never while holding: that
+        refuses). The jaws close only where
         everything a close sweeps (the profile's `gripper.jaw_volume`) keeps
         the margin from the target, every known object and the table: where
         the arm starts (or backed out), else at the waypoint or the pointing
         pose. While holding an object it never leans in and never closes the
-        jaws. No clear pose, route or close, or planning past its 3 s budget,
-        refuses before any arm or jaw command; an e-stop latched in the last
-        close or the hold is reported. The object top is the observed top
-        raised to the occupancy map's column top (capped as the pregrasp
-        reads it) and to the top of an object standing over it (a cup over
-        the cube)."""
+        jaws. No clear pose, route or close, or planning past its budget (3 s
+        of CPU, more on a slower core, 8 s of wall time), refuses before any
+        arm or jaw command; an e-stop latched while planning, in the last
+        close or in the hold is reported as the e-stop. The object top is
+        the observed top raised to the occupancy map's column top (capped as
+        the pregrasp reads it) and to the top of an object standing over it
+        (a cup over the cube)."""
         _, fix = self._localize(label)
         from . import pointing
 
@@ -8021,11 +8034,16 @@ class SkillRuntime:
             near = tuple(pointing.neighbour_column(poly, n_top, table_z, name) for poly, n_top, name in neighbours)
             opening = state.gripper_pos if getattr(state, "gripper_valid", True) else None
             jaws = pointing.jaw_samples(sweep, self.cfg.arm.get("gripper"), self._tool_axis_order, opening)
+            # the rest of the tool the harness models (`safety.tool_volume`:
+            # the reBot's wrist camera box) keeps the same margin from
+            # every object at every pose and leg (#385 review I1)
+            body = pointing.tool_body(_harness_tool_volume(harness), margin)
         except ValueError as exc:
             raise SkillError(f"cannot point at {label!r}: {exc}; nothing was moved") from None
         # what the jaws are at the pointing pose: closed there, or as they are
-        # while holding (no jaw command)
-        posed = jaws.now if held else jaws.closed
+        # while holding (no jaw command); the body parts ride along
+        posed_jaws = jaws.now if held else jaws.closed
+        posed = posed_jaws + body
 
         # Top-down first: the lowest tool point (TCP or jaws) keeps the
         # margin above the top, and the jaws and the joints keep it from every
@@ -8034,7 +8052,8 @@ class SkillRuntime:
         # ceiling, a rung below it is never tried.
         # the box corners and the jaws as they are at the pose (a hinged jaw's
         # measured geometry, `gripper.jaw_volume`, counts too)
-        tool = np.vstack([_pointing_tool_points(gcfg, self._tool_axis_order), *posed])
+        tool = np.vstack([_pointing_tool_points(gcfg, self._tool_axis_order), *posed_jaws,
+                          *(part.samples for part in body)])
         clear_z = top + margin
         reach = max(0.0, -_lowest_tool_z(make_transform(_yaw_rotation(0.0, axis_order=self._tool_axis_order),
                                                         [0.0, 0.0, 0.0]), tool))
@@ -8086,13 +8105,17 @@ class SkillRuntime:
                               f"less than {margin:.3f} m above its top ({world_z(top):.3f} m)")
             else:
                 from_above = "from above, no pose solved"
+            # an e-stop latched while planning is what the agent must hear,
+            # never the geometry that failed after it (#385 review M1)
+            _raise_if_estopped(harness)
             if held:
                 # the payload is not modelled: no new motion with it in the jaws (main's top-down rule)
                 raise SkillError(f"cannot point at {label!r} while holding {held!r}: {from_above}; it leans in "
                                  f"only with empty jaws; nothing was moved")
-            lean = pointing.lean_in(self.kin, column, jaws.closed, approach_col, q_now, margin=margin,
+            lean = pointing.lean_in(self.kin, column, jaws.closed + body, approach_col, q_now, margin=margin,
                                     table_z=table_z, vet=vet, neighbours=near, budget=budget)
             if lean.q is None:
+                _raise_if_estopped(harness)
                 best = "" if lean.clearance is None else f" (the best solved pose had {lean.clearance.worst(margin)})"
                 raise SkillError(
                     f"cannot point at {label!r} on this arm: {from_above}; leaning in "
@@ -8122,7 +8145,7 @@ class SkillRuntime:
             route = pointing.plan_route(self.kin, q_now, target, column, jaws, approach_col, margin=margin,
                                         table_z=table_z, neighbours=near, close=not held, vet=vet,
                                         preflight=preflight, preflight_direct=lean is not None,
-                                        withdraw=can_withdraw, budget=budget)
+                                        withdraw=can_withdraw, budget=budget, body=body, holding=held)
         except pointing.PlanningTimeout:
             raise
         except pointing.RouteRefused as exc:

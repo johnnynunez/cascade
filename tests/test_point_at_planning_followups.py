@@ -265,6 +265,24 @@ def test_a_core_that_cannot_be_pinned_gives_way_to_the_next_of_its_class(monkeyp
     assert ref == core_speed.Reference(1e-3, True), ref
 
 
+@needs_affinity
+def test_a_class_the_search_had_no_time_for_leaves_it_incomplete(monkeypatch):
+    """The fastest class answered, then the search window closed before the
+    next class was tried: not complete (kept for this call only)."""
+    from cascade import core_speed
+
+    cpus = sorted(os.sched_getaffinity(0))
+    fast = cpus[-1]
+    _one_fast_core(monkeypatch, fast)
+    ticks = iter([0.0, 0.5] + [5.0] * 10)          # SEARCH_S = 1: the second class finds the window closed
+    monkeypatch.setattr(core_speed, "time", SimpleNamespace(monotonic=lambda: next(ticks)))
+
+    ref = core_speed.fastest(lambda: 1e-3 if os.sched_getaffinity(0) == {fast} else 3e-3)
+    _join_probe_helpers()
+
+    assert ref == core_speed.Reference(1e-3, False), ref
+
+
 def test_cpu_capacities_come_from_sysfs_or_not_at_all(tmp_path):
     from cascade import core_speed
 
@@ -556,7 +574,36 @@ def test_a_target_not_found_again_after_a_long_plan_is_refused(rig, monkeypatch)
 
     assert len(calls) == 2
     assert out["ok"] is False and _commands(r) == [] and r.jaws == [], out
-    assert "No current visual match" in out["error"], out
+    assert "planning took 4.0 s, and looking at it again before the first command failed (SkillError: No " \
+           "current visual match for 'red cube'); nothing was moved" in out["error"], out
+
+
+@needs_pin
+@pytest.mark.parametrize("then", ["not_found", "moved_again"])
+def test_a_halt_while_looking_again_is_reported_as_the_halt(rig, monkeypatch, then):
+    """The operator halts while the target is localized again; that look then
+    fails or finds it moved again. The halt is what is reported."""
+    from cascade.types import SkillError
+
+    r = rig("mock")
+    rt = r.runtime
+    _long_plans(monkeypatch)
+    last = SkillError("No current visual match for 'red cube'") if then == "not_found" else (0.0, 0.06, 0.0)
+    shifts = [(0.0, 0.0, 0.0), last] if then == "not_found" else [(0.0, 0.0, 0.0), (0.0, 0.03, 0.0), last]
+    calls = _localizations(monkeypatch, rt, shifts)
+    real = rt._localize
+
+    def localize(label, *a, **k):
+        if len(calls) == len(shifts) - 1:
+            rt.arm.harness.halt("operator: stop")
+        return real(label, *a, **k)
+
+    monkeypatch.setattr(rt, "_localize", localize)
+    out = rt.execute("point_at", {"label": "red cube"})
+
+    assert len(calls) == len(shifts)
+    assert out["ok"] is False and _commands(r) == [] and r.jaws == [], out
+    assert out["error"].startswith("MotionHalted: halted: operator: stop"), out
 
 
 @needs_pin

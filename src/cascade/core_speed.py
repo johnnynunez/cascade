@@ -114,12 +114,13 @@ def fastest(workload: Callable[[], float], repeats: int = 3) -> Reference:
             helper = threading.Thread(target=timed, daemon=True, name="core-speed-probe")
             helper.start()
             helper.join(min(PER_CORE_S, left))
-            if out:
-                best = min(best, out[0])
-                answered = pinnable = True
-                break
             if pinned or helper.is_alive():
-                pinnable = True        # no answer in time (or its workload failed): this class stays open
+                # this class's core: its answer, if it came in time (a late or
+                # failed one leaves the class open); never another of its cores
+                pinnable = True
+                if out:
+                    best = min(best, out[0])
+                    answered = True
                 break
         if pinnable and not answered:
             complete = False

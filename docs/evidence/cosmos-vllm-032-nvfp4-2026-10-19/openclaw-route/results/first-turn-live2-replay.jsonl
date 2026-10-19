@@ -1,0 +1,588 @@
+{"variant": "asis", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "asis", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "asis", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "asis", "req": "0151", "ok": false, "out": "place_on_object{\"label\": \"green cube\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "asis", "req": "0151", "ok": false, "out": "place_on_object{\"label\": \"green cube\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "asis", "req": "0151", "ok": false, "out": "place_on_object{\"label\": \"green cube\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "asis", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "asis", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "asis", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "asis", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "asis", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "asis", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "asis", "req": "0164", "ok": false, "out": "TEXT:```json\n[\n  {\"type\": \"cascade__pick_and_", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "asis", "req": "0164", "ok": false, "out": "TEXT:```json\n[\n  {\"type\": \"cascade__pick_and_", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "asis", "req": "0164", "ok": false, "out": "TEXT:```json\n[\n  {\"type\": \"cascade__pick_and_", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "asis", "req": "0169", "ok": false, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "asis", "req": "0169", "ok": false, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "asis", "req": "0169", "ok": false, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "salt", "req": "0148", "ok": false, "out": "TEXT:```json\n[\n    {\"type\": \"cascade__describ", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "salt", "req": "0148", "ok": false, "out": "TEXT:```json\n[\n    {\"type\": \"cascade__describ", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "salt", "req": "0148", "ok": false, "out": "TEXT:```json\n[\n    {\"type\": \"cascade__describ", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "salt", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "salt", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "salt", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "salt", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "salt", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "salt", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "salt", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "salt", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "salt", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "salt", "req": "0164", "ok": false, "out": "place_on_object{\"label\": \"pink cube\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "salt", "req": "0164", "ok": false, "out": "place_on_object{\"label\": \"pink cube\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "salt", "req": "0164", "ok": false, "out": "place_on_object{\"label\": \"pink cube\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "salt", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "salt", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "salt", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B", "req": "0148", "ok": false, "out": "TEXT:I don't have access to a physical table ", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B", "req": "0148", "ok": false, "out": "TEXT:I am currently observing a scene where n", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B", "req": "0151", "ok": false, "out": "place_on_object{\"label\": \"\\\"green cube\\\"**\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B", "req": "0151", "ok": false, "out": "place_on_object{\"label\": \"green cube\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B", "req": "0164", "ok": false, "out": "place_on_object{\"label\": \"pink cube\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B", "req": "0164", "ok": false, "out": "place_on_object{\"label\": \"pink cube\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B", "req": "T5new", "ok": false, "out": "place_on_object{\"label\": \"pink cube\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B", "req": "T5new", "ok": false, "out": "place_on_object{\"label\": \"pink cube\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B", "req": "dropzone", "ok": false, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"drop zone\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B", "req": "dropzone", "ok": false, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"drop zone\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B", "req": "ws", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B", "req": "ws", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B+salt", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B+salt", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B+salt", "req": "0151", "ok": false, "out": "place_on_object{\"label\": \"green cube\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B+salt", "req": "0151", "ok": false, "out": "place_on_object{\"label\": \"green cube\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B+salt", "req": "0156", "ok": false, "out": "place_at{\"x\": 0.9, \"y\": 0.9, \"z\": 0.8}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B+salt", "req": "0156", "ok": false, "out": "place_at{\"x\": 0.9, \"y\": 0.9, \"z\": 0.8}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B+salt", "req": "0161", "ok": false, "out": "localize_object{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B+salt", "req": "0161", "ok": false, "out": "localize_object{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B+salt", "req": "0164", "ok": false, "out": "place_on_object{\"label\": \"pink cube\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B+salt", "req": "0164", "ok": false, "out": "place_on_object{\"label\": \"pink cube\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B+salt", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B+salt", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B+salt", "req": "T5new", "ok": false, "out": "place_on_object{\"label\": \"pink cube\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B+salt", "req": "T5new", "ok": false, "out": "place_on_object{\"label\": \"pink cube\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B+salt", "req": "dropzone", "ok": false, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"drop zone\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B+salt", "req": "dropzone", "ok": false, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"drop zone\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B+salt", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B+salt", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B+salt", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B+salt", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B+salt", "req": "ws", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "B+salt", "req": "ws", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C", "req": "0151", "ok": false, "out": "place_on_object{\"label\": \"green cube\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C", "req": "0151", "ok": false, "out": "place_on_object{\"label\": \"green cube\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C", "req": "0161", "ok": false, "out": "localize_object{\"label\": \"left\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C", "req": "0164", "ok": false, "out": "place_on_object{\"label\": \"pink cube\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C", "req": "dropzone", "ok": false, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"drop zone\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C", "req": "dropzone", "ok": false, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"drop zone\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C", "req": "ws", "ok": false, "out": "TEXT:<function>\n  {\"type\": \"cascade__describe", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C", "req": "ws", "ok": false, "out": "TEXT:<function>\n  {\"type\": \"cascade__describe", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C+salt", "req": "0148", "ok": false, "out": "TEXT:I don't have access to a physical table ", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C+salt", "req": "0148", "ok": false, "out": "TEXT:I don't have access to a physical table ", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C+salt", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C+salt", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C+salt", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C+salt", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C+salt", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C+salt", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C+salt", "req": "0164", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C+salt", "req": "0164", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C+salt", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C+salt", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C+salt", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C+salt", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C+salt", "req": "dropzone", "ok": false, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"drop zone\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C+salt", "req": "dropzone", "ok": false, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"drop zone\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C+salt", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C+salt", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C+salt", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C+salt", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C+salt", "req": "ws", "ok": false, "out": "TEXT:<function>\n  {\"type\": \"cascade__describe", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "C+salt", "req": "ws", "ok": false, "out": "TEXT:<function>\n  {\"type\": \"cascade__describe", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D", "req": "0161", "ok": false, "out": "point_at{\"label\": \"\\\"lemon\\\"}\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D", "req": "dropzone", "ok": false, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"drop zone\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D", "req": "dropzone", "ok": false, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"drop zone\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D", "req": "ws", "ok": true, "out": "world_state{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D", "req": "ws", "ok": true, "out": "world_state{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt", "req": "0161", "ok": false, "out": "point_at{\"label\": \"\\\"lemon\\\"}\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt", "req": "0169", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt", "req": "0169", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt", "req": "dropzone", "ok": false, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"drop zone\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt", "req": "dropzone", "ok": false, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"drop zone\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt", "req": "ws", "ok": true, "out": "world_state{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt", "req": "ws", "ok": true, "out": "world_state{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0.2", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0.2", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0.2", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0.2", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0.2", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0.2", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0.2", "req": "0161", "ok": false, "out": "point_at{\"label\": \"\\\"lemon\\\"}\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0.2", "req": "0161", "ok": false, "out": "point_at{\"label\": \"\\\"lemon\\\"}\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0.2", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0.2", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0.2", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0.2", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0.2", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0.2", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0.2", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"drop zone\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0.2", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"drop zone\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0.2", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0.2", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0.2", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0.2", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0.2", "req": "ws", "ok": true, "out": "world_state{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0.2", "req": "ws", "ok": true, "out": "world_state{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0.2", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0.2", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0.2", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0.2", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0.2", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0.2", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0.2", "req": "0161", "ok": false, "out": "point_at{\"label\": \"\\\"lemon\\\"}\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0.2", "req": "0161", "ok": false, "out": "point_at{\"label\": \"\\\"lemon\\\"}\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0.2", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0.2", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0.2", "req": "0169", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0.2", "req": "0169", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0.2", "req": "T5new", "ok": false, "out": "place_on_object{\"label\": \"pink cube\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0.2", "req": "T5new", "ok": false, "out": "place_on_object{\"label\": \"pink cube\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0.2", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"drop zone\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0.2", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"drop zone\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0.2", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0.2", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0.2", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0.2", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0.2", "req": "ws", "ok": true, "out": "world_state{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0.2", "req": "ws", "ok": true, "out": "world_state{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0", "req": "0161", "ok": false, "out": "point_at{\"label\": \"\\\"lemon\\\"}\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0", "req": "0161", "ok": false, "out": "point_at{\"label\": \"\\\"lemon\\\"}\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"drop zone\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"drop zone\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0", "req": "ws", "ok": true, "out": "world_state{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+fp0", "req": "ws", "ok": true, "out": "world_state{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0", "req": "0161", "ok": false, "out": "point_at{\"label\": \"\\\"lemon\\\"}\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0", "req": "0161", "ok": false, "out": "point_at{\"label\": \"\\\"lemon\\\"}\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0", "req": "0169", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0", "req": "0169", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0", "req": "T5new", "ok": false, "out": "place_on_object{\"label\": \"pink cube\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"drop zone\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"drop zone\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0", "req": "ws", "ok": true, "out": "world_state{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+fp0", "req": "ws", "ok": true, "out": "world_state{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E", "req": "0164", "ok": false, "out": "place_on_object{\"label\": \"pink cube\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E", "req": "ws", "ok": false, "out": "TEXT:\n```json\n{\n  \"description\": \"The scene i", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E", "req": "ws", "ok": true, "out": "world_state{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt", "req": "0169", "ok": false, "out": "TEXT:<function__reset_scene>\n</function__rese", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt", "req": "0169", "ok": false, "out": "TEXT:<function__reset_scene>\n</function__rese", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt", "req": "ws", "ok": false, "out": "TEXT:\n```json\n{\n  \"world_state\": {\n    \"camer", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt", "req": "ws", "ok": false, "out": "TEXT:\n```json\n{\n  \"world_state\": {\n    \"camer", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "ws", "ok": true, "out": "world_state{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "ws", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "0161", "ok": false, "out": "localize_object{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "0161", "ok": false, "out": "localize_object{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "ws", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "ws", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+noplace", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+noplace", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+noplace", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+noplace", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+noplace", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+noplace", "req": "0156", "ok": false, "out": "pick_and_place{\"object\": \"\", \"material\": \"heavy\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+noplace", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+noplace", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+noplace", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+noplace", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+noplace", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+noplace", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+noplace", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+noplace", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+noplace", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"drop zone\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+noplace", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"drop zone\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+noplace", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+noplace", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+noplace", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+noplace", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+noplace", "req": "ws", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+noplace", "req": "ws", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+noplace", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+noplace", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+noplace", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+noplace", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+noplace", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+noplace", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+noplace", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+noplace", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+noplace", "req": "0164", "ok": false, "out": "point_at{\"label\": \"\\\"pink cube\\\"\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+noplace", "req": "0164", "ok": false, "out": "point_at{\"label\": \"\\\"pink cube\\\"\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+noplace", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+noplace", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+noplace", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+noplace", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+noplace", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"drop zone\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+noplace", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"drop zone\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+noplace", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+noplace", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+noplace", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+noplace", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+noplace", "req": "ws", "ok": true, "out": "world_state{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "D+salt+noplace", "req": "ws", "ok": true, "out": "world_state{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+noplace", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+noplace", "req": "0148", "ok": false, "out": "TEXT:I cannot see any objects on the table as", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+noplace", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+noplace", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+noplace", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+noplace", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+noplace", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+noplace", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+noplace", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+noplace", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+noplace", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+noplace", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+noplace", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+noplace", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+noplace", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+noplace", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+noplace", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+noplace", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+noplace", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+noplace", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+noplace", "req": "ws", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+noplace", "req": "ws", "ok": true, "out": "world_state{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt+noplace", "req": "0148", "ok": false, "out": "TEXT:I cannot see any objects on the table as", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt+noplace", "req": "0148", "ok": false, "out": "TEXT:I cannot see any objects on the table as", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt+noplace", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt+noplace", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt+noplace", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt+noplace", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt+noplace", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt+noplace", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt+noplace", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt+noplace", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt+noplace", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt+noplace", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt+noplace", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt+noplace", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt+noplace", "req": "dropzone", "ok": false, "out": "pick_and_place{\"object\": \"    \", \"destination\": \"    <description>Place the pink cube in the drop zone</p>\\n  \", \"material\": \"   \\n \\n \\n \\n \\n \\n \\n \\n \\n \\n \\n \\n \\n  \\n  \\n  \\n  \\n  \\n  \\n  \\n  \\n  \\n  \\n  \\n  \\n   \\n\\n\\n       \\n\\n\\n     \\n\\n\\n     \\n\\n\\n     \\n\\n\\n     \\n\\n\\n     \\n\\n\\n     \\n\\n\\n\\n\\n     \\n\\n       \\n\\n       \\n\\n       \\n\\n\\n\\n\\n\\n       \\n\\n\\n\\n\\n\\n       \\n\\n\\n\\n\\n\\n       \\n\\n\\n\\n\\n\\n       \\n\\n\\n\\n\\n       \\n\\n\\n\\n\\n     \\n\\n\\n     \\n\\n\\n\\n\\n     \\n\\n\\n      \\n\\n\\n\\n\\n      \\n\\n\\n\\n\\n      \\n\\n\\n\\n\\n      \\n\\n\\n\\n\\n\\n    \\n\\n\\n\\n\\n    \\n\\n\\n\\n\\n    \\n\\n\\n\\n\\n    \\n\\n\\n\\n\\n    \\n\\n\\n\\n\\n\\n   \\n\\n\\n\\n\\n\\n   \\n\\n\\n\\n\\n\\n   \\n\\n\\n\\n\\n\\n   \\n\\n\\n\\n\\n\\n   \\n\\n\\n\\n\\n\\n   \\n\\n\\n\\n\\n\\n   \\n\\n\\n     \\n\\n\\n     \\n\\n\\n     \\n\\n\\n     \\n\\n\\n     \\n\\n\\n         \\n\\n\\n\\n\\n         \\n\\n\\n\\n\\n         \\n\\n\\n\\n\\n         \\n\\n\\n\\n\\n         \\n\\n\\n\\n\\n         \\n\\n\\n\\n           \\n\\n\\n\\n           \\n\\n\\n\\n           \\n\\n\\n\\n           \\n\\n\\n\\n           \\t \\t \\t \\t \\t\\t\\t\\t\\t\\t\\t\\t\\t\\t\\t\\t\\t\\t\\t \\t        \\t \\t \\t \\t    \\t        \\t \\t    \\t        \\t    \\t        \\t    \\t        \\t    \\t        \\t    \\t        \\t    \\t        \\t    \\t        \\t    \\t        \\t    \\t        \\t    \\t        \\t       \\r\\r             \\r\\r\\r             \\r\\r             \\r\\n\\n               \\n\\n\\n          \\n\\n\\n          \\n\\n\\n          \\n\\n\\n          \\n\\n\\n          \\n\\n          \\n\\n          \\n\\n          \\n\\n          \\n\\n\\n\\n\\n         \\n\\n\\n\\n\\n         \\n\\n\\n\\n\\n         \\n\\n\\n\\n\\n         \\n\\n\\n\\n\\n         \\n\\n\\n\\n\\n         \\n\\n\\n\\n           \\t \\t \\t \\t  \\t  \\t  \\t  \\t  \\t  \\t  \\t  \\t  \\t  \\t    \\t  \\t  \\t  \\t  \\t  \\t  \\t  \\t  \\t  \\t  \\t  \\t  \\t\\t       \\t\\t            \\t\\t            \\t\\t            \\t\\t            \\t\\t            \\t\\t            \\t\\t            \\t\\t\\t\\t\\t      \\t\\t\\t      \\t\\t\\t\\t      \\t\\t\\t\\t      \\t\\t\\t\\t      \\t\\t\\t\\t      \\t\\t\\t\\t      \\t\\t\\t\\t      \\t\\t\\t\\t      \\t\\t\\t                  \\t       \\t       \\t     \\t     \\t     \\t     \\t     \\t     \\t                                                       \\t        \\t\\t            \\t\\t\\t            \\t\\t            \\t\\t            \\t\\t            \\t\\t                                                                                                                                                                                                                                                                                       \\n\\n\\n               \\n\\n\\n           \\n\\n\\n           \\n\\n       \\n\\n\\n\\n       \\n\\n\\n\\n       \\n\\n\\n\\n       \\n\\n\\n\\n       \\n\\n\\n\\n       \\n\\n       \\n\\n\\n\\n       \\n\\n       \\n\\n       \\n\\n       \\n\\n       \\n\\n     \\n\\n\\n     \\n\\n\\n    \\n\\n\\n\\n\\n    \\n\\n\\n\\n\\n    \\n\\n\\n\\n\\n    \\n\\n\\n\\n\\n    \\n\\n\\n\\n\\n    \\n\\n\\n\\n\\n    \\n\\n\\n\\n           \\t \\t \\t \\t \\t      \\t  \\t  \\t  \\t  \\t  \\t  \\t    \\t    \\t    \\t    \\t    \\t    \\t                                \\r                                                                                                                                                                                                                                                                                                                                                                                  ", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt+noplace", "req": "dropzone", "ok": false, "out": "pick_and_place{\"object\": \"    \", \"destination\": \"    <description>Place the pink cube in the drop zone</p>\\n  \", \"material\": \"   \\n \\n \\n \\n \\n \\n \\n \\n \\n \\n \\n \\n \\n  \\n  \\n  \\n  \\n  \\n  \\n  \\n  \\n  \\n  \\n  \\n  \\n   \\n\\n\\n       \\n\\n\\n     \\n\\n\\n     \\n\\n\\n     \\n\\n\\n     \\n\\n\\n     \\n\\n\\n     \\n\\n\\n\\n\\n     \\n\\n       \\n\\n       \\n\\n       \\n\\n\\n\\n\\n\\n       \\n\\n\\n\\n\\n\\n       \\n\\n\\n\\n\\n\\n       \\n\\n\\n\\n\\n\\n       \\n\\n\\n\\n\\n       \\n\\n\\n\\n\\n     \\n\\n\\n     \\n\\n\\n\\n\\n     \\n\\n\\n      \\n\\n\\n\\n\\n      \\n\\n\\n\\n\\n      \\n\\n\\n\\n\\n      \\n\\n\\n\\n\\n\\n      \\n\\n\\n\\n\\n\\n      \\n\\n\\n\\n\\n\\n      \\n\\n\\n\\n\\n\\n      \\n\\n\\n\\n\\n\\n    \\n\\n\\n\\n\\n    \\n\\n\\n\\n\\n    \\n\\n\\n\\n\\n    \\n\\n\\n\\n\\n    \\n\\n\\n\\n\\n    \\n\\n\\n   \\n\\n\\n   \\n\\n\\n   \\n\\n\\n   \\n\\n\\n   \\n\\n\\n   \\n\\n\\n   \\n\\n\\n\\n\\n\\n    \\n\\n\\n\\n\\n\\n    \\n\\n\\n\\n\\n\\n    \\n\\n\\n\\n\\n\\n    \\n\\n\\n\\n\\n\\n    \\n\\n\\n\\n\\n    \\n\\n\\n\\n\\n    \\n\\n\\n\\n\\n    \\n\\n\\n   \\n\\n\\n   \\n\\n\\n   \\n\\n\\n   \\n\\n\\n   \\n\\n\\n   \\n\\n\\n     \\n\\n\\n\\n           \\n\\n\\n\\n\\n           \\n\\n\\n\\n\\n           \\n\\n\\n\\n\\n           \\t \\t \\t \\t \\t         \\t         \\t         \\t         \\t         \\t          \\r\\n            \\r\\n            \\r\\n            \\r\\n\\n            \\r\\n\\n            \\r\\n\\n            \\r\\n\\n            \\r\\n\\n            \\r\\n\\n             \\n\\n\\n\\n            \\t         \\t         \\t         \\t         \\t         \\t         \\t         \\t        \\t \\t \\t   \\t  \\t  \\t  \\t  \\t  \\t  \\t   \\t \\t   \\t   \\t   \\t   \\t            \\t \\t   \\t             \\t \\t             \\t \\t             \\t \\t             \\t \\t             \\t \\t             \\t \\t       \\t\\t\\t         \\t\\t\\t         \\t\\t\\t         \\t\\t                \\t       \\t\\t                \\t       \\t\\t                     \\t     \\t       \\t\\t          \\t     \\t       \\t\\t          \\t     \\t       \\t\\t          \\t     \\t       \\t\\t          \\t     \\t       \\t\\t          \\t     \\t       \\t\\t          \\t     \\t      \\t             \\t         \\t             \\t         \\t             \\t         \\t\\t\\t      \\t\\t\\t     \\t\\t\\t  \\t  \\t  \\t  \\t  \\t  \\t  \\t  \\t  \\t  \\t  \\t  \\t  \\t  \\t  \\t  \\t  \\t    \\t    \\t              \\t\\t\\t                                                                                                                 \\t\\t\\t\\t      \\t\\t\\t\\t      \\t\\t\\t\\t      \\t\\t\\t\\t                 \\t\\t\\t\\t                                                                                                                                               \\t\\t\\t\\t              \\t\\t\\t\\t                                                                                                                                                          \\t\\t\\t\\t\\t                        \\t\\t                                                                                      \\t\\t                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     \\t\\t                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  ", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt+noplace", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt+noplace", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt+noplace", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt+noplace", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt+noplace", "req": "ws", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "E+salt+noplace", "req": "ws", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\", \"material\": \"fragile", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\", \"material\": \"fragile", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\", \"material\": \"fragile", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "ws", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "ws", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "ws", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "where", "ok": false, "out": "TEXT:```json\n[\n    {\"type\": \"world_state\", \"d", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "where", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "where", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "stop", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "stop", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace", "req": "stop", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "0161", "ok": false, "out": "localize_object{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "0161", "ok": false, "out": "localize_object{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "0161", "ok": false, "out": "localize_object{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "ws", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "ws", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "ws", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "where", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "where", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "where", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "stop", "ok": false, "out": "close_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "stop", "ok": false, "out": "close_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace", "req": "stop", "ok": false, "out": "close_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"drop zone\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"drop zone\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"drop zone\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "ws", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "ws", "ok": true, "out": "world_state{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "ws", "ok": true, "out": "world_state{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "where", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "where", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "where", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "stop", "ok": true, "out": "emergency_stop{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "stop", "ok": true, "out": "emergency_stop{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+noplace+noloc", "req": "stop", "ok": true, "out": "emergency_stop{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "0148", "ok": true, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "0151", "ok": true, "out": "pick_and_place{\"object\": \"green cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "0156", "ok": true, "out": "pick_and_place{\"object\": \"orange\", \"destination\": \"open box\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "0161", "ok": true, "out": "point_at{\"label\": \"lemon\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "0164", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"green square\", \"material\": \"rigid\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "0169", "ok": true, "out": "reset_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "T5new", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"open box\", \"material\": \"fragile\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"drop zone\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"drop zone\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "dropzone", "ok": true, "out": "pick_and_place{\"object\": \"pink cube\", \"destination\": \"drop zone\"}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "home", "ok": true, "out": "move_home{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "open", "ok": true, "out": "open_gripper{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "ws", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "ws", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "ws", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "where", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "where", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "where", "ok": false, "out": "describe_scene{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "stop", "ok": true, "out": "emergency_stop{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "stop", "ok": true, "out": "emergency_stop{}", "base": "http://127.0.0.1:8083/v1"}
+{"variant": "A+salt+noplace+noloc", "req": "stop", "ok": true, "out": "emergency_stop{}", "base": "http://127.0.0.1:8083/v1"}

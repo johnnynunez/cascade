@@ -33,6 +33,14 @@ args = sys.argv[1:]
 with open(os.environ["RIG_LOG"], "a") as f:
     f.write(json.dumps(args) + "\n")
 inst, rest = (args[1], args[2:]) if args[:1] == ["--instance"] else ("", args)
+# Every command of the real rig resolves its instance first: refuse a name
+# exactly as it does (its SystemExit carries the reason).
+import importlib.util
+spec = importlib.util.spec_from_file_location("real_openshell_rig", os.environ["RIG_REAL"])
+real = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = real
+spec.loader.exec_module(real)
+real.instance(inst)
 home = Path(os.environ["RIG_HOME"]) / (inst or "default")
 cmd = rest[0]
 if cmd == "instance":
@@ -80,7 +88,8 @@ def linux_launcher(launcher_boundary, tmp_path):
                   f'os.execv({str(real)!r}, [{str(real)!r}, *args])\n')
     py.chmod(0o755)
     env.update(RIG_LOG=str(tmp_path / "rig.jsonl"), RIG_HOME=str(tmp_path / "rig-home"), PY_LOG=str(tmp_path / "py.jsonl"),
-               SANDBOX_LOG=str(tmp_path / "sandbox.jsonl"), DOCKER_LOG=str(tmp_path / "docker.log"))
+               SANDBOX_LOG=str(tmp_path / "sandbox.jsonl"), DOCKER_LOG=str(tmp_path / "docker.log"),
+               RIG_REAL=str(REPO / "scripts/openshell_rig.py"))
     env.pop("CASCADE_OPENSHELL_INSTANCE", None)
     env.pop("CASCADE_BRAIN_KEY_FILE", None)
     env.pop("CASCADE_MODEL_API_KEY", None)
@@ -114,7 +123,7 @@ def test_linux_runs_the_agent_inside_openshell_and_never_on_the_host(linux_launc
     rig = _rig(h)
     assert all(c[:2] == ["--instance", ""] for c in rig), "the real robot's route is the default instance"
     steps = [c[2] for c in rig if c[2] != "exec"]
-    assert steps == ["install", "gateway", "mcp-start", "up", "instance"]
+    assert steps == ["instance", "install", "gateway", "mcp-start", "up", "instance"]
     (start,) = [c[2:] for c in rig if c[2] == "mcp-start"]
     assert "--replace" not in start, "a running default (real robot) server is never replaced"
     owner = (h["state"] / "owner.json")
@@ -244,7 +253,8 @@ def test_linux_without_docker_refuses_instead_of_falling_back_to_the_host(linux_
     h = linux_launcher
     p = _run(h, env={**h["env"], "DOCKER_BROKEN": "1"})
     assert p.returncode != 0 and "install Docker" in p.stderr
-    assert _rig(h) == [] and not Path(h["env"]["HOST_LOG"]).exists()
+    assert _rig(h) == [["--instance", "", "instance"]], "only the name check, which touches nothing"
+    assert not Path(h["env"]["HOST_LOG"]).exists()
 
 
 def test_a_running_real_robot_server_stops_the_launch(linux_launcher):
@@ -292,6 +302,25 @@ def test_an_explicit_instance_wins(linux_launcher):
     assert p.returncode == 0, p.stdout + p.stderr
     assert {tuple(c[:2]) for c in _rig(h)} == {("--instance", "lab")}
     assert "--replace" in next(c for c in _rig(h) if c[2] == "mcp-start"), "a named instance is the launcher's own"
+
+
+def test_an_instance_name_openshell_would_refuse_stops_the_launch_before_anything_starts(linux_launcher):
+    """Found live: CASCADE_OPENSHELL_INSTANCE=boltpr failed only at `sandbox
+    create` (its sandbox name is past OpenShell's 19 characters), after the
+    simulator, the gateway and the robot server had started. The launcher
+    asks the rig first (`instance` touches nothing) and stops with its reason,
+    a dry run included."""
+    h = linux_launcher
+    env = {**h["env"], "CASCADE_OPENSHELL_INSTANCE": "boltpr"}
+    p = subprocess.run(["bash", str(h["repo"] / "scripts/launch.sh"), "--dry-run", "--sim", "mujoco"],
+                       env=env, capture_output=True, text=True, timeout=60, check=False)
+    assert p.returncode != 0 and "invalid instance name 'boltpr'" in p.stderr, p.stdout + p.stderr
+    p = _run(h, env=env)
+    assert p.returncode != 0
+    assert "invalid instance name 'boltpr'" in p.stderr and "1-5 characters" in p.stderr, p.stderr
+    assert _rig(h) == [["--instance", "boltpr", "instance"]] * 2, "nothing but the name check"
+    assert not (h["state"] / "owner.json").exists() and not (h["state"] / "openshell-instance").exists()
+    assert not Path(h["env"]["HOST_LOG"]).exists() and not Path(h["env"]["SANDBOX_LOG"]).exists()
 
 
 def test_macos_keeps_openclaw_on_the_host(launcher_boundary):

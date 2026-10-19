@@ -1031,12 +1031,11 @@ def test_a_named_instance_shares_no_name_port_unit_id_or_home_with_the_default(m
 
 def test_named_instances_never_collide_with_each_other_or_a_known_listener():
     """Per field, two names never map to the same unit, id, label or sandbox
-    (roles are one word, so `a` + `-chat` never meets `a-chat`), and the
+    (roles are one word, so `a` + `-mcp` never meets `a-mcp`), and the
     port bands of all 99 slots are pairwise distinct and clear of every
     port the rig, NemoClaw and OpenClaw already use."""
     rig = _load()
-    names = ["", "a", "a-chat", "a-relock", "a-gateway", "a-mcp", "a-brain", "a-robot", "a-agent",
-             "chat", "brain", "openshell", "sim", "sim-2", "x" * 16]
+    names = ["", "a", "a-mcp", "mcp", "chat", "brain", "robot", "agent", "sim", "sim-2", "x" * 5]
     rows = [asdict(rig.instance(n)) for n in names]
     for field in rows[0]:
         if field.endswith("_port"):
@@ -1052,7 +1051,7 @@ def test_named_instances_never_collide_with_each_other_or_a_known_listener():
 
 
 @pytest.mark.parametrize("bad", ["Sim", "1sim", "-sim", "sim_1", "sim.1", "sim 1", "x" * 17, "sim\n",
-                                 "../sim", "sim/x", "default"])
+                                 "../sim", "sim/x", "default", "a-chat", "openshell"])
 def test_invalid_instance_names_are_refused(bad):
     rig = _load()
     with pytest.raises(SystemExit, match="instance"):
@@ -1067,7 +1066,84 @@ def test_the_instance_comes_from_the_cli_or_the_environment_and_the_cli_wins():
     assert rig.resolve_instance(None, env=env).name == "sim"
     assert rig.resolve_instance("dev", env=env).name == "dev"
     assert rig.resolve_instance("", env=env) == rig.DEFAULT_INSTANCE, "--instance '' selects the default"
-    assert rig.resolve_instance("x" * 16, env={}).name == "x" * 16
+    assert rig.resolve_instance("x" * 5, env={}).name == "x" * 5, "the longest name"
+
+
+# What OpenShell 0.1.3's gateway accepts for the names an instance hands it
+# (found live: `--instance boltpr` failed at `sandbox create`, after install,
+# gateway, robot server, profiles and providers, because its sandbox
+# `cascade-boltpr-agent` has 20 characters):
+# - a sandbox name (crates/openshell-server/src/grpc/validation.rs,
+#   validate_sandbox_name): at most MAX_ROUTABLE_NAME_LEN = 19 characters
+#   (grpc/mod.rs), a DNS-1123 label of a-z, 0-9 and '-' with no '-' first or
+#   last and no '--';
+# - a provider profile id = the provider's --type (crates/openshell-providers/
+#   src/profiles.rs, is_valid_profile_id): '-'-separated non-empty runs of
+#   a-z and 0-9.
+def _openshell_takes_sandbox_name(name: str) -> bool:
+    return (0 < len(name) <= 19 and re.fullmatch(r"[a-z0-9-]+", name) is not None
+            and not name.startswith("-") and not name.endswith("-") and "--" not in name)
+
+
+def _openshell_takes_profile_id(profile_id: str) -> bool:
+    return all(re.fullmatch(r"[a-z0-9]+", part) for part in profile_id.split("-"))
+
+
+def test_every_name_the_rig_accepts_gives_names_openshell_accepts():
+    """Every instance name `instance()` accepts (all names of up to 7
+    characters over a, b, 1, '-') yields a sandbox name and profile ids the
+    OpenShell gateway takes, so a valid name never fails half-way."""
+    import itertools
+
+    rig = _load()
+    accepted = 0
+    for n in range(1, 8):
+        for name in map("".join, itertools.product("ab1-", repeat=n)):
+            try:
+                inst = rig.instance(name)
+            except SystemExit:
+                continue
+            accepted += 1
+            assert _openshell_takes_sandbox_name(inst.sandbox), (name, inst.sandbox)
+            assert _openshell_takes_profile_id(inst.brain_provider), (name, inst.brain_provider)
+            assert _openshell_takes_profile_id(inst.robot_provider), (name, inst.robot_provider)
+    assert accepted > 100
+
+
+@pytest.mark.parametrize("name", ["a", "sim", "dev", "bolt", "bfix", "pr384", "sim-2", "a-b-c", "x" * 5])
+def test_valid_instance_names_up_to_five_characters_work(name):
+    rig = _load()
+    inst = rig.instance(name)
+    assert inst.sandbox == f"cascade-{name}-agent" and _openshell_takes_sandbox_name(inst.sandbox)
+    assert rig.INSTANCE_NAME_MAX == 5 and len(rig.instance("x" * 5).sandbox) == 19, "the limit is exact"
+
+
+@pytest.mark.parametrize("bad", ["boltpr", "x" * 6, "x" * 16, "sim-", "a--b", "a-"])
+def test_a_name_openshell_would_refuse_is_refused_up_front_with_the_reason(bad):
+    rig = _load()
+    with pytest.raises(SystemExit, match=r"invalid instance name .*1-5 characters.*19-character"):
+        rig.resolve_instance(bad, env={})
+
+
+def test_an_invalid_instance_name_creates_nothing(host):
+    """Refused before the home is claimed and before any child process."""
+    for cmd in (["up"], ["gateway", "start"], ["mcp-start"], ["teardown"], ["install"]):
+        with pytest.raises(SystemExit, match="invalid instance name 'boltpr'"):
+            host.rig.main(["--instance", "boltpr", *cmd])
+    assert host.argvs == []
+    assert not (host.user / ".cascade" / "openshell-boltpr").exists()
+
+
+def test_up_refuses_a_sandbox_name_openshell_would_refuse_before_anything(host):
+    """An explicit --sandbox past OpenShell's limit fails before the
+    profiles, providers, image or motion lock are touched."""
+    home = host.install(host.user / ".cascade" / "openshell-sim", "sim")
+    host.gateways_up.add(str(home / "0.1.3" / "bin" / "openshell"))
+    for bad in ("cascade-sim-agent-two", "Cascade-sim", "sim--agent", "sim-agent-"):
+        with pytest.raises(SystemExit, match=f"sandbox name '{bad}'.*19"):
+            host.rig.main(["--instance", "sim", "up", "--sandbox", bad])
+    assert host.argvs == []
+    assert not (home / "deployed.json").exists()
 
 
 SIM_SETTINGS = {**TODAY_SETTINGS, "mcp_port": 17810, "chat_port": 17910, "sandbox": "cascade-sim-agent"}

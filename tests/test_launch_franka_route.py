@@ -156,7 +156,7 @@ def test_fr3_runs_on_the_unified_route_with_the_franka_contract(franka):
     assert p.returncode == 0, p.stdout + p.stderr
     rig = _rig(h)
     assert all(c[:2] == ["--instance", ""] for c in rig), "the real robot's route is the default instance"
-    assert [c[2] for c in rig if c[2] != "exec"] == ["install", "gateway", "mcp-start", "up", "instance"]
+    assert [c[2] for c in rig if c[2] != "exec"] == ["instance", "install", "gateway", "mcp-start", "up", "instance"]
     (start,) = [c[2:] for c in rig if c[2] == "mcp-start"]
     assert "--ros-env" in start and "--replace" not in start and "--cpus" not in start
     (up,) = [c[2:] for c in rig if c[2] == "up"]
@@ -339,7 +339,8 @@ def test_dry_run_prints_the_franka_plan_and_touches_nothing(franka):
     assert "franka: native franka_ros2 bringup is checked, never started (ROS_DOMAIN_ID=31" in out
     assert "franka: would source" in out and "scripts/franka_rig.py bringup --arm fr3" in out
     assert "with the franka agent profile" in out
-    assert _rig(h) == [] and [c["args"][0] for c in _franka_rig(h)] == ["cpus"]
+    assert _rig(h) == [["--instance", "", "instance"]], "only the instance name check, which touches nothing"
+    assert [c["args"][0] for c in _franka_rig(h)] == ["cpus"]
     assert not Path(h["env"]["CASCADE_LAUNCH_STATE"]).exists()
 
 

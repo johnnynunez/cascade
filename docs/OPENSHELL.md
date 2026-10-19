@@ -128,8 +128,11 @@ because a systemd user unit has `DISPLAY=:0` and OpenCV would open a window.
 
 Everything above is the **default instance**: the live rig's route. `--instance NAME` (or
 `CASCADE_OPENSHELL_INSTANCE=NAME`; the flag wins, `--instance ''` selects the default) runs a
-fully isolated route beside it, e.g. a simulator agent next to the real robot. Names: 1–16
-characters from `a-z`, `0-9`, `-`, starting with a letter; `default` is reserved.
+fully isolated route beside it, e.g. a simulator agent next to the real robot. Names: 1–5
+characters from `a-z`, `0-9` and single `-` between them, starting with a letter; `default` is
+reserved. Five because OpenShell takes sandbox names of at most 19 characters and a named
+instance's sandbox is `cascade-<name>-agent`: `openshell_rig.py` and `launch.sh` refuse any other
+name before they start anything (an explicit `up --sandbox` is held to the same 19 characters).
 
 | | default instance | named instance `<name>` | example: `sim` |
 |---|---|---|---|

@@ -490,6 +490,12 @@ fi
 if [[ -n "${CASCADE_OPENSHELL_INSTANCE+x}" ]]; then OS_INSTANCE="$CASCADE_OPENSHELL_INSTANCE"
 elif [[ "$SIM" == none ]]; then OS_INSTANCE=""
 else OS_INSTANCE=sim; fi
+# A name OpenShell would refuse (its sandbox name has at most 19 characters)
+# stops here, before a simulator or server starts; the rig prints why.
+if [[ "$AGENT_ROUTE" == openshell ]]; then
+    "$PY" "$REPO/scripts/openshell_rig.py" --instance "$OS_INSTANCE" instance >/dev/null \
+        || die "OpenShell instance '$OS_INSTANCE' refused (see above): pick another CASCADE_OPENSHELL_INSTANCE"
+fi
 log "plan: sim=$SIM arm=$ARM cameras=$CAMERAS brain=$BRAIN python=$PY"
 if [[ "$AGENT_ROUTE" == openshell ]]; then
     log "agent: OpenClaw inside OpenShell (instance ${OS_INSTANCE:-default}); this host runs no agent"

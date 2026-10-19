@@ -1,0 +1,154 @@
+{
+ "url": "http://127.0.0.1:18499/v1",
+ "model": "nemotron-3.5-bolt",
+ "date": "2026-10-19 03:49:40",
+ "cmd": "perception",
+ "slots_before": [
+  {
+   "id": 0,
+   "id_task": 0,
+   "n_prompt_tokens": 12569,
+   "is_processing": false,
+   "head": "<|im_start|>system\nRequest 2f0ca453a12c.",
+   "has_tools": true
+  },
+  {
+   "id": 1,
+   "id_task": 1,
+   "n_prompt_tokens": 0,
+   "is_processing": false,
+   "head": "<|im_start|>system\nRequest 2f0ca453a12c.",
+   "has_tools": true
+  }
+ ],
+ "perception": [
+  {
+   "frame": "s00",
+   "status": 200,
+   "latency_s": 3.744,
+   "prompt_n": 1095
+  },
+  {
+   "frame": "s01",
+   "status": 200,
+   "latency_s": 4.345,
+   "prompt_n": 1095
+  },
+  {
+   "frame": "s02",
+   "status": 200,
+   "latency_s": 2.797,
+   "prompt_n": 1090
+  },
+  {
+   "frame": "s03",
+   "status": 200,
+   "latency_s": 4.093,
+   "prompt_n": 1090
+  },
+  {
+   "frame": "s04",
+   "status": 200,
+   "latency_s": 5.025,
+   "prompt_n": 1090
+  },
+  {
+   "frame": "s05",
+   "status": 200,
+   "latency_s": 5.091,
+   "prompt_n": 1090
+  },
+  {
+   "frame": "s06",
+   "status": 200,
+   "latency_s": 6.024,
+   "prompt_n": 1090
+  },
+  {
+   "frame": "s07",
+   "status": 200,
+   "latency_s": 3.609,
+   "prompt_n": 1090
+  },
+  {
+   "frame": "s08",
+   "status": 200,
+   "latency_s": 5.375,
+   "prompt_n": 1090
+  },
+  {
+   "frame": "s09",
+   "status": 200,
+   "latency_s": 3.607,
+   "prompt_n": 1090
+  },
+  {
+   "frame": "s10",
+   "status": 200,
+   "latency_s": 5.998,
+   "prompt_n": 1090
+  },
+  {
+   "frame": "s11",
+   "status": 200,
+   "latency_s": 6.291,
+   "prompt_n": 1090
+  }
+ ],
+ "slots_between": [
+  {
+   "id": 0,
+   "id_task": 670,
+   "n_prompt_tokens": 1529,
+   "is_processing": false,
+   "head": "<|im_start|>system\n<|im_end|>\n<|im_start",
+   "has_tools": false
+  },
+  {
+   "id": 1,
+   "id_task": 582,
+   "n_prompt_tokens": 1531,
+   "is_processing": false,
+   "head": "<|im_start|>system\n<|im_end|>\n<|im_start",
+   "has_tools": false
+  }
+ ],
+ "first": {
+  "total_s": 13.724,
+  "ttft_s": null,
+  "prompt_tokens": 13588,
+  "completion_tokens": 1,
+  "tool_calls": 0,
+  "text_head": "",
+  "prefix_queried": 13588,
+  "prefix_hit": 0,
+  "llama_timings": {
+   "cache_n": 0,
+   "prompt_n": 13588,
+   "prompt_ms": 13619.331,
+   "predicted_n": 1,
+   "predicted_per_second": 0.0,
+   "draft_n": null,
+   "draft_n_accepted": null
+  },
+  "sent_at": 1792374636.5922885
+ },
+ "slots_after": [
+  {
+   "id": 0,
+   "id_task": 670,
+   "n_prompt_tokens": 1529,
+   "is_processing": false,
+   "head": "<|im_start|>system\n<|im_end|>\n<|im_start",
+   "has_tools": false
+  },
+  {
+   "id": 1,
+   "id_task": 765,
+   "n_prompt_tokens": 13588,
+   "is_processing": false,
+   "head": "<|im_start|>system\n<!-- openclaw:attempt",
+   "has_tools": true
+  }
+ ]
+}

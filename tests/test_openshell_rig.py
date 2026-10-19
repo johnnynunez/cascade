@@ -116,6 +116,44 @@ def test_brain_profile_binds_the_key_to_the_host_brain_only():
     assert "/usr/local/bin/node" in p["binaries"], "OpenClaw runs on the image's node"
 
 
+def test_the_bolt_brain_is_reachable_from_the_sandbox_only_on_its_openai_api():
+    """The Bolt brain's warm start (scripts/serve_nemotron_bolt_llamacpp.sh) runs llama-server with
+    LLAMA_SERVER_SLOTS_DEBUG=1 and --slot-save-path: GET /slots returns every slot's prompt text and
+    POST /slots/N?action=save|restore|erase works for the key's holders. The sandbox holds the key (OpenShell
+    substitutes it), so its endpoint allows only GET and POST under /v1/ (OpenClaw's chat completions and model
+    list): OpenShell 0.1.3 REST rules, where '**' crosses '/' and anything unmatched is denied."""
+    rig = _load()
+    (ep,) = rig.brain_profile(port=8123)["endpoints"]
+    assert rig.DEFAULT_MODEL == "nemotron-3.5-bolt"
+    assert ep["rules"] == [{"allow": {"method": "GET", "path": "/v1/**"}}, {"allow": {"method": "POST", "path": "/v1/**"}}]
+    assert "access" not in ep, "rules and access are mutually exclusive in OpenShell"
+    assert (ep["host"], ep["port"], ep["protocol"], ep["enforcement"]) == ("host.openshell.internal", 8123, "rest",
+                                                                          "enforce")
+
+
+def test_every_other_brain_keeps_the_profile_main_shipped():
+    rig = _load()
+    for model in ("qwen3.8-27b", "cosmos-reason2"):
+        p = rig.brain_profile(model=model)
+        assert _profile_sha(p) == PRE_WARM_START_BRAIN_SHA, model
+        assert p["endpoints"][0]["access"] == "read-write" and "rules" not in p["endpoints"][0]
+
+
+def test_up_syncs_the_brain_profile_of_the_model_it_serves(host):
+    home = host.install(host.user / ".cascade" / "openshell-sim", "sim")
+    host.gateways_up.add(str(home / "0.1.3" / "bin" / "openshell"))
+
+    def synced() -> dict:
+        upd = [a for a in host.argvs if a[1:4] == ["provider", "profile", "update"] and a[-1] == "cascade-sim-brain"]
+        return json.loads(Path(upd[-1][upd[-1].index("--file") + 1]).read_text())["endpoints"][0]
+
+    assert host.rig.main(["--instance", "sim", "up"]) == 0
+    assert synced()["rules"] == [{"allow": {"method": "GET", "path": "/v1/**"}},
+                                 {"allow": {"method": "POST", "path": "/v1/**"}}]
+    assert host.rig.main(["--instance", "sim", "up", "--model", "qwen3.8-27b"]) == 0
+    assert synced()["access"] == "read-write" and "rules" not in synced()
+
+
 def test_robot_profile_admits_mcp_and_refuses_reset_stop_at_l7():
     rig = _load()
     p = rig.robot_profile(port=18999)
@@ -736,9 +774,12 @@ TODAY_SETTINGS = {"brain_port": 8081, "mcp_port": 18741, "chat_port": 18799,
 #: sha256 of json.dumps(profile, sort_keys=True): the profiles the live
 #: gateway holds. Any change here is an update pushed to the running sandbox.
 TODAY_PROFILE_SHA = {
-    "cascade-brain": "7e81c98a4f6dfa80dbd0be5b5253d5c1e6c60b2db961e2146e813d634e3a8ba4",
+    # The Bolt brain (the default model): the sandbox reaches only its /v1/* (the warm start opens /slots).
+    "cascade-brain": "db9aee31e9c2572efa4444d9b453d30fe0571f28569b386041dfc871686d77d5",
     "cascade-robot": "cb34708159f1048412ba6da017c1a953771f47d6ffd3582143ebc089881b2ef7",
 }
+#: Every other brain (--model qwen3.8-27b): the profile main shipped before the Bolt path rules, byte for byte.
+PRE_WARM_START_BRAIN_SHA = "7e81c98a4f6dfa80dbd0be5b5253d5c1e6c60b2db961e2146e813d634e3a8ba4"
 
 
 def _profile_sha(profile: dict) -> str:

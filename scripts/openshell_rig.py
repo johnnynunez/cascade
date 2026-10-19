@@ -365,10 +365,24 @@ def gateway_toml(inst: Instance = DEFAULT_INSTANCE) -> str:
     )
 
 
-def brain_profile(port: int = DEFAULT_BRAIN_PORT, *, inst: Instance = DEFAULT_INSTANCE) -> dict:
+#: Brains whose server opens more than the OpenAI API to the key's holders: the
+#: Bolt llama.cpp brain's warm start (scripts/serve_nemotron_bolt_llamacpp.sh:
+#: GET /slots with every slot's prompt text, POST /slots/N?action=save|restore|
+#: erase). The sandbox reaches only their /v1/* (OpenClaw's chat completions and
+#: model list); any other path is denied by OpenShell (REST rules, 0.1.3).
+#: Every other brain (--model qwen3.8-27b) keeps the profile main shipped.
+V1_ONLY_MODELS = frozenset({DEFAULT_MODEL})
+OPENAI_API_METHODS = ("GET", "POST")
+
+
+def brain_profile(port: int = DEFAULT_BRAIN_PORT, *, inst: Instance = DEFAULT_INSTANCE,
+                  model: str = DEFAULT_MODEL) -> dict:
     """Provider profile for the host brain: its bearer key is substituted only
-    on requests to host.openshell.internal:<port> from the agent's node.
+    on requests to host.openshell.internal:<port> from the agent's node, and
+    for the Bolt brain only on its /v1/* (V1_ONLY_MODELS).
     The brain itself is shared: every instance reaches the same host LLM."""
+    access = ({"rules": [{"allow": {"method": m, "path": "/v1/**"}} for m in OPENAI_API_METHODS]}
+              if model in V1_ONLY_MODELS else {"access": "read-write"})
     return {
         "id": inst.brain_provider,
         "display_name": "cascade brain (host OpenAI-compatible server)",
@@ -383,7 +397,7 @@ def brain_profile(port: int = DEFAULT_BRAIN_PORT, *, inst: Instance = DEFAULT_IN
         "discovery": {"credentials": ["api_key"]},
         "endpoints": [{
             "host": HOST_ALIAS, "port": int(port), "protocol": "rest",
-            "access": "read-write", "enforcement": "enforce",
+            **access, "enforcement": "enforce",
         }],
         "binaries": list(AGENT_BINARIES),
     }
@@ -1074,7 +1088,7 @@ def cmd_up(inst: Instance, home: Path, args) -> int:
     if subprocess.run(["docker", "image", "inspect", tag], capture_output=True, check=False).returncode != 0:
         print(f"building {tag}")
         subprocess.run(["docker", "build", "-t", tag, str(DEPLOY)], check=True)
-    sync_profile(home, brain_profile(cfg.brain_port, inst=inst))
+    sync_profile(home, brain_profile(cfg.brain_port, inst=inst, model=cfg.model))
     locked = startup_locked(home, observe_only=args.observe_only, allow_motion=args.allow_motion)
     if locked:
         deny = set_motion_lock(home, cfg, True, extra=tuple(args.deny_tool or ()), inst=inst)

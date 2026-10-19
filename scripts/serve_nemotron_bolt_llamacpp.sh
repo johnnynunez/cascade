@@ -38,15 +38,17 @@
 # Once the server answers /health (its own readiness, never delayed) it
 # prefills the OpenClaw prefix (system text + tools) that the previous run
 # recorded, once, into every slot: the first chat after a start then costs what
-# any new chat costs (0.8 s instead of 13.8 s alone). It is a raw prompt, no
-# chat and no user turn, bounded at 120 s (~14 s alone); a request arriving
-# meanwhile waits for it and then reuses it. While serving it records the
-# server's own rendering of the latest OpenClaw request (text before OpenClaw's
-# per-session boundary, 0600, WARM_PREFIX_FILE), so it never builds a prefix
-# and follows any change of tools or prompt at the next chat. To read it, the
-# server runs with LLAMA_SERVER_SLOTS_DEBUG=1: GET /slots (behind the API key
-# when API_KEY_FILE is set) then shows each slot's last prompt, and a request
-# that reuses part of a slot logs the 2 tokens where it diverges.
+# any new chat costs instead of a full prefill (13.6 s alone). It is a raw token
+# prompt, no chat and no user turn, bounded at 120 s (~13 s alone); a request
+# arriving meanwhile waits for it. While serving it records the server's own
+# tokens of the latest OpenClaw request up to OpenClaw's per-session boundary
+# (0600, WARM_PREFIX_FILE), so it never builds a prefix and follows any change
+# of tools or prompt at the next chat. For that the server runs with
+# LLAMA_SERVER_SLOTS_DEBUG=1 (GET /slots, behind the API key when API_KEY_FILE
+# is set, shows each slot's last prompt; a request reusing part of a slot logs
+# the 2 tokens where it diverges) and --slot-save-path WARM_PREFIX_FILE's
+# directory/bolt-slots-PORT: once per changed prefix one slot is saved there,
+# its token list read and the file deleted.
 #
 # Knobs: PORT (8080), API_KEY_FILE, CTX (65536 per slot), PARALLEL (2),
 # SPEC (dflash | none: the LiLiCorr drafter or none), NSPEC (7, drafted tokens),
@@ -171,6 +173,7 @@ check_server() {
     help="$("$LLAMA_SERVER" --help 2>&1)" || return 1
     local flags=(--alias --chat-template-kwargs --reasoning --mmproj --spec-draft-model draft-dflash --api-key-file --load-mode)
     [[ -z "$CHAT_TEMPLATE_FILE" ]] || flags+=(--chat-template-file)
+    [[ "$WARM_START" == 0 ]] || flags+=(--slot-save-path)
     for flag in "${flags[@]}"; do
         [[ "$help" == *"$flag"* ]] || { printf 'llama-server lacks %s; select a compatible LLAMA_SERVER (v0.7.0).\n' "$flag" >&2; return 1; }
     done
@@ -234,11 +237,14 @@ fi
 [[ -z "$CHAT_TEMPLATE_FILE" ]] || set -- "$@" --chat-template-file "$CHAT_TEMPLATE_FILE"
 if [[ "$WARM_START" == 1 ]]; then
     # Watches this PID, which `exec` hands to llama-server; ends with it.
+    warm_slots="$(dirname "$WARM_PREFIX_FILE")/bolt-slots-$PORT"
+    mkdir -p -m 700 "$warm_slots"
     warm=(--port "$PORT" --server-pid "$$" --slots "$PARALLEL" --prefix-file "$WARM_PREFIX_FILE"
-          --chat-template-file "$CHAT_TEMPLATE_FILE")
+          --slot-save-dir "$warm_slots" --chat-template-file "$CHAT_TEMPLATE_FILE" --model-file "$MODEL_FILE")
     [[ -z "$key_file" ]] || warm+=(--api-key-file "$key_file")
     "$PY" -B "$WARM_HELPER" "${warm[@]}" &
     export LLAMA_SERVER_SLOTS_DEBUG="${LLAMA_SERVER_SLOTS_DEBUG:-1}"
+    set -- "$@" --slot-save-path "$warm_slots"
 fi
 # The model card's llama.cpp recipe (q8_0 KV; DFlash with the LiLiCorr GGUF
 # drafter when SPEC=dflash), loopback only, thinking off, one context of CTX

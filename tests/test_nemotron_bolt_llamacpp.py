@@ -12,6 +12,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -22,7 +23,7 @@ REPO = Path(__file__).resolve().parents[1]
 SCRIPT = "scripts/serve_nemotron_bolt_llamacpp.sh"
 MANIFEST = "deploy/brev/profiles/nemotron-3.5-bolt-24gb.json"
 HELP = ("--mmproj --alias --chat-template-kwargs --chat-template-file --reasoning --spec-draft-model --api-key-file "
-        "--spec-type none,draft-simple,draft-dflash --load-mode MODE")
+        "--spec-type none,draft-simple,draft-dflash --load-mode MODE --slot-save-path PATH")
 TEMPLATE = "scripts/chat_templates/nemotron-3.5-bolt-openclaw.jinja"
 WARM = "scripts/brain_warm_start.py"
 
@@ -128,8 +129,7 @@ def test_a_missing_chat_template_file_is_refused(prepared):
         assert '"server_args"' not in result.stdout
 
 
-def test_a_server_without_chat_template_file_is_refused(prepared):
-    help_text = HELP.replace(" --chat-template-file", "")
+def fake_help(prepared, help_text):
     prepared["server"].write_text(f"#!{sys.executable}\n" + f"""
 import json, sys
 if sys.argv[1:] == ['--help']:
@@ -137,9 +137,20 @@ if sys.argv[1:] == ['--help']:
 else:
     print(json.dumps({{'server_args': sys.argv[1:]}}))
 """)
+
+
+def test_a_server_without_chat_template_file_is_refused(prepared):
+    fake_help(prepared, HELP.replace(" --chat-template-file", ""))
     result = invoke(prepared)
     assert result.returncode == 1 and "llama-server lacks --chat-template-file" in result.stderr
     assert served(invoke(prepared, CHAT_TEMPLATE_FILE=""))  # the GGUF's own template needs no such flag
+
+
+def test_a_server_without_slot_save_path_is_refused_unless_the_warm_start_is_off(prepared):
+    fake_help(prepared, HELP.replace(" --slot-save-path PATH", ""))
+    result = invoke(prepared)
+    assert result.returncode == 1 and "llama-server lacks --slot-save-path" in result.stderr
+    assert served(invoke(prepared, WARM_START="0"))
 
 
 def helper_runs(p) -> list[list[str]]:
@@ -158,13 +169,19 @@ def test_the_warm_start_helper_watches_the_server_the_script_execs(prepared):
     assert started["slots_debug"] == "1"     # GET /slots shows the last prompts: what the helper records
     (warm,) = helper_runs(prepared)
     assert (flag(warm, "--port"), flag(warm, "--slots"), flag(warm, "--server-pid")) == ("8080", "2", str(pid))
-    assert flag(warm, "--prefix-file") == str(prepared["home"] / ".local/state/cascade/bolt-openclaw-prefix-8080.json")
+    state = prepared["home"] / ".local/state/cascade"
+    assert flag(warm, "--prefix-file") == str(state / "bolt-openclaw-prefix-8080.json")
     assert flag(warm, "--chat-template-file") == str(prepared["repo"] / TEMPLATE)
+    assert flag(warm, "--model-file") == flag(args, "--model")
     assert "--api-key-file" not in warm
-    # The server itself starts exactly as without the warm start: its readiness is its own.
+    # The helper reads the exact tokens of a changed prefix from a slot file it saves into a private directory.
+    assert flag(warm, "--slot-save-dir") == flag(args, "--slot-save-path") == str(state / "bolt-slots-8080")
+    assert stat.S_IMODE((state / "bolt-slots-8080").stat().st_mode) == 0o700
+    # Otherwise the server starts exactly as without the warm start: its readiness is its own.
     prepared["home"].joinpath("warm.jsonl").unlink()
     off = invoke(prepared, WARM_START="0")
-    assert served(off) == args and helper_runs(prepared) == []
+    at = args.index("--slot-save-path")
+    assert served(off) == args[:at] + args[at + 2:] and helper_runs(prepared) == []
     assert next(json.loads(line) for line in off.stdout.splitlines() if '"server_args"' in line)["slots_debug"] is None
 
 
@@ -179,6 +196,7 @@ def test_the_warm_start_follows_the_servers_knobs(prepared, tmp_path):
     (warm,) = helper_runs(prepared)
     assert (flag(warm, "--port"), flag(warm, "--slots"), flag(warm, "--prefix-file")) == ("18492", "3", str(record))
     assert flag(warm, "--api-key-file") == str(key) and flag(warm, "--chat-template-file") == ""
+    assert flag(warm, "--slot-save-dir") == flag(served(result), "--slot-save-path") == str(record.parent / "bolt-slots-18492")
     assert "warm-knob-key-91" not in json.dumps(warm) + result.stdout + result.stderr
 
 

@@ -69,7 +69,8 @@ TLS from a private CA).
 #    on llama.cpp v0.7.0 with the LiLiCorr drafter, two slots; llama-server reads the key
 #    file itself, never argv. Once per host: scripts/serve_nemotron_bolt_llamacpp.sh
 #    --setup-only (pinned GGUF + projector + drafter, 24.8 GB, and the pinned llama.cpp
-#    build). Restart this unit after pulling a new revision.
+#    build). Restart this unit after pulling a new revision. After a restart it prefills the
+#    agent prefix OpenClaw last sent (scripts/brain_warm_start.py; WARM_START=0 turns it off).
 systemd-run --user --unit=cascade-brain --collect -p MemoryMax=infinity \
     -E PORT=8081 -E API_KEY_FILE="$HOME/.cascade/nemoclaw/llama.key" \
     "$PWD/scripts/serve_nemotron_bolt_llamacpp.sh"

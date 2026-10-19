@@ -264,16 +264,15 @@ def read_slot(server: Server, slot: dict, save_dir: Path) -> tuple[list[int], st
     return tokens, exact
 
 
-def tokens_within(server: Server, tokens: list[int], limit: str, lo: int = 0) -> int | None:
+def tokens_within(server: Server, tokens: list[int], limit: str, lo: int = 0) -> int:
     """The longest run of tokens whose exact text lies within limit. A token's text is appended to the text before
-    it, so a binary search over the count finds it (~15 /detokenize calls, on llama-server's HTTP threads)."""
+    it, so a binary search over the count finds it (~15 /detokenize calls, on llama-server's HTTP threads). A run
+    whose text cannot be read counts as not within: the result may be shorter, never longer."""
     hi = len(tokens)
     while lo < hi:
         mid = (lo + hi + 1) // 2
         head = server.text(tokens[:mid])
-        if head is None:
-            return None
-        lo, hi = (mid, hi) if limit.startswith(head) else (lo, mid - 1)
+        lo, hi = (mid, hi) if head is not None and limit.startswith(head) else (lo, mid - 1)
     return lo
 
 
@@ -286,8 +285,7 @@ def cut_points(server: Server, got: tuple[list[int], str], prompt: str, end: int
     if not n1:
         return None
     at = aligned(exact, prompt, end) if end else None
-    n2 = tokens_within(server, tokens, exact[:at], n1) if at else None
-    return n1, n2 or n1
+    return n1, tokens_within(server, tokens, exact[:at], n1) if at else n1
 
 
 def main(argv=None) -> int:
@@ -343,7 +341,6 @@ def main(argv=None) -> int:
     seen = (record["text"], record["shared"]) if record else None
     known = {seen: (record["tokens"], record["extension"])} if record else {}
     turns = [record["last"]] if record and record["last"] else []
-    last_written = record["last"] if record else ""
     next_read, hidden, large, tries = time.monotonic(), False, None, {}
     while alive() and args.slot_save_dir:
         if time.monotonic() >= next_read:
@@ -360,7 +357,7 @@ def main(argv=None) -> int:
                 slot = found[-1]
                 prompt = slot["prompt"]
                 turn, text = system_turn(prompt) or "", openclaw_prefix(prompt) or ""
-                end = next((e for other in reversed(turns) if other != turn and (e := shared_end(turn, other))), None)
+                end = next((e for other in reversed(turns) if (e := shared_end(turn, other))), None)
                 if turn not in turns:
                     turns = (turns + [turn])[-SESSIONS:]
                 want = (text, turn[turn.find(BOUNDARY):end] if end else "")
@@ -380,7 +377,7 @@ def main(argv=None) -> int:
                     got = read_slot(server, slot, args.slot_save_dir)
                     cuts = cut_points(server, got, prompt, end) if got else None
                     if cuts:
-                        if cuts[1] == cuts[0]:        # nothing shared, or it could not be mapped: the prefix alone
+                        if cuts[1] == cuts[0]:        # nothing shared, or it could not be read: the prefix alone
                             want = (text, "")
                         entry = (got[0][:cuts[0]], got[0][cuts[0]:cuts[1]])
                         known = {**dict(list(known.items())[-(KNOWN_PREFIXES - 1):]), want: entry}
@@ -388,7 +385,7 @@ def main(argv=None) -> int:
                     elif tries[want] == CAPTURE_TRIES:
                         log(f"could not read the tokens of a changed OpenClaw prefix {CAPTURE_TRIES} times; "
                             "the next start prefills the previous record")
-                if entry and (want != seen or (not want[1] and turn != last_written)):
+                if entry and want != seen:
                     try:
                         write_record(args.prefix_file, {**identity, "text": want[0], "tokens": entry[0],
                                                         "shared": want[1], "extension": entry[1], "last": turn})
@@ -398,7 +395,7 @@ def main(argv=None) -> int:
                         if want != seen:
                             log(f"recorded the latest OpenClaw prefix ({len(entry[0])} tokens + {len(entry[1])} "
                                 f"its sessions share; {how}) for the next start")
-                        seen, last_written = want, turn
+                        seen = want
         time.sleep(args.poll)
     while alive():
         time.sleep(args.poll)

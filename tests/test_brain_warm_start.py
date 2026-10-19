@@ -84,8 +84,15 @@ def rendered(session: str, order: str = "What do you see on the table?", prefix:
 PERCEPTION = "<|im_start|>user\n<__media__>List every object on the table.<|im_end|>\n<|im_start|>assistant\n"
 
 
-def tokenize(text: str) -> list[int]:
-    """How the fake server tokenizes a prompt: BOS, then one token per character."""
+MEDIA = "<__media__>"
+
+
+def tokenize(text: str, media: bool = False) -> list[int]:
+    """How the fake server tokenizes a prompt: BOS, then one token per character; with media, an image's marker
+    becomes the placeholder tokens a slot holds for it (LLAMA_TOKEN_NULL)."""
+    if media and MEDIA in text:
+        head, tail = text.split(MEDIA, 1)
+        return tokenize(head) + [-1] * 4 + [ord(c) for c in tail]
     return [BOS] + [ord(c) for c in text]
 
 
@@ -116,13 +123,14 @@ class FakeLlamaServer:
     """llama-server's /health, /completion, /slots, /slots/<id>?action=save and /detokenize; requests are recorded."""
 
     def __init__(self, save_dir: Path, *, unready=0, slots=(), completion_delay=0.0, hide_prompts=False,
-                 save_status=200):
+                 save_status=200, unreadable=(0, 0)):
         self.save_dir = save_dir
         self.unready = unready                  # /health answers 503 this many times first ("Loading model")
         self.slots = list(slots)                # each: {"id", "id_task", "text": the exact rendered prompt}
         self.completion_delay = completion_delay
         self.hide_prompts = hide_prompts        # llama-server without LLAMA_SERVER_SLOTS_DEBUG
         self.save_status = save_status
+        self.unreadable = unreadable            # /detokenize fails for token counts strictly between these two
         self.requests: list[dict] = []
         self.lock = threading.Lock()
         fake = self
@@ -174,10 +182,15 @@ class FakeLlamaServer:
                     slot = next(s for s in fake.slots if s["id"] == int(url.path.rsplit("/", 1)[1]))
                     if fake.save_status == 200:                # "file_text": the slot ran another request since
                         text = slot.get("file_text", slot["text"])
-                        (fake.save_dir / body["filename"]).write_bytes(slot_file(tokenize(text)))
+                        (fake.save_dir / body["filename"]).write_bytes(slot_file(tokenize(text, media=True)))
                     self._reply(fake.save_status, {"id_slot": slot["id"], "filename": body["filename"]})
                 elif url.path == "/detokenize":
-                    self._reply(200, {"content": detokenize(body["tokens"])})
+                    if any(tok < 0 for tok in body["tokens"]):  # no text for an image's placeholder tokens
+                        self._reply(400, {"error": "invalid token"})
+                    elif fake.unreadable[0] < len(body["tokens"]) < fake.unreadable[1]:
+                        self._reply(500, {"error": "unreadable"})
+                    else:
+                        self._reply(200, {"content": detokenize(body["tokens"])})
                 else:
                     self._reply(404, {})
 
@@ -226,14 +239,15 @@ def run(env):
     """Start the helper against a fake server; stops the 'server' process and the helper at the end."""
     started = []
 
-    def start(fake, *, extra=(), record=True):
+    def start(fake, *, extra=(), record=True, env_extra=None):
         server = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"])
         argv = [sys.executable, "-B", str(HELPER), "--port", str(fake.port), "--server-pid", str(server.pid),
                 "--slots", "2", "--prefix-file", str(env / "state" / "prefix.json"),
                 "--chat-template-file", str(env / "template.jinja"), "--model-file", str(env / "model.gguf"),
                 "--api-key-file", str(env / "brain.key"), "--poll", "0.05", "--record-every", "0.1",
                 *(("--slot-save-dir", str(env / "slots")) if record else ()), *extra]
-        helper = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        helper = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                  env={**os.environ, **(env_extra or {})})
         started.append((server, helper))
         return {"server": server, "helper": helper, "argv": argv, "prefix_file": env / "state" / "prefix.json"}
 
@@ -351,6 +365,22 @@ def test_two_sessions_record_what_they_share_after_the_boundary_as_the_server_to
     assert third[len(stable) + len(SHARED):].startswith("5a5a5a5a")
 
 
+def test_shared_text_that_cannot_be_read_is_not_recorded(run, env):
+    # /detokenize fails past the prefix: the prefix alone is recorded, its shared text left empty (a later poll
+    # retries, a bounded number of times).
+    first, second = rendered("1e6f762d"), rendered("92798453")
+    with FakeLlamaServer(env / "slots", slots=[{"id": 0, "id_task": 7, "text": first},
+                                               {"id": 1, "id_task": 9, "text": second}],
+                         unreadable=(len(tokenize(PREFIX)), len(tokenize(second)))) as fake:
+        proc = run(fake)
+        assert wait_for(lambda: len(fake.seen("POST", "/slots/")) == 3)
+        time.sleep(0.5)
+        stop(proc)
+    record = record_of(proc)
+    assert record["tokens"] == tokenize(PREFIX) and record["extension"] == [] and record["shared"] == ""
+    assert len(fake.seen("POST", "/slots/")) == 3
+
+
 def test_session_ids_that_start_alike_are_not_shared(run, env):
     with FakeLlamaServer(env / "slots", slots=[{"id": 0, "id_task": 7, "text": rendered("1e6f762d")},
                                                {"id": 1, "id_task": 9, "text": rendered("1a2b3c4d")}]) as fake:
@@ -411,6 +441,49 @@ def test_a_slot_that_ran_another_request_before_it_was_saved_is_not_recorded(run
         time.sleep(0.3)
         log = stop(proc)
     assert not proc["prefix_file"].exists() and "could not read the tokens" in log
+
+
+def test_a_lone_session_keeps_what_earlier_sessions_shared(run, env):
+    # One session this run, nothing to compare it with: the record keeps the shared text of earlier sessions.
+    write_record(env, tokenize(PREFIX), ext(SHARED))
+    with FakeLlamaServer(env / "slots", slots=[{"id": 0, "id_task": 4, "text": rendered("aaaa")}]) as fake:
+        proc = run(fake)
+        assert wait_for(lambda: len(fake.seen("GET", "/slots")) >= 4)
+        stop(proc)
+    assert not fake.seen("POST", "/slots/") and detokenize(record_of(proc)["extension"]) == SHARED
+
+
+def test_a_session_whose_system_turn_extends_another_shares_nothing_past_it(run, env):
+    # Shared up to the end of one system turn: that includes its session ids, so it is not warmed.
+    longer = rendered("aaaa").replace("<|im_end|>", "\nOne more directive.<|im_end|>", 1)
+    with FakeLlamaServer(env / "slots", slots=[{"id": 0, "id_task": 4, "text": longer},
+                                               {"id": 1, "id_task": 5, "text": rendered("aaaa", "Then.")}]) as fake:
+        proc = run(fake)
+        assert wait_for(lambda: proc["prefix_file"].exists())
+        time.sleep(0.3)
+        stop(proc)
+    assert record_of(proc)["extension"] == []
+
+
+def test_image_placeholder_tokens_never_reach_detokenize(run, env):
+    # An image in the user turn: the slot file holds LLAMA_TOKEN_NULL for it; only the text before it is read.
+    with_image = rendered("aaaa", f"{MEDIA}What is this?")
+    with FakeLlamaServer(env / "slots", slots=[{"id": 0, "id_task": 4, "text": with_image}]) as fake:
+        proc = run(fake)
+        assert wait_for(lambda: proc["prefix_file"].exists())
+        stop(proc)
+    assert record_of(proc)["tokens"] == tokenize(PREFIX)
+    assert all(tok >= 0 for r in fake.seen("POST", "/detokenize") for tok in r["body"]["tokens"])
+
+
+def test_the_helper_never_goes_through_an_http_proxy(run, env):
+    from owned_server import held_dead_port
+    write_record(env, tokenize(PREFIX))
+    with held_dead_port() as port, FakeLlamaServer(env / "slots") as fake:
+        proxy = f"http://127.0.0.1:{port}"
+        proc = run(fake, env_extra={"HTTP_PROXY": proxy, "http_proxy": proxy, "NO_PROXY": "", "no_proxy": ""})
+        assert wait_for(lambda: fake.seen("POST", "/completion"))
+        stop(proc)
 
 
 def test_a_restart_prefills_what_the_previous_run_recorded(run, env):
@@ -610,8 +683,13 @@ def test_slot_file_tokens_reads_the_head_of_llamacpps_slot_file(tmp_path):
     assert m.slot_file_tokens(path) == [BOS, 60, 61, -1, -1, 62]
     path.write_bytes(b"ggsq" + b"\0" * 8)
     assert m.slot_file_tokens(path) is None
-    path.write_bytes(struct.pack("<III", 0x67677371, 4, 6) + struct.pack("<6i", 5, 6, 7, 8, 9, 10))  # unpacked tokens
+    unpacked = list(range(5, 45))                     # a plain token list, as an older llama.cpp wrote it
+    path.write_bytes(struct.pack("<III", 0x67677371, 4, len(unpacked)) + struct.pack(f"<{len(unpacked)}i", *unpacked))
     assert m.slot_file_tokens(path) is None
+    for packed in ([-1, 2, 3, 70, 71, 72, 0],          # a server-tokens layout of another version
+                   [5, 1, 3, 70, 71, 72, 0]):          # plain tokens that happen to read like a header
+        path.write_bytes(struct.pack("<III", 0x67677371, 4, len(packed)) + struct.pack(f"<{len(packed)}i", *packed))
+        assert m.slot_file_tokens(path) is None
     assert m.slot_file_tokens(tmp_path / "missing.bin") is None
 
 

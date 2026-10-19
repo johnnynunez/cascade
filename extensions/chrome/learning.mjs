@@ -2,7 +2,7 @@
 // server's /state `learning` key (the robot server's learning.json, schema 1).
 // Pure: strings in, strings out. The panel puts each line in a text node; nothing
 // here is ever parsed as HTML.
-export const MAX_LINES = 8;   // served notes shown (learning.json lists at most 5)
+export const MAX_LINES = 8;   // at most this many served notes shown, a guard: learning.json lists at most 5
 export const MAX_LINE = 240;  // characters per line
 const CONTROL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g;
 const text = value => {

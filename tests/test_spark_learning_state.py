@@ -70,6 +70,42 @@ def test_read_learning_refuses_anything_else(tmp_path, content):
     assert cameras.read_learning(path) is None
 
 
+@pytest.mark.parametrize("content", [
+    b"[" * 65000,
+    b'{"schema": 1, "deep": ' + b"[" * 30000 + b"]" * 30000 + b"}",
+    json.dumps({**LEARNING, "counts": {"promoted": float("nan")}}).encode(),
+    json.dumps({**LEARNING, "t": float("inf")}).encode(),
+    json.dumps({**LEARNING, "t": float("-inf")}).encode(),
+], ids=["deep unclosed", "deep closed", "NaN", "Infinity", "-Infinity"])
+def test_read_learning_refuses_what_a_browser_cannot_parse(tmp_path, content):  # A9/A10 fix, Minor 3
+    """Deep nesting (Python's RecursionError, not a ValueError) and NaN / Infinity (Python accepts them, the
+    extension's JSON.parse then fails the whole /state): no `learning` key, never an exception."""
+    cameras = _cameras()
+    path = tmp_path / "learning.json"
+    path.write_bytes(content)
+    assert len(content) <= cameras.LEARNING_MAX_BYTES
+    assert cameras.read_learning(path) is None
+
+
+def test_read_learning_never_blocks_on_a_fifo(tmp_path):  # A9/A10 fix, Minor 3
+    """A FIFO at the path (no writer) would block the /state handler thread on open(): only a regular file is read."""
+    import os
+
+    cameras = _cameras()
+    path = tmp_path / "learning.json"
+    os.mkfifo(path)
+    out = []
+    reader = threading.Thread(target=lambda: out.append(cameras.read_learning(path)), daemon=True)
+    reader.start()
+    reader.join(5.0)
+    if reader.is_alive():  # unblock the reader before failing, so no thread is left behind
+        with open(path, "wb"):
+            pass
+        reader.join(5.0)
+        pytest.fail("read_learning blocked on a FIFO")
+    assert out == [None]
+
+
 def test_read_learning_refuses_a_missing_path_a_directory_and_no_flag(tmp_path):
     cameras = _cameras()
     assert cameras.read_learning(None) is None

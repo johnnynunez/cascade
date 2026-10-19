@@ -430,6 +430,18 @@ def test_linux_other_brain_exports_no_perception_endpoint_and_says_where_it_goes
     assert "http://127.0.0.1:8080/v1" in note and "must be running" in note
 
 
+def test_linux_other_brain_names_an_operator_chosen_perception_endpoint(linux_launcher, tmp_path):
+    """--brain cosmos with CASCADE_PERCEPTION_URL/MODEL (Cosmos3-Edge for every
+    role): the banner names that detector, not the Nemotron Bolt default."""
+    h = linux_launcher
+    command, env = _with_brain(h, "auto", tmp_path / "home")   # resolves to the cosmos double
+    env.update(CASCADE_PERCEPTION_URL="http://127.0.0.1:8082/v1", CASCADE_PERCEPTION_MODEL="cosmos3-edge")
+    result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=120)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert PERCEPTION_NOTE not in result.stderr and "Nemotron" not in result.stderr
+    assert "perception: cosmos3-edge at http://127.0.0.1:8082/v1" in result.stdout + result.stderr
+
+
 def test_linux_brain_nemotron_bolt_points_the_agent_and_perception_at_bolt(linux_launcher, tmp_path):
     h = linux_launcher
     h["http"]["model"] = "nemotron-3.5-bolt"

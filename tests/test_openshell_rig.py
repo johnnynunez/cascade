@@ -300,19 +300,29 @@ def test_render_defaults_to_nemotron_bolt_with_its_name_and_thinking_off(tmp_pat
 
 @pytest.mark.parametrize("model, name", [
     ("qwen3.8-27b", "Qwen3.8-27B (cascade brain)"),
-    ("cosmos3-edge", "cosmos3-edge (cascade brain)"),
     ("constructor", "constructor (cascade brain)"),
     ("toString", "toString (cascade brain)"),
 ])
 def test_render_names_the_brain_actually_served(tmp_path, model, name):
     """The chat's model label comes from CASCADE_MODEL: a known brain by its
     name, any other by its own id; never a hard-coded other model. Only
-    Nemotron gets request params, so Qwen's config is main's."""
+    Nemotron and Cosmos get request params, so Qwen's config is main's."""
     assert _render(tmp_path, CASCADE_MODEL=model).returncode == 0
     cfg = json.loads((tmp_path / ".openclaw" / "openclaw.json").read_text())
     [entry] = cfg["models"]["providers"]["cascade"]["models"]
     assert (entry["id"], entry["name"]) == (model, name)
     assert "models" not in cfg["agents"]["defaults"]
+
+
+def test_render_turns_cosmos_thinking_off(tmp_path):
+    """Cosmos3-Edge reasons by default: without enable_thinking false its reply
+    lands in reasoning_content and OpenClaw sees an empty turn."""
+    assert _render(tmp_path, CASCADE_MODEL="cosmos3-edge").returncode == 0
+    cfg = json.loads((tmp_path / ".openclaw" / "openclaw.json").read_text())
+    [entry] = cfg["models"]["providers"]["cascade"]["models"]
+    assert (entry["id"], entry["name"]) == ("cosmos3-edge", "Cosmos3-Edge (cascade brain)")
+    assert cfg["agents"]["defaults"]["models"] == {
+        "cascade/cosmos3-edge": {"params": {"chat_template_kwargs": {"enable_thinking": False}}}}
 
 
 def test_render_for_qwen_is_byte_identical_to_main(tmp_path):
@@ -1805,7 +1815,7 @@ def test_the_franka_profile_rides_the_sandbox_env_and_generic_adds_nothing():
     sandbox's render-config to load the FR3 operator plugin; the generic
     profile is the template's own, so its argv is today's."""
     rig = _load()
-    assert rig.AGENT_PROFILES == ("generic", "franka")
+    assert rig.AGENT_PROFILES == ("generic", "franka", "cosmos")
     argv = rig.sandbox_create_argv(rig.Settings(agent_profile="franka"), image="t")
     assert argv[argv.index("CASCADE_AGENT_PROFILE=franka") - 1] == "--env"
     assert not any(a.startswith("CASCADE_AGENT_PROFILE") for a in rig.sandbox_create_argv(rig.Settings(), "t"))
@@ -1833,7 +1843,7 @@ def test_settings_saved_before_the_agent_profile_existed_are_not_stale(host):
 def test_an_unknown_agent_profile_is_refused(host):
     host.install(host.user / ".cascade" / "openshell")
     with pytest.raises(SystemExit):
-        host.rig.main(["up", "--agent-profile", "cosmos"])
+        host.rig.main(["up", "--agent-profile", "nano"])
 
 
 def test_the_ros_env_server_runs_through_ros_env_sh(host, monkeypatch, tmp_path):
@@ -1947,11 +1957,49 @@ def test_render_franka_keeps_an_operators_instructions(tmp_path):
     assert (ws / "AGENTS.md").read_text() == "Operator edit.\n"
 
 
-@pytest.mark.parametrize("profile", ["Franka", "cosmos", "../x"])
+@pytest.mark.parametrize("profile", ["Franka", "Cosmos", "../x"])
 def test_render_refuses_an_unknown_agent_profile(tmp_path, profile):
     r = _render(tmp_path, CASCADE_AGENT_PROFILE=profile)
     assert r.returncode != 0 and "CASCADE_AGENT_PROFILE" in r.stderr
     assert not (tmp_path / ".openclaw" / "openclaw.json").exists()
+
+
+def test_render_cosmos_profile_is_compact(tmp_path):
+    """Cosmos3-Edge writes JSON prose instead of tool calls under OpenClaw's
+    generic prompt (49 tools, JSON envelopes): its profile loads the prompt
+    plugin, 10 tools, greedy single-call replies; never the Franka router."""
+    r = _render(tmp_path, CASCADE_AGENT_PROFILE="cosmos", CASCADE_MODEL="cosmos3-edge",
+                CASCADE_OPENCLAW_TEMPLATE=str(DEPLOY / "openclaw.json"))
+    assert r.returncode == 0, r.stderr
+    cfg = json.loads((tmp_path / ".openclaw" / "openclaw.json").read_text())
+    allow = cfg["tools"]["allow"]
+    assert len(allow) == 10 and len(set(allow)) == 10 and all(a.startswith("cascade__") for a in allow)
+    assert {"cascade__point_at", "cascade__pick_and_place", "cascade__reset_scene",
+            "cascade__emergency_stop"} <= set(allow)
+    assert "cascade__reset_stop" not in allow and "cascade__list_objects" not in allow
+    # tools that drew "put X in Y" / "point at X" away from pick_and_place / point_at
+    assert not {"cascade__place_on_object", "cascade__place_at", "cascade__localize_object"} & set(allow)
+    assert cfg["agents"]["defaults"]["models"] == {"cascade/cosmos3-edge": {"params": {
+        "chat_template_kwargs": {"enable_thinking": False}, "temperature": 0, "frequency_penalty": 0.5,
+        "maxTokens": 512, "parallel_tool_calls": False}}}
+    assert cfg["mcp"]["servers"]["cascade"]["supportsParallelToolCalls"] is False
+    # a two-attempt pick (299.9 s live) must not be cancelled into an e-stop
+    template = json.loads((DEPLOY / "openclaw.json").read_text())
+    assert template["mcp"]["servers"]["cascade"]["requestTimeoutMs"] == 300000
+    assert cfg["mcp"]["servers"]["cascade"]["requestTimeoutMs"] == 570000
+    assert cfg["mcp"]["servers"]["cascade"]["requestTimeoutMs"] < cfg["agents"]["defaults"]["timeoutSeconds"] * 1000
+    assert cfg["plugins"]["load"]["paths"] == [str(DEPLOY / "cosmos-plugin")]
+    entry = cfg["plugins"]["entries"]["cascade-cosmos-prompt"]
+    assert entry["config"] == {"modelProviderId": "cascade", "modelId": "cosmos3-edge"}
+    assert "cascade-franka-prompt" not in cfg["plugins"]["entries"]
+    assert not (tmp_path / ".openclaw" / "workspace" / "AGENTS.md").exists()
+    assert "profile cosmos" in r.stdout
+
+
+def test_the_image_carries_the_cosmos_plugin():
+    dockerfile = (DEPLOY / "Dockerfile").read_text()
+    assert "COPY cosmos-plugin /usr/local/share/cascade/cosmos-plugin" in dockerfile
+    assert json.loads((DEPLOY / "cosmos-plugin" / "openclaw.plugin.json").read_text())["id"] == "cascade-cosmos-prompt"
 
 
 def test_render_generic_profile_is_the_default_render(tmp_path):

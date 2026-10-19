@@ -316,14 +316,15 @@ def test_the_mock_fr3_rehearses_the_contract_without_ros(franka):
 
 def test_other_real_arms_keep_their_route(linux_launcher):
     """reBot-style real arms (here the mock arm) are untouched: no ROS,
-    no Franka checks, no latched STOP, the generic agent profile."""
+    no Franka checks, no latched STOP; the agent profile follows the brain
+    (this fixture's brain is Cosmos3-Edge: its compact cosmos profile)."""
     h = linux_launcher
     p = subprocess.run(h["command"], env=h["env"], capture_output=True, text=True, timeout=120, check=False)
     assert p.returncode == 0, p.stdout + p.stderr
     (start,) = [c[2:] for c in _lines(h["env"]["RIG_LOG"]) if c[2] == "mcp-start"]
     assert "--ros-env" not in start and "--cpus" not in start
     (up,) = [c[2:] for c in _lines(h["env"]["RIG_LOG"]) if c[2] == "up"]
-    assert up[up.index("--agent-profile") + 1] == "generic"
+    assert up[up.index("--model") + 1] == "cosmos3-edge" and up[up.index("--agent-profile") + 1] == "cosmos"
     seen = json.loads((Path(h["env"]["RIG_HOME"]) / "mcp-env.seen.json").read_text())
     assert not {"CASCADE_START_STOPPED", "CASCADE_ROS_SETUP", "ROS_DOMAIN_ID", "OMP_NUM_THREADS"} & set(seen)
     assert "franka" not in p.stdout and "operator:" not in p.stdout

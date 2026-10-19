@@ -117,8 +117,9 @@ DEFAULT_CONTEXT_WINDOW = 65536   # deploy/openshell/openclaw.json's contextWindo
 DEFAULT_SANDBOX = "cascade-agent"   # NemoClaw's sandbox is `cascade`
 #: The agent's robot profiles (deploy/openshell/render-config.mjs): `generic`
 #: is the config every route rendered before profiles existed; `franka` adds
-#: the FR3 operator command plugin, its instructions and tool catalog.
-AGENT_PROFILES = ("generic", "franka")
+#: the FR3 operator command plugin, its instructions and tool catalog; `cosmos`
+#: is the Cosmos3-Edge brain's (short prompt, no JSON envelopes, 10 tools).
+AGENT_PROFILES = ("generic", "franka", "cosmos")
 #: Runs a command after sourcing the ROS 2 + franka_ros2 setup (native-controller arms).
 ROS_ENV = REPO / "scripts" / "ros_env.sh"
 _CPU_LIST = re.compile(r"\d+(-\d+)?(,\d+(-\d+)?)*")
@@ -1227,7 +1228,8 @@ def main(argv: list[str] | None = None) -> int:
             help="0600 file with the brain's bearer key")
         p.add_argument("--mcp-token-file", default=None, help="0600 MCP token file (default <home>/mcp.token)")
         p.add_argument("--agent-profile", choices=AGENT_PROFILES, default=None,
-                       help="the agent's robot profile (default generic; franka = the FR3 operator agent)")
+                       help="the agent's profile (default generic; franka = the FR3 operator agent; "
+                            "cosmos = the Cosmos3-Edge brain's compact agent)")
 
     add("install", "download + verify OpenShell, write gateway config and certs")
     g = add("gateway", "cascade's own OpenShell gateway (systemd user unit)")

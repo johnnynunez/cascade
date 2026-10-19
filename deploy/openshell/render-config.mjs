@@ -61,6 +61,13 @@ const BRAINS = {
     params: { chat_template_kwargs: { enable_thinking: false } },
   },
   "qwen3.8-27b": { name: "Qwen3.8-27B (cascade brain)" },
+  // Cosmos3-Edge reasons by default (vLLM's qwen3 reasoning parser): without
+  // the kwarg its whole reply lands in reasoning_content and OpenClaw reports
+  // "Agent couldn't generate a response" (readiness turn, 2026-10-19).
+  "cosmos3-edge": {
+    name: "Cosmos3-Edge (cascade brain)",
+    params: { chat_template_kwargs: { enable_thinking: false } },
+  },
 };
 const known = Object.hasOwn(BRAINS, model) ? BRAINS[model] : null;
 // The brain's context window: OpenClaw sizes every prompt from it, so a 32k
@@ -74,7 +81,9 @@ if (rawWindow !== undefined && (!/^\d{4,7}$/.test(rawWindow) || contextWindow < 
 // a path (Qwen/Qwen3.8-27B) would name a provider that does not exist.
 if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(model)) die(`CASCADE_MODEL=${JSON.stringify(model)} must be a bare id`);
 const profile = env.CASCADE_AGENT_PROFILE || "generic";
-if (!["generic", "franka"].includes(profile)) die(`CASCADE_AGENT_PROFILE=${JSON.stringify(profile)} must be generic or franka`);
+if (!["generic", "franka", "cosmos"].includes(profile)) {
+  die(`CASCADE_AGENT_PROFILE=${JSON.stringify(profile)} must be generic, franka or cosmos`);
+}
 
 const cfg = JSON.parse(fs.readFileSync(template, "utf8"));
 const provider = cfg.models.providers.cascade;
@@ -113,6 +122,12 @@ if (profile === "franka") {
   cfg.agents.defaults.models = models;
   // One robot, one tool at a time.
   cfg.mcp.servers.cascade.supportsParallelToolCalls = false;
+  // A pick that needs a second grasp attempt outlasts OpenClaw's 300 s MCP
+  // request timeout (live Isaac kitchen, Cosmos3-Edge perception: orange into
+  // the open box, 299.9 s, placed and physics-confirmed); the timeout cancels
+  // the call and the robot server latches the e-stop on that cancel, refusing
+  // every later motion. The turn itself may run 600 s (agents.defaults).
+  cfg.mcp.servers.cascade.requestTimeoutMs = Math.max(cfg.mcp.servers.cascade.requestTimeoutMs || 0, 570000);
   cfg.plugins = {
     load: { paths: [pluginDir] },
     entries: {
@@ -121,6 +136,62 @@ if (profile === "franka") {
         enabled: true,
         hooks: { allowConversationAccess: true, allowPromptInjection: true },
         config: { workspaceDir: cfg.agents.defaults.workspace, modelProviderId: "cascade", modelId: model },
+      },
+    },
+  };
+}
+
+// The Cosmos3-Edge agent (a 2.4B reasoner): measured on OpenClaw's captured
+// requests, it emits native tool calls only with a short system prompt, user
+// turns without OpenClaw's JSON envelopes (cosmos-plugin) and a small tool set
+// (docs/evidence/cosmos-vllm-032-nvfp4-2026-10-19/openclaw-route). Its tools:
+// observe, point, pick-and-place, gripper, home, reset, verify, state and STOP.
+// No list_objects: offered, it drew pick, reset and pointing requests to itself.
+// No place_on_object / place_at / localize_object: replaying the live run's six
+// first-turn requests on a restarted server (same bytes, NVFP4 KV), "put the
+// green cube in the green square" and the two-step request went to
+// place_on_object before any pick (refused: not holding anything), "Let's start
+// over." to move_home and, with a cold prefix cache, "Point at the lemon." to
+// localize_object. Right first tools: 9/18 (warm prefix cache) and 12/18
+// (cold) with the 13 tools, 18/18 and 18/18 with these 10. pick_and_place
+// places what it picks; a pick left holding its object is reported to the
+// human (its `ask`), not re-placed.
+const COSMOS_TOOLS = [
+  "describe_scene", "point_at", "pick_and_place", "open_gripper", "close_gripper", "move_home",
+  "reset_scene", "verify_last_action", "world_state", "emergency_stop",
+];
+if (profile === "cosmos") {
+  const pluginDir = env.CASCADE_COSMOS_PLUGIN_DIR || path.join(path.dirname(template), "cosmos-plugin");
+  if (!fs.existsSync(path.join(pluginDir, "index.mjs"))) die(`${pluginDir}/index.mjs is missing`);
+  const selected = `cascade/${model}`;
+  cfg.tools.allow = COSMOS_TOOLS.map((name) => `cascade__${name}`);
+  cfg.agents.defaults.heartbeat = { every: "0m" };
+  cfg.cron = { enabled: false };
+  // OpenClaw sends no temperature, so vLLM samples at the export's default
+  // (1.0). Greedy, short, one tool call per reply: parallel_tool_calls false
+  // makes vLLM's grammar end the reply after the first call. The frequency
+  // penalty ends greedy whitespace loops inside an argument-less call
+  // (`<function=cascade__move_home>` then "\n   " until maxTokens).
+  const models = cfg.agents.defaults.models || {};
+  const params = (models[selected] && models[selected].params) || {};
+  models[selected] = { params: { ...params, temperature: 0, frequency_penalty: 0.5, maxTokens: 512,
+    parallel_tool_calls: false } };
+  cfg.agents.defaults.models = models;
+  cfg.mcp.servers.cascade.supportsParallelToolCalls = false;
+  // A pick that needs a second grasp attempt outlasts OpenClaw's 300 s MCP
+  // request timeout (live Isaac kitchen, Cosmos3-Edge perception: orange into
+  // the open box, 299.9 s, placed and physics-confirmed); the timeout cancels
+  // the call and the robot server latches the e-stop on that cancel, refusing
+  // every later motion. The turn itself may run 600 s (agents.defaults).
+  cfg.mcp.servers.cascade.requestTimeoutMs = Math.max(cfg.mcp.servers.cascade.requestTimeoutMs || 0, 570000);
+  cfg.plugins = {
+    load: { paths: [pluginDir] },
+    entries: {
+      "memory-core": { enabled: false },
+      "cascade-cosmos-prompt": {
+        enabled: true,
+        hooks: { allowPromptInjection: true },
+        config: { modelProviderId: "cascade", modelId: model },
       },
     },
   };

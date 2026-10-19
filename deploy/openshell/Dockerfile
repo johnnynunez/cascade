@@ -25,6 +25,9 @@ COPY render-config.mjs /usr/local/share/cascade/render-config.mjs
 # The Franka FR3 agent profile (CASCADE_AGENT_PROFILE=franka): the operator
 # command plugin and its instructions, read-only next to the template.
 COPY franka-plugin /usr/local/share/cascade/franka-plugin
+# The Cosmos3-Edge agent profile (CASCADE_AGENT_PROFILE=cosmos): its prompt
+# plugin (short system prompt, user turns without OpenClaw's JSON envelopes).
+COPY cosmos-plugin /usr/local/share/cascade/cosmos-plugin
 COPY --chmod=0755 cascade-openclaw /usr/local/bin/cascade-openclaw
 
 RUN install -d -o node -g node -m 0700 /sandbox

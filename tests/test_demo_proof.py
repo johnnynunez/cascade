@@ -157,17 +157,23 @@ def host_boundary(tmp_path, monkeypatch):
             trace = info.get("trace", repo / "runs/mcp_foreign/trace.jsonl")
             _trace(repo / "runs", [_pick(t=time.time())], trace.parent.name)
         elif "reset_scene" in message or message.startswith("Let's start over"):
-            tools = ["cascade__reset_scene"] + ([] if info["drop_world_state"] else ["cascade__world_state"])
+            # A one-tool brain's reset turn ("Let's start over.") runs reset_scene only.
+            status = not info["drop_world_state"] and message != demo_proof.RESET_ONLY_PROMPT
+            tools = ["cascade__reset_scene"] + (["cascade__world_state"] if status else [])
             trace = info.get("trace", repo / "runs/mcp_foreign/trace.jsonl")
             with trace.open("a") as f:
                 f.write(json.dumps({"t": time.time(), "skill": "reset_scene", "result": {"ok": True, "world": "mujoco", "props_reset": ["red_cube"]}}) + "\n")
-        elif "world_state" in message or message == "What is the session status?":
+        elif "world_state" in message or "world state" in message or message == "What is the session status?":
             tools = ["cascade__world_state"]
-            if info["binding"] in ("new", "ambiguous", "dead"):
+            # The world is bound on the FIRST status turn; a later one (a
+            # one-tool brain's post-reset status turn) talks to the same server.
+            info["status_turns"] = info.get("status_turns", 0) + 1
+            first = info["status_turns"] == 1
+            if first and info["binding"] in ("new", "ambiguous", "dead"):
                 spawn(dead=info["binding"] == "dead")
                 if info["binding"] == "ambiguous":
                     spawn()
-            elif info["binding"] == "foreign":
+            elif first and info["binding"] == "foreign":
                 foreign = owners.load_owner(tmp_path / "foreign", repo, "foreign", create=True)
                 spawn(foreign)
         data = {"status": "ok", "result": {"payloads": [{"text": text}], "meta": {
@@ -623,8 +629,27 @@ def test_the_robot_proof_asks_bolt_questions_that_name_world_state(host_boundary
                         "Please put the red cube in the drop zone.", BOLT_RESET]
 
 
+def test_the_robot_proof_asks_a_one_tool_brain_for_reset_and_status_separately(host_boundary):
+    h = host_boundary
+    h["model"] = "cascade/cosmos3-edge"
+    result = demo_proof.run_proof(h["repo"], h["state"], "mujoco", True)
+    assert result["verified"] is True
+    messages = [cmd[cmd.index("--message") + 1] for cmd in h["calls"]]
+    assert messages == [demo_proof.READINESS_PROMPT, COSMOS_WORLD, "Please put the red cube in the drop zone.",
+                        "Let's start over.", COSMOS_WORLD]
+
+
+COSMOS_WORLD = "What is the current world state?"
+
+
+def test_cosmos_gets_world_state_questions_that_do_not_name_the_tool():
+    assert demo_proof.proof_prompt("cascade/cosmos3-edge", demo_proof.WORLD_PROMPT) == COSMOS_WORLD
+    assert (demo_proof.proof_prompt("cascade/cosmos3-edge", demo_proof.RESET_PROMPT)
+            == "Let's start over, then show the current world state.")
+
+
 def test_every_other_brain_keeps_mains_robot_proof_questions():
-    for model in ("openai/test", "cascade/qwen3.8-27b", "cascade/cosmos3-edge", "nemotron-3.5-bolt", ""):
+    for model in ("openai/test", "cascade/qwen3.8-27b", "cosmos3-edge", "nemotron-3.5-bolt", ""):
         assert demo_proof.proof_prompt(model, demo_proof.WORLD_PROMPT) == "What is the session status?"
         assert (demo_proof.proof_prompt(model, demo_proof.RESET_PROMPT)
                 == "Let's start over, then show the session status.")

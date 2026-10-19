@@ -1,16 +1,19 @@
-"""What reaches llama-server besides its argv: both llama.cpp brain scripts and the Brev brain (#410 review).
+"""What reaches llama-server besides its argv: both llama.cpp brain scripts and the Brev brain (#410, #415 reviews).
 
 Minor 1: llama-server v0.7.0 applies /etc/llama.cpp/config.ini, then ${XDG_CONFIG_HOME:-$HOME/.config}/llama.cpp/
-config.ini, before the environment and argv (common/arg.cpp `common_params_apply_system_config`). Each takes ANY
-server option, no allowlist (common/preset.cpp): `tools = all` serves exec_shell_command at /tools, `api-prefix = /v1`
-moves every route inside the OpenShell sandbox's /v1/**. The user file follows the caller's XDG_CONFIG_HOME or HOME,
-so the scripts start the server with an empty private config home, and a system file refuses the start, unless the
-operator sets CASCADE_LLAMA_CONFIG_INI=1.
+config.ini, before the environment and argv, and `--help` too (common/arg.cpp `common_params_apply_system_config`, run
+by every parse). Each takes ANY server option, no allowlist (common/preset.cpp): `tools = all` serves exec_shell_command
+at /tools, `api-prefix = /v1` moves every route inside the OpenShell sandbox's /v1/**, `log-file = <path>` truncates
+that file. So every llama-server run, the `--help` capability probe included, gets XDG_CONFIG_HOME=/dev/null (no
+llama.cpp/config.ini can exist under it; arg.cpp:738 is its only reader), and a system file refuses the start before
+the first run, unless the operator sets CASCADE_LLAMA_CONFIG_INI=1.
 Minor 2: the env scrub lists names with `compgen -e`; a bash without it must refuse, not serve unscrubbed.
-Minor 5: deploy/runtime/brain.py drops the same names as the scripts (one list, pinned here).
+Minor 5: deploy/runtime/brain.py drops the same names as the scripts (one list, pinned here), and its server reads no
+config.ini either.
 
-Fakes only: the fake llama-server prints its argv and environment, and each copy of a script names a private file in
-place of /etc/llama.cpp/config.ini. Nothing is downloaded, built or served.
+Fakes only: the fake llama-server applies config.ini as llama.cpp does, logs every call (argv, config home, the files
+it applied) and prints its argv and environment; each copy of a script names a private file in place of
+/etc/llama.cpp/config.ini. Nothing is downloaded, built or served.
 """
 from __future__ import annotations
 
@@ -20,7 +23,6 @@ import json
 import os
 import shlex
 import shutil
-import stat
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -40,8 +42,8 @@ BOLT_HELP = ("--mmproj --alias --chat-template-kwargs --chat-template-file --rea
              "--api-key-file --spec-type none,draft-simple,draft-dflash --load-mode MODE --slot-save-path PATH")
 #: The one system file llama.cpp v0.7.0 reads outside Windows (common/arg.cpp:734); each script names it on this line.
 SYSTEM_LINE = "LLAMA_SYSTEM_CONFIG=/etc/llama.cpp/config.ini"
-#: Where the scripts keep llama-server's empty config home, under ${XDG_STATE_HOME:-$HOME/.local/state}.
-CONFIG_HOME = "cascade/llama-server-config"
+#: llama-server's config home on every run: a path where llama.cpp/config.ini can never exist (ENOTDIR).
+NO_CONFIG_HOME = "/dev/null"
 
 
 @dataclass
@@ -60,19 +62,38 @@ class Brain:
         return subprocess.run(["bash", "-c", 'enable -n compgen && . "$0" "$@"', str(self.script), *args],
                               env={**self.env, **env}, capture_output=True, text=True, timeout=60)
 
-    def own_config_home(self) -> Path:
-        return self.home / ".local/state" / CONFIG_HOME
+    def server_calls(self) -> list[dict]:
+        """Every llama-server run of the last script runs, in order: argv, config home, config files applied."""
+        log = Path(self.env["LLAMA_SERVER"]).parent / "calls.jsonl"
+        return [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
 
     def helper_runs(self) -> list[list[str]]:
         log = self.home / "warm.jsonl"
         return [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
 
 
-def _fake_server(path: Path, help_text: str) -> None:
+def _fake_server(path: Path, help_text: str, system: Path) -> None:
+    """llama-server v0.7.0 as far as config.ini goes: before anything else, `--help` included, it applies `system` (the
+    copy's /etc/llama.cpp/config.ini), then ${XDG_CONFIG_HOME:-$HOME/.config}/llama.cpp/config.ini, whichever exist
+    (std::filesystem::exists: false under /dev/null), and opens a `log-file` for writing (log.cpp: fopen "w"
+    truncates it). Every call is logged beside it."""
     path.parent.mkdir(parents=True)
-    path.write_text(f"#!{sys.executable}\nimport json, os, sys\n"
-                    f"if sys.argv[1:] == ['--help']:\n    print({help_text!r})\n"
-                    "else:\n    print(json.dumps({'server_args': sys.argv[1:], 'env': dict(os.environ)}))\n")
+    path.write_text(f"#!{sys.executable}\n" + f"""import json, os, sys
+home = os.environ.get('XDG_CONFIG_HOME') or os.path.join(os.environ['HOME'], '.config')
+applied = [p for p in ({str(system)!r}, os.path.join(home, 'llama.cpp', 'config.ini')) if os.path.exists(p)]
+for p in applied:
+    for line in open(p):
+        key, _, value = line.partition('=')
+        if key.strip() == 'log-file':
+            open(value.strip(), 'w').close()
+with open({str(path.parent / "calls.jsonl")!r}, 'a') as log:
+    log.write(json.dumps({{'argv': sys.argv[1:], 'XDG_CONFIG_HOME': os.environ.get('XDG_CONFIG_HOME'),
+                          'applied': applied}}) + '\\n')
+if sys.argv[1:] == ['--help']:
+    print({help_text!r})
+else:
+    print(json.dumps({{'server_args': sys.argv[1:], 'env': dict(os.environ)}}))
+""")
     path.chmod(0o755)
 
 
@@ -91,7 +112,7 @@ def _qwen(repo: Path, system: Path) -> tuple[Path, dict]:
     for name in ("Qwen3.8-27B-UD-Q4_K_XL.gguf", "mmproj-BF16.gguf"):
         (models / name).write_bytes(b"GGUF" + b"\0" * 20)
     server = repo / "srv/bin/llama-server"
-    _fake_server(server, "--mmproj --alias --chat-template-kwargs --reasoning")
+    _fake_server(server, "--mmproj --alias --chat-template-kwargs --reasoning", system)
     return script, {"LLAMA_SERVER": str(server), "CASCADE_QWEN_MODEL": str(models / "Qwen3.8-27B-UD-Q4_K_XL.gguf"),
                     "CASCADE_QWEN_MMPROJ": str(models / "mmproj-BF16.gguf")}
 
@@ -117,7 +138,7 @@ def _bolt(repo: Path, system: Path) -> tuple[Path, dict]:
         "import json, os, sys\nwith open(os.path.join(os.environ['HOME'], 'warm.jsonl'), 'a') as f:\n"
         "    f.write(json.dumps(sys.argv[1:]) + '\\n')\n")
     server = repo / "srv/bin/llama-server"
-    _fake_server(server, BOLT_HELP)
+    _fake_server(server, BOLT_HELP, system)
     return script, {"LLAMA_SERVER": str(server)}
 
 
@@ -149,48 +170,77 @@ def refused(result: subprocess.CompletedProcess, code: int = 1) -> str:
     return result.stderr
 
 
-def _write_config(config_home: Path) -> Path:
+def _write_config(config_home: Path, text: str = HOSTILE_CONFIG_INI) -> Path:
     path = config_home / "llama.cpp" / "config.ini"
     path.parent.mkdir(parents=True)
-    path.write_text(HOSTILE_CONFIG_INI)
+    path.write_text(text)
     return path
+
+
+def _victim(tmp_path: Path) -> Path:
+    """A file a stray `log-file = <path>` line would truncate."""
+    victim = tmp_path / "victim.log"
+    victim.write_text("must survive\n")
+    return victim
 
 
 # ── Minor 1: config.ini ────────────────────────────────────────────────────
 
 
+@pytest.mark.parametrize("mode", [(), ("--check",)], ids=["serve", "check"])
 @pytest.mark.parametrize("via", ["XDG_CONFIG_HOME", "HOME"])
-def test_an_inherited_config_ini_never_configures_the_server(brain, tmp_path, via):
+def test_no_llama_server_run_reads_an_inherited_config_ini(brain, tmp_path, via, mode):
     """The caller's config home (an inherited XDG_CONFIG_HOME, or HOME/.config without one) holds a config.ini with
-    `tools = all` and `api-prefix = /v1`: the server starts with an empty private config home instead."""
+    `tools = all`, `api-prefix = /v1` and a stray `log-file`: no llama-server run applies it, the `--help` capability
+    probe included (#415 review, Minor 1: --help parses fully, and `log-file` truncated that file)."""
     caller = tmp_path / "caller-config" if via == "XDG_CONFIG_HOME" else brain.home / ".config"
-    hostile = _write_config(caller)
-    server = started(brain.run(**({"XDG_CONFIG_HOME": str(caller)} if via == "XDG_CONFIG_HOME" else {})))
-    assert llama_config_files(server["env"], brain.system) == []
-    own = brain.own_config_home()
-    assert server["env"]["XDG_CONFIG_HOME"] == str(own)
-    assert stat.S_IMODE(own.stat().st_mode) == 0o700 and list(own.iterdir()) == []
-    assert hostile.read_text() == HOSTILE_CONFIG_INI           # the caller's own file stays as it was
-    # Bolt's warm start still runs beside it (only behind a key).
-    assert bool(brain.helper_runs()) == ("--slot-save-path" in server["server_args"]) == ("API_KEY_FILE" in brain.env)
+    victim = _victim(tmp_path)
+    hostile = _write_config(caller, HOSTILE_CONFIG_INI + f"log-file = {victim}\n")
+    result = brain.run(*mode, **({"XDG_CONFIG_HOME": str(caller)} if via == "XDG_CONFIG_HOME" else {}))
+    assert result.returncode == 0, result.stdout + result.stderr
+    calls = brain.server_calls()
+    assert [c["argv"][:1] for c in calls] == [["--help"]] + ([] if mode else [["--model"]])
+    assert [(c["XDG_CONFIG_HOME"], c["applied"]) for c in calls] == [(NO_CONFIG_HOME, [])] * len(calls)
+    assert victim.read_text() == "must survive\n"
+    assert hostile.read_text().startswith(HOSTILE_CONFIG_INI)          # the caller's own file stays as it was
+    if not mode:
+        server = started(result)
+        assert server["env"]["XDG_CONFIG_HOME"] == NO_CONFIG_HOME
+        assert llama_config_files(server["env"], brain.system) == []
+        # Bolt's warm start still runs beside it (only behind a key), with the caller's config home.
+        assert bool(brain.helper_runs()) == ("--slot-save-path" in server["server_args"]) == ("API_KEY_FILE" in brain.env)
 
 
-def test_the_private_config_home_follows_the_xdg_state_home(brain, tmp_path):
-    server = started(brain.run(XDG_STATE_HOME=str(tmp_path / "state")))
-    assert server["env"]["XDG_CONFIG_HOME"] == str(tmp_path / "state" / CONFIG_HOME)
+@pytest.mark.parametrize("state", ["unwritable", "unset"])
+def test_no_state_directory_is_needed_for_the_config_home(brain, tmp_path, state):
+    """#415 review, Minor 2: the private config home under ${XDG_STATE_HOME:-~/.local/state} made Qwen on llama.cpp
+    need a writable state directory, and its ancestors could be swapped. /dev/null needs nothing to exist."""
+    if state == "unwritable":
+        locked = tmp_path / "locked"
+        locked.mkdir(mode=0o500)
+        env = {"XDG_STATE_HOME": str(locked / "state")}
+    else:
+        env = {"XDG_STATE_HOME": ""}
+    server = started(brain.run(**env))
+    assert server["env"]["XDG_CONFIG_HOME"] == NO_CONFIG_HOME
+    assert not (brain.home / ".local/state/cascade/llama-server-config").exists()
 
 
+@pytest.mark.parametrize("mode", [(), ("--check",), ("--setup-only",)], ids=["serve", "check", "setup"])
 @pytest.mark.parametrize("kind", ["file", "dangling symlink"])
-def test_a_system_config_ini_refuses_the_start(brain, tmp_path, kind):
-    """/etc/llama.cpp/config.ini applies to every start and no flag turns it off: refuse, and say how to opt in."""
+def test_a_system_config_ini_refuses_before_any_llama_server_run(brain, tmp_path, kind, mode):
+    """/etc/llama.cpp/config.ini applies to every run, `--help` too, and no flag turns it off: refuse before the first
+    run (#415 review, Minor 1: the --help probe ran first and applied it), and say how to opt in."""
+    victim = _victim(tmp_path)
     brain.system.parent.mkdir(parents=True)
     if kind == "file":
-        brain.system.write_text(HOSTILE_CONFIG_INI)
+        brain.system.write_text(HOSTILE_CONFIG_INI + f"log-file = {victim}\n")
     else:                                    # read the moment its target appears
         brain.system.symlink_to(tmp_path / "not-yet")
-    for args in ((), ("--check",)):
-        why = refused(brain.run(*args))
-        assert str(brain.system) in why and "CASCADE_LLAMA_CONFIG_INI=1" in why, why
+    why = refused(brain.run(*mode))
+    assert str(brain.system) in why and "CASCADE_LLAMA_CONFIG_INI=1" in why, why
+    assert brain.server_calls() == []
+    assert victim.read_text() == "must survive\n"
     assert brain.helper_runs() == []
 
 
@@ -201,9 +251,9 @@ def test_the_opt_in_serves_with_both_config_files_and_says_so(brain, tmp_path):
     result = brain.run(CASCADE_LLAMA_CONFIG_INI="1", XDG_CONFIG_HOME=str(tmp_path / "caller-config"))
     server = started(result)
     assert llama_config_files(server["env"], brain.system) == [brain.system, user]
+    assert [c["applied"] for c in brain.server_calls()] == [[str(brain.system), str(user)]] * 2
     assert "WARNING" in result.stderr and "CASCADE_LLAMA_CONFIG_INI=1" in result.stderr, result.stderr
     assert str(brain.system) in result.stderr and str(user) in result.stderr
-    assert not brain.own_config_home().exists()
 
 
 def test_the_opt_in_off_is_the_default(brain):
@@ -215,58 +265,7 @@ def test_the_opt_in_off_is_the_default(brain):
 @pytest.mark.parametrize("value", ["yes", "2", "1 ", "true"])
 def test_a_bad_opt_in_value_is_refused(brain, value):
     assert "CASCADE_LLAMA_CONFIG_INI" in refused(brain.run(CASCADE_LLAMA_CONFIG_INI=value), code=2)
-
-
-@pytest.mark.parametrize("problem", ["holds a config.ini", "holds anything", "a symlink", "a file"])
-def test_a_config_home_that_cannot_be_private_and_empty_refuses_the_start(brain, tmp_path, problem):
-    own = brain.own_config_home()
-    own.parent.mkdir(parents=True)
-    if problem == "holds a config.ini":
-        own.mkdir(mode=0o700)
-        _write_config(own)
-    elif problem == "holds anything":
-        own.mkdir(mode=0o700)
-        (own / ".keep").write_text("")
-    elif problem == "a symlink":
-        (tmp_path / "elsewhere").mkdir()
-        own.symlink_to(tmp_path / "elsewhere")
-    else:
-        own.write_text("a file where the directory goes")
-    assert str(own) in refused(brain.run())
-    assert brain.helper_runs() == []
-
-
-def test_an_existing_empty_config_home_is_made_private(brain):
-    own = brain.own_config_home()
-    own.mkdir(parents=True)
-    own.chmod(0o755)
-    started(brain.run())
-    assert stat.S_IMODE(own.stat().st_mode) == 0o700
-
-
-def _shim(brain: Brain, tmp_path: Path, command: str, foreign: str) -> dict:
-    """PATH with `command` answering for the config home as for a directory this user cannot use."""
-    shims = tmp_path / "shims"
-    shims.mkdir()
-    (shims / command).write_text(f'#!/bin/bash\nif [[ "${{@: -1}}" == */llama-server-config ]]; then {foreign}; '
-                                 f'else exec /usr/bin/{command} "$@"; fi\n')
-    (shims / command).chmod(0o755)
-    return {"PATH": f"{shims}{os.pathsep}{brain.env['PATH']}"}
-
-
-@pytest.mark.parametrize("command, foreign", [("stat", "echo 4242"), ("ls", "exit 2")],
-                         ids=["of another user", "cannot be listed"])
-def test_a_config_home_that_cannot_be_checked_refuses_the_start(brain, tmp_path, command, foreign):
-    # Another user's directory cannot be made here without root: `stat` answers another uid for it instead. An
-    # `ls` that fails must not read as "empty".
-    why = refused(brain.run(**_shim(brain, tmp_path, command, foreign)))
-    assert str(brain.own_config_home()) in why
-    assert brain.helper_runs() == []
-
-
-def test_check_creates_no_config_home(brain):
-    assert brain.run("--check").returncode == 0
-    assert not brain.own_config_home().exists()
+    assert brain.server_calls() == []
 
 
 def test_both_scripts_name_the_system_config_llamacpp_reads():
@@ -309,11 +308,17 @@ def test_the_scripts_and_the_brev_brain_drop_one_list():
 
 def test_the_brev_brain_starts_llama_server_without_the_inherited_settings(monkeypatch, tmp_path):
     """deploy/runtime/brain.py dropped only LLAMA_ARG_*: LLAMA_API_KEY (an extra key), AIP_* (another port and a
-    route to every endpoint) and LLAMA_SERVER_SLOTS_DEBUG (slot prompt text in GET /slots) reached its server."""
+    route to every endpoint) and LLAMA_SERVER_SLOTS_DEBUG (slot prompt text in GET /slots) reached its server, and it
+    read the deployment-wide config home's llama.cpp/config.ini."""
     brain = _brev_brain()
     hostile = {**HOSTILE_LLAMA_ENV, "LLAMA_SERVER_SLOTS_DEBUG": "1"}
     for name, value in {**hostile, **BENIGN_ENV}.items():
         monkeypatch.setenv(name, value)
+    # The deployment-wide config home (deploy/runtime/runtime.py: $PAAI_DATA_DIR/config), shared with OpenClaw and
+    # every other worker of the container uid, holding a llama.cpp config.ini (#415 review, Minor 3).
+    shared = tmp_path / "paai/config"
+    _write_config(shared)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(shared))
     monkeypatch.setattr(brain.signal, "signal", lambda *args: None)
     dump = tmp_path / "server-env.json"
     server = tmp_path / "fake_llama_server.py"
@@ -325,3 +330,5 @@ def test_the_brev_brain_starts_llama_server_without_the_inherited_settings(monke
     env = json.loads(dump.read_text())
     assert leaked(env, hostile) == {}
     assert dropped(env) == {} and (env["CUDA_VISIBLE_DEVICES"], env["GGML_SCHED_DEBUG"]) == ("0", "1")
+    assert env["XDG_CONFIG_HOME"] == NO_CONFIG_HOME
+    assert llama_config_files(env, Path("/etc/llama.cpp/config.ini")) == []

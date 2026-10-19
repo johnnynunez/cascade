@@ -208,6 +208,32 @@ class _MeshArmState:
         return _body_mask_state(arm)
 
 
+class _RigHeartbeat:
+    """Fresh perception keeps EVERY arm's watchdog alive on a rig: the cameras
+    watch the shared table, not one arm. The watcher heartbeats this; with one
+    harness per arm (#400 follow-up, the MuJoCo pair acceptance): only the
+    primary's was kept alive, so a motion on another arm longer than
+    `watchdog_s` between its skill's own observes (a MuJoCo pick, the park at
+    shutdown) stopped with "perception watchdog: last observation 7.7s old"."""
+
+    def __init__(self, harnesses):
+        self._harnesses = tuple(harnesses)
+
+    def heartbeat(self) -> None:
+        for harness in self._harnesses:
+            harness.heartbeat()
+
+
+def _watcher_heartbeat(arm_rig, primary_harness):
+    """What the watcher heartbeats: the primary's harness itself on one arm
+    (unchanged), every arm's harness on a rig of two or more. Harnesses are
+    read from the SafeArm's instance dict (never a LazyArm attribute probe)."""
+    arms = list(getattr(arm_rig, "arms", {}).values()) if arm_rig is not None else []
+    if len(arms) < 2:
+        return primary_harness
+    return _RigHeartbeat([a.__dict__["harness"] for a in arms])
+
+
 class _ArmPrepass(NamedTuple):
     """One arm's pure-config build (`_arm_safety`), made before its backend."""
 
@@ -1018,7 +1044,7 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
             # that silently turns the always-on world model into a closed set.
             classes=list(cfg.get("detect_classes") or []) or None,
             rate_hz=float(pcfg.get("rate_hz", 3.0)),
-            harness=harness,
+            harness=_watcher_heartbeat(arm_rig, harness),
             workspace=workspace_filter,
             occupancy=occupancy,
             link_mask=link_self_mask,
@@ -1955,6 +1981,16 @@ def _premotion_critic(cfg, llm, runtime, is_mock: bool):
         verifier = make_plausibility_verifier(llm)
     # `Cfg` and dict both answer .get("min"/"max"), which is all the digest reads.
     workspace = cfg.safety.get("workspace") if "safety" in cfg else None
+    template = None
+    from ..robot_context import declares_base_pose
+
+    if declares_base_pose(cfg):
+        # base_pose spec §3.5 (R11): the beliefs are table-frame; the
+        # workspace box is one arm's, in its own base frame, so it is not
+        # quoted beside them.
+        from ..agent.prompts import PLAUSIBILITY_USER_TABLE_FRAME
+
+        template, workspace = PLAUSIBILITY_USER_TABLE_FRAME, None
     return PlausibilityChecker(
         verifier,
         beliefs=getattr(runtime, "beliefs", None),
@@ -1962,6 +1998,7 @@ def _premotion_critic(cfg, llm, runtime, is_mock: bool):
         max_checks=int(agent_cfg.get("premotion_max_checks", 3)),
         workspace=workspace,
         skip_reason=skip_reason,
+        prompt_template=template,
     )
 
 

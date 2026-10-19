@@ -207,6 +207,11 @@ Once every perceived point is in B, several things hold with no further code:
     attachment;
   - `reset_scene` with `_held_arm` set and different from the running arm refuses before any motion:
     "<obj> is held by arm 'Y'".
+  - every reader that turns the rig-wide hold into THIS arm's load or text asks `_held_by_another_arm()` first,
+    on EVERY multi-arm rig, with or without a base_pose (the hold slot is one per runtime either way): the spatial
+    moves' `carried()` plans and reports with empty jaws on the arm that does not hold (#400 review Important 1),
+    and `close_gripper` with unread jaws on that arm closes as with nothing held instead of refusing "place it
+    first" (#400 re-review; only the holder's jaws can be on the object, and the close never commands them).
 
 ### 3.5 Agent contract text (D7; #352 Minors 1-3)
 
@@ -216,6 +221,16 @@ Once every perceived point is in B, several things hold with no further code:
   - One sentence is added: "the same numbers for every arm on this rig".
   - Rigs with no base_pose keep byte-identical specs.
 - **`list_arms`:** #352's sentence is removed.
+- **Which rigs switch.** "Declares a base_pose" means a pose that moves an arm off the table origin: the exact
+  identity counts as none (§4), so `so101_left` alone at `[0]*6` keeps every string. The coordinate tools are the
+  ones whose description names a position frame: `localize_object`, `place_at`, `annotated_view`, `probe_point`
+  (`TABLE_FRAME_TOOLS`, pinned against `TOOL_SPECS`); `analyze_scene` and `annotated_view` switch their result key
+  and note. move_relative keeps "the robot base frame" for its DIRECTIONS (D8).
+- **The safety harness's refusal texts** ("TCP [x, y, z] outside workspace [..]", "TCP z=... below table
+  clearance ...", "link/joint i at z=... would hit the table", "TCP inside keep-out zone ..") and the wrist
+  camera's keep-out text quote table-frame numbers on a base_pose arm (points and box corners lifted by the
+  base_pose, heights as the table-frame z of their point); the decisions are unchanged and arms without a
+  base_pose keep the exact text (#400 re-review (4)).
 - **Agent text outside the tool specs (R11).** The same condition (any arm declares a base_pose) switches:
   - `robot_context.describe_robot` ("Cartesian tool targets use the robot base frame"), which reaches the system
     prompt, the advisor and the MCP domains;
@@ -335,6 +350,7 @@ Each converted site gets a RED test on a base 3 cm above the table plane (`base_
 | Eye-in-hand camera + any arm with a non-identity base_pose | the build refuses in the pre-pass | 0 make / 0 connect | none |
 | Release skill (place_at, place_on_object, throw, handover) on the arm that does not hold the object | refused by `_check_holding_arm`: "<obj> is held by arm 'Y', not 'X'" (the held-observation binding stays a second layer) | 0 | none |
 | `open_gripper` on an arm that does not hold the object (R5) | opens that arm's own jaws; `held_object`, `_held_arm` and the carry attachment stay | that arm's jaw only | none |
+| `close_gripper` with unread jaws on an arm that does not hold the object (#400 re-review) | closes as with nothing held; the hold stays the holder's | that arm's jaw only | none |
 | `reset_scene` while another arm holds the object (R5) | refused: "<obj> is held by arm 'Y'" | 0 | none |
 | Provisional hold, another arm bound (R5) | `_reconcile_held` neither promotes nor refutes it | as today | as today |
 | `place_at` on a base_pose arm with a MuJoCo region plan (`_model_plan`) or a declared `mj_delivery_area` / `mj_release_*` (R9) | refused: "region placement / model release is not supported on a base_pose arm" | 0 | none |
@@ -423,6 +439,20 @@ Each converted site gets a RED test on a base 3 cm above the table plane (`base_
   not declared on rig arms. They admit only a root at the kinematic origin and are not converted (R9). A base_pose
   arm that declares them refuses place_at's model release.
 - One envelope file still serves all arms; each arm's scalars are in its own frame.
+- The carry attachment is one runtime slot (T5 review Minor 4): on a pair, another arm's jaw read or carry check
+  rejects arm X's attachment, so X's next transport stops "attachment lost or unavailable" (fail closed: nothing
+  opens, homes or drops). Latent: attachments arm only on Isaac backends with `attachment_feedback_version == 1`,
+  and no two-arm Isaac rig ships. The fix is a per-arm attachment (35 call sites).
+- Under `CASCADE_REQUIRE_CUDA=1` (Spark Isaac only) fix points are CUDA tensors, and `arm_frame._fix_through` /
+  `SkillRuntime._belief_to_arm` call `np.asarray` on them, so a base_pose arm would raise there (T3 review
+  Minor 4): loudly, never a wrong target. No base_pose + Isaac combination ships.
+- The viewers draw the running arm's workspace grid lifted onto the table; on a yawed mount its lines follow the
+  arm's axes, and the tick values are the table-frame X of the points where they sit.
+- Found by the MuJoCo pair acceptance (Task 8), fixed with it: the WorldWatcher heartbeat fed only the PRIMARY
+  arm's perception watchdog, so a motion on another arm of ANY multi-arm rig stopped "perception watchdog: last
+  observation 7.7s old" once its own observes were further apart than `watchdog_s` (the MuJoCo pick; the right
+  arm's shutdown park). The watcher now heartbeats every arm's harness (the cameras watch the shared table);
+  a single arm keeps its own harness object. `watchdog_s` is unchanged.
 
 ## 10. Open questions
 

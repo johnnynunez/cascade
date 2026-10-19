@@ -9,6 +9,11 @@
 # a lower bound on the MuJoCo mesh distance, with `neighbor_clearance_m` as
 # the margin; SKIPPED for a standby arm with no static partition underneath;
 # base_pose is a MEASUREMENT you must take on your own table).
+#
+# Frames, as in so101_left.yaml: base_pose is where this arm's base stands in
+# the shared table frame; agent coordinates are table-frame; `drop_zone` below
+# is in THIS arm's base frame ([0.20, -0.12] is table (0.20, -0.34)).
+# pick_and_place(object=..., arm="so101_right") places at that drop zone.
 extends: so101
 
 type: mock

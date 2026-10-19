@@ -11,12 +11,19 @@
 #
 # Each arm gets its own SafetyHarness with its own workspace box, velocity cap
 # and joint limits (see control/arm_rig.py). On top of that, `base_pose` below
-# declares where this arm is bolted relative to a SHARED TABLE FRAME, which is
-# what makes a real inter-arm check possible: every other position in this
-# codebase is in the ROBOT BASE frame, and two arms' link positions are not
-# comparable until both are lifted into one common frame. With base_pose set
-# on both arms, each harness gates every 50 Hz waypoint on the measured
-# distance to the neighbour's links (`safety.neighbor_clearance_m`).
+# declares where this arm's base stands in the SHARED TABLE FRAME (the frame of
+# the cameras, the beliefs, the occupancy map and the MuJoCo world). With
+# base_pose set on both arms, each harness gates every 50 Hz waypoint on the
+# measured distance to the neighbour's links (`safety.neighbor_clearance_m`).
+#
+# FRAMES (docs/superpowers/specs/2026-10-17-base-pose-runtime-frame-design.md):
+# - agent coordinates are TABLE-frame, in and out: place_at(x, y) and every
+#   reported position are the same numbers whichever arm runs the call;
+# - this file's own positions (`drop_zone`, the workspace box, `table_z`,
+#   keep-outs) are in THIS ARM's base frame: drop_zone [0.20, 0.12] below is
+#   table (0.20, 0.34);
+# - directions (push "left", bare move_relative) are this arm's own.
+# The advertised pick-and-place works on either arm (`arm="so101_right"`).
 #
 # THE CHECK IS SEGMENT-TO-SEGMENT WITH A PER-LINK THICKNESS, NOT MESH
 # COLLISION. Each link is the straight segment between two joint origins

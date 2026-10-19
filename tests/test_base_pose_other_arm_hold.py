@@ -320,6 +320,66 @@ def test_close_gripper_on_the_other_arm_with_its_jaws_unread_closes(make_runtime
         assert rt._held_provisional is prov and not rt.held_object
 
 
+def _unread_jaws(rt, monkeypatch, name):
+    """Arm `name`'s jaws give no valid reading from here on."""
+    raw = raw_arm(rt.arm_rig.get(name))
+    real = type(raw).get_state.__get__(raw)
+    monkeypatch.setattr(raw, "get_state", lambda *a, _real=real, **k: dataclasses.replace(_real(*a, **k),
+                                                                                       gripper_valid=False))
+
+
+#: close_gripper's reported fields compared between "nothing held" and
+#: "another arm holds" (the postcondition reads this arm's unread jaws alike).
+_CLOSE_REPORTED = ("ok", "gripper", "open_frac", "stages_skipped", "note", "error", "outcome", "next_action",
+                   "verified", "verification_note", "postcondition")
+
+
+@pytest.mark.parametrize("holder", ["so101_right", "so101_left"])
+def test_close_gripper_with_unread_jaws_on_the_arm_that_does_not_hold_closes_as_with_nothing_held(
+        make_runtime, gate_off, monkeypatch, holder):  # noqa: F811
+    """#400 re-review (2): one arm holds the cube; close_gripper on the OTHER
+    arm, whose own jaws cannot be read, refused "the jaw state could not be
+    read while holding 'red cube' ... place it first (place_at)", and that
+    place_at is refused ("held by arm <holder>"): a dead end. Only the
+    holder's jaws can be on the cube, and this close never commands them: the
+    empty arm closes exactly as with nothing held (result fields, its jaw
+    commands), the holder gets no command, and the hold stays the holder's."""
+    mover = _OTHER_ARM[holder]
+    runs = []
+    for hold in (False, True):
+        rt = make_runtime(_pair_reaching(holder))
+        if hold:
+            assert rt.execute("grasp_object", {"label": "red cube", "arm": holder})["held"] == "red cube"
+        _unread_jaws(rt, monkeypatch, mover)
+        log = _JawLog(rt, monkeypatch)
+        mark, j0 = log.mark(), len(log.jaws[mover])
+        result = rt.execute("close_gripper", {"arm": mover})
+        runs.append(({k: result.get(k) for k in _CLOSE_REPORTED}, log.jaws[mover][j0:], log.since(mark)))
+        assert (rt.held_object, rt._held_arm) == (("red cube", holder) if hold else (None, None))
+    (free, free_jaws, free_sent), (held, held_jaws, held_sent) = runs
+    assert free["ok"] is True and free_jaws, free                  # nothing held: the unread jaws close
+    assert held == free, (held, free)
+    assert held_jaws == free_jaws
+    assert held_sent == free_sent == ({"so101_left": 0, "so101_right": 0},
+                                      {holder: 0, mover: len(free_jaws)}), held_sent
+
+
+@pytest.mark.parametrize("holder", ["so101_right", "so101_left"])
+def test_close_gripper_with_unread_jaws_on_the_holding_arm_still_refuses(make_runtime, gate_off,  # noqa: F811
+                                                                         monkeypatch, holder):
+    """The holder control: its own jaws may be on the cube, so its unread close
+    is refused before any command, as on a single arm."""
+    rt = make_runtime(_pair_reaching(holder))
+    assert rt.execute("grasp_object", {"label": "red cube", "arm": holder})["held"] == "red cube"
+    _unread_jaws(rt, monkeypatch, holder)
+    log = _JawLog(rt, monkeypatch)
+    mark = log.mark()
+    result = rt.execute("close_gripper", {"arm": holder})
+    assert result["ok"] is False and "the jaw state could not be read while holding 'red cube'" in result["error"]
+    assert log.since(mark) == _NOTHING_SENT
+    assert (rt.held_object, rt._held_arm) == ("red cube", holder)
+
+
 def test_already_holding_on_a_single_arm_reads_as_before(make_runtime, gate_off):  # noqa: F811
     rt = make_runtime(_world_object_rig())
     assert rt.execute("grasp_object", {"label": "red cube"})["held"] == "red cube"
@@ -488,12 +548,20 @@ def test_the_frozen_planning_prior_is_the_running_arms_row(monkeypatch):
 # ── #400 review Important 1: the arm that does not hold moves with its own empty jaws ──
 
 
-def _pair_without_wrist_box():
-    """`_pair_reaching("so101_right")` with `relative_motion.wrist_camera: null`:
-    the so101's TCP approach is parallel to the default camera-up axis, so with
-    the shipped box every spatial move on it raises before it is vetted."""
-    cfg = _pair_reaching("so101_right")
+def _pair_without_wrist_box(holder="so101_right"):
+    """`_pair_reaching(holder)` with `relative_motion.wrist_camera: null` at the
+    top level and in each arm's resolved view (a non-primary arm binds its own,
+    Q4 a): the so101's TCP approach is parallel to the default camera-up axis,
+    so with the shipped box every spatial move on it raises before it is
+    vetted."""
+    cfg = _pair_reaching(holder)
     cfg._data["relative_motion"]["wrist_camera"] = None
+    for entry in cfg._data.get("arms") or []:
+        resolved = (entry._data if hasattr(entry, "_data") else entry).get("resolved")
+        view = None if resolved is None else (resolved._data if hasattr(resolved, "_data") else resolved)
+        motion = None if view is None else view.get("relative_motion")
+        if motion is not None:
+            (motion._data if hasattr(motion, "_data") else motion)["wrist_camera"] = None
     return cfg
 
 
@@ -527,41 +595,50 @@ _EMPTY_ARM_MOVES = {
     "roll": ("rotate_gripper", {"direction": "clockwise", "angle_deg": 10}),
     "above the table": ("move_near_object", {"label": "table", "relation": "above"}),
 }
-_EMPTY_ARM_ROWS = [("no wrist box", c) for c in ("just above the table", "closer to the cube", "down", "left", "roll")] \
-    + [("shipped pair", c) for c in ("above the table", "closer to the cube")]
+_EMPTY_ARM_ROWS = [("so101_left", "no wrist box", c)
+                   for c in ("just above the table", "closer to the cube", "down", "left", "roll")] \
+    + [("so101_left", "shipped pair", c) for c in ("above the table", "closer to the cube")] \
+    + [("so101_right", "no wrist box", c)                     # #400 re-review (5): the right arm moves
+       for c in ("just above the table", "closer to the cube", "down", "left", "roll")]
+#: The empty-arm moves that complete with nothing held, by mover (rig "no wrist
+#: box"): those rows compare two completed moves, not two refusals.
+_COMPLETES = {"so101_left": {"just above the table", "down", "left", "roll"},
+              "so101_right": {"just above the table", "down", "left", "roll"}}
 _REPORTED = ("ok", "moved", "holding", "speed", "interpretation", "summary", "error", "refused_by")
 
 
-@pytest.mark.parametrize("rig,call", _EMPTY_ARM_ROWS, ids=[f"{r}: {c}" for r, c in _EMPTY_ARM_ROWS])
+@pytest.mark.parametrize("mover,rig,call", _EMPTY_ARM_ROWS, ids=[f"{m} {r}: {c}" for m, r, c in _EMPTY_ARM_ROWS])
 def test_the_arm_that_does_not_hold_moves_as_if_nothing_were_held(make_runtime, gate_off, monkeypatch,  # noqa: F811
-                                                                   rig, call):
+                                                                   mover, rig, call):
     """#400 review Important 1 (spec D9: the held offset belongs to the
-    grasping arm): so101_right holds the cube. A spatial move on so101_left
+    grasping arm): the other arm holds the cube. A spatial move on the mover
     read the rig-wide hold as its own: a phantom load 6 cm under its empty
     jaws refused moves by "the held-object clearance check" or by reach,
     slowed the rest and reported "holding 'red cube'" ("the held object's
     bottom 5.0 cm over its top"); a move toward the cube was refused with "I
-    am holding the 'red cube'". so101_left now sends the commands and reports
-    what the same move gives with nothing held; the hold stays so101_right's."""
+    am holding the 'red cube'". The mover now sends the commands and reports
+    what the same move gives with nothing held; the hold stays the holder's.
+    Both arms take each role (#400 re-review (5))."""
+    holder = _OTHER_ARM[mover]
     skill, args = _EMPTY_ARM_MOVES[call]
     runs = []
     for hold in (False, True):
-        rt = make_runtime(_pair_without_wrist_box() if rig == "no wrist box" else _pair_reaching("so101_right"))
+        rt = make_runtime(_pair_without_wrist_box(holder) if rig == "no wrist box" else _pair_reaching(holder))
         if hold:
-            assert rt.execute("grasp_object", {"label": "red cube", "arm": "so101_right"})["held"] == "red cube"
-        left = raw_arm(rt.arm_rig.get("so101_left"))
-        n0, loads = len(left.commands), _loads_planned(rt, monkeypatch)
-        result = rt.execute(skill, {**args, "arm": "so101_left"})
-        runs.append(({k: result.get(k) for k in _REPORTED}, [list(q) for q in left.commands[n0:]]))
+            assert rt.execute("grasp_object", {"label": "red cube", "arm": holder})["held"] == "red cube"
+        arm = raw_arm(rt.arm_rig.get(mover))
+        n0, loads = len(arm.commands), _loads_planned(rt, monkeypatch)
+        result = rt.execute(skill, {**args, "arm": mover})
+        runs.append(({k: result.get(k) for k in _REPORTED}, [list(q) for q in arm.commands[n0:]]))
         _no_hold_claimed(result, loads)
     (nothing_held, cmds_free), (other_holds, cmds_held) = runs
     assert other_holds == nothing_held, (other_holds, nothing_held)
     assert len(cmds_held) == len(cmds_free) and all(
         max(abs(a - b) for a, b in zip(x, y)) <= 1e-9 for x, y in zip(cmds_held, cmds_free)), (len(cmds_held),
                                                                                                 len(cmds_free))
-    if rig == "no wrist box" and call != "closer to the cube":
+    if rig == "no wrist box" and call in _COMPLETES[mover]:
         assert nothing_held["moved"] is True and cmds_free, nothing_held          # a completed move compared
-    assert (rt.held_object, rt._held_arm) == ("red cube", "so101_right")
+    assert (rt.held_object, rt._held_arm) == ("red cube", holder)
 
 
 def test_a_runtime_double_without_the_rig_hold_query_keeps_its_hold():
@@ -588,6 +665,30 @@ def test_the_undo_on_the_arm_that_does_not_hold_retraces_with_its_empty_jaws(mak
     assert result.get("moved") is True and len(loads) == 2, (result, loads)
     _no_hold_claimed(result, loads)
     assert (rt.held_object, rt._held_arm) == ("red cube", "so101_right")
+
+
+@pytest.mark.parametrize("holder", ["so101_right", "so101_left"])
+def test_the_holding_arm_completes_a_carry_with_its_load(make_runtime, gate_off, monkeypatch, holder):  # noqa: F811
+    """#400 re-review (5), the holder side of D9 with COMPLETED moves: the arm
+    that holds the cube carries it home and then up 2 cm, planning every
+    route with its load (the cube's drop under its jaws) and reporting
+    "holding 'red cube'"; a move of the other arm after that carry still plans
+    with empty jaws, and the hold stays the holder's."""
+    rt = make_runtime(_pair_without_wrist_box(holder))
+    assert rt.execute("grasp_object", {"label": "red cube", "arm": holder})["held"] == "red cube"
+    assert rt.execute("move_home", {"arm": holder})["ok"] is True
+    loads = _loads_planned(rt, monkeypatch)
+    raw = raw_arm(rt.arm_rig.get(holder))
+    n0 = len(raw.commands)
+    result = rt.execute("move_relative", {"direction": "up", "frame": "base", "distance_m": 0.02, "arm": holder})
+    assert result["ok"] is True and result["moved"] is True and result["holding"] == "red cube", result
+    assert len(raw.commands) > n0
+    assert loads and all(load.label == "red cube" and load.drop_m > 0.0 for load in loads), loads
+    mover, other_loads = _OTHER_ARM[holder], _loads_planned(rt, monkeypatch)
+    after = rt.execute("move_relative", {"direction": "down", "frame": "base", "distance_m": 0.02, "arm": mover})
+    assert after["moved"] is True, after
+    _no_hold_claimed(after, other_loads)
+    assert (rt.held_object, rt._held_arm) == ("red cube", holder)
 
 
 def test_the_holding_arm_still_moves_with_its_load(make_runtime, gate_off, monkeypatch):  # noqa: F811

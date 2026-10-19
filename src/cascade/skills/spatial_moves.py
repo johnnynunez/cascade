@@ -392,8 +392,12 @@ def _camera_volume(rt, poses, s: Settings):
         if hits:
             # no escape rule, like the harness's own keep-out check for the TCP
             where = "is already inside" if hits[0] == 0 else "would enter"
+            # The zone is this arm's (its base frame); the agent reads
+            # table-frame numbers (T3 re-review: lifted corners on a base_pose).
+            T = _world_from_base(rt)
+            lo, hi = arm_frame.to_world(T, kmin), arm_frame.to_world(T, kmax)
             return "wrist_camera", (f"{what} {where} keep-out zone "
-                                    f"{np.round(kmin, 3).tolist()}..{np.round(kmax, 3).tolist()}")
+                                    f"{np.round(lo, 3).tolist()}..{np.round(hi, 3).tolist()}")
     if s.camera_occupancy and getattr(harness, "occupancy", None) is not None:
         for b in boxes:
             reason = harness._arm_occupancy_violation(b.points(0.02), None)

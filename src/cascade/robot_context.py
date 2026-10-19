@@ -1,23 +1,63 @@
 """Hardware facts shared by the planner and MCP discovery; no device imports."""
 
+import numpy as np
+
 
 def arm_profiles(cfg):
     return [a.as_dict() if hasattr(a, "as_dict") else a
             for a in (cfg.get("arms") or [cfg.arm])]
 
 
+def _moves_the_base(pose) -> bool:
+    """A declared `base_pose` that moves the arm off the table origin. The
+    exact identity counts as none (base_pose spec §4); a pose that does not
+    parse counts as one (the build refuses it before any arm is made)."""
+    if pose is None:
+        return False
+    from .types import pose_to_transform
+
+    try:
+        T = pose_to_transform(pose)
+    except (TypeError, ValueError):
+        return True
+    return not bool((T == np.eye(4)).all())
+
+
+def declares_base_pose(cfg) -> bool:
+    """Any arm of this rig declares a base_pose (base_pose spec D7): its agent
+    text then says that coordinates are in the shared TABLE frame. A rig
+    without one keeps every string byte-identical."""
+    if cfg is None:
+        return False
+    try:
+        arms = arm_profiles(cfg)
+    except (AttributeError, KeyError, TypeError):    # no arm section (a viewer's config double)
+        return False
+    return any(_moves_the_base(arm.get("base_pose")) for arm in arms)
+
+
 def describe_robot(cfg):
     lines = []
+    table_frame = declares_base_pose(cfg)
     for raw in arm_profiles(cfg):
         arm = raw.as_dict() if hasattr(raw, "as_dict") else raw
         grip = arm.get("gripper", {})
         name = arm.get("name", "primary")
+        if table_frame:
+            pose = arm.get("base_pose")
+            where = (f"stands at base_pose {list(pose)} (x, y, z m; roll, pitch, yaw rad) in it"
+                     if _moves_the_base(pose) else "stands at its origin")
+            targets = ("Cartesian tool targets and reported positions use the shared table frame, in metres: "
+                       "the same numbers for every arm on this rig. This arm's base "
+                       f"({arm.get('base_frame', 'profile base')}) {where}.")
+        else:
+            targets = (f"Cartesian tool targets use the robot base frame ({arm.get('base_frame', 'profile base')}), "
+                       "in metres.")
         lines.append(
             f"Arm {name}: {arm.get('display_name', name)}, {arm['n_joints']}-DOF; "
             f"transport {arm['type']}. Joint numbers are 1..{arm['n_joints']}. "
             "Joint vectors use radians; rotate_joint takes relative degrees. "
-            f"TCP frame: {arm.get('ee_frame', 'profile TCP')}. "
-            f"Cartesian tool targets use the robot base frame ({arm.get('base_frame', 'profile base')}), in metres."
+            f"TCP frame: {arm.get('ee_frame', 'profile TCP')}. " + targets
         )
         if grip:
             lines.append(

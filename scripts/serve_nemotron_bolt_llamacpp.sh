@@ -59,7 +59,8 @@
 # way), and the OpenShell sandbox reaches only /v1/* of this brain
 # (scripts/openshell_rig.py brain_profile). A warm start that cannot run (no
 # key, no helper, a llama-server without --slot-save-path, a slot directory that
-# cannot be private) is turned off with a warning; the brain serves without it.
+# cannot be private) is turned off with a warning; the brain serves without it,
+# and without any LLAMA_SERVER_SLOTS_DEBUG the caller exported.
 #
 # Knobs: PORT (8080), API_KEY_FILE, CTX (65536 per slot), PARALLEL (2),
 # SPEC (dflash | none: the LiLiCorr drafter or none), NSPEC (7, drafted tokens),
@@ -269,8 +270,13 @@ if [[ "$WARM_START" == 1 ]]; then
           --slot-save-dir "$warm_slots" --chat-template-file "$CHAT_TEMPLATE_FILE" --model-file "$MODEL_FILE")
     [[ -z "$key_file" ]] || warm+=(--api-key-file "$key_file")
     "$PY" -B "$WARM_HELPER" "${warm[@]}" &
-    export LLAMA_SERVER_SLOTS_DEBUG="${LLAMA_SERVER_SLOTS_DEBUG:-1}"
+    # On whatever the caller exported: the helper reads the slots' prompts.
+    export LLAMA_SERVER_SLOTS_DEBUG=1
     set -- "$@" --slot-save-path "$warm_slots"
+else
+    # Never inherited: with it GET /slots shows every slot's prompt text, here
+    # possibly to any local process (no key).
+    unset LLAMA_SERVER_SLOTS_DEBUG
 fi
 # The model card's llama.cpp recipe (q8_0 KV; DFlash with the LiLiCorr GGUF
 # drafter when SPEC=dflash), loopback only, thinking off, one context of CTX

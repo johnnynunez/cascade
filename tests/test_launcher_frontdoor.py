@@ -27,7 +27,7 @@ def test_private_delivery_artifacts_are_ignored_without_hiding_manifests(tmp_pat
     shutil.copy2(REPO / ".gitignore", tmp_path / ".gitignore")
     artifacts = [
         ".openclaw-cli/bin/openclaw", ".cosmos-omni/bin/python",
-        ".cosmos/bin/vllm", ".isaacsim/bin/python",
+        ".cosmos/bin/vllm", ".cosmos-vllm-0.32.0-cu130/bin/vllm", ".isaacsim/bin/python",
         "models/Cosmos3-Edge-hf/config.json", "models/.Cosmos3-Edge-hf.lock",
         "models/.Cosmos3-Edge-hf.staging-test/model.safetensors",
         ".llama.cpp/build/bin/llama-server", "models/qwen3.8-27b/LICENSE",

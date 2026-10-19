@@ -229,6 +229,8 @@ __marimo__/
 /.hug-src/
 /.nvblox/
 /.cosmos/
+# serve_cosmos_vllm.sh: one environment per vLLM version and torch build.
+/.cosmos-vllm-*/
 /.cosmos-omni/
 /.llama.cpp/
 /models/qwen3.8-27b/

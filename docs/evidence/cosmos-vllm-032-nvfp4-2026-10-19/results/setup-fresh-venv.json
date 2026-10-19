@@ -1,0 +1,94 @@
+{
+  "state": "prepared-unverified",
+  "engine": "vllm",
+  "model_component": "hf-reasoner-only",
+  "vllm_omni": false,
+  "native_generation_verified": false,
+  "stack": {
+    "vllm": "0.32.0",
+    "torch": "2.13.0+cu130",
+    "transformers": "5.19.0"
+  },
+  "cuda": {
+    "device": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+    "cuda": "13.0"
+  },
+  "kv_cache_dtype": "nvfp4",
+  "compat": {
+    "smokes": {
+      "rope": {
+        "ok": true,
+        "result": {
+          "cases": 4,
+          "inputs": "text and image+text; video None and empty (0,3)"
+        }
+      },
+      "video": {
+        "ok": true,
+        "result": {
+          "cases": 2,
+          "video_http_verified": false
+        }
+      },
+      "model_config": {
+        "ok": true,
+        "result": {
+          "decoder_layers": 28,
+          "architecture": "TransformersMultiModalForCausalLM",
+          "weights_allocated": false
+        }
+      },
+      "image": {
+        "ok": true,
+        "result": {
+          "cases": 3,
+          "max_image_tokens": 16384,
+          "processor": "transformers.models.cosmos3_edge.processing_cosmos3_edge.Cosmos3EdgeProcessor"
+        }
+      },
+      "tool_grammar": {
+        "ok": true,
+        "result": {
+          "cases": 7,
+          "tool_strict_level": "parameter",
+          "decoding": "schema-constrained auto tools, wrapped and bare",
+          "generation_verified": false
+        }
+      }
+    },
+    "patches": {
+      "vllm#60823 config registry": {
+        "upstream": "https://github.com/vllm-project/vllm/pull/60823",
+        "files": {
+          "vllm/transformers_utils/config.py": "ee4cd61ae4da636fce6902013fba9a262fa108497f6a80534651c3dab980b063"
+        },
+        "status": "patched"
+      },
+      "vllm#60823 processor registry": {
+        "upstream": "https://github.com/vllm-project/vllm/pull/60823",
+        "files": {
+          "vllm/transformers_utils/processors/__init__.py": "3e094e1db0af5efb82d9eadf46f291777445349d0780dbd3e6ed7a87668cca4d"
+        },
+        "status": "patched"
+      },
+      "vllm#62368 unwrapped tool-call grammar": {
+        "upstream": "https://github.com/vllm-project/vllm/pull/62368",
+        "files": {
+          "vllm/tool_parsers/qwen3_engine_tool_parser.py": "f7386e563a3dbc64e7a2359f82bc5fbc2ff76993cbc6746a9588461bd55ffe02",
+          "vllm/tool_parsers/structural_tag_registry.py": "e745add19b74f5a19234a9f47083d2f8a22bc7a7db55cc1fc25b783be74d1136"
+        },
+        "status": "patched"
+      }
+    }
+  },
+  "chat_template": {
+    "status": "created",
+    "path": "<scratch>/final2/venv/cosmos-chat-template.jinja"
+  },
+  "export": "reused",
+  "export_dir": "<scratch>/C/export",
+  "processor": {
+    "processor": "Cosmos3EdgeProcessor",
+    "tool_prompt": "rendered, not generated"
+  }
+}

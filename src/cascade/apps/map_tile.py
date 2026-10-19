@@ -58,6 +58,7 @@ from dataclasses import dataclass, field
 import cv2
 import numpy as np
 
+from ..config import plain
 from . import live_map_video as lmv
 
 #: Stream name of the virtual camera (also its /stream/<name> route).
@@ -111,7 +112,7 @@ def _switch(value, where: str) -> bool | None:
 
 
 def _plain(value):
-    data = getattr(value, "_data", value)   # cascade.config wraps nested mappings
+    data = plain(value)   # cascade.config wraps nested mappings: a copy of the section
     return dict(data) if isinstance(data, Mapping) else data
 
 

@@ -56,6 +56,7 @@ from typing import NamedTuple
 
 import numpy as np
 
+from ..config import plain
 from .visual_interface import camera_extrinsics
 
 #: Radius (px) of the median window used to read depth, so one dead pixel in
@@ -299,7 +300,7 @@ class PointProbe:
     def _workspace(self) -> dict:
         cfg = self.rt.cfg
         ws_raw = cfg.safety.get("workspace", {}) or {}
-        return dict(getattr(ws_raw, "_data", ws_raw))
+        return dict(plain(ws_raw))
 
     # ── the cursor ───────────────────────────────────────────────────────
 

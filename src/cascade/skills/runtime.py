@@ -28,7 +28,7 @@ import cv2
 import numpy as np
 
 from ..agent.trace import TraceLogger
-from ..config import Cfg
+from ..config import Cfg, plain
 from ..grasping import plan_grasps_from_fix, select_grasp, select_profile
 from ..grasping import evidence as grasp_evidence
 from ..grasping.obb_grasp import AngledGrasp
@@ -1632,8 +1632,7 @@ class SkillRuntime:
         nothing (today's path)."""
         if self.T_world_base is None:
             return
-        arm = self.cfg.arm
-        data = getattr(arm, "_data", arm) if not isinstance(arm, dict) else arm
+        data = plain(self.cfg.arm)
         declared = isinstance(data, dict) and any(
             value is not None and (key == "mj_delivery_area" or str(key).startswith("mj_release_"))
             for key, value in data.items())

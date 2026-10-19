@@ -36,6 +36,8 @@ from dataclasses import dataclass, field
 import cv2
 import numpy as np
 
+from ..config import plain
+
 #: BGR palette for marks (distinct under JPEG, readable on a booth screen)
 _COLORS = [
     (60, 220, 60), (60, 160, 255), (255, 120, 60), (200, 80, 255),
@@ -392,10 +394,10 @@ def annotate_frame(runtime, **kwargs) -> tuple[np.ndarray | None, list[Mark]]:
         return None, []
     cfg = runtime.cfg
     # `Cfg` is an attr/dict hybrid but NOT iterable, so dict(...) on a nested
-    # block raises "'Cfg' object is not iterable". `_data` is the sanctioned
-    # accessor for the raw mapping (same idiom as apps/mcp_server.py).
+    # block raises "'Cfg' object is not iterable". `config.plain` is the
+    # public accessor for the raw mapping (`Cfg.as_dict()`, a copy).
     ws_raw = cfg.safety.get("workspace", {}) or {}
-    workspace = dict(getattr(ws_raw, "_data", ws_raw))
+    workspace = dict(plain(ws_raw))
     vi = VisualInterface(
         extrinsics=runtime.extrinsics,
         workspace=workspace,

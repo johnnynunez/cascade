@@ -740,6 +740,7 @@ class StreamServer:
         if runtime is None:
             return self.annotated_jpeg(name)
         try:
+            from ..config import plain
             from ..perception.visual_interface import VisualInterface, camera_extrinsics, configured_reach_x
 
             stream = self._rig.get(name)
@@ -750,7 +751,7 @@ class StreamServer:
             ws_raw = cfg.safety.get("workspace", {}) or {}
             vi = VisualInterface(
                 extrinsics=camera_extrinsics(runtime, name),
-                workspace=dict(getattr(ws_raw, "_data", ws_raw)),
+                workspace=dict(plain(ws_raw)),
                 table_z=float(cfg.safety.get("table_z", 0.0)),
                 reach_x=configured_reach_x(cfg),
             )

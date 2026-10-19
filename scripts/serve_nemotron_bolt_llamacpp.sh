@@ -46,11 +46,20 @@
 # serving it records the server's own tokens of the latest OpenClaw requests
 # (0600, WARM_PREFIX_FILE), so it never builds a prefix and follows any change
 # of tools or prompt at the next chat. For that the server runs with
-# LLAMA_SERVER_SLOTS_DEBUG=1 (GET /slots, behind the API key when API_KEY_FILE
-# is set, shows each slot's last prompt; a request reusing part of a slot logs
-# the 2 tokens where it diverges) and --slot-save-path WARM_PREFIX_FILE's
-# directory/bolt-slots-PORT: once per new prefix one slot is saved there
+# LLAMA_SERVER_SLOTS_DEBUG=1 and --slot-save-path WARM_PREFIX_FILE's
+# directory/bolt-slots-PORT (0700): once per new prefix one slot is saved there
 # (~0.1 s of server time), its token list read and the file deleted.
+# Both widen the API for every holder of the key (docs/OPENSHELL.md, Brain warm
+# start): GET /slots returns each slot's last prompt text (agent chats and
+# perception), POST /slots/N?action=save|restore|erase works, and a request
+# reusing part of a slot logs the 2 tokens where it diverges. llama.cpp v0.7.0
+# reads SLOTS_DEBUG once at start, so it cannot be on only while the helper
+# records. Hence the warm start runs only behind API_KEY_FILE (on a port without
+# a key any local process could use them; the server binds 127.0.0.1 either
+# way), and the OpenShell sandbox reaches only /v1/* of this brain
+# (scripts/openshell_rig.py brain_profile). A warm start that cannot run (no
+# key, no helper, a llama-server without --slot-save-path, a slot directory that
+# cannot be private) is turned off with a warning; the brain serves without it.
 #
 # Knobs: PORT (8080), API_KEY_FILE, CTX (65536 per slot), PARALLEL (2),
 # SPEC (dflash | none: the LiLiCorr drafter or none), NSPEC (7, drafted tokens),
@@ -83,6 +92,11 @@ WARM_START="${WARM_START:-1}"
 WARM_HELPER="$REPO/scripts/brain_warm_start.py"
 
 die() { printf 'serve_nemotron_bolt_llamacpp: %s\n' "$1" >&2; exit "${2:-1}"; }
+# The warm start only saves time: when it cannot run safely, the brain serves without it.
+warm_off() {
+    printf 'serve_nemotron_bolt_llamacpp: WARNING: warm start off (%s); serving as with WARM_START=0\n' "$1" >&2
+    WARM_START=0
+}
 
 MODE=serve
 case "${1:-}" in
@@ -127,8 +141,9 @@ check_template() {
 }
 
 check_warm() {
-    [[ "$WARM_START" == 0 || -f "$WARM_HELPER" ]] || {
-        printf '%s is missing; restore it or serve without the warm start (WARM_START=0).\n' "$WARM_HELPER" >&2; return 1; }
+    [[ "$WARM_START" == 0 || -n "${API_KEY_FILE:-}" ]] \
+        || warm_off "it needs API_KEY_FILE: it opens GET /slots prompt text and slot save/restore/erase to every caller"
+    [[ "$WARM_START" == 0 || -f "$WARM_HELPER" ]] || warm_off "$WARM_HELPER is missing"
 }
 
 check_source() {
@@ -175,10 +190,10 @@ check_server() {
     help="$("$LLAMA_SERVER" --help 2>&1)" || return 1
     local flags=(--alias --chat-template-kwargs --reasoning --mmproj --spec-draft-model draft-dflash --api-key-file --load-mode)
     [[ -z "$CHAT_TEMPLATE_FILE" ]] || flags+=(--chat-template-file)
-    [[ "$WARM_START" == 0 ]] || flags+=(--slot-save-path)
     for flag in "${flags[@]}"; do
         [[ "$help" == *"$flag"* ]] || { printf 'llama-server lacks %s; select a compatible LLAMA_SERVER (v0.7.0).\n' "$flag" >&2; return 1; }
     done
+    [[ "$WARM_START" == 0 || "$help" == *--slot-save-path* ]] || warm_off "llama-server lacks --slot-save-path"
 }
 
 if [[ "$MODE" == setup ]]; then
@@ -237,10 +252,19 @@ if [[ "$SPEC" == dflash ]]; then
     set -- "$@" --spec-type draft-dflash --spec-draft-model "$DRAFT_FILE" --spec-draft-n-max "$NSPEC" --spec-draft-ngl 999
 fi
 [[ -z "$CHAT_TEMPLATE_FILE" ]] || set -- "$@" --chat-template-file "$CHAT_TEMPLATE_FILE"
+# Slot files hold the slots' state: a directory of this user (mkdir -p fails on
+# anything else that exists there), never a link elsewhere, mode 0700 even when
+# it existed before.
+private_dir() {
+    mkdir -p -m 700 "$1" && [[ ! -L "$1" ]] \
+        && [[ "$(stat -c %u "$1" 2>/dev/null || stat -f %u "$1")" == "$(id -u)" ]] && chmod 700 "$1"
+}
+warm_slots="$(dirname "$WARM_PREFIX_FILE")/bolt-slots-$PORT"
+if [[ "$WARM_START" == 1 ]] && ! private_dir "$warm_slots" 2>/dev/null; then
+    warm_off "cannot make $warm_slots a private directory"
+fi
 if [[ "$WARM_START" == 1 ]]; then
     # Watches this PID, which `exec` hands to llama-server; ends with it.
-    warm_slots="$(dirname "$WARM_PREFIX_FILE")/bolt-slots-$PORT"
-    mkdir -p -m 700 "$warm_slots"
     warm=(--port "$PORT" --server-pid "$$" --slots "$PARALLEL" --prefix-file "$WARM_PREFIX_FILE"
           --slot-save-dir "$warm_slots" --chat-template-file "$CHAT_TEMPLATE_FILE" --model-file "$MODEL_FILE")
     [[ -z "$key_file" ]] || warm+=(--api-key-file "$key_file")

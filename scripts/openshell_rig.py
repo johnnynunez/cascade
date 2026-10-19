@@ -172,6 +172,15 @@ def named_sandbox(name: str) -> str:
 
 #: The longest instance name whose sandbox still fits SANDBOX_NAME_MAX (5).
 INSTANCE_NAME_MAX = SANDBOX_NAME_MAX - len(named_sandbox(""))
+#: Exit status of a name OpenShell would refuse (an instance or a sandbox name),
+#: so launch.sh can tell it from any other failure of this script.
+NAME_REFUSED = 3
+
+
+class NameRefused(SystemExit):
+    """An instance or sandbox name OpenShell would refuse; the message says why."""
+
+
 #: A named instance's ports come from one of this many slots (sha256 of its name).
 PORT_SLOTS = 99
 
@@ -233,7 +242,7 @@ def instance(name: str = "") -> Instance:
                         robot_provider=ROBOT_PROVIDER, sandbox=DEFAULT_SANDBOX, mcp_port=DEFAULT_MCP_PORT,
                         chat_port=DEFAULT_CHAT_PORT, home_name=HOME_NAME)
     if name == "default" or len(name) > INSTANCE_NAME_MAX or not _INSTANCE_NAME.fullmatch(name):
-        raise SystemExit(f"invalid instance name {name!r}: use 1-{INSTANCE_NAME_MAX} characters of a-z, 0-9 and "
+        raise NameRefused(f"invalid instance name {name!r}: use 1-{INSTANCE_NAME_MAX} characters of a-z, 0-9 and "
                          "single '-' between them, starting with a letter (its sandbox "
                          f"{named_sandbox('<name>')} must fit OpenShell's {SANDBOX_NAME_MAX}-character "
                          "sandbox names); 'default' is reserved: omit --instance and CASCADE_OPENSHELL_INSTANCE "
@@ -248,10 +257,11 @@ def instance(name: str = "") -> Instance:
 
 
 def check_sandbox_name(name: str) -> None:
-    """Refuse a sandbox name (an explicit --sandbox) OpenShell would refuse,
-    before anything is created."""
+    """Refuse a sandbox name OpenShell would refuse: an explicit `up --sandbox`
+    before the instance's home is claimed (main), a saved one before `up`
+    touches anything (cmd_up)."""
     if len(name) > SANDBOX_NAME_MAX or not _SANDBOX_NAME.fullmatch(name):
-        raise SystemExit(f"sandbox name {name!r}: OpenShell takes 1-{SANDBOX_NAME_MAX} characters of a-z, 0-9 "
+        raise NameRefused(f"sandbox name {name!r}: OpenShell takes 1-{SANDBOX_NAME_MAX} characters of a-z, 0-9 "
                          "and single '-' between them; pass another --sandbox")
 
 
@@ -355,10 +365,24 @@ def gateway_toml(inst: Instance = DEFAULT_INSTANCE) -> str:
     )
 
 
-def brain_profile(port: int = DEFAULT_BRAIN_PORT, *, inst: Instance = DEFAULT_INSTANCE) -> dict:
+#: Brains whose server opens more than the OpenAI API to the key's holders: the
+#: Bolt llama.cpp brain's warm start (scripts/serve_nemotron_bolt_llamacpp.sh:
+#: GET /slots with every slot's prompt text, POST /slots/N?action=save|restore|
+#: erase). The sandbox reaches only their /v1/* (OpenClaw's chat completions and
+#: model list); any other path is denied by OpenShell (REST rules, 0.1.3).
+#: Every other brain (--model qwen3.8-27b) keeps the profile main shipped.
+V1_ONLY_MODELS = frozenset({DEFAULT_MODEL})
+OPENAI_API_METHODS = ("GET", "POST")
+
+
+def brain_profile(port: int = DEFAULT_BRAIN_PORT, *, inst: Instance = DEFAULT_INSTANCE,
+                  model: str = DEFAULT_MODEL) -> dict:
     """Provider profile for the host brain: its bearer key is substituted only
-    on requests to host.openshell.internal:<port> from the agent's node.
+    on requests to host.openshell.internal:<port> from the agent's node, and
+    for the Bolt brain only on its /v1/* (V1_ONLY_MODELS).
     The brain itself is shared: every instance reaches the same host LLM."""
+    access = ({"rules": [{"allow": {"method": m, "path": "/v1/**"}} for m in OPENAI_API_METHODS]}
+              if model in V1_ONLY_MODELS else {"access": "read-write"})
     return {
         "id": inst.brain_provider,
         "display_name": "cascade brain (host OpenAI-compatible server)",
@@ -373,7 +397,7 @@ def brain_profile(port: int = DEFAULT_BRAIN_PORT, *, inst: Instance = DEFAULT_IN
         "discovery": {"credentials": ["api_key"]},
         "endpoints": [{
             "host": HOST_ALIAS, "port": int(port), "protocol": "rest",
-            "access": "read-write", "enforcement": "enforce",
+            **access, "enforcement": "enforce",
         }],
         "binaries": list(AGENT_BINARIES),
     }
@@ -1064,7 +1088,7 @@ def cmd_up(inst: Instance, home: Path, args) -> int:
     if subprocess.run(["docker", "image", "inspect", tag], capture_output=True, check=False).returncode != 0:
         print(f"building {tag}")
         subprocess.run(["docker", "build", "-t", tag, str(DEPLOY)], check=True)
-    sync_profile(home, brain_profile(cfg.brain_port, inst=inst))
+    sync_profile(home, brain_profile(cfg.brain_port, inst=inst, model=cfg.model))
     locked = startup_locked(home, observe_only=args.observe_only, allow_motion=args.allow_motion)
     if locked:
         deny = set_motion_lock(home, cfg, True, extra=tuple(args.deny_tool or ()), inst=inst)
@@ -1288,6 +1312,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "instance":
         print(json.dumps({**asdict(inst), "home": str(home)}, indent=2))
         return 0
+    if args.cmd == "up" and args.sandbox is not None:
+        check_sandbox_name(args.sandbox)    # a new instance's home is not claimed for a refused name
     claim_home(inst, home)
     return {"install": cmd_install, "gateway": cmd_gateway, "serve-mcp": cmd_serve_mcp, "up": cmd_up,
             "chat-url": cmd_chat_url, "open": cmd_open, "status": cmd_status, "down": cmd_down,
@@ -1295,5 +1321,14 @@ def main(argv: list[str] | None = None) -> int:
             "teardown": cmd_teardown}[args.cmd](inst, home, args)
 
 
+def _cli() -> int:
+    """main() from the command line: a refused name exits NAME_REFUSED with its reason."""
+    try:
+        return main()
+    except NameRefused as refused:
+        print(refused, file=sys.stderr)
+        return NAME_REFUSED
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(_cli())

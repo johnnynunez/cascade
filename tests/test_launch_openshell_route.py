@@ -30,17 +30,31 @@ FAKE_RIG = r'''
 import json, os, sys
 from pathlib import Path
 args = sys.argv[1:]
+if args[:1] and args[0].startswith("--instance="):        # one word: argparse takes any value
+    args = ["--instance", args[0].split("=", 1)[1], *args[1:]]
+elif args[:1] == ["--instance"] and args[1].startswith("-"):
+    # The real rig's argparse reads a separate value starting with '-' as an option
+    # (captured from scripts/openshell_rig.py --instance -sim instance).
+    print("usage: openshell_rig.py [-h] [--instance NAME]\n"
+          "openshell_rig.py: error: argument --instance: expected one argument", file=sys.stderr)
+    sys.exit(2)
 with open(os.environ["RIG_LOG"], "a") as f:
     f.write(json.dumps(args) + "\n")
 inst, rest = (args[1], args[2:]) if args[:1] == ["--instance"] else ("", args)
+if os.environ.get("RIG_BROKEN"):
+    raise SystemExit("rig failed for another reason")
 # Every command of the real rig resolves its instance first: refuse a name
-# exactly as it does (its SystemExit carries the reason).
+# exactly as it does (its reason on stderr, exit NAME_REFUSED: the rig's _cli).
 import importlib.util
 spec = importlib.util.spec_from_file_location("real_openshell_rig", os.environ["RIG_REAL"])
 real = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = real
 spec.loader.exec_module(real)
-real.instance(inst)
+try:
+    real.instance(inst)
+except real.NameRefused as refused:
+    print(refused, file=sys.stderr)
+    sys.exit(real.NAME_REFUSED)
 home = Path(os.environ["RIG_HOME"]) / (inst or "default")
 cmd = rest[0]
 if cmd == "instance":
@@ -318,8 +332,43 @@ def test_an_instance_name_openshell_would_refuse_stops_the_launch_before_anythin
     p = _run(h, env=env)
     assert p.returncode != 0
     assert "invalid instance name 'boltpr'" in p.stderr and "1-5 characters" in p.stderr, p.stderr
+    assert "[launch] ERROR: OpenShell instance 'boltpr' refused: invalid instance name" in p.stderr, p.stderr
     assert _rig(h) == [["--instance", "boltpr", "instance"]] * 2, "nothing but the name check"
     assert not (h["state"] / "owner.json").exists() and not (h["state"] / "openshell-instance").exists()
+    assert not Path(h["env"]["HOST_LOG"]).exists() and not Path(h["env"]["SANDBOX_LOG"]).exists()
+
+
+def test_a_name_starting_with_a_dash_is_refused_as_a_name(linux_launcher):
+    """The launcher hands the name over as one word (--instance=NAME), so a
+    leading '-' reaches the rig's name check instead of its option parser."""
+    h = linux_launcher
+    p = _run(h, env={**h["env"], "CASCADE_OPENSHELL_INSTANCE": "-sim"})
+    assert p.returncode != 0
+    assert "OpenShell instance '-sim' refused: invalid instance name '-sim'" in p.stderr, p.stderr
+    assert "expected one argument" not in p.stderr
+
+
+def test_a_rig_that_fails_otherwise_is_not_reported_as_a_refused_name(linux_launcher):
+    h = linux_launcher
+    p = _run(h, env={**h["env"], "RIG_BROKEN": "1"})
+    assert p.returncode != 0
+    assert "could not check OpenShell instance 'default'" in p.stderr, p.stderr
+    assert "rig failed for another reason" in p.stderr and "refused" not in p.stderr
+    assert not Path(h["env"]["HOST_LOG"]).exists() and not Path(h["env"]["SANDBOX_LOG"]).exists()
+
+
+def test_check_reports_a_refused_name_as_a_failed_row_and_keeps_the_others(linux_launcher):
+    h = linux_launcher
+    ok = _run(h, "--check")
+    p = _run(h, "--check", env={**h["env"], "CASCADE_OPENSHELL_INSTANCE": "boltpr"})
+    assert p.returncode == 3 and "preflight FAILED" in p.stdout, p.stdout + p.stderr
+    assert "[MISSING] OpenShell instance 'boltpr' refused: invalid instance name 'boltpr'" in p.stdout, p.stdout
+    assert "OpenShell installed" not in p.stdout and "OpenShell not installed yet" not in p.stdout
+    rows = [line for line in ok.stdout.splitlines() if line.startswith("  [")]
+    assert len(rows) >= 4, ok.stdout
+    for row in rows:              # every other row is still reported
+        if "OpenShell" not in row:
+            assert row in p.stdout, (row, p.stdout)
     assert not Path(h["env"]["HOST_LOG"]).exists() and not Path(h["env"]["SANDBOX_LOG"]).exists()
 
 

@@ -1115,6 +1115,10 @@ def test_valid_instance_names_up_to_five_characters_work(name):
     rig = _load()
     inst = rig.instance(name)
     assert inst.sandbox == f"cascade-{name}-agent" and _openshell_takes_sandbox_name(inst.sandbox)
+
+
+def test_the_name_limit_is_exactly_what_fits_a_19_character_sandbox():
+    rig = _load()
     assert rig.INSTANCE_NAME_MAX == 5 and len(rig.instance("x" * 5).sandbox) == 19, "the limit is exact"
 
 
@@ -1144,6 +1148,45 @@ def test_up_refuses_a_sandbox_name_openshell_would_refuse_before_anything(host):
             host.rig.main(["--instance", "sim", "up", "--sandbox", bad])
     assert host.argvs == []
     assert not (home / "deployed.json").exists()
+
+
+def test_up_with_a_refused_sandbox_name_claims_no_home(host):
+    """A first `up` of a new instance with a bad --sandbox fails before its
+    home is claimed: no empty home with an `instance` mark is left behind."""
+    home = host.user / ".cascade" / "openshell-new"
+    with pytest.raises(SystemExit, match="sandbox name 'cascade-new-agent-two'"):
+        host.rig.main(["--instance", "new", "up", "--sandbox", "cascade-new-agent-two"])
+    assert host.argvs == [] and not home.exists()
+    # A saved sandbox name is checked too (a home claimed earlier, a hand-edited deployed.json).
+    host.install(home, "new")
+    (home / "deployed.json").write_text(json.dumps({"settings": {"sandbox": "Cascade-new"}}))
+    host.gateways_up.add(str(home / "0.1.3" / "bin" / "openshell"))
+    with pytest.raises(SystemExit, match="sandbox name 'Cascade-new'"):
+        host.rig.main(["--instance", "new", "up"])
+    assert host.argvs == []
+
+
+def _rig_cli(tmp_path, *argv):
+    env = {**os.environ, "CASCADE_OPENSHELL_HOME": str(tmp_path / "home"), "HOME": str(tmp_path)}
+    env.pop("CASCADE_OPENSHELL_INSTANCE", None)
+    return subprocess.run([sys.executable, "-B", str(REPO / "scripts" / "openshell_rig.py"), *argv],
+                          env=env, capture_output=True, text=True, timeout=60, check=False)
+
+
+def test_a_refused_name_has_its_own_exit_status(tmp_path):
+    """launch.sh tells a refused name (the reason, exit NAME_REFUSED) from any
+    other failure of the rig (a usage error, a broken interpreter)."""
+    rig = _load()
+    assert rig.NAME_REFUSED not in (0, 1, 2)
+    for argv in (["--instance=boltpr", "instance"], ["--instance=-sim", "instance"],
+                 ["--instance=sim", "up", "--sandbox", "Bad"]):
+        p = _rig_cli(tmp_path, *argv)
+        assert p.returncode == rig.NAME_REFUSED, (argv, p.returncode, p.stderr)
+        assert "OpenShell" in p.stderr and "Traceback" not in p.stderr, p.stderr
+    assert "invalid instance name '-sim'" in _rig_cli(tmp_path, "--instance=-sim", "instance").stderr
+    assert not (tmp_path / "home").exists(), "a refused name touches nothing"
+    assert _rig_cli(tmp_path, "--instance=sim", "instance").returncode == 0
+    assert _rig_cli(tmp_path, "--instance", "-sim", "instance").returncode == 2, "argparse: not a name refusal"
 
 
 SIM_SETTINGS = {**TODAY_SETTINGS, "mcp_port": 17810, "chat_port": 17910, "sandbox": "cascade-sim-agent"}

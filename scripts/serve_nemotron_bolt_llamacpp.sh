@@ -270,7 +270,7 @@ if [[ "$WARM_START" == 1 ]]; then
           --slot-save-dir "$warm_slots" --chat-template-file "$CHAT_TEMPLATE_FILE" --model-file "$MODEL_FILE")
     [[ -z "$key_file" ]] || warm+=(--api-key-file "$key_file")
     "$PY" -B "$WARM_HELPER" "${warm[@]}" &
-    # On whatever the caller exported: the helper reads the slots' prompts.
+    # 1 whatever the caller exported: the helper reads the slots' prompts.
     export LLAMA_SERVER_SLOTS_DEBUG=1
     set -- "$@" --slot-save-path "$warm_slots"
 else

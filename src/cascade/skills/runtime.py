@@ -9402,7 +9402,7 @@ class SkillRuntime:
             # and before the hold refusal below: its place_at on that arm
             # would forfeit the column too, so move_home comes first.
             return {**out, "ok": False, "stage": "home", "home_skipped": True, "beliefs_forgotten": 0,
-                    "error": self._column_elsewhere_refusal(self._arm_name_of(column.arm))}
+                    "error": self._column_elsewhere_refusal(column)}
         holder = self._held_by_another_arm()
         if holder is not None:
             # R5 / D9: another arm holds the object. This reset would home
@@ -9780,14 +9780,18 @@ class SkillRuntime:
                         + " first (place_at), then " + then + "; no motion was sent")
         return _fit_label(template, repr(str(label)), keep=keep)
 
-    def _column_elsewhere_refusal(self, holder) -> str:
+    def _column_elsewhere_refusal(self, column) -> str:
         """reset_scene's refusal while ANOTHER arm keeps a live stop column
         (`stop_retrace.live_on_another_arm`): the way out is that arm's
-        move_home (it raises the gripper up its column), then this reset."""
-        arm, here = repr(holder), repr(self._running_arm_name())
-        return _cut_text(f"arm {arm} was stopped at its object and keeps its approach column, not {here}: call "
-                         f"move_home with arm={arm} first (it raises that gripper up the column), then reset_scene; "
-                         "no motion was sent", _FAILED_ERROR_CHARS)
+        move_home (it raises the gripper up its column), then this reset.
+        When that move_home is refused too (its retrace refused), the
+        fallback (Task 5 fix review Minor 1): the column expires (the time
+        left, rounded up), or any other motion skill on that arm forfeits it."""
+        arm, here = repr(self._arm_name_of(column.arm)), repr(self._running_arm_name())
+        left = int(math.ceil(stop_retrace.expires_in_s(column)))
+        return _cut_text(f"arm {arm} keeps its approach column after a stop, not {here}: call move_home with "
+                         f"arm={arm}, then reset_scene. If refused, the column expires in {left} s, or any other "
+                         "motion skill on that arm drops it; no motion was sent", _FAILED_ERROR_CHARS)
 
     def _forget_held_object(self) -> None:
         """The jaws let the held object go: clear every held-object field."""

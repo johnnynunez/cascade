@@ -1403,6 +1403,10 @@ def test_reset_scene_while_another_arm_holds_is_refused(make_runtime, gate_off, 
     mark = log.mark()
     result = rt.execute("reset_scene", {"arm": "so101_left"})
     assert result["ok"] is False and "'red cube' " + HELD_TEXT in result["error"], result
+    # Task 5 fix review Minor 2: the default `then` (reset_scene) verbatim
+    assert result["error"] == ("'red cube' is held by arm 'so101_right', not 'so101_left': place it with "
+                               "arm='so101_right' first (place_at), then reset_scene; no motion was sent"), result
+    assert result["stage"] == "release" and result["home_skipped"] is True, result
     assert log.since(mark) == ({"so101_left": 0, "so101_right": 0}, {"so101_left": 0, "so101_right": 0})
     assert rt.held_object == "red cube" and rt._held_arm == "so101_right"
     _assert_one_failed_line(result)
@@ -1752,6 +1756,13 @@ def _kept_column(safe, *, age_s=0.0):
                              scene=stop_retrace._scene(safe.harness), kept_at=stop_retrace._clock() - age_s)
 
 
+def _column_refusal(seconds_left):
+    """reset_scene on so101_left while so101_right keeps a live stop column."""
+    return ("arm 'so101_right' keeps its approach column after a stop, not 'so101_left': call move_home with "
+            f"arm='so101_right', then reset_scene. If refused, the column expires in {seconds_left} s, or any "
+            "other motion skill on that arm drops it; no motion was sent")
+
+
 def test_reset_scene_is_refused_while_another_arms_stop_column_is_live(make_runtime, gate_off, monkeypatch):  # noqa: F811
     """Task 5 review Minor 1: the right arm was stopped below its pregrasp
     before its close (no hold, no provisional) and keeps its approach column.
@@ -1770,11 +1781,17 @@ def test_reset_scene_is_refused_while_another_arms_stop_column_is_live(make_runt
     mark = log.mark()
     result = rt.execute("reset_scene", {"arm": "so101_left"})
     assert result["ok"] is False and result["home_skipped"] is True, result
-    assert "call move_home with arm='so101_right' first" in result["error"], result
-    assert "not 'so101_left'" in result["error"] and result["error"].endswith("no motion was sent"), result
+    # Task 5 fix review Minors 1 and 2: verbatim, with the way out when that
+    # arm's move_home is refused too (its retrace refused: the column still
+    # expires, and any other motion skill on that arm forfeits it), at stage home
+    assert result["error"] == _column_refusal(300), result
+    assert result["stage"] == "home", result
     assert len(result["error"]) <= 240
     assert log.since(mark) == _NOTHING_SENT
     assert rt._stop_retraces == {id(right): column}
+    rt._stop_retraces = {id(right): _kept_column(right, age_s=100.25)}    # the time left, rounded up
+    assert rt.execute("reset_scene", {"arm": "so101_left"})["error"] == _column_refusal(200)
+    rt._stop_retraces = {id(right): column}
     rt._stop_retraces = {id(right): _kept_column(right, age_s=stop_retrace.MAX_AGE_S + 1.0)}
     result = rt.execute("reset_scene", {"arm": "so101_left"})
     assert result.get("home_skipped") is not True, result                 # it got as far as its home move
@@ -1796,7 +1813,7 @@ def test_another_arms_column_comes_before_its_hold_in_the_reset_refusal(make_run
     log = _JawLog(rt, monkeypatch)
     mark = log.mark()
     result = rt.execute("reset_scene", {"arm": "so101_left"})
-    assert result["ok"] is False and "call move_home with arm='so101_right' first" in result["error"], result
+    assert result["ok"] is False and result["error"] == _column_refusal(300), result
     assert "place_at" not in result["error"] and log.since(mark) == _NOTHING_SENT
 
 

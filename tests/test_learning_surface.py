@@ -502,6 +502,37 @@ def test_a_stop_after_the_decision_withdraws_the_retry_line_and_the_panel_says_s
         assert {k: event[k] for k in ("kind", "line", "outcome")} == {"kind": "retry", "line": None, "outcome": "halted"}
 
 
+@needs_pin
+@pytest.mark.parametrize("reading", ["none", "latched only", "halt since the start only", "stop token only"])
+def test_each_stop_reading_alone_withholds_the_line(monkeypatch, tmp_path, reading):  # A9/A10 fix, Minor 2
+    """The stop rule is an OR of three readings, and a real halt moves all of them at once, so each is set ALONE
+    around one decision + delivery: a halt raised before the call (latched; the call's own baselines and token
+    already include it), a halt withdrawn between the skill's start and the token (only the halt generation moved),
+    an e-stop raised and reset after the token (only the stop token moved)."""
+    with _kitchen(monkeypatch, tmp_path, gate=False) as (runtime, arm):
+        harness = runtime.arm.harness
+        if reading == "latched only":
+            harness.halt("operator")
+        baselines = runtime._skill_halt_baselines(runtime.arm)
+        if reading == "halt since the start only":
+            harness.halt("operator")
+            harness.clear_halt()
+        token0 = runtime._stop_token()
+        if reading == "stop token only":
+            harness.estop("operator e-stop")
+            harness.reset_estop()
+        result = {"ok": True, "outcome": "ok", "verified": True, "next_action": "Report it."}
+        runtime._grant_learning_line(runtime.learning_state, "pick_and_place", PICK, result, {}, retry=None,
+                                     arm=runtime.arm, baselines=baselines, stop_token0=token0)
+        out = runtime._with_learning_grant(result)
+        if getattr(harness, "halted", None) is not None:
+            harness.clear_halt()
+        if reading == "none":
+            _assert_granted(out, _note_line(runtime))
+        else:
+            _assert_not_granted(out)
+
+
 def test_execute_returns_no_field_the_runtime_did_not_grant():  # A9/A10 fix
     """`_with_learning_grant` (every execute() result, its last step) drops a top-level `learning_line` it did not
     write, with or without a learning state, so no skill, composite or echo can hand one to the agent."""
@@ -608,6 +639,8 @@ def test_a_note_title_that_reads_as_the_field_grants_nothing(monkeypatch, tmp_pa
         res = runtime.execute("pick_and_place", PICK)
         assert res["ok"] is True, res
         _assert_not_granted(res)
+        assert _learning_json(tmp_path)["last_event"] is None
+        assert "learning" not in runtime.trace.rows()[-1]["context"]
 
 
 def _mcp_texts(out) -> list:

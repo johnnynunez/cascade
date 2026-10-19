@@ -542,15 +542,14 @@ _TURN_REACH = 3
 #: refused wherever the trigger stands
 _RULE_TRIGGERS = (("simulation*", "only"), ("one", "more", "attempt*"), ("another", "attempt*"),
                   ("second", "attempt*"), ("end*", "your", "reply*"), ("end*", "your", "answer*"),
-                  ("exact", "line*"), ("exactly", "that", "line*"), ("exactly", "this", "line*"),
-                  ("learning", "line*"))
-#: R5's words and the `learning_line` field's name, squeezed: read anywhere in a field's letters,
-#: no word start ("Pleaseend your reply", "thisexact line", "learningline"; A9/A10 fix), with the
-#: digits 0 / 1 / 3 read as o / l / e and i and l alike (`_reply_line_stem`)
+                  ("exact", "line*"), ("exactly", "that", "line*"), ("exactly", "this", "line*"))
+#: R5's words and the `learning_line` field's name, read anywhere in a field's letters, no word start
+#: ("Pleaseend your reply", "thisexact line", "learning_line"; A9/A10 fix), with the digits 0 / 1 / 3
+#: read as o / l / e and i and l alike (`_reply_line_stem`): {folded letters: the phrase}
 _REPLY_LINE_FOLD = str.maketrans("013i", "olel")
-_REPLY_LINE_STEMS = tuple(stem.translate(_REPLY_LINE_FOLD) for stem in (
-    "endyourreply", "endsyourreply", "endingyourreply", "endyouranswer", "endsyouranswer", "endingyouranswer",
-    "exactline", "exactlythatline", "exactlythisline", "learningline"))
+_REPLY_LINE_STEMS = {phrase.replace(" ", "").translate(_REPLY_LINE_FOLD): phrase for phrase in (
+    "end your reply", "ends your reply", "ending your reply", "end your answer", "ends your answer",
+    "ending your answer", "exact line", "exactly that line", "exactly this line", "learning line")}
 #: the words that make "<word> simulation, only ..." a setting, not the trigger (`_first_trigger`)
 _SIMULATION_SETTING = frozenset({"in", "during"})
 # ── stop_workaround (A8 fix, Important 2; the owner's rule: ANY advice that discourages or
@@ -972,7 +971,7 @@ def _reply_line_stem(text: str) -> str | None:
     another word or not (`_REPLY_LINE_STEMS`; A9/A10 fix: the runtime's scrub reads them the same
     way), else None."""
     letters = re.sub(r"[^a-z]+", "", unicodedata.normalize("NFKC", text).lower().translate(_REPLY_LINE_FOLD))
-    return next((stem for stem in _REPLY_LINE_STEMS if stem in letters), None)
+    return next((phrase for stem, phrase in _REPLY_LINE_STEMS.items() if stem in letters), None)
 
 
 def _simulation_setting(view: _View, i: int, n: int) -> bool:

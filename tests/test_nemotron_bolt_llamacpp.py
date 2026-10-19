@@ -244,11 +244,12 @@ def test_an_existing_slot_directory_is_made_private(prepared, key, tmp_path):
 
 
 def test_a_slot_directory_of_another_user_turns_the_warm_start_off(prepared, key, tmp_path):
-    # Another user's directory cannot be made here without root: `id -u` answers another uid instead.
+    # Another user's directory cannot be made here without root: `stat` answers another uid for it instead.
     shims = tmp_path / "shims"
     shims.mkdir()
-    (shims / "id").write_text('#!/bin/bash\nif [[ "$*" == -u ]]; then echo 4242; else exec /usr/bin/id "$@"; fi\n')
-    (shims / "id").chmod(0o755)
+    (shims / "stat").write_text('#!/bin/bash\nif [[ "$1 $2" == "-c %u" && "$3" == */bolt-slots-8080 ]]; then echo 4242; '
+                                'else exec /usr/bin/stat "$@"; fi\n')
+    (shims / "stat").chmod(0o755)
     env = {"API_KEY_FILE": str(key), "PATH": f"{shims}{os.pathsep}{os.environ['PATH']}"}
     result = invoke(prepared, **env)
     assert_served_without_warm_start(prepared, result, **env)

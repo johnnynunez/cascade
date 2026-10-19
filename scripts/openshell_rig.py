@@ -1134,6 +1134,13 @@ def cmd_teardown(inst: Instance, home: Path, args) -> int:
     return 0
 
 
+def _require_gateway(home: Path, inst: Instance) -> None:
+    """Refuse before any profile or sandbox call when this instance's gateway is not the active, Connected one."""
+    if not gateway_healthy(home, inst):
+        raise SystemExit(f"cascade's OpenShell gateway is down ({inst.gateway_name} on 127.0.0.1:{inst.gateway_port}): "
+                         f"{inst.cli()} gateway start")
+
+
 def cmd_up(inst: Instance, home: Path, args) -> int:
     cfg = _load_settings(home, args, inst)
     check_sandbox_name(cfg.sandbox)
@@ -1141,8 +1148,7 @@ def cmd_up(inst: Instance, home: Path, args) -> int:
     token_file = Path(args.mcp_token_file or home / "mcp.token")
     if not (home / OPENSHELL_VERSION / "bin" / "openshell").exists():
         raise SystemExit(f"OpenShell is not installed: {inst.cli()} install")
-    if not gateway_healthy(home, inst):
-        raise SystemExit(f"cascade's OpenShell gateway is down: {inst.cli()} gateway start")
+    _require_gateway(home, inst)
     # Preflight on the host loopback: what the supervisor will reach.
     brain = _check_brain(cfg, read_secret(brain_key_file))
     if brain != 200:
@@ -1201,11 +1207,13 @@ def cmd_up(inst: Instance, home: Path, args) -> int:
 def cmd_brain_profile(inst: Instance, home: Path, args) -> int:
     """Push the brain profile alone, live (the sandbox keeps running): the /v1-only one `up` pushes, or with
     --read-write the rollback to main's old read-write one. The rollback is refused while the Bolt warm start is on:
-    read-write would give the sandbox GET /slots (every slot's prompt text) and slot save/restore/erase."""
+    read-write would give the sandbox GET /slots (every slot's prompt text) and slot save/restore/erase. Both check
+    the gateway before pushing anything, as `up` does (the warm-start refusal reads only /proc, before any call)."""
     cfg = _load_settings(home, args, inst)
     if not (home / OPENSHELL_VERSION / "bin" / "openshell").exists():
         raise SystemExit(f"OpenShell is not installed: {inst.cli()} install")
     if not args.read_write:
+        _require_gateway(home, inst)
         sync_profile(home, brain_profile(cfg.brain_port, inst=inst))
         print(f"{inst.brain_provider}: the sandbox reaches the brain on :{cfg.brain_port} only on GET/POST /v1/**")
         return 0
@@ -1214,6 +1222,7 @@ def cmd_brain_profile(inst: Instance, home: Path, args) -> int:
             f"refusing read-write: the brain on :{cfg.brain_port} runs the Bolt warm start ({'; '.join(why)}). "
             "Read-write would give the sandbox GET /slots with every slot's prompt text and slot save/restore/erase. "
             "Restart the brain with WARM_START=0 first, then rerun.")
+    _require_gateway(home, inst)
     sync_profile(home, read_write_brain_profile(cfg.brain_port, inst=inst))
     print(f"{inst.brain_provider}: read-write on every path of the brain on :{cfg.brain_port} (the old profile), "
           f"until the next `up` or `{inst.cli()} brain-profile`")

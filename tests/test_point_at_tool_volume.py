@@ -352,16 +352,22 @@ def test_the_body_is_the_camera_box_on_its_faces_and_not_the_jaws_twice():
     assert body[0].slack_m == pytest.approx(s * s / (4 * MARGIN))
 
 
-def test_no_tool_volume_no_body_and_a_hand_built_one_keeps_its_points():
+def test_no_tool_volume_no_body_and_a_hand_built_part_needs_its_box():
+    """A part known only by its points refuses (#399 review Minor 4,
+    tests/test_point_at_planning_followups.py); the jaws need no box."""
     from cascade.safety.tool_volume import ToolVolume
     from cascade.skills import pointing
 
     assert pointing.tool_body(None, MARGIN) == ()
     pts = np.array([[0.0, 0.0, 0.05], [0.0, 0.01, 0.05], [0.1, 0.0, 0.0]])
     tv = ToolVolume(local=pts, part=np.array([0, 0, 1]), names=("probe", "jaws"))
-    body = pointing.tool_body(tv, MARGIN)
-    assert [p.name for p in body] == ["probe"] and body[0].slack_m == 0.0
-    np.testing.assert_array_equal(body[0].samples, pts[:2])
+    with pytest.raises(ValueError, match="tool part 'probe' has no box"):
+        pointing.tool_body(tv, MARGIN)
+    box = (np.array([0.0, 0.005, 0.05]), np.eye(3), np.array([0.0, 0.005, 0.0]))
+    jaw = (np.array([0.1, 0.0, 0.0]), np.eye(3), np.zeros(3))
+    body = pointing.tool_body(ToolVolume(local=pts, part=np.array([0, 0, 1]), names=("probe", "jaws"),
+                                         boxes=(box, jaw)), MARGIN)
+    assert [p.name for p in body] == ["probe"] and body[0].slack_m > 0.0
 
 
 def test_a_parts_sampled_clearance_minus_its_slack_bounds_the_box():

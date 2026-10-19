@@ -604,3 +604,45 @@ def test_the_shipped_freshness_rule_is_pinned():
     assert shipped["FRESH_PLAN_S"] == "3.0"
     assert shipped["FRESH_MOVE_M"] == "AIM_TOLERANCE_M"
     assert pointing.AIM_TOLERANCE_M == 0.01
+
+
+# ── 4. a tool part needs its box ───────────────────────────────────────────
+
+
+def test_a_tool_part_known_only_by_its_points_is_refused():
+    from cascade.safety.tool_volume import ToolVolume
+    from cascade.skills import pointing
+
+    pts = np.array([[0.0, 0.0, 0.05], [0.0, 0.01, 0.05], [0.1, 0.0, 0.0]])
+    with pytest.raises(ValueError, match=r"tool part 'probe' has no box"):
+        pointing.tool_body(ToolVolume(local=pts, part=np.array([0, 0, 1]), names=("probe", "jaws")), 0.03)
+    box = (np.zeros(3), np.eye(3), np.full(3, 0.01))
+    with pytest.raises(ValueError, match=r"tool part 'probe' has no box"):
+        pointing.tool_body(ToolVolume(local=pts, part=np.array([0, 0, 1]), names=("probe", "jaws"),
+                                      boxes=(box,)), 0.03)
+    # the jaws need none: every jaw sample group already holds the sweep box
+    assert pointing.tool_body(ToolVolume(local=pts[2:], part=np.array([0]), names=("jaws",)), 0.03) == ()
+
+
+@needs_pin
+def test_point_at_refuses_a_harness_tool_part_without_its_box(rig):
+    from cascade.safety.tool_volume import ToolVolume
+
+    r = rig("mock")
+    pts = np.array([[0.0, 0.0, 0.05], [0.0, 0.01, 0.05]])
+    r.runtime.arm.harness.tool_volume = ToolVolume(local=pts, part=np.array([0, 0]), names=("probe",))
+
+    out = r.runtime.execute("point_at", {"label": "red cube"})
+
+    assert out["ok"] is False and _commands(r) == [] and r.jaws == [], out
+    assert "tool part 'probe' has no box" in out["error"] and "nothing was moved" in out["error"], out
+
+
+def test_the_missing_box_slack_would_have_been_real():
+    """Why a point-only part is refused rather than kept with slack 0: a 2 cm
+    grid's nearest sample can be spacing / sqrt(2) from the box point nearest
+    an object (a face centre between four samples)."""
+    s = 0.02
+    face = np.array([[x, y, 0.0] for x in np.arange(-0.04, 0.0401, s) for y in np.arange(-0.04, 0.0401, s)])
+    point_between = np.array([s / 2, s / 2, 0.0])
+    assert np.min(np.linalg.norm(face - point_between, axis=1)) == pytest.approx(s / math.sqrt(2))

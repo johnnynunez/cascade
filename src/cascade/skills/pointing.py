@@ -33,7 +33,8 @@ apart, its own pair in every rule below (from each object and from the
 table), named in a refusal. A part's distance from an object is its sampled
 distance less `slack_m` (`part_slack`), a lower bound on the BOX's distance
 wherever it keeps the margin, so a pose or leg a part clears keeps the whole
-box the margin away. A profile without a tool volume has no part.
+box the margin away. A profile without a tool volume has no part; a part
+whose box the volume does not give refuses (its points alone bound nothing).
 
 A pose is admissible (`PoseClearance.admissible`) when, on its solved FK,
 every closed-jaw sample and every part keeps `margin` from the column and
@@ -603,23 +604,25 @@ def tool_body(tool_volume, margin: float, spacing: float = BODY_SPACING_M) -> tu
     `tool_volume` is the arm harness's `safety.tool_volume.ToolVolume` (or
     None). Its "jaws" part is the open-jaw sweep box, which every jaw sample
     group already holds (`tool_samples`: the same `jaw_box`), so it is not
-    repeated. Every other part whose box is known (`ToolVolume.boxes`) is
-    that box's faces at most `spacing` apart, with `part_slack` at `margin`;
-    a volume built without boxes keeps its own samples (no slack)."""
+    repeated. Every other part is its box (`ToolVolume.boxes`) sampled on its
+    faces at most `spacing` apart, with `part_slack` at `margin`. A part
+    without its box raises ValueError (#399 review Minor 4): its own samples
+    alone (the harness's 2 cm grid) could overstate its distance from an
+    object by up to their spacing / sqrt(2), with no slack to cover it.
+    (`build_tool_volume` gives every part its box.)"""
     if tool_volume is None:
         return ()
     names = tuple(tool_volume.names)
-    local = np.asarray(tool_volume.local, dtype=float).reshape(-1, 3)
-    which = np.asarray(tool_volume.part).reshape(-1)
     boxes = tuple(getattr(tool_volume, "boxes", ()) or ())
     parts = []
     for k, name in enumerate(names):
         if name == "jaws":
             continue
-        if len(boxes) == len(names):
-            parts.append(Part(_box_surface(*boxes[k], spacing), str(name), part_slack(spacing, margin)))
-        else:
-            parts.append(Part(local[which == k], str(name)))
+        if len(boxes) != len(names):
+            raise ValueError(f"the harness's tool part {name!r} has no box (safety.tool_volume's "
+                             f"ToolVolume.boxes): point_at keeps the margin from a part's box, never from its "
+                             f"sample points alone")
+        parts.append(Part(_box_surface(*boxes[k], spacing), str(name), part_slack(spacing, margin)))
     return tuple(parts)
 
 

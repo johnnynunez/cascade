@@ -89,15 +89,31 @@ The limits:
 5. Still trusted with the key: host processes that read `llama.key` (the robot server's
    perception, the helper). `WARM_START=0` closes all of the above.
 
-The caller's environment never configures a brain server. The llama.cpp scripts drop every
-inherited `LLAMA_ARG_*` (llama-server reads one per flag), `LLAMA_API_KEY` (an extra accepted key)
-and `AIP_*` (`AIP_MODE=PREDICTION` moves the port and adds a route to every endpoint); the Qwen
-one also drops `LLAMA_SERVER_SLOTS_DEBUG`. The native vLLM brains (Qwen, Cosmos) drop
-`VLLM_SERVER_DEV_MODE`, `VLLM_ALLOW_RUNTIME_LORA_UPDATING`, `VLLM_ENABLE_COHERE_API`,
-`VLLM_USE_RUST_FRONTEND` and `VLLM_RUST_FRONTEND_PATH` (each adds routes or swaps the HTTP
-server); Bolt's vLLM container gets only the variables its script names. Not covered: llama-server
-v0.7.0 also reads `/etc/llama.cpp/config.ini` and `${XDG_CONFIG_HOME:-~/.config}/llama.cpp/config.ini`;
-keep neither on a brain host.
+No inherited variable configures a brain server. The llama.cpp scripts drop every inherited
+`LLAMA_ARG_*` (llama-server reads one per flag), `LLAMA_API_KEY` (an extra accepted key), `AIP_*`
+(`AIP_MODE=PREDICTION` moves the port and adds a route to every endpoint) and
+`LLAMA_SERVER_SLOTS_DEBUG` (Bolt sets it itself, for the warm start only); a bash without `compgen`,
+which lists them, refuses to start. The Brev runtime's `deploy/runtime/brain.py` drops the same
+names. The native vLLM brains (Qwen, Cosmos) drop `VLLM_SERVER_DEV_MODE`,
+`VLLM_ALLOW_RUNTIME_LORA_UPDATING`, `VLLM_ENABLE_COHERE_API`, `VLLM_USE_RUST_FRONTEND` and
+`VLLM_RUST_FRONTEND_PATH` (each adds routes or swaps the HTTP server), and
+`VLLM_ENABLE_RESPONSES_API_STORE` (memory that grows with every stored `/v1/responses` call); Bolt's
+vLLM container gets only the variables its script names.
+
+llama.cpp's config files act like those variables. Before the environment and argv, llama-server
+v0.7.0 applies `/etc/llama.cpp/config.ini`, then `${XDG_CONFIG_HOME:-~/.config}/llama.cpp/config.ini`,
+and either can set any option: `tools = all` serves a shell at `/tools`, `api-prefix = /v1` puts every
+route inside the sandbox's `/v1/**`. So the llama.cpp scripts:
+
+1. start the server with `XDG_CONFIG_HOME` set to an empty private directory,
+   `${XDG_STATE_HOME:-~/.local/state}/cascade/llama-server-config` (mode 0700, this user's, never a
+   symlink; anything inside it refuses the start), so the caller's `XDG_CONFIG_HOME` and `~/.config`
+   are never read;
+2. refuse to start, and fail `--check`, while `/etc/llama.cpp/config.ini` exists (llama-server has no
+   flag that skips it).
+
+`CASCADE_LLAMA_CONFIG_INI=1` serves with both files anyway and says so on stderr. `brain.py` runs its
+server with the deployment's own `XDG_CONFIG_HOME` (`$PAAI_DATA_DIR/config`) and the image's `/etc`.
 
 ## Live check of the brain profile
 
@@ -133,7 +149,9 @@ Reading a FAIL:
 From the live checkout, about 2 min. It replaces only the brain profile; the sandbox keeps running.
 
 1. If Bolt is the brain, restart it without the warm start (read-write plus the warm start would
-   show `/slots` prompt text to the sandbox; step 2 refuses while it runs):
+   show `/slots` prompt text to the sandbox; step 2 refuses while it runs). Keep it on
+   `WARM_START=0` until `/v1`-only is back (step 3): step 2 checks only at the moment it runs, and
+   the [bring-up](#bring-up) command starts the warm start by default.
    ```bash
    systemctl --user stop cascade-brain
    systemd-run --user --unit=cascade-brain --collect -p MemoryMax=infinity \
@@ -141,8 +159,9 @@ From the live checkout, about 2 min. It replaces only the brain profile; the san
        "$PWD/scripts/serve_nemotron_bolt_llamacpp.sh"
    ```
 2. `scripts/openshell_rig.py brain-profile --read-write`: main's old read-write brain profile
-   (sha256 `7e81c98a…`), nothing else.
-3. Back to `/v1`-only once fixed: `scripts/openshell_rig.py brain-profile`, or the next `up`.
+   (sha256 `7e81c98a…`), nothing else. Like `up`, it refuses while cascade's gateway is down.
+3. Back to `/v1`-only once fixed: `scripts/openshell_rig.py brain-profile`, or the next `up`. Then
+   restart Bolt with the warm start: the [bring-up](#bring-up) unit (step 0), without `WARM_START=0`.
 
 ## Bring-up
 

@@ -564,7 +564,8 @@ def test_amend_context_rewrites_one_row_and_keeps_every_other_byte(tmp_path):  #
 
     trace = TraceLogger(tmp_path)
     steps = [trace.record("move_home", {"i": i}, {"ok": True, "x": float("nan") if i == 1 else i / 3}, 1.0,
-                          context={"learning": {"kind": "note", "line": f"line {i}"}} if i == 2 else None)
+                          context={"sim_retry": {"allowed": True}, "learning": {"kind": "note", "line": f"line {i}"}}
+                          if i == 2 else None)
              for i in range(4)]
     assert steps == [0, 1, 2, 3]
     path = tmp_path / "trace.jsonl"
@@ -573,7 +574,8 @@ def test_amend_context_rewrites_one_row_and_keeps_every_other_byte(tmp_path):  #
     after = path.read_text().splitlines()
     assert len(after) == 4 and after[:2] + after[3:] == before[:2] + before[3:]
     old, new = json.loads(before[2]), json.loads(after[2])
-    assert new["context"] == {"learning": WITHHELD_NOTE} and {**old, "context": None} == {**new, "context": None}
+    assert new["context"] == {"sim_retry": {"allowed": True}, "learning": WITHHELD_NOTE}
+    assert {**old, "context": None} == {**new, "context": None}
     unchanged = path.read_bytes()
     assert trace.amend_context(9, "learning", WITHHELD_NOTE) is False and path.read_bytes() == unchanged
     assert trace.amend_context(0, "learning", WITHHELD_NOTE) is True   # a row recorded with no context
@@ -618,6 +620,26 @@ def test_a_stop_after_the_decision_withdraws_the_retry_line_and_the_panel_says_s
         event = _learning_json(tmp_path)["last_event"]
         assert {k: event[k] for k in ("kind", "line", "outcome")} == {"kind": "retry", "line": None, "outcome": "halted"}
         assert runtime.trace.rows()[-1]["context"]["learning"] == {"kind": "retry", "line": None, "withheld": "stopped"}
+
+
+@needs_pin
+def test_a_retry_a_stop_met_marks_no_line_in_its_trace_row(monkeypatch, tmp_path):  # #398 review, Minor 2
+    """THE retry stopped during its skill: no line was ever decided, so its row carries no learning mark (only a
+    line recorded and then withdrawn is marked withheld); the panel still says halted."""
+    with _kitchen(monkeypatch, tmp_path, gate=True, refuse=3) as (runtime, arm):
+        assert runtime.execute("pick_and_place", PICK)["sim_retry"]["allowed"] is True
+        real = runtime.skill_pick_and_place
+
+        def pick(*a, **k):
+            out = real(*a, **k)
+            _stop(runtime.arm.harness, "e-stop reset")
+            return out
+        runtime.skill_pick_and_place = pick
+        res = runtime.execute("pick_and_place", PICK)
+        _assert_not_granted(res)
+        event = _learning_json(tmp_path)["last_event"]
+        assert {k: event[k] for k in ("kind", "line", "outcome")} == {"kind": "retry", "line": None, "outcome": "halted"}
+        assert "learning" not in runtime.trace.rows()[-1]["context"]
 
 
 @needs_pin

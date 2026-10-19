@@ -53,7 +53,7 @@ from typing import NamedTuple
 import numpy as np
 
 from ..types import SafetyViolation, SkillError
-from . import carry_attachment
+from . import arm_frame, carry_attachment
 from . import relative_motion as rm
 
 logger = logging.getLogger(__name__)
@@ -264,7 +264,22 @@ def viewer_axes(rt) -> rm.ViewerAxes:
         T = ext.cam_to_base()
     except SkillError as exc:  # missing/rejected record or drift-invalidated at runtime
         raise SkillError(f"viewer frame unavailable: camera {name!r} is not calibrated ({exc})") from exc
-    return rm.viewer_axes(T, camera=name)
+    # The camera's pose is the table's (cam -> W); the moves are the running
+    # arm's (cam -> B): on a base_pose arm "right on the screen" is the
+    # camera's right seen from that arm's base.
+    return rm.viewer_axes(arm_frame.cam_to_arm(_world_from_base(rt), T), camera=name)
+
+
+def _world_from_base(rt):
+    """The running arm's base_pose (table <- base) or None: no base_pose, or
+    a stand-in runtime without one (nothing converts)."""
+    T = getattr(rt, "T_world_base", None)
+    return T if isinstance(T, np.ndarray) else None
+
+
+def _tcp_in_world(rt, T_tcp) -> list:
+    """A TCP pose's position, reported in the table frame (agent coordinates)."""
+    return _vec(arm_frame.to_world(_world_from_base(rt), np.asarray(T_tcp, dtype=float)[:3, 3]))
 
 
 def _screen(rt, delta) -> str:
@@ -565,8 +580,8 @@ def success(rt, *, tool: str, words: str, frame, camera, delta, T0, load: Carrie
         "camera": camera,
         "displacement_base_m": _vec(delta),
         "as_seen_on_screen": _screen(rt, delta),
-        "tcp_before": _vec(T0[:3, 3]),
-        "tcp_after": _vec(T1[:3, 3]),
+        "tcp_before": _tcp_in_world(rt, T0),
+        "tcp_after": _tcp_in_world(rt, T1),
         "path": "straight line (cartesian)" if route.cartesian else "joint space",
         "holding": load.label,
         "speed": "slow (holding an object)" if load.label else "normal",
@@ -760,8 +775,8 @@ def undo_move(rt, steps=1) -> dict:
         "interpretation": "undid, newest first: " + " | ".join(undone),
         "displacement_base_m": _vec(delta),
         "as_seen_on_screen": _screen(rt, delta),
-        "tcp_before": _vec(T_start[:3, 3]),
-        "tcp_after": _vec(T1[:3, 3]),
+        "tcp_before": _tcp_in_world(rt, T_start),
+        "tcp_after": _tcp_in_world(rt, T1),
         "path": "straight line (cartesian)" if route is not None and route.cartesian else "joint space",
         "holding": load.label,
         "speed": "slow (holding an object)" if load.label else "normal",
@@ -916,6 +931,16 @@ def _target_geometry(rt, label: str, T0, load: Carried) -> dict:
             "top_z_m": round(top, 4), "radius_m": round(radius, 4)}
 
 
+def _target_in_world(rt, target: dict) -> dict:
+    """move_near_object's target as reported: its centre in the table frame
+    (the geometry is measured in the running arm's frame, like every target)."""
+    T = _world_from_base(rt)
+    if T is None:
+        return target
+    c = arm_frame.to_world(T, [*target["center_xy_m"], 0.0])
+    return {**target, "center_xy_m": _vec(c[:2])}
+
+
 def move_near_object(rt, label=None, relation=None, clearance_m=None, side=None, frame=None,
                      distance_m=None, amount=None) -> dict:
     """Position the gripper (and its load) relative to a named object or the
@@ -1032,7 +1057,7 @@ def move_near_object(rt, label=None, relation=None, clearance_m=None, side=None,
         if transit - goal[2] > 1e-3:
             pts.append(goal)
     if not pts:
-        return {"moved": False, "interpretation": words, "target": target, "relation": rel,
+        return {"moved": False, "interpretation": words, "target": _target_in_world(rt, target), "relation": rel,
                 "holding": load.label, "summary": f"Already there: {words}."}
 
     def goals_for(f):
@@ -1055,7 +1080,7 @@ def move_near_object(rt, label=None, relation=None, clearance_m=None, side=None,
                 feasible = {"feasible_distance_m": round(total * frac, 3), "feasible_fraction": round(frac, 3)}
         out = refusal(rt, err, words=words, frame="base", delta=delta, load=load, feasible=feasible,
                       retry_hint="call move_near_object again with that distance_m")
-        out["target"] = target
+        out["target"] = _target_in_world(rt, target)
         if err.source == "kinematics":
             out["next_action"] += (" The gripper keeps its current orientation on this move; if it "
                                    "points sideways, pointing the jaws down first (rotate_gripper "
@@ -1064,7 +1089,7 @@ def move_near_object(rt, label=None, relation=None, clearance_m=None, side=None,
             out["error"] += f" (segment {err.segment + 1} of {len(pts)} of the carry route)"
         return out
     execute_route(rt, route, duration, tool="move_near_object", words=words)
-    extra = {"relation": rel, "target": target, "path_segments": len(route.segments)}
+    extra = {"relation": rel, "target": _target_in_world(rt, target), "path_segments": len(route.segments)}
     if note:
         extra["note"] = note
     return success(rt, tool="move_near_object", words=words, frame="base", camera=None, delta=delta,

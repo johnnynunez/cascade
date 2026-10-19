@@ -1685,3 +1685,205 @@ def test_a_runtime_double_without_the_arm_frame_measures_as_before(T):
     out = held_observation.measure(_plain_double(None if T is None else transform(YAWED)), lambda *a, **k: None)
     assert out.channel == "legacy_pose", out
     np.testing.assert_allclose(out.offset, [0.01, 0.02, -0.03], rtol=0.0, atol=1e-12)
+
+
+# ── 10. the remaining world-target skills and the viewer frame (Task 6) ─────
+
+#: rig A's snapshot entries moved by this (rig A's frame) before restore_scene,
+#: rig B's by R of it: the cube is then displaced from where the snapshot
+#: remembers it (the mock camera never shows a moved cube, so a push could
+#: not displace it).
+_SNAPSHOT_SHIFT = np.array([0.0, -0.06, 0.0])
+_SHIFT_SNAPSHOT = ("shift the snapshot", None)
+
+
+def _no_visitor_sides(cfg):
+    """safety.people.visitor_sides: [] (every throw is refused toward a visitor
+    side, and every side is one by default): the throw rows compare the skill."""
+    from test_people_guard_base_pose import _people
+
+    return _people({"visitor_sides": []})(cfg)
+
+
+#: Task 6's oracle sequences: (arm, steps, config edit). Each step runs on both
+#: rigs and is compared (`run_pair`). move_near_object moves `closer` on
+#: `mock`: above / next_to are out of every shipped chain's reach from home
+#: (refused by the arm's reach on both rigs). search_for_object's occluder row
+#: runs on `mock`: on so101 the park spot's place is refused (place pose
+#: unreachable, pre-existing).
+ORACLE_T6 = {
+    "sort_by_color": ("so101_right", [("sort_by_color", {})], None),
+    "search_for_object": ("so101_right", [("search_for_object", {"label": "red cube"})], None),
+    "search_for_object, occluder": ("mock", [("search_for_object", {"label": "blue ball"})], None),
+    "restore_scene": ("so101_right", [("snapshot_scene", {"name": "scene"}), _SHIFT_SNAPSHOT,
+                                      ("restore_scene", {"name": "scene", "max_moves": 1})], None),
+    "turn_screw": ("so101_right", [("turn_screw", {"label": "red cube"})], None),
+    "throw": ("so101_right", [("throw", {"label": "red cube"})], _no_visitor_sides),
+    "handover": ("so101_right", [("handover", {"label": "red cube"})], None),
+    "move_near_object": ("mock", [("move_near_object", {"label": "red cube", "relation": "closer",
+                                                        "distance_m": 0.03})], None),
+    "probe_point": ("so101_right", [("probe_point", {"u": 320, "v": 327})], None),
+}
+#: Steps that move nothing (they still compare their results).
+_LOOKS = {"snapshot_scene", "probe_point", "search_for_object"}
+
+
+def _shift_snapshots(rt_a, rt_b, T):
+    for rt, d in ((rt_a, _SNAPSHOT_SHIFT), (rt_b, np.asarray(T)[:3, :3] @ _SNAPSHOT_SHIFT)):
+        snap = rt.beliefs.get_snapshot("scene")
+        assert snap is not None and snap.entries, "snapshot_scene memorized the cube"
+        for entry in snap.entries:
+            entry["position"] = (np.asarray(entry["position"], dtype=float) + d).tolist()
+
+
+@pytest.mark.parametrize("pose", [SHIPPED_RIGHT, YAWED], ids=["so101_right", "yawed"])
+@pytest.mark.parametrize("seq", sorted(ORACLE_T6))
+def test_remaining_skills_are_equivariant(make_pair_rigs, observed_gate, pose, seq):  # noqa: F811
+    """Task 6: the arm at base_pose T with the scene moved by T sends rig A's
+    commands and reports rig A's results moved by T (main: refused by #352's
+    guard). The sort zones and the park spots are the arm's; the snapshot
+    targets, beliefs and agent text stay in the table frame."""
+    arm, steps, edit = ORACLE_T6[seq]
+    rt_a, rt_b, T = make_pair_rigs(pose, arm=arm, edit=edit)
+    for rt in (rt_a, rt_b):
+        observed_gate(rt)
+    for skill, args in steps:
+        if (skill, args) == _SHIFT_SNAPSHOT:
+            _shift_snapshots(rt_a, rt_b, T)
+            continue
+        run = run_pair(rt_a, rt_b, T, skill, args)
+        if skill not in _LOOKS or seq == "search_for_object, occluder":
+            assert run["cmds_a"], f"rig A moved for {skill}: {run['result_a']}"
+        assert_equivariant(run, T)
+
+
+def test_viewer_directions_follow_the_camera_on_a_yawed_base(make_pair_rigs):  # noqa: F811
+    """The viewer frame is the camera's, taken into the arm frame: on a YAWED
+    base (the camera moved with it) "right" / "left" as seen on the screen
+    send rig A's commands (main: rotated by the 0.4 rad yaw), and the undo
+    retraces them. Arm profile `mock` (its relative moves complete at home)."""
+    rt_a, rt_b, T = make_pair_rigs(YAWED, arm="mock")
+    for skill, args in (("move_relative", {"direction": "right", "frame": "viewer", "distance_m": 0.02}),
+                        ("undo_move", {}),
+                        ("rotate_gripper", {"direction": "left", "angle_deg": 10, "frame": "viewer"})):
+        run = run_pair(rt_a, rt_b, T, skill, args)
+        assert run["result_a"].get("ok", True) is True and run["cmds_a"], (skill, run["result_a"])
+        assert_equivariant(run, T)
+
+
+@pytest.mark.parametrize("skill", ["throw", "handover"])
+def test_throw_and_handover_on_the_arm_that_does_not_hold_are_refused(make_runtime, gate_off, monkeypatch,  # noqa: F811
+                                                                      skill):
+    """Review Focus 2 (spec D9 / §5): the right arm holds the cube; throw or
+    handover on the LEFT arm would swing the left arm and open its empty jaws
+    (the hold is skipped: "already holding"). Refused before any perception or
+    command on either arm, naming the holding arm; the right arm still holds it."""
+    cfg = _pair_world_rig()
+    _no_visitor_sides(cfg)
+    rt = make_runtime(cfg)
+    assert rt.execute("grasp_object", {"label": "red cube", "arm": "so101_right"})["held"] == "red cube"
+    log = _JawLog(rt, monkeypatch)
+    mark = log.mark()
+    looked = []
+    real_localize = rt._localize
+    monkeypatch.setattr(rt, "_localize", lambda *a, **k: (looked.append(a), real_localize(*a, **k))[1])
+    result = rt.execute(skill, {"label": "red cube", "arm": "so101_left"})
+    assert result["ok"] is False, result
+    assert "'red cube' " + HELD_TEXT + ", not 'so101_left'; no motion was sent" in result["error"], result
+    assert looked == [] and log.since(mark) == ({"so101_left": 0, "so101_right": 0},
+                                                {"so101_left": 0, "so101_right": 0})
+    assert rt.held_object == "red cube" and rt._held_arm == "so101_right"
+    _assert_one_failed_line(result)
+
+
+def test_turn_screw_on_the_arm_that_does_not_hold_names_the_holding_arm(make_runtime, gate_off,  # noqa: F811
+                                                                        monkeypatch):
+    """The right arm holds the cube: turn_screw on the LEFT arm is refused
+    before any perception or command, naming the holding arm and the way out
+    on it (Task 5 review Minor 2's text for every grasp skill), not "already
+    holding ...; place it first" (the left arm holds nothing)."""
+    rt = make_runtime(_pair_world_rig())
+    assert rt.execute("grasp_object", {"label": "red cube", "arm": "so101_right"})["held"] == "red cube"
+    log = _JawLog(rt, monkeypatch)
+    mark = log.mark()
+    looked = []
+    real_localize = rt._localize
+    monkeypatch.setattr(rt, "_localize", lambda *a, **k: (looked.append(a), real_localize(*a, **k))[1])
+    result = rt.execute("turn_screw", {"label": "red cube", "arm": "so101_left"})
+    assert result["ok"] is False, result
+    assert ("'red cube' " + HELD_TEXT + ", not 'so101_left': place it with arm='so101_right' first (place_at), "
+            "then turn_screw; no motion was sent") in result["error"], result
+    assert looked == [] and log.since(mark) == ({"so101_left": 0, "so101_right": 0},
+                                                {"so101_left": 0, "so101_right": 0})
+    assert rt.held_object == "red cube" and rt._held_arm == "so101_right"
+    _assert_one_failed_line(result)
+
+
+def test_probe_point_checks_the_workspace_in_the_arm_frame(make_runtime):  # noqa: F811
+    """R10: the probed point is table-frame (the camera's); the configured
+    workspace is the running arm's. so101_right (base at W y -0.22) and the
+    cube at W (0.198, 0.20): B y 0.42, outside its workspace (|y| <= 0.36),
+    though the table-frame numbers read in the arm frame would be inside. The
+    gripper distance is measured from the TCP lifted into the table frame."""
+    T = transform(SHIPPED_RIGHT)
+    rt = make_runtime(moved_cfg("so101_right", SHIPPED_RIGHT, move_cameras=False, shift_xy=(0.0, 0.20)))
+    out = rt.execute("probe_point", {"u": 320, "v": 327})
+    assert out.get("ok") is True, out
+    p = np.asarray(out["position"], dtype=float)
+    assert abs(p[1] - 0.20) < 0.03, p                                        # table frame
+    lo, hi = (np.asarray(rt.cfg.safety.workspace.get(k), dtype=float) for k in ("min", "max"))
+    p_arm = p - np.asarray(T)[:3, 3]
+    assert not np.all((lo <= p_arm) & (p_arm <= hi)) and np.all((lo <= p) & (p <= hi)), (p, lo, hi)
+    assert out["reachable"]["in_workspace"] is False, out["reachable"]
+    tcp = lift(T, rt.kin.fk(rt.arm.get_state().q)[:3, 3])
+    np.testing.assert_allclose(out["from_gripper"]["delta_xyz_m"], p - tcp, rtol=0.0, atol=1.1e-3)
+    assert out["from_gripper"]["distance_m"] == pytest.approx(float(np.linalg.norm(p - tcp)), abs=1.1e-3)
+
+
+def _in_arm_frame(T, p):
+    """A table-frame point in the frame of the arm at T: T^-1 p."""
+    T = np.asarray(T, dtype=float)
+    return (np.asarray(p, dtype=float) - T[:3, 3]) @ T[:3, :3]
+
+
+def test_restore_checks_the_target_in_the_arm_frame(make_runtime, gate_off, monkeypatch):  # noqa: F811
+    """restore_scene's reachability pre-check (an IK solve) gets the snapshot
+    target (table frame) in the running arm's frame; the move it starts goes
+    to the table-frame target (place_at's agent coordinates)."""
+    T = transform(YAWED)
+    rt = make_runtime(moved_cfg("so101_right", YAWED, move_cameras=False, shift_xy=(0.0, -0.10)))
+    checked, placed = [], []
+    real_check, real_move = rt._reachable_place_xy, rt._move_object_to
+    monkeypatch.setattr(rt, "_reachable_place_xy", lambda x, y: (checked.append((x, y)), real_check(x, y))[1])
+    monkeypatch.setattr(rt, "_move_object_to",
+                        lambda query, to, **k: (placed.append(list(to)), real_move(query, to, **k))[1])
+    with _fusion_held(rt):
+        rt._reobserve(1)
+        assert rt.execute("snapshot_scene", {"name": "scene"}).get("ok", True) is True
+        entry = rt.beliefs.get_snapshot("scene").entries[0]
+        target = np.asarray(entry["position"], dtype=float) + np.asarray(T)[:3, :3] @ _SNAPSHOT_SHIFT
+        entry["position"] = target.tolist()
+        rt.execute("restore_scene", {"name": "scene", "max_moves": 1})
+    assert checked and placed, (checked, placed)
+    np.testing.assert_allclose(checked[0], _in_arm_frame(T, target)[:2], rtol=0.0, atol=1e-9)
+    np.testing.assert_allclose(placed[0], target[:2], rtol=0.0, atol=1e-9)
+
+
+@pytest.mark.parametrize("cube_y", [-0.10, -0.20], ids=["cube at W y -0.10", "cube at the zone's arm numbers"])
+def test_sort_by_color_zones_are_the_arms_and_reported_in_the_table_frame(make_runtime, gate_off, cube_y):  # noqa: F811
+    """sort_by_color's zones run along the running arm's front edge (its
+    drop_zone x, its base frame); they are placed at and reported as table-frame
+    points: on so101_right (a pure -0.22 m shift in y) every zone's y is 0.22 m
+    lower in the table frame. The "already sorted" check compares in the arm
+    frame: a cube at W (0.198, -0.20) (B y 0.02) is NOT in the first zone (B y
+    -0.20) and moves, though its table-frame numbers equal the zone's arm-frame
+    ones."""
+    rt = make_runtime(moved_cfg("so101_right", SHIPPED_RIGHT, move_cameras=False, shift_xy=(0.0, cube_y)))
+    result = rt.execute("sort_by_color", {})
+    assert result.get("ok", True) is True and result["moved"], result
+    # the arm's zones, B (0.20, -0.20 / -0.10 / 0 / 0.10 / 0.20), first colour first, in the table frame
+    table_zones = [[0.20, y - 0.22] for y in (-0.20, -0.10, 0.0, 0.10, 0.20)]
+    zones = list(result["zones"].values())
+    assert zones and np.allclose(zones, table_zones[:len(zones)], rtol=0.0, atol=1e-9), zones
+    for m in result["moved"]:
+        assert np.allclose(m["zone"], result["zones"][m["color"]], rtol=0.0, atol=1e-9), m

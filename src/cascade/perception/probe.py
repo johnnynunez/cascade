@@ -267,6 +267,17 @@ def deproject(u: float, v: float, z: float, K: np.ndarray) -> np.ndarray:
     return np.array([(u - cx) * z / fx, (v - cy) * z / fy, z], dtype=float)
 
 
+def _through(T, how: str, p):
+    """`arm_frame.<how>(T, p)` (the one place a base_pose multiplies); `p`
+    itself without a base_pose. Imported late: the skills package imports
+    this module."""
+    if T is None:
+        return p
+    from ..skills import arm_frame
+
+    return getattr(arm_frame, how)(T, p)
+
+
 class PointProbe:
     """Queryable cursor over a camera frame.
 
@@ -296,6 +307,12 @@ class PointProbe:
                 raise ValueError(f"no extrinsics available for camera {camera!r}")
             T = extrinsics.cam_to_base()
         return frame, np.asarray(T, dtype=float)
+
+    def _world_from_base(self):
+        """The running arm's base_pose (table <- base), or None: no base_pose,
+        or a stand-in runtime without one (nothing converts)."""
+        T = getattr(self.rt, "T_world_base", None)
+        return T if isinstance(T, np.ndarray) else None
 
     def _workspace(self) -> dict:
         cfg = self.rt.cfg
@@ -381,10 +398,14 @@ class PointProbe:
 
         # A workspace bound is a configured limit, not an IK solution. The
         # old default X band incorrectly rejected proven kitchen grasp poses.
+        # The point is the camera's, in the table frame; the workspace and the
+        # TCP are the running arm's (its base frame): compare there, report here.
+        T_wb = self._world_from_base()
+        p_arm = _through(T_wb, "to_arm", p_base)
         ws = self._workspace()
         try:
             lo, hi = ws["min"], ws["max"]
-            inside = all(float(lo[i]) <= p_base[i] <= float(hi[i]) for i in range(3))
+            inside = all(float(lo[i]) <= p_arm[i] <= float(hi[i]) for i in range(3))
         except (KeyError, TypeError, IndexError):
             inside = None
         out["reachable"] = {
@@ -409,7 +430,7 @@ class PointProbe:
             tcp = self.rt._tcp_if_awake()  # None in standby: a probe never powers the arm
             if tcp is None:
                 return out
-            tcp = np.asarray(tcp, dtype=float)[:3]
+            tcp = _through(T_wb, "to_world", np.asarray(tcp, dtype=float)[:3])
             delta = p_base - tcp
             out["from_gripper"] = {
                 "distance_m": round(float(np.linalg.norm(delta)), 4),

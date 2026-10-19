@@ -848,71 +848,23 @@ _MOTION_SKILLS = {
 #: inventories, SAM track steps) never competes with their localization.
 _FOREGROUND_PERCEPTION_SKILLS = _MOTION_SKILLS | {"preview_grasp", "localize_object"}
 
-#: Skills that turn a perceived position (`_localize`, `_belief_pose`,
-#: `fix_at_pixel`) or agent world coordinates (place_at's x, y) into an arm
-#: target. Those positions are in the shared TABLE frame, while the runtime
-#: solves IK in the running arm's base frame, so on an arm mounted with a
-#: `base_pose` they aim (and place their exemption columns) the base_pose's
-#: offset away from the object until their path converts (spec 2026-10-17
-#: base_pose runtime frame). execute() refuses them on such an arm
-#: (`_mounted_off_table_origin`); a skill leaves this set in the task whose
-#: tests prove it reaches the world point (point_at, preview_grasp: Task 3;
-#: grasp_object, grasp_at_pixel: Task 4; place_at, place_on_object,
-#: push_object, pick_and_place: Task 5).
-#: Pinned against the call graph by tests/test_base_pose_world_target_guard.py.
-_WORLD_TARGET_SKILLS = frozenset({
-    "move_near_object", "sort_by_color",
-    "search_for_object", "restore_scene", "turn_screw", "throw", "handover",
-})
-#: Why a world-target skill is refused on an arm with a base_pose.
-_BASE_POSE_WORLD_TARGET_REFUSAL = (
-    "this arm is mounted off the table origin (base_pose); world targets are not converted yet")
-#: The tilt refusal's scope (spec D4, §5): the 15 world-target skills of the
-#: brief, FROZEN as the base_pose plan started. Unlike `_WORLD_TARGET_SKILLS`
-#: it never shrinks as skills convert: the conversion is exact only on a level
-#: mount (one `table_z` plane, the top-down yaw, the reach annuli), so an arm
-#: whose base_pose has any roll or pitch refuses all 15 before any work.
-#: `halt_motion` (never deniable) and the joint-space / relative skills are
-#: not in it. Pinned by tests/test_base_pose_world_target_guard.py.
+#: The tilt refusal's scope (spec D4 / D10, §5): the brief's 15 world-target
+#: skills, FROZEN as the base_pose plan started. Each turns a perceived
+#: position (`_localize`, `_belief_pose`, `fix_at_pixel`) or agent table-frame
+#: coordinates into a target in the running arm's base frame and reports back
+#: in the table frame (spec 2026-10-17 base_pose runtime frame; #352's
+#: world-target refusal went with the last conversion, Task 6). The
+#: conversion is exact only on a level mount (one `table_z` plane, the
+#: top-down yaw, the reach annuli), so an arm whose base_pose has any roll or
+#: pitch refuses all 15 before any work. `halt_motion` (never deniable) and the
+#: joint-space / relative skills are not in it. Pinned by
+#: tests/test_base_pose_tilted_mount.py.
 _TILT_REFUSED_SKILLS = frozenset({
     "grasp_object", "pick_and_place", "grasp_at_pixel", "place_at",
     "place_on_object", "push_object", "move_near_object", "sort_by_color",
     "search_for_object", "restore_scene", "turn_screw", "throw", "handover",
     "point_at", "preview_grasp",
 })
-
-
-def _mounted_off_table_origin(arm) -> bool:
-    """The arm's safety harness declares a `base_pose` other than the identity.
-
-    Reads instance dicts only (like `_arm_harnesses`): no backend probe, and a
-    standby LazyArm stays unmaterialized. No harness or no base_pose (every
-    single-arm profile: the reBot, the kitchen arm) and the exact identity are
-    False, so execute() runs exactly as before. Any other value, including one
-    that is not a 4x4 matrix, is True: fail closed.
-    """
-    harness = (getattr(arm, "__dict__", None) or {}).get("harness")
-    pose = (getattr(harness, "__dict__", None) or {}).get("base_pose")
-    if pose is None:
-        return False
-    try:
-        return not np.array_equal(np.asarray(pose, dtype=float), np.eye(4))
-    except (TypeError, ValueError):
-        return True
-
-
-def _world_target_refusal(name: str, arm_name) -> dict:
-    """The result of a world-target skill refused on a base_pose arm: nothing
-    was perceived, commanded or moved, so there is no move_home step."""
-    who = "this arm" if arm_name in (None, "default") else f"arm {arm_name!r}"
-    return {
-        "ok": False,
-        "outcome": OUTCOME_FAILED,
-        "error": f"{name} refused on {who}: {_BASE_POSE_WORLD_TARGET_REFUSAL}; no motion was sent",
-        "next_action": ("Do not retry this skill on this arm. Only joint-space and relative "
-                        "skills (move_home, move_to_rest, rotate_joint, move_relative, "
-                        "rotate_gripper, wave, open_gripper, close_gripper) run on it."),
-    }
 
 
 def _tilt_angle_text(deg: float) -> str:
@@ -1563,6 +1515,24 @@ class SkillRuntime:
         """A running-arm-frame height as a table-frame height (level mounts;
         agent text quotes table-frame numbers). Without a base_pose: z."""
         return arm_frame.table_z_in_world(self.T_world_base, z)
+
+    def _xy_to_world(self, xy):
+        """A running-arm-frame (x, y) as a table-frame (x, y) of floats (level
+        mounts: the height does not move it). Without a base_pose: `xy` itself."""
+        T = self.T_world_base
+        if T is None:
+            return xy
+        p = arm_frame.to_world(T, [float(xy[0]), float(xy[1]), 0.0])
+        return float(p[0]), float(p[1])
+
+    def _xy_to_arm(self, xy):
+        """A table-frame (x, y) in the running arm's base frame, as floats (level
+        mounts). Without a base_pose: `xy` itself."""
+        T = self.T_world_base
+        if T is None:
+            return xy
+        p = arm_frame.to_arm(T, [float(xy[0]), float(xy[1]), 0.0])
+        return float(p[0]), float(p[1])
 
     def _running_arm_name(self) -> str | None:
         """The rig name of the arm this call drives, as execute() names it
@@ -2362,11 +2332,6 @@ class SkillRuntime:
         # a base_pose `is_level(None)` is True: nothing changes.
         if name in _TILT_REFUSED_SKILLS and not arm_frame.is_level(frame.T_world_base):
             return _tilted_mount_refusal(name, resolved_arm, *arm_frame.tilt_deg(frame.T_world_base))
-        # The RUNNING arm (the `arm=` selection included) decides, before any
-        # perception, status line, keyframe or command: a base_pose arm would
-        # aim a table-frame target in its own base frame (_WORLD_TARGET_SKILLS).
-        if name in _WORLD_TARGET_SKILLS and _mounted_off_table_origin(effective_arm):
-            return _world_target_refusal(name, resolved_arm)
         # Bind the selected arm AND its frame (R3): from here until the
         # postcondition fold, so the pre-state snapshot, the skill, its view-home
         # return and the verifier all read the RUNNING arm (its jaws, its
@@ -8117,6 +8082,7 @@ class SkillRuntime:
         """Hand the object to the human: grasp it if needed, present it at
         the handover pose, and KEEP HOLDING -- the human says 'open gripper'
         (or the agent calls open_gripper) once they have grabbed it."""
+        self._check_holding_arm()      # D9 / R5: never present another arm's object with these jaws
         if not self.held_object:
             if not label:
                 raise SkillError("not holding anything; say which object to hand over")
@@ -8189,6 +8155,7 @@ class SkillRuntime:
         `safety.people.visitor_sides` (every side unless a profile narrows
         it): nothing vets where the object lands.
         """
+        self._check_holding_arm()      # D9 / R5: never swing and open these jaws for another arm's object
         if direction not in self._THROW_YAWS:
             raise SkillError(f"direction must be one of {sorted(self._THROW_YAWS)}")
         # 1) make sure we're holding something.
@@ -8295,7 +8262,7 @@ class SkillRuntime:
         # the jaws hold, or may hold after an interrupted grasp.
         self._reconcile_held()
         if self.held_object:
-            raise SkillError(f"already holding {self.held_object!r}; place it first")
+            raise SkillError(self._already_holding_refusal("turn_screw"))   # names another arm's hold (R5)
         self._refuse_on_another_arms_provisional("try again")      # R5: its close would take that slot
         self._raise_on_a_possible_hold()
 
@@ -8438,7 +8405,9 @@ class SkillRuntime:
         along the front edge. Pure composition of pick_and_place."""
         self._refuse_on_another_arms_provisional("sort_by_color")       # R5: before any object
         # +-0.24 is outside the top-down IK envelope at x=0.30 on this arm
-        # (verified against the RS URDF); stay within +-0.20.
+        # (verified against the RS URDF); stay within +-0.20. The zones run
+        # along the RUNNING arm's front edge (its base frame, its drop_zone x);
+        # they are placed at and reported in the table frame.
         zones_y = (-0.20, -0.10, 0.0, 0.10, 0.20)
         zone_x = float(self.cfg.grasp.get("drop_zone", [0.30, -0.20])[0])
         colors: dict[str, tuple[float, float]] = {}
@@ -8453,7 +8422,7 @@ class SkillRuntime:
                     continue
                 colors[color] = (zone_x, zones_y[len(colors)])
             zx, zy = colors[color]
-            if np.linalg.norm(b.position[:2] - np.array([zx, zy])) < 0.07:
+            if np.linalg.norm(np.asarray(self._to_arm(b.position))[:2] - np.array([zx, zy])) < 0.07:
                 continue  # already sorted
             query = f"{b.color} {b.label}" if b.color else b.label
             if not grasping:
@@ -8480,19 +8449,20 @@ class SkillRuntime:
                 if self._estopped():
                     break  # the operator stopped the arm: no next object
                 continue
+            zone = self._xy_to_world((zx, zy))     # place_at takes table-frame coordinates
             try:
-                self.skill_place_at(zx, zy)
+                self.skill_place_at(zone[0], zone[1])
             except (SkillError, SafetyViolation) as e:
                 # still holding: stop sorting rather than cascade failures
                 failed.append({"label": query, "error": f"place: {e}"})
                 break
-            moved.append({"label": query, "color": color, "zone": [zx, zy]})
+            moved.append({"label": query, "color": color, "zone": [zone[0], zone[1]]})
         ok = not failed or bool(moved)
         out = {
             "ok": ok,
             "moved": moved,
             "failed": failed,
-            "zones": {c: list(z) for c, z in colors.items()},
+            "zones": {c: list(self._xy_to_world(z)) for c, z in colors.items()},
         }
         if not ok:
             out["error"] = "; ".join(
@@ -8555,7 +8525,8 @@ class SkillRuntime:
         return bool(np.all(np.isfinite(p)) and np.all(p >= lo) and np.all(p <= hi))
 
     def _reachable_place_xy(self, x: float, y: float) -> bool:
-        """IK pre-check for a top-down release above (x, y).
+        """IK pre-check for a top-down release above (x, y), in the running
+        arm's base frame.
 
         Only a filter: `place_at`'s own planner and the harness remain the
         authority over the actual motion. Its job is to avoid grasping an
@@ -8589,7 +8560,17 @@ class SkillRuntime:
         clear of every (xy, radius) in `avoid`, and IK-reachable; None when
         the table offers none. Pigey parks occluders "+0.2 m" into free
         table; shorter offsets are fallbacks for a small workspace, never a
-        substitute for the clearance test."""
+        substitute for the clearance test.
+
+        `around_xy`, `avoid` and the spot are table-frame xy (beliefs, the
+        snapshot, place_at's coordinates); the search runs in the running
+        arm's base frame: its workspace box, its IK and the order of its
+        directions are the arm's, so an arm at a base_pose parks where the same
+        arm without one would, moved with it."""
+        T = self.T_world_base
+        if T is not None:
+            around_xy = self._xy_to_arm(np.asarray(around_xy, dtype=float).reshape(-1)[:2])
+            avoid = [(self._xy_to_arm(np.asarray(a, dtype=float).reshape(-1)[:2]), r) for a, r in avoid]
         around = np.asarray(around_xy, dtype=float).reshape(-1)[:2]
         r2 = 1.0 / np.sqrt(2.0)
         directions = ((0.0, 1.0), (0.0, -1.0), (1.0, 0.0), (-1.0, 0.0),
@@ -8604,7 +8585,7 @@ class SkillRuntime:
                     continue
                 if not self._reachable_place_xy(float(p[0]), float(p[1])):
                     continue
-                return p
+                return p if T is None else np.asarray(self._xy_to_world(p), dtype=float)
         return None
 
     def _task_budget_exhausted(self) -> bool:
@@ -8888,7 +8869,8 @@ class SkillRuntime:
                          "spot (no free, reachable park spot, or it already failed to move); "
                          "the human may need to clear the table")
                 break
-            if not self._reachable_place_xy(step["to"][0], step["to"][1]):
+            to = self._xy_to_arm(step["to"])     # a table-frame target; the IK pre-check is the arm's
+            if not self._reachable_place_xy(to[0], to[1]):
                 failed.append({"label": step["label"], "kind": step["kind"], "to": step["to"],
                                "error": "target not reachable for a top-down place; left where it is"})
                 skip.add(step["label"])
@@ -11654,10 +11636,7 @@ TOOL_SPECS: list[dict] = [
             "by default. Read-only and safe to call at any time. Call this "
             "before using the `arm` parameter, so you use a real name: on a "
             "single-arm rig it reports one arm and `arm` can be omitted "
-            "entirely. An arm mounted off the table origin (its profile "
-            "declares a base_pose) refuses every skill that aims at a "
-            "perceived object or table coordinates until world targets are "
-            "converted; joint-space and relative skills still run on it."
+            "entirely."
         ),
         "parameters": {"type": "object", "properties": {}, "required": []},
     },

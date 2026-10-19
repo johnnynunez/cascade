@@ -27,7 +27,7 @@ class _FakeHarness:
         self.beats = 0
         self.last = None
 
-    def heartbeat(self):
+    def heartbeat(self, at=None):
         self.beats += 1
         self.last = time.monotonic()
 

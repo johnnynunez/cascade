@@ -83,7 +83,7 @@ def _runtime(frame, detector, extrinsics, cfg, tmp_path):
         camera=SimpleNamespace(get_frame=lambda: frame),
         depth_provider=DepthProvider(Cfg({})), detector=detector,
         extrinsics=extrinsics, kin=None,
-        safe_arm=SimpleNamespace(harness=SimpleNamespace(heartbeat=lambda: None)),
+        safe_arm=SimpleNamespace(harness=SimpleNamespace(heartbeat=lambda at=None: None)),
         memory=EpisodicMemory(), beliefs=BeliefStore(),
         trace=TraceLogger(tmp_path / "run"), cfg=cfg,
     )

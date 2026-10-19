@@ -255,7 +255,7 @@ def contended(tmp_path, monkeypatch):
         harness = runtime.watcher._harness
         beats = []
         beat = harness.heartbeat
-        monkeypatch.setattr(harness, "heartbeat", lambda: (beats.append(time.monotonic()), beat())[1])
+        monkeypatch.setattr(harness, "heartbeat", lambda at=None: (beats.append(time.monotonic()), beat(at=at))[1])
         brain.beats = lambda: len(beats)
         frame = runtime.observe()
         (cube,) = MockDetector().detect(frame)
@@ -805,7 +805,7 @@ class _Beats:
     def __init__(self):
         self.n = 0
 
-    def heartbeat(self):
+    def heartbeat(self, at=None):
         self.n += 1
 
 

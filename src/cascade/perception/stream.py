@@ -66,6 +66,9 @@ class CameraStream:
         self._fps_capture: tuple[dict, float] | None = None
         self._fps_capture_received: float | None = None
         self._last_error: str | None = None
+        #: (identity, newest stamp, client receipt of its first delivery) of
+        #: the last producer capture (`_note_first_receipt`); None otherwise.
+        self._first_receipt: tuple[dict, float, float] | None = None
 
     # ── CameraBase-compatible surface ────────────────────────────────────
 
@@ -204,6 +207,30 @@ class CameraStream:
             self._fps = 0.9 * self._fps + 0.1 * measured if self._fps else measured
             self._fps_capture_received = now
 
+    def _note_first_receipt(self, frame: Frame) -> None:
+        """A producer (an Isaac bridge) re-delivers its cached capture under a
+        NEW Frame and receipt time: such a delivery observed nothing new. Stamp
+        it with the client receipt of that capture's FIRST delivery
+        (`Frame.observed_t`, read by `freshness.observed_at`), so a frozen
+        render never makes the perception watchdog fresher. Producer stamps are
+        only compared with each other (same identity), never with the client's
+        clock. Local frames (one Frame per capture) are left untouched."""
+        try:
+            marker = capture_marker(frame)
+            received = float(frame.t)
+        except (AttributeError, TypeError, ValueError):
+            self._first_receipt = None
+            return
+        if marker["channel"] != "producer_capture":
+            self._first_receipt = None
+            return
+        stamp = marker.pop("t")
+        previous = self._first_receipt
+        if previous is not None and marker == previous[0] and stamp <= previous[1]:
+            frame.observed_t = min(previous[2], received)
+            return
+        self._first_receipt = (marker, stamp, received)
+
     def _stamp_transform(self, frame: Frame) -> None:
         if ((self._capture_transform is None and self._capture_geometry is None)
                 or getattr(frame, "T_base_cam", None) is not None):
@@ -240,6 +267,7 @@ class CameraStream:
             try:
                 frame = self._camera.get_frame()
                 self._stamp_transform(frame)
+                self._note_first_receipt(frame)
                 self._last_error = None
             except Exception as e:
                 self._last_error = str(e)

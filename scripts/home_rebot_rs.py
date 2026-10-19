@@ -67,6 +67,7 @@ import numpy as np
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "src"))
 
+from cascade.perception.freshness import observed_at
 from cascade.types import ContactDetected, SafetyViolation
 
 ARM_PROFILE = "rebot_rs"
@@ -102,7 +103,7 @@ class CameraHeartbeat:
     def _loop(self) -> None:
         while not self._stop.is_set():
             try:
-                self.camera.get_frame()
+                frame = self.camera.get_frame()
             except Exception as e:  # noqa: BLE001  any camera failure = no frame = no beat
                 self.error = f"{type(e).__name__}: {e}"
                 time.sleep(0.05)
@@ -110,7 +111,9 @@ class CameraHeartbeat:
             self.frames += 1
             h = self._harness
             if h is not None:
-                h.heartbeat()
+                # At the frame's arrival time: a driver that hands back an old
+                # frame never makes the watchdog fresher than that frame.
+                h.heartbeat(at=observed_at(frame))
                 self.beats += 1
 
     def wait_frames(self, n: int, timeout_s: float) -> bool:

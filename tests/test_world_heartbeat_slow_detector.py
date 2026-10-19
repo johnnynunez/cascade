@@ -47,7 +47,7 @@ class _CountingHarness:
     def __init__(self):
         self.beats = 0
 
-    def heartbeat(self):
+    def heartbeat(self, at=None):
         self.beats += 1
 
 
@@ -289,7 +289,7 @@ class _TimedHarness:
     def __init__(self):
         self.times: list[float] = []
 
-    def heartbeat(self):
+    def heartbeat(self, at=None):
         self.times.append(time.monotonic())
 
     @property

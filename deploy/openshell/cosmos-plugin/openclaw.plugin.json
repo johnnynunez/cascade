@@ -1,0 +1,16 @@
+{
+  "id": "cascade-cosmos-prompt",
+  "name": "CASCADE Cosmos3-Edge prompt",
+  "description": "Give Cosmos3-Edge a short robot system prompt and user turns without OpenClaw's JSON context envelopes.",
+  "activation": {"onStartup": true},
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["modelProviderId", "modelId"],
+    "properties": {
+      "modelProviderId": {"type": "string", "minLength": 1},
+      "modelId": {"type": "string", "minLength": 1},
+      "maxToolRounds": {"type": "integer", "minimum": 1, "maximum": 3, "default": 1}
+    }
+  }
+}

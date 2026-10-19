@@ -133,13 +133,20 @@ else
     MOTION=(--allow-motion --for 12h)
     MOTION_NOTE="allowed for 12 h (simulator), then re-locked by OpenShell"
 fi
-# The agent's robot profile: the Franka FR3 operator agent (command router +
-# instructions, deploy/openshell/franka-plugin) or the generic one. Always
-# named, so a profile saved by an earlier launch never carries over.
+# The agent's profile: the Franka FR3 operator agent (command router +
+# instructions, deploy/openshell/franka-plugin), the Cosmos3-Edge brain's
+# compact agent (deploy/openshell/cosmos-plugin: short prompt, no JSON
+# envelopes, 10 tools; the 2.4B model writes JSON prose instead of tool calls
+# under the generic one) or the generic one. Always named, so a profile saved
+# by an earlier launch never carries over.
 AGENT_PROFILE=generic
+[[ "$RESOLVED_BRAIN" != cosmos && "$RESOLVED_BRAIN" != cosmos-sglang ]] || AGENT_PROFILE=cosmos
 [[ ${FRANKA:-0} == 0 ]] || AGENT_PROFILE=franka
 log "bringing up the OpenClaw sandbox (brain :$BRAIN_PORT $BRAIN_MODEL, context $BRAIN_CTX)"
-[[ $AGENT_PROFILE == generic ]] || log "agent profile: $AGENT_PROFILE (deploy/openshell/franka-plugin: command router + FR3 instructions)"
+case "$AGENT_PROFILE" in
+    franka) log "agent profile: franka (deploy/openshell/franka-plugin: command router + FR3 instructions)" ;;
+    cosmos) log "agent profile: cosmos (deploy/openshell/cosmos-plugin: short prompt, no JSON envelopes, 10 tools)" ;;
+esac
 "${OS_RIG[@]}" up --brain-port "$BRAIN_PORT" --model "$BRAIN_MODEL" --context-window "$BRAIN_CTX" \
     --brain-key-file "$BRAIN_KEY_FILE" --agent-profile "$AGENT_PROFILE" "${MOTION[@]}" 2>&1 | sed 's/^/        /' \
     || die "the OpenClaw sandbox did not come up; see $OS_HINT status"

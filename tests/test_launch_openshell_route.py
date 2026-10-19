@@ -147,6 +147,7 @@ def test_linux_runs_the_agent_inside_openshell_and_never_on_the_host(linux_launc
     port = h["http"]["base_url"].split(":")[-1].split("/")[0]
     assert up[up.index("--brain-port") + 1] == port and up[up.index("--model") + 1] == "cosmos3-edge"
     assert up[up.index("--context-window") + 1] == "32768", "the brain's context, not the template's"
+    assert up[up.index("--agent-profile") + 1] == "cosmos", "Cosmos3-Edge gets its compact agent profile"
     assert "--observe-only" in up and "--allow-motion" not in up, "the real robot starts locked"
     inside = _lines(Path(h["env"]["SANDBOX_LOG"]))
     assert ["mcp", "probe", "cascade", "--json"] in inside

@@ -544,9 +544,13 @@ elif [[ "$BRAIN" == nemotron-bolt ]]; then
         export CASCADE_MODEL_API_KEY_FILE="$CASCADE_PERCEPTION_KEY_FILE"
     fi
     log "perception: $CASCADE_PERCEPTION_MODEL at $CASCADE_PERCEPTION_URL (key file $CASCADE_PERCEPTION_KEY_FILE)"
+elif [[ -n "${CASCADE_PERCEPTION_URL:-}" ]]; then
+    # The operator chose the detector (e.g. Cosmos3-Edge for every role): name
+    # it, never the default brain it replaces.
+    log "perception: ${CASCADE_PERCEPTION_MODEL:-configs/demo.yaml model} at $CASCADE_PERCEPTION_URL (set by CASCADE_PERCEPTION_URL)"
 else
     printf '[launch] NOTE: --brain %s: object identification uses the local Nemotron 3.5 Bolt brain at %s, which must be running\n' \
-        "$BRAIN" "${CASCADE_PERCEPTION_URL:-http://127.0.0.1:8080/v1 (configs/demo.yaml default)}" >&2
+        "$BRAIN" "http://127.0.0.1:8080/v1 (configs/demo.yaml default)" >&2
 fi
 # SAM masks the brain's boxes (configs/demo.yaml segmenter.model). Without the
 # weights Isaac detections carry no masks, and the observed-finger gate (the
@@ -1096,6 +1100,13 @@ if franka == "1":
 # substitution as shell text, so an odd count breaks the whole script.
 for key, value in forwarded_env().items():
     env.setdefault(key, value)
+# Opt-in VLM grounding of detector misses (a configs/llm profile with vision,
+# e.g. local_cosmos). The server reads CASCADE_GROUNDING_LLM_PROFILE, which is
+# never inherited (cascade.apps.mcp_env NOT_FORWARDED): only this launcher
+# variable, set explicitly for this launch, selects it.
+grounding = os.environ.get("CASCADE_LAUNCH_GROUNDING_PROFILE", "").strip()
+if grounding:
+    env["CASCADE_GROUNDING_LLM_PROFILE"] = grounding
 if sys.argv[10] == "none":
     # --occupancy none is an explicit runtime opt-out, not just permission
     # to omit its server. Otherwise lazy-arm preflight still asks the dead

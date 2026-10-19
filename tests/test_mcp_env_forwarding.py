@@ -589,6 +589,22 @@ def test_the_gui_argument_drives_the_viewer_switches(monkeypatch, capsys, sim, s
     assert ("CASCADE_OCCUPANCY" not in shown, hidden["CASCADE_OCCUPANCY"]) == (True, "0")
 
 
+def test_only_the_launch_variable_selects_the_grounding_profile(monkeypatch, capsys):
+    # CASCADE_GROUNDING_LLM_PROFILE stays NOT_FORWARDED: an inherited value never
+    # reaches the server. CASCADE_LAUNCH_GROUNDING_PROFILE, set for one launch,
+    # is the explicit opt-in (e.g. local_cosmos: the brain also grounds misses).
+    _scrub_process(monkeypatch)
+    monkeypatch.setenv("CASCADE_GROUNDING_LLM_PROFILE", "inherited-profile")
+    inherited = _in_process_registration(monkeypatch, capsys, sim="isaac")["env"]
+    assert "CASCADE_GROUNDING_LLM_PROFILE" not in inherited
+    monkeypatch.setenv("CASCADE_LAUNCH_GROUNDING_PROFILE", " local_cosmos ")
+    chosen = _in_process_registration(monkeypatch, capsys, sim="isaac")["env"]
+    assert chosen["CASCADE_GROUNDING_LLM_PROFILE"] == "local_cosmos"
+    assert "CASCADE_LAUNCH_GROUNDING_PROFILE" not in chosen
+    monkeypatch.setenv("CASCADE_LAUNCH_GROUNDING_PROFILE", "")
+    assert "CASCADE_GROUNDING_LLM_PROFILE" not in _in_process_registration(monkeypatch, capsys, sim="isaac")["env"]
+
+
 def _command_substitution_heredocs(text: str) -> list[tuple[int, str]]:
     """(line, body) of every heredoc opened on a line that starts a `$(`."""
     lines, found, i = text.split("\n"), [], 0

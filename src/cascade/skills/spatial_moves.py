@@ -937,13 +937,21 @@ def _target_geometry(rt, label: str, T0, load: Carried) -> dict:
 
 
 def _target_in_world(rt, target: dict) -> dict:
-    """move_near_object's target as reported: its centre in the table frame
-    (the geometry is measured in the running arm's frame, like every target)."""
+    """move_near_object's target as reported: its centre and its top in the
+    table frame (the geometry is measured in the running arm's frame, like
+    every target)."""
     T = _world_from_base(rt)
     if T is None:
         return target
-    c = arm_frame.to_world(T, [*target["center_xy_m"], 0.0])
-    return {**target, "center_xy_m": _vec(c[:2])}
+    c = arm_frame.to_world(T, [*target["center_xy_m"], target["top_z_m"]])
+    return {**target, "center_xy_m": _vec(c[:2]), "top_z_m": round(float(c[2]), 4)}
+
+
+def _top_in_world(rt, centre, top) -> float:
+    """The height of a target's top (measured in the running arm's frame over
+    `centre`) in the table frame, as the agent's coordinates read it."""
+    T = _world_from_base(rt)
+    return top if T is None else float(arm_frame.to_world(T, [float(centre[0]), float(centre[1]), top])[2])
 
 
 def move_near_object(rt, label=None, relation=None, clearance_m=None, side=None, frame=None,
@@ -1009,7 +1017,7 @@ def move_near_object(rt, label=None, relation=None, clearance_m=None, side=None,
         goal = np.array([centre[0], centre[1], gz])
         what = "the held object's bottom" if load.label else "the gripper"
         words = (f"{'just ' if rel == 'just_above' else ''}above {target['label']!r}: {what} "
-                 f"{clearance * 100:.1f} cm over its top (top at z={top:.3f} m)")
+                 f"{clearance * 100:.1f} cm over its top (top at z={_top_in_world(rt, centre, top):.3f} m)")
     elif rel == "next_to":
         if side is None or _word(side) == "nearest":
             v = p0[:2] - centre

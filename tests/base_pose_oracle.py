@@ -83,10 +83,18 @@ VOLATILE_KEYS: frozenset[str] = frozenset({
     "selection_s",    # the observed-finger choice time (wall clock)
     "duration_s", "timings",    # pick_and_place's wall-clock stage times
     "snapshot_age_s"})          # Task 6: restore_scene's snapshot age (wall clock)
+#: Heights in the table frame: rig B's is a + T[2, 3] (a level mount; a
+#: tilted one refuses every world-target skill). #400 review Minor 3: a
+#: postcondition's measured `z` (the object's pose); Minor 4: move_near_object's
+#: target `top_z_m`.
+HEIGHT_KEYS: frozenset[str] = frozenset({"z", "top_z_m"})
 #: Prose that quotes xy positions as "[x, y]": the numbers map like XY_KEYS,
 #: the rest of the text stays equal. Task 6: the same prose may quote a point
 #: "[x, y, z]" (search_for_object's resume note): it maps like POINT_KEYS.
-TEXT_XY_KEYS: frozenset[str] = frozenset({"description", "next_action"})
+#: #400 review Minor 3: a height "z=<n>" maps like HEIGHT_KEYS, and `error` is
+#: prose like its `next_action` (a refusal that quotes the arm frame's numbers
+#: is caught there too), as are the spatial moves' `interpretation` / `summary`.
+TEXT_XY_KEYS: frozenset[str] = frozenset({"description", "next_action", "error", "interpretation", "summary"})
 
 _POINT_ATOL = 1.1e-3
 _CMD_ATOL = 1e-6
@@ -96,6 +104,8 @@ _XY_IN_TEXT = re.compile(r"\[(-?\d+(?:\.\d+)?), (-?\d+(?:\.\d+)?)\]")
 #: round trip (T^-1 T) can flip the sign of an exact zero; the text is equal.
 _SIGNED_ZERO = re.compile(r"-(?=0\.0*(?![0-9]*[1-9]))")
 _XYZ_IN_TEXT = re.compile(r"\[(-?\d+(?:\.\d+)?), (-?\d+(?:\.\d+)?), (-?\d+(?:\.\d+)?)\]")
+#: "z=<n>" (a height; "+0.000" after `_SIGNED_ZERO`), never "dz=" / "wz=".
+_Z_IN_TEXT = re.compile(r"\bz=([-+]?\d+(?:\.\d+)?)")
 
 
 def transform(pose) -> np.ndarray:
@@ -433,11 +443,16 @@ def _compare(a, b, T, path, problems) -> None:
     if key in TEXT_XY_KEYS and isinstance(a, str) and isinstance(b, str):
         pa3, pb3 = _XYZ_IN_TEXT.findall(a), _XYZ_IN_TEXT.findall(b)
         a2, b2 = _XYZ_IN_TEXT.sub("[x, y, z]", a), _XYZ_IN_TEXT.sub("[x, y, z]", b)
+        za, zb = _Z_IN_TEXT.findall(a2), _Z_IN_TEXT.findall(b2)
+        a2, b2 = _Z_IN_TEXT.sub("z=<z>", a2), _Z_IN_TEXT.sub("z=<z>", b2)
         xa, xb = _XY_IN_TEXT.findall(a2), _XY_IN_TEXT.findall(b2)
         if (_XY_IN_TEXT.sub("[x, y]", a2) != _XY_IN_TEXT.sub("[x, y]", b2) or len(xa) != len(xb)
-                or len(pa3) != len(pb3)):
+                or len(pa3) != len(pb3) or len(za) != len(zb)):
             problems.append(f"{where}: text differs: {a!r} != {b!r}")
             return
+        for ha, hb in zip(za, zb):
+            if not np.isclose(float(hb), float(ha) + float(np.asarray(T)[2, 3]), rtol=0.0, atol=_POINT_ATOL):
+                problems.append(f"{where}: z={hb} != z={ha} + {float(np.asarray(T)[2, 3]):g}")
         for pa, pb in zip(pa3, pb3):
             want = lift(T, [float(v) for v in pa])
             if not np.allclose([float(v) for v in pb], want, rtol=0.0, atol=_POINT_ATOL):
@@ -446,6 +461,12 @@ def _compare(a, b, T, path, problems) -> None:
             want = lift(T, [float(pa[0]), float(pa[1]), 0.0])[:2]
             if not np.allclose([float(v) for v in pb], want, rtol=0.0, atol=_POINT_ATOL):
                 problems.append(f"{where}: [{pb[0]}, {pb[1]}] != T [{pa[0]}, {pa[1]}]")
+        return
+    if (key in HEIGHT_KEYS and isinstance(a, (int, float)) and isinstance(b, (int, float))
+            and not isinstance(a, bool) and not isinstance(b, bool)):
+        want = float(a) + float(np.asarray(T)[2, 3])
+        if not np.isclose(b, want, rtol=0.0, atol=_POINT_ATOL):
+            problems.append(f"{where}: {b!r} != {a!r} + {float(np.asarray(T)[2, 3]):g} (a table-frame height)")
         return
     if key in DISTANCE_KEYS and isinstance(a, (int, float)) and isinstance(b, (int, float)):
         if not np.isclose(a, b, rtol=0.0, atol=_POINT_ATOL):

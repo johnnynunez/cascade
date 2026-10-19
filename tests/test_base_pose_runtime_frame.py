@@ -1922,3 +1922,101 @@ def test_sort_by_color_zones_are_the_arms_and_reported_in_the_table_frame(make_r
     assert zones and np.allclose(zones, table_zones[:len(zones)], rtol=0.0, atol=1e-9), zones
     for m in result["moved"]:
         assert np.allclose(m["zone"], result["zones"][m["color"]], rtol=0.0, atol=1e-9), m
+
+
+# ── 11. the oracle's frame rules (#400 review Minors 3 and 4) ──────────────
+
+
+def _oracle_run(result_a, result_b):
+    """A run_pair record with no command, jaw or belief: results only."""
+    return {"cmds_a": [], "cmds_b": [], "jaws_a": [], "jaws_b": [], "beliefs_a": [], "beliefs_b": [],
+            "result_a": result_a, "result_b": result_b}
+
+
+def _fmt(p):
+    return "[" + ", ".join(f"{float(v):.3f}" for v in p) + "]"
+
+
+def test_the_oracle_maps_a_measured_height_by_the_mounts_height():
+    """#400 review Minor 3: a postcondition's measured `z` (effects.py, the
+    object's pose height) and move_near_object's `top_z_m` are table-frame
+    heights: on RAISED (base 3 cm above the table) rig B's is rig A's + 0.03.
+    An arm-frame height on rig B (equal to rig A's) is caught."""
+    T = transform(RAISED)
+    for where, a, b in (("moves/0/postcondition/measured/z",
+                         {"moves": [{"postcondition": {"measured": {"z": 0.02, "target_err_m": 0.004}}}]},
+                         {"moves": [{"postcondition": {"measured": {"z": 0.05, "target_err_m": 0.004}}}]}),
+                        ("target/top_z_m", {"target": {"top_z_m": -0.03, "radius_m": 0.02}},
+                         {"target": {"top_z_m": 0.0, "radius_m": 0.02}})):
+        assert_equivariant(_oracle_run(a, b), T)
+        with pytest.raises(AssertionError, match=where):
+            assert_equivariant(_oracle_run(a, a), T)
+
+
+def test_the_oracle_holds_error_and_move_text_to_the_table_frame():
+    """#400 review Minor 3: `error` (like its `next_action`) and the spatial
+    moves' `interpretation` / `summary` map their quoted points and heights:
+    "[x, y, z]" by T, "z=<n>" by the mount's height. A refusal quoting the
+    arm frame's numbers on rig B (equal to rig A's) is caught in `error` itself."""
+    T = transform(COMBO)
+    p = [0.144, -0.281, 0.553]
+    for key, text in (("error", "TCP {p} outside workspace; the TCP z={z:.3f} is too high"),
+                      ("interpretation", "above 'table': the gripper 5.0 cm over its top (top at z={z:.3f} m)"),
+                      ("summary", "Moved: next to {p}, top at z={z:.3f} m.")):
+        a = {key: text.format(p=_fmt(p), z=p[2])}
+        b = {key: text.format(p=_fmt(lift(T, p)), z=p[2] + COMBO[2])}
+        assert_equivariant(_oracle_run(a, b), T)
+        with pytest.raises(AssertionError, match=key):
+            assert_equivariant(_oracle_run(a, a), T)
+
+
+def _measured_z(result):
+    """Every postcondition `measured.z` in a result (the composites' moves)."""
+    if isinstance(result, dict):
+        found = [result["measured"]["z"]] if isinstance(result.get("measured"), dict) and "z" in result["measured"] else []
+        return found + [z for k, v in result.items() if k != "measured" for z in _measured_z(v)]
+    if isinstance(result, list):
+        return [z for v in result for z in _measured_z(v)]
+    return []
+
+
+@pytest.mark.parametrize("seq", ["restore_scene", "search_for_object, occluder"])
+def test_a_raised_base_measures_its_placed_heights_in_the_table_frame(make_pair_rigs, gate_off, seq):  # noqa: F811
+    """#400 review Minor 3 end to end: on RAISED (+ `raised_table`) the
+    composites' place postconditions measure the moved object's z in the
+    table frame (beliefs): rig B's is rig A's + 0.03, and the oracle compares
+    it as such (it used to flag the correct value)."""
+    arm, steps, edit = ORACLE_T6[seq]
+    rt_a, rt_b, T = make_pair_rigs(RAISED, arm=arm, edit=lambda cfg: raised_table(edit(cfg) if edit else cfg))
+    heights = []
+    for skill, args in steps:
+        if (skill, args) == _SHIFT_SNAPSHOT:
+            _shift_snapshots(rt_a, rt_b, T)
+            continue
+        run = run_pair(rt_a, rt_b, T, skill, args)
+        assert_equivariant(run, T)
+        heights += list(zip(_measured_z(run["result_a"]), _measured_z(run["result_b"])))
+    assert heights and all(zb == pytest.approx(za + 0.03, abs=1.1e-3) for za, zb in heights), heights
+
+
+@pytest.mark.parametrize("args", [{"label": "table", "relation": "above"},
+                                  {"label": "red cube", "relation": "closer", "distance_m": 0.03}],
+                         ids=["above the table", "closer to the cube"])
+def test_move_near_object_reports_its_target_heights_in_the_table_frame(make_pair_rigs, gate_off, args):  # noqa: F811
+    """#400 review Minor 4: move_near_object's target top (`top_z_m`, and
+    "top at z=" in its words) was the arm frame's height while its centre and
+    the TCPs are table frame. On RAISED (base 3 cm above the table, the table
+    at the arm frame's z -0.03) rig B reports rig A's heights + 0.03: the
+    table's top at the table frame's z 0 (arm `mock`; "above" is refused by
+    its reach on both rigs, after the words are built)."""
+    rt_a, rt_b, T = make_pair_rigs(RAISED, arm="mock", edit=raised_table)
+    run = run_pair(rt_a, rt_b, T, "move_near_object", args)
+    assert_equivariant(run, T)
+    a, b = run["result_a"], run["result_b"]
+    assert b["target"]["top_z_m"] == pytest.approx(a["target"]["top_z_m"] + 0.03, abs=1e-9), (a, b)
+    if args["label"] == "table":
+        assert b["target"]["top_z_m"] == pytest.approx(0.0, abs=1e-9), b
+        assert b["interpretation"] == "above 'table': the gripper 5.0 cm over its top (top at z=0.000 m)", b
+        assert a["interpretation"].endswith("(top at z=-0.030 m)"), a
+    else:
+        assert a.get("ok", True) is True and run["cmds_a"], a

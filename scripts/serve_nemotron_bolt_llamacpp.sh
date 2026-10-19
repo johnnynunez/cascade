@@ -34,11 +34,24 @@
 # ~13.6k tokens (25.9 s to the first token beside Isaac); now it reuses the
 # system text + tools from a context checkpoint. Other prompts render as before.
 #
+# Warm start (WARM_START=1): scripts/brain_warm_start.py runs beside the server.
+# Once the server answers /health (its own readiness, never delayed) it
+# prefills the OpenClaw prefix (system text + tools) that the previous run
+# recorded, once, into every slot: the first chat after a start then costs what
+# any new chat costs (0.8 s instead of 13.8 s alone). It is a raw prompt, no
+# chat and no user turn, bounded at 120 s (~14 s alone); a request arriving
+# meanwhile waits for it and then reuses it. While serving it records the
+# server's own rendering of the latest OpenClaw request (text before OpenClaw's
+# per-session boundary, 0600, WARM_PREFIX_FILE), so it never builds a prefix
+# and follows any change of tools or prompt at the next chat.
+#
 # Knobs: PORT (8080), API_KEY_FILE, CTX (65536 per slot), PARALLEL (2),
 # SPEC (dflash | none: the LiLiCorr drafter or none), NSPEC (7, drafted tokens),
 # ALIAS (nemotron-3.5-bolt), CHAT_TEMPLATE_FILE (the template above; empty =
-# the GGUF's own), MODEL_ROOT, LLAMA_DIR / LLAMA_SERVER,
-# CASCADE_LLAMA_CUDA_ARCH, JOBS, CASCADE_MODEL_MIRROR_URL.
+# the GGUF's own), WARM_START (1 | 0), WARM_PREFIX_FILE (default
+# ${XDG_STATE_HOME:-~/.local/state}/cascade/bolt-openclaw-prefix-$PORT.json),
+# MODEL_ROOT, LLAMA_DIR / LLAMA_SERVER, CASCADE_LLAMA_CUDA_ARCH, JOBS,
+# CASCADE_MODEL_MIRROR_URL.
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -59,6 +72,8 @@ SPEC="${SPEC:-dflash}"
 NSPEC="${NSPEC:-7}"
 ALIAS="${ALIAS:-nemotron-3.5-bolt}"
 CHAT_TEMPLATE_FILE="${CHAT_TEMPLATE_FILE-$REPO/scripts/chat_templates/nemotron-3.5-bolt-openclaw.jinja}"
+WARM_START="${WARM_START:-1}"
+WARM_HELPER="$REPO/scripts/brain_warm_start.py"
 
 die() { printf 'serve_nemotron_bolt_llamacpp: %s\n' "$1" >&2; exit "${2:-1}"; }
 
@@ -76,6 +91,8 @@ done
 (( PORT <= 65535 )) || die "PORT must be a TCP port (got '$PORT')" 2
 case "$SPEC" in dflash|none) ;; *) die "SPEC must be dflash|none (got '$SPEC')" 2 ;; esac
 [[ "$ALIAS" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]*$ ]] || die "ALIAS must be a bare id (no '/'): $ALIAS" 2
+case "$WARM_START" in 0|1) ;; *) die "WARM_START must be 0|1 (got '$WARM_START')" 2 ;; esac
+WARM_PREFIX_FILE="${WARM_PREFIX_FILE:-${XDG_STATE_HOME:-$HOME/.local/state}/cascade/bolt-openclaw-prefix-$PORT.json}"
 
 # CUDA architecture of the GPU that runs the brain (GB10 = 121, RTX PRO 6000 = 120).
 cuda_arch() {
@@ -100,6 +117,11 @@ check_assets() {
 check_template() {
     [[ -z "$CHAT_TEMPLATE_FILE" || -f "$CHAT_TEMPLATE_FILE" ]] || {
         printf 'CHAT_TEMPLATE_FILE %s is missing (empty = the GGUF'"'"'s own template).\n' "$CHAT_TEMPLATE_FILE" >&2; return 1; }
+}
+
+check_warm() {
+    [[ "$WARM_START" == 0 || -f "$WARM_HELPER" ]] || {
+        printf '%s is missing; restore it or serve without the warm start (WARM_START=0).\n' "$WARM_HELPER" >&2; return 1; }
 }
 
 check_source() {
@@ -158,6 +180,7 @@ if [[ "$MODE" == setup ]]; then
 fi
 check_assets
 check_template
+check_warm
 if [[ "$MODE" == check ]]; then
     check_server
     printf 'Nemotron 3.5 Bolt GGUF, vision projector, LiLiCorr drafter and llama-server are prepared; no runtime proof performed.\n'
@@ -193,6 +216,7 @@ check_server
 # Authenticated brain (OpenShell routes: PORT=8081 API_KEY_FILE=...). llama-server
 # reads the key from the file itself, so argv carries a path, never the key.
 set --
+key_file=""
 if [[ -n "${API_KEY_FILE:-}" ]]; then
     key_file="${API_KEY_FILE/#\~/$HOME}"
     [[ -f "$key_file" ]] || die "API_KEY_FILE $key_file is missing"
@@ -205,6 +229,13 @@ if [[ "$SPEC" == dflash ]]; then
     set -- "$@" --spec-type draft-dflash --spec-draft-model "$DRAFT_FILE" --spec-draft-n-max "$NSPEC" --spec-draft-ngl 999
 fi
 [[ -z "$CHAT_TEMPLATE_FILE" ]] || set -- "$@" --chat-template-file "$CHAT_TEMPLATE_FILE"
+if [[ "$WARM_START" == 1 ]]; then
+    # Watches this PID, which `exec` hands to llama-server; ends with it.
+    warm=(--port "$PORT" --server-pid "$$" --slots "$PARALLEL" --prefix-file "$WARM_PREFIX_FILE"
+          --chat-template-file "$CHAT_TEMPLATE_FILE")
+    [[ -z "$key_file" ]] || warm+=(--api-key-file "$key_file")
+    "$PY" -B "$WARM_HELPER" "${warm[@]}" &
+fi
 # The model card's llama.cpp recipe (q8_0 KV; DFlash with the LiLiCorr GGUF
 # drafter when SPEC=dflash), loopback only, thinking off, one context of CTX
 # tokens per slot.

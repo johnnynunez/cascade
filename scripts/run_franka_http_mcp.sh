@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# LEGACY (scripts/franka_openclaw.py's route). The documented FR3 path is
+# ./scripts/launch.sh --sim none --arm fr3 --cameras d435i (docs/FRANKA_OPENCLAW.md).
 # One shared native FR3 runtime for every OpenClaw session.
 set -eo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

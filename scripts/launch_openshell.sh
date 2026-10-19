@@ -106,11 +106,24 @@ print(json.dumps(env))' "$SIM" "$STATE_DIR" > "$MCP_ENV_FILE"
 ) || die "cannot write the robot server's environment"
 REPLACE=()
 [[ -z "$OS_INSTANCE" ]] || REPLACE=(--replace)
+# A native-controller arm (the Franka FR3) runs its server in the ROS 2
+# environment; CASCADE_MCP_CPUS (or the Franka launcher's own taskset) pins it.
+[[ ${FRANKA_ROS:-0} == 0 ]] || REPLACE+=(--ros-env)
+[[ -z "${MCP_CPUS:-}" ]] || REPLACE+=(--cpus "$MCP_CPUS")
 log "starting cascade's robot MCP server as instance $OS_NAME's unit (cameras=$CAMERAS arm=$ARM)"
 "${OS_RIG[@]}" mcp-start --env-file "$MCP_ENV_FILE" ${REPLACE[@]+"${REPLACE[@]}"} --wait 300 \
     -- --launch-owner "$LAUNCH_OWNER" --launch-state-dir "$STATE_DIR" \
     || { rm -f "$MCP_ENV_FILE"; die "the robot MCP server did not start (see above)"; }
 rm -f "$MCP_ENV_FILE"
+if [[ ${FRANKA:-0} == 1 ]]; then
+    # The Franka operator contract, read from the server's own live view: the
+    # camera streams, the software STOP is latched and Resume & Home exists.
+    log "franka: waiting for the robot server: ${CAMERAS%%,*} streaming, STOP latched, Resume & Home on :$STREAM_PORT"
+    FRANKA_READY="$("$PY" "$REPO/scripts/franka_rig.py" ready --port "$STREAM_PORT" --camera "${CAMERAS%%,*}" \
+        --timeout "${CASCADE_FRANKA_READY_WAIT_S:-300}")" \
+        || die "the robot server did not reach the Franka operator contract (see above); log: $OS_HINT status"
+    log "franka: robot server ready: $FRANKA_READY"
+fi
 
 # ── 4. sandbox ─────────────────────────────────────────────────────────────
 if [[ "$SIM" == none ]]; then
@@ -120,9 +133,15 @@ else
     MOTION=(--allow-motion --for 12h)
     MOTION_NOTE="allowed for 12 h (simulator), then re-locked by OpenShell"
 fi
+# The agent's robot profile: the Franka FR3 operator agent (command router +
+# instructions, deploy/openshell/franka-plugin) or the generic one. Always
+# named, so a profile saved by an earlier launch never carries over.
+AGENT_PROFILE=generic
+[[ ${FRANKA:-0} == 0 ]] || AGENT_PROFILE=franka
 log "bringing up the OpenClaw sandbox (brain :$BRAIN_PORT $BRAIN_MODEL, context $BRAIN_CTX)"
+[[ $AGENT_PROFILE == generic ]] || log "agent profile: $AGENT_PROFILE (deploy/openshell/franka-plugin: command router + FR3 instructions)"
 "${OS_RIG[@]}" up --brain-port "$BRAIN_PORT" --model "$BRAIN_MODEL" --context-window "$BRAIN_CTX" \
-    --brain-key-file "$BRAIN_KEY_FILE" "${MOTION[@]}" 2>&1 | sed 's/^/        /' \
+    --brain-key-file "$BRAIN_KEY_FILE" --agent-profile "$AGENT_PROFILE" "${MOTION[@]}" 2>&1 | sed 's/^/        /' \
     || die "the OpenClaw sandbox did not come up; see $OS_HINT status"
 OS_DEPLOYED="$("${OS_RIG[@]}" instance | "$PY" -c '
 import json, pathlib, sys
@@ -167,6 +186,10 @@ BRAIN_DESC="$(printf '%s' "$PROOF_JSON" | "$PY" -c 'import json,sys; print(json.
 judge_pass
 
 # ── 6. chat ────────────────────────────────────────────────────────────────
+OPERATOR_NOTE=""
+if [[ ${FRANKA:-0} == 1 ]]; then
+    OPERATOR_NOTE=$'\n'"         operator:  STOP / Resume & Home http://127.0.0.1:$STREAM_PORT/ (STOP latched at start; only Resume & Home clears it)"
+fi
 LAUNCH_STATUS="STARTED (UNVERIFIED: robot proof skipped)"
 [[ "${PROOF_VERIFIED:-0}" == 1 ]] && LAUNCH_STATUS="READY"
 cat <<EOF
@@ -174,7 +197,7 @@ cat <<EOF
          agent:     OpenClaw inside OpenShell (instance $OS_NAME, sandbox $OS_SANDBOX); no agent on this host
          brain:     ${BRAIN_DESC:-not verified} (127.0.0.1:$BRAIN_PORT, through the instance's brain provider)
          chat:      http://127.0.0.1:$OS_CHAT_PORT/   ($OS_HINT open | chat-url)
-         motion:    $MOTION_NOTE
+         motion:    $MOTION_NOTE$OPERATOR_NOTE
          evidence:  $STATE_DIR/proof.json
          headless:  $OS_HINT exec -- openclaw agent --session-id cascade-demo -m "describe the scene"
          try:       "what do you see?"  "pick and place the red object"  "did it actually move?"

@@ -14,6 +14,7 @@
 #   ./scripts/launch.sh --check --sim isaac # preflight only: report what is missing, exit
 #   ./scripts/launch.sh --sim mujoco        # MuJoCo (CPU physics, rendered camera) + OpenClaw
 #   ./scripts/launch.sh --sim none --arm rebot_rs --cameras l515   # REAL ARM: OpenClaw only
+#   ./scripts/launch.sh --sim none --arm fr3 --cameras d435i       # Franka FR3 (docs/FRANKA_OPENCLAW.md)
 #   ./scripts/launch.sh --down              # stop what this script started
 #   ./scripts/launch.sh --dry-run           # print the plan, touch nothing
 #
@@ -439,6 +440,50 @@ case "$SIM" in
     none)   [[ -n "$ARM" && -n "$CAMERAS" ]] || die "--sim none drives REAL hardware: pass --arm <profile> --cameras <profile[,profile]> explicitly (no guessing which robot is plugged in)" ;;
     *) die "unknown --sim $SIM (auto|isaac|mujoco|none)" ;;
 esac
+# The robot server unit's CPU affinity (OpenShell route), e.g. 0-7; unset = none.
+MCP_CPUS="${CASCADE_MCP_CPUS:-}"
+# ── Franka FR3 (docs/FRANKA_OPENCLAW.md) ────────────────────────────────────
+# The real FR3 (`--arm fr3`: native franka_ros2 arm + gripper controllers, no
+# MoveIt) and its offline rehearsal (`--arm fr3_mock`) on the real-arm path:
+# the same route as every real arm, plus the Franka operator contract. The
+# robot server starts with a latched software STOP that only the operator's
+# Resume & Home clears (the live view, :8090); the agent gets the FR3 operator
+# profile (deploy/openshell/franka-plugin: routine-command router +
+# instructions); Nemotron 3.5 Bolt is the brain and identifies objects
+# (`--brain auto`); the learned GraspGen-X planner is selected (`--graspgenx
+# auto` = a server on :5556; `none` keeps the profile's analytic planner). ROS
+# bringup stays a separate step (scripts/bringup_franka.sh): it is checked,
+# never started. ROS_DOMAIN_ID defaults to 31.
+FRANKA=0
+FRANKA_ROS=0
+if [[ "$SIM" == none ]]; then
+    case "$ARM" in
+        fr3) FRANKA=1; FRANKA_ROS=1 ;;
+        fr3_mock) FRANKA=1 ;;
+    esac
+fi
+STREAM_PORT="${CASCADE_STREAM_PORT:-8090}"
+if [[ $FRANKA == 1 ]]; then
+    [[ "$AGENT_ROUTE" == openshell || $DRY == 1 || $CHECK == 1 ]] \
+        || die "the Franka FR3 route runs its agent inside OpenShell, which needs Linux (this host: $(uname -s))"
+    # Cosmos is not the Franka brain: auto never picks a Cosmos left running.
+    [[ "$BRAIN" != auto ]] || BRAIN=nemotron-bolt
+    [[ "$GRASPGENX" != auto ]] || GRASPGENX=external
+    # fr3.yaml keeps the analytic planner as its own default; a learned server
+    # this launch starts or checks is the one the robot server must use.
+    case "$GRASPGENX" in local|external|stub) export CASCADE_GRASP_BACKEND=graspgenx ;; esac
+    export CASCADE_ROS_SETUP="${CASCADE_ROS_SETUP:-/opt/ros/jazzy/setup.bash}"
+    export CASCADE_FRANKA_SETUP="${CASCADE_FRANKA_SETUP:-$HOME/franka_ros2_ws/install/setup.bash}"
+    export ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-31}"
+    # `taskset -c 0-7 ./scripts/launch.sh ...` pins the sidecars this script
+    # starts; the robot server is a systemd user unit and gets the same CPUs.
+    [[ -n "$MCP_CPUS" ]] || MCP_CPUS="$("$PY" "$REPO/scripts/franka_rig.py" cpus 2>/dev/null || true)"
+    log "franka: FR3 operator route (arm=$ARM): software STOP latched at start, Resume & Home on the live view :$STREAM_PORT; brain=$BRAIN graspgenx=$GRASPGENX"
+    if [[ $FRANKA_ROS == 1 ]]; then
+        log "franka: native franka_ros2 bringup is checked, never started (ROS_DOMAIN_ID=$ROS_DOMAIN_ID; $CASCADE_ROS_SETUP + $CASCADE_FRANKA_SETUP)"
+    fi
+    [[ -z "$MCP_CPUS" ]] || log "franka: robot server pinned to CPUs $MCP_CPUS"
+fi
 # The OpenShell instance (docs/OPENSHELL.md, Instances): a simulator gets its
 # own `sim` route, isolated from the real robot's (the default instance, the
 # one ~/cascade-demo.sh and the rig use). CASCADE_OPENSHELL_INSTANCE overrides.
@@ -497,8 +542,30 @@ if [[ $DRY == 1 ]]; then
     else
         log "would install missing extras/assets, start $SIM and sidecars, register OpenClaw, verify brain + motion + reset, then open chat"
     fi
+    if [[ $FRANKA == 1 ]]; then
+        [[ $FRANKA_ROS == 0 ]] || log "franka: would source $CASCADE_ROS_SETUP + $CASCADE_FRANKA_SETUP and check the bringup (scripts/franka_rig.py bringup --arm $ARM; read-only)"
+        log "franka: would require :$STREAM_PORT free, start the robot server with CASCADE_START_STOPPED=1${MCP_CPUS:+ on CPUs $MCP_CPUS}, wait for camera + latched STOP + Resume & Home (scripts/franka_rig.py ready), then bring the sandbox up observe-only with the franka agent profile"
+    fi
     log "Isaac target: selected source 6.2 or managed wheel 6.2.0.0; metadata not checked; profile=${CASCADE_OPENCLAW_PROFILE:-default}; no commands executed"
     exit 0
+fi
+# The FR3's runtime (this launcher's runtime check and bringup check) talks to
+# the native controllers through rclpy: source the ROS 2 + franka_ros2 setup
+# once, here. The robot server's unit sources it itself (scripts/ros_env.sh).
+FRANKA_ROS_READY=0
+if [[ $FRANKA_ROS == 1 ]]; then
+    if [[ -f "$CASCADE_ROS_SETUP" && -f "$CASCADE_FRANKA_SETUP" ]]; then
+        set +u   # ROS setup scripts read unset variables
+        # shellcheck disable=SC1090
+        source "$CASCADE_ROS_SETUP"
+        # shellcheck disable=SC1090
+        source "$CASCADE_FRANKA_SETUP"
+        set -u
+        export ROS_DOMAIN_ID   # a setup script must not unset the selected domain
+        FRANKA_ROS_READY=1
+    elif [[ $CHECK == 0 ]]; then
+        die "ROS setup missing: $CASCADE_ROS_SETUP / $CASCADE_FRANKA_SETUP (set CASCADE_ROS_SETUP / CASCADE_FRANKA_SETUP)"
+    fi
 fi
 if [[ $CHECK == 0 ]]; then
     LAUNCH_OWNER="$(ownerctl init)" || die "launch owner initialization failed"
@@ -661,6 +728,22 @@ if [[ $CHECK == 1 ]]; then
         if GGX_CHECK="$(bash "$REPO/scripts/install_graspgenx.sh" --check 2>&1)"; then ok "GraspGen-X: installed CUDA environment"
         else bad "GraspGen-X: $GGX_CHECK"; fi
     fi
+    if [[ $FRANKA == 1 ]]; then
+        if [[ $FRANKA_ROS == 1 ]]; then
+            if [[ $FRANKA_ROS_READY == 1 ]]; then ok "ROS setup: $CASCADE_ROS_SETUP + $CASCADE_FRANKA_SETUP (ROS_DOMAIN_ID=$ROS_DOMAIN_ID)"
+            else bad "ROS setup: $CASCADE_ROS_SETUP / $CASCADE_FRANKA_SETUP missing (set CASCADE_ROS_SETUP / CASCADE_FRANKA_SETUP)"; fi
+            if [[ $FRANKA_ROS_READY == 1 ]] && BRINGUP_CHECK="$("$PY" "$REPO/scripts/franka_rig.py" bringup --arm "$ARM" --timeout 15 2>&1)"; then
+                ok "franka_ros2 bringup: joint states, fr3 arm controller and Franka Gripper actions answer"
+            else
+                bad "franka_ros2 bringup: ${BRINGUP_CHECK:-not checked} (start scripts/bringup_franka.sh in its own terminal)"
+            fi
+        fi
+        if port_open "$STREAM_PORT"; then bad "port :$STREAM_PORT (operator STOP / Resume & Home) is in use: stop the old Cascade interface or ./scripts/launch.sh --down"
+        else ok "port :$STREAM_PORT free for the operator STOP / Resume & Home page"; fi
+        if [[ "$OCCUPANCY" != none ]] && port_open "$OCC_PORT" && ! ownerctl owns --role occupancy_bridge; then
+            bad "occupancy :$OCC_PORT answers from a process this launcher did not start (the Franka route needs this checkout's, which supports clear): stop it"
+        fi
+    fi
     if BRAIN_CHECK="$("$PY" "$REPO/scripts/demo_proof.py" --check-brain "$BRAIN" 2>&1)"; then
         ok "brain: $BRAIN_CHECK"
     else
@@ -794,6 +877,23 @@ while True:
         c.close()
     time.sleep(min(1.0, max(0, deadline - time.monotonic())))
 PYEOF
+fi
+
+# ── 3a. Franka preflight: the operator page's port, the native bringup ─────
+if [[ $FRANKA == 1 ]]; then
+    ! port_open "$STREAM_PORT" \
+        || die "port :$STREAM_PORT (the operator STOP / Resume & Home page) is in use: stop the old Cascade interface or the previous launch (./scripts/launch.sh --down); this launcher never stops a process it did not start"
+    if [[ $FRANKA_ROS == 1 ]]; then
+        log "franka: checking the native franka_ros2 bringup (read-only, ROS_DOMAIN_ID=$ROS_DOMAIN_ID)"
+        BRINGUP_INFO="$("$PY" "$REPO/scripts/franka_rig.py" bringup --arm "$ARM" --timeout "${CASCADE_FRANKA_BRINGUP_WAIT_S:-30}")" \
+            || die "the franka_ros2 bringup does not answer (see above); start it in its own terminal first: ROS_DOMAIN_ID=$ROS_DOMAIN_ID bash scripts/bringup_franka.sh robot_ip:=<FR3 IP> load_gripper:=true"
+        log "franka: bringup answers: $BRINGUP_INFO"
+    fi
+    # The runtime clears the map (`clear`), which an occupancy server from
+    # another checkout may lack; only a server this launcher started is reused.
+    if [[ "$OCCUPANCY" != none ]] && port_open "$OCC_PORT" && ! ownerctl owns --role occupancy_bridge; then
+        die "an occupancy server this launcher did not start answers on :$OCC_PORT; the Franka route needs this checkout's (it supports clear): stop that process, then relaunch (or pass --occupancy none)"
+    fi
 fi
 
 # ── 3b. sidecars: occupancy bridge + (sim) GraspGen-X stub ─────────────────
@@ -931,7 +1031,7 @@ freeze_note_library() {
 if [[ "${CASCADE_INSTALL_PROFILE:-}" == spark ]]; then
     freeze_note_library
 fi
-MCP_JSON="$("$PY" - "$MCP_PY" "$REPO" "$CAMERAS" "$ARM" "$CLASSES" "$SIM" "$STATE_DIR" "$LAUNCH_OWNER" "$ISAAC_GUI" "$OCCUPANCY" <<'PYEOF'
+MCP_JSON="$("$PY" - "$MCP_PY" "$REPO" "$CAMERAS" "$ARM" "$CLASSES" "$SIM" "$STATE_DIR" "$LAUNCH_OWNER" "$ISAAC_GUI" "$OCCUPANCY" "$FRANKA" "$FRANKA_ROS" <<'PYEOF'
 import json, os, sys
 from cascade.apps.mcp_env import forwarded_env
 py, repo, cams, arm, classes, sim = sys.argv[1:7]
@@ -943,6 +1043,28 @@ env = {
 }
 if classes:
     env["CASCADE_DETECT_CLASSES"] = classes  # explicit operator vocabulary only
+# The Franka flags: optional, so a caller passing the first ten arguments
+# (the pre-Franka registration) gets the same entry.
+franka, franka_ros = (sys.argv[11:13] + ["0", "0"])[:2]
+if franka == "1":
+    # The Franka operator contract (docs/FRANKA_OPENCLAW.md): the server starts
+    # with a latched software STOP that only the operator Resume & Home clears,
+    # and streams at once (the camera extension and the readiness check read
+    # the live view). Few BLAS threads: the robot shares its host with the brain.
+    env["CASCADE_START_STOPPED"] = "1"
+    env["CASCADE_STREAM"] = "eager"
+    for name in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS"):
+        env[name] = os.environ.get(name) or "4"
+    if franka_ros == "1":
+        # The unit sources the same ROS setup (scripts/ros_env.sh) and joins
+        # the DDS domain and middleware of the bringup: a user unit inherits
+        # none of this shell, so another RMW or domain would never see the arm.
+        for name in ("CASCADE_ROS_SETUP", "CASCADE_FRANKA_SETUP", "ROS_DOMAIN_ID", "RMW_IMPLEMENTATION",
+                     "ROS_LOCALHOST_ONLY", "ROS_AUTOMATIC_DISCOVERY_RANGE", "ROS_STATIC_PEERS",
+                     "ROS_DISCOVERY_SERVER", "CYCLONEDDS_URI", "FASTRTPS_DEFAULT_PROFILES_FILE",
+                     "FASTDDS_DEFAULT_PROFILES_FILE"):
+            if os.environ.get(name):
+                env[name] = os.environ[name]
 # OpenClaw need not inherit anything from its gateway: every runtime switch
 # set in this shell (memory paths, endpoints, devices, CASCADE_GRASP_EXECUTOR /
 # CASCADE_VLA_PORT, ...) is copied verbatim from the ONE list setup_agents.py

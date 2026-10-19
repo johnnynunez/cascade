@@ -1,5 +1,16 @@
 #!/usr/bin/env python3
-"""Configure and run OpenClaw + one shared FR3 MCP runtime + camera companion.
+"""LEGACY: configure and run OpenClaw + one shared FR3 MCP runtime + camera companion.
+
+Superseded by the unified launcher, the documented path for the Franka FR3
+(docs/FRANKA_OPENCLAW.md):
+
+    ./scripts/launch.sh --sim none --arm fr3 --cameras d435i
+
+which runs the agent in OpenShell with Nemotron 3.5 Bolt, the FR3 operator
+plugin (deploy/openshell/franka-plugin) and GraspGen-X. This script keeps the
+earlier host route (a private OpenClaw 2026.9.3 CLI and the Cosmos3-Edge brain
+on :8082) only until the new route is accepted on the robot; only its own
+tests depend on it.
 
 No installation, robot motions, model downloads, bringup changes or Git writes.
 The existing native ROS controllers, Cosmos and occupancy server stay external.
@@ -88,7 +99,7 @@ def configuration(state, token, gateway_token, *, context_window, model_base, po
                   "toolSearch": {"enabled": False}},
         "cron": {"enabled": False},
         "plugins": {
-            "load": {"paths": [str(REPO / "configs/openclaw/franka-plugin")]},
+            "load": {"paths": [str(REPO / "deploy/openshell/franka-plugin")]},
             "entries": {
                 "memory-core": {"enabled": False},
                 "cascade-franka-prompt": {
@@ -122,7 +133,7 @@ def configure(args, state):
         shutil.copy2(path, path.with_name(f"openclaw.{time.time_ns()}.backup.json"))
     _write_json(path, config)
     prompt = state / "workspace/AGENTS.md"
-    source = REPO / "configs/openclaw/franka-instructions.md"
+    source = REPO / "deploy/openshell/franka-plugin/instructions.md"
     if not prompt.exists():
         private_text(prompt, source.read_text())
     settings = {"ports": ports, "mock": args.mock, "repo": str(REPO), "profile": PROFILE}

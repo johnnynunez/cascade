@@ -11,6 +11,14 @@
 //
 // An existing config is kept: a restart must not rotate the chat token out
 // from under an open browser tab. Set CASCADE_OPENCLAW_FORCE=1 to re-render.
+//
+// CASCADE_AGENT_PROFILE selects the agent's robot profile: `generic` (unset,
+// the default; the config above) or `franka`, the Franka FR3 real arm
+// (scripts/launch.sh --sim none --arm fr3): the operator command plugin
+// (franka-plugin/, next to the template) compiles explicit routine commands
+// into native tool calls, its instructions become the workspace AGENTS.md,
+// the chat sees only the FR3 operator tools, and heartbeats, scheduled jobs
+// and the generic memory plugin are off (actions start only in the chat).
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -65,6 +73,8 @@ if (rawWindow !== undefined && (!/^\d{4,7}$/.test(rawWindow) || contextWindow < 
 // OpenClaw splits `provider/model` on the first '/', so an id that looks like
 // a path (Qwen/Qwen3.8-27B) would name a provider that does not exist.
 if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(model)) die(`CASCADE_MODEL=${JSON.stringify(model)} must be a bare id`);
+const profile = env.CASCADE_AGENT_PROFILE || "generic";
+if (!["generic", "franka"].includes(profile)) die(`CASCADE_AGENT_PROFILE=${JSON.stringify(profile)} must be generic or franka`);
 
 const cfg = JSON.parse(fs.readFileSync(template, "utf8"));
 const provider = cfg.models.providers.cascade;
@@ -78,8 +88,52 @@ cfg.mcp.servers.cascade.url = `http://host.openshell.internal:${mcp}/mcp`;
 cfg.gateway.auth.token = crypto.randomBytes(24).toString("hex");
 cfg.gateway.controlUi.allowedOrigins = [`http://127.0.0.1:${chat}`, `http://localhost:${chat}`];
 
+// The FR3 operator's tool catalog: observation, localization, grasp preview,
+// pick, place, gripper, home, verification and STOP. reset_stop is absent:
+// OpenShell refuses it for the agent, Resume & Home is the operator's page.
+const FRANKA_TOOLS = [
+  "world_state", "camera_snapshot", "get_observation", "localize_object", "locate_pixel",
+  "preview_grasp", "grasp_at_pixel", "grasp_object", "pick_and_place", "place_at",
+  "place_on_object", "move_home", "open_gripper", "close_gripper", "emergency_stop",
+  "verify_last_action",
+];
+let instructions = null;
+if (profile === "franka") {
+  const pluginDir = env.CASCADE_FRANKA_PLUGIN_DIR || path.join(path.dirname(template), "franka-plugin");
+  instructions = fs.readFileSync(path.join(pluginDir, "instructions.md"), "utf8");
+  if (!instructions.trim()) die(`${pluginDir}/instructions.md is empty`);
+  const selected = `cascade/${model}`;
+  cfg.tools.allow = FRANKA_TOOLS.map((name) => `cascade__${name}`);
+  cfg.agents.defaults.heartbeat = { every: "0m" };
+  cfg.cron = { enabled: false };
+  // Short, deterministic replies; Nemotron's thinking-off kwarg is kept.
+  const models = cfg.agents.defaults.models || {};
+  const params = (models[selected] && models[selected].params) || {};
+  models[selected] = { params: { ...params, temperature: 0, maxTokens: 512 } };
+  cfg.agents.defaults.models = models;
+  // One robot, one tool at a time.
+  cfg.mcp.servers.cascade.supportsParallelToolCalls = false;
+  cfg.plugins = {
+    load: { paths: [pluginDir] },
+    entries: {
+      "memory-core": { enabled: false },
+      "cascade-franka-prompt": {
+        enabled: true,
+        hooks: { allowConversationAccess: true, allowPromptInjection: true },
+        config: { workspaceDir: cfg.agents.defaults.workspace, modelProviderId: "cascade", modelId: model },
+      },
+    },
+  };
+}
+
 fs.mkdirSync(path.join(dir, "workspace"), { recursive: true, mode: 0o700 });
+if (instructions !== null) {
+  // The plugin injects this file into every prompt. An operator's edit inside
+  // the running sandbox is kept; a new image renders into a new sandbox.
+  const agents = path.join(dir, "workspace", "AGENTS.md");
+  if (!fs.existsSync(agents)) fs.writeFileSync(agents, instructions, { mode: 0o600 });
+}
 const tmp = `${out}.tmp-${process.pid}`;
 fs.writeFileSync(tmp, JSON.stringify(cfg, null, 2) + "\n", { mode: 0o600 });
 fs.renameSync(tmp, out);
-console.log(`render-config: wrote ${out} (brain :${brain}, mcp :${mcp}, chat :${chat}, model ${model})`);
+console.log(`render-config: wrote ${out} (brain :${brain}, mcp :${mcp}, chat :${chat}, model ${model}${profile === "generic" ? "" : `, profile ${profile}`})`);

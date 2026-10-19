@@ -347,7 +347,7 @@ def main() -> int:
     parser.add_argument("--repo", type=Path, required=True)
     parser.add_argument("--state-root", type=Path, required=True)
     parser.add_argument("--profile", default="")
-    parser.add_argument("action", choices=["state-dir", "init", "record", "record-gateway", "owns-gateway", "down"])
+    parser.add_argument("action", choices=["state-dir", "init", "record", "record-gateway", "owns-gateway", "owns", "down"])
     parser.add_argument("--pid", type=int)
     parser.add_argument("--role")
     parser.add_argument("--dry-run", action="store_true")
@@ -359,7 +359,7 @@ def main() -> int:
             return 0
         owner = load_owner(state, args.repo, args.profile, create=args.action == "init")
         if owner is None:
-            if args.action == "owns-gateway":
+            if args.action in ("owns-gateway", "owns"):
                 return 1
             if args.action == "down":
                 print("no owner receipt for this repo/profile; nothing stopped")
@@ -369,6 +369,13 @@ def main() -> int:
             print(owner["owner"])
         elif args.action == "owns-gateway":
             return 0 if live_records(state, owner, role="gateway") else 1
+        elif args.action == "owns":
+            # Exit 0 when a live process of --role was started by this launch
+            # owner (e.g. the occupancy bridge launch.sh started, not a
+            # foreign one answering on the same port).
+            if not args.role:
+                raise ValueError("owns needs --role")
+            return 0 if live_records(state, owner, role=args.role) else 1
         elif args.action == "down":
             print(json.dumps({"stopped": stop_owned(state, owner, dry_run=args.dry_run)}))
         else:

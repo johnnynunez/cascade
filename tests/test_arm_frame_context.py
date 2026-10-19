@@ -641,7 +641,7 @@ def test_arm_scoped_sections_cover_every_shipped_override_key():
     # services the rig built), so its own override of one is dropped there. Every
     # profile that overrides one is listed: a new one forces a decision.
     assert services == {
-        "fr3.yaml": {"backend"},
+        "fr3.yaml": {"backend", "graspgenx"},  # grasp.graspgenx.sweep: the Franka Hand (single arm)
         "isaac_kitchen_gpu.yaml": {"backend", "graspgenx"},
         "isaac_kitchen_hug.yaml": {"backend", "hug"},
         "piper.yaml": {"graspgenx"},       # grasp.graspgenx.sweep

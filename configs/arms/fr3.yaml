@@ -166,6 +166,27 @@ overrides:
     topdown_z_max: 0.45
     pregrasp_offset_m: 0.08
     drop_zone: [0.45, -0.30]
+    # THIS ARM'S GRIPPER (the Franka Hand) for GraspGen-X cross-embodiment
+    # conditioning. `backend: obb` above stays this profile's default; the
+    # launcher selects the learned planner for the FR3 operator route
+    # (scripts/launch.sh --sim none --arm fr3, --graspgenx auto|local|external),
+    # and inheriting demo.yaml's sweep would describe the reBot's 90 mm jaw.
+    # DERIVED from franka_description's finger collision boxes
+    # (assets/urdf/fr3/fr3_full.urdf), NOT measured on the robot: each
+    # fingertip pad box is 17.5 x 15.2 x 18.5 mm with its centre 0.0584 +
+    # 0.04525 = 0.10365 m from fr3_hand along +Z, i.e. at fr3_hand_tcp
+    # (0.1034), so the volume is centred on the TCP. The pads close along hand
+    # Y, the sweep frame's closing X: span 0.080 m fully open (2 x 0.04 m
+    # finger travel), 0.040 m at mid travel; 17.5 mm pad width; 18.5 mm pad
+    # length along the approach.
+    graspgenx:
+      sweep:
+        extents_open: [0.080, 0.0175, 0.0185]
+        offset_open: [0.0, 0.0, 0.0]
+        extents_mid: [0.040, 0.0175, 0.0185]
+        offset_mid: [0.0, 0.0, 0.0]
+        gripper_type: 0
+        fingertip_depth: 0.0
   workspace_filter:
     base_radius_m: 0.20
     table_z_m: -0.02

@@ -559,7 +559,9 @@ candidates, refuted}, last_event: {t, kind: retry|note, line, outcome} | null}`,
   hardware profile) nothing marks a stop the error does not name (the skill's own refusal after a halt or an e-stop),
   so `harvest` skips every run whose `run.json` (and any earlier `run.<started>.json` kept beside it) does not show
   `sim_retry: true`, with a one-line reason each, counted (`aspire.harvest_skip_reason`; #388 re-review Minor 1): only
-  the gate-1 kitchen sim, where the mark exists, is harvested.
+  the gate-1 kitchen sim, where the mark exists, is harvested. Those records must also read `purpose: "live"` (§4.2,
+  preflight R18: harvest counts only `live` runs): a verify, acceptance or benchmark stack's gate-1 run (`verify`,
+  `acceptance`, `unknown`) and a record with no `purpose` are skipped the same way (#393 follow-up).
 - `learned_in` comes from the source run's `run.json` `profile_class` (no file -> `unknown`). Merged notes: all sim ->
   `sim`, all real -> `real`, both -> `mixed`.
 - `distil` writes v2: advice from a template per refusal class, e.g. safety refusal + identical arguments: "If the

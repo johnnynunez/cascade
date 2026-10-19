@@ -16,10 +16,12 @@
     not proof of a causal repair or a transferable control policy. Runs with
     the same (skill, signature) fold into ONE entry whose front matter counts
     ``occurrences`` (distinct runs) and ``source_tasks`` (distinct tasks).
-    ``harvest`` reads only runs whose ``run.json`` shows the sim retry ledger
-    on (the kitchen sim at gate 1, ``harvest_skip_reason``): without a ledger
-    (gate 0, every hardware profile) nothing marks a stop the call's error does
-    not name, so a note learned there could work around an operator stop.
+    ``harvest`` reads only live runs whose ``run.json`` shows the sim retry
+    ledger on (the kitchen sim at gate 1, ``harvest_skip_reason``): without a
+    ledger (gate 0, every hardware profile) nothing marks a stop the call's
+    error does not name, so a note learned there could work around an operator
+    stop; and a verify, acceptance or benchmark stack's run (``purpose`` other
+    than ``live``) is no evidence from a live session (spec §4.2).
 
 ``retrieve(library, task)``
     Load keyword-matched PROMOTED notes into the built-in orchestrator at task
@@ -352,11 +354,19 @@ def _occurrence_index(library) -> dict[str, int]:
 #: a run.json larger than this is no run record (the robot server writes ~1-3 KB;
 #: `skills.learned_block.RUN_JSON_MAX_BYTES`)
 _RUN_JSON_MAX_BYTES = 1 << 20
+#: the only run.json `purpose` harvest reads: a live run (`apps.demo._run_purpose`:
+#: CASCADE_RUN_PURPOSE unset, empty or "live"; spec §4.2, preflight R18). A verify,
+#: acceptance or benchmark stack records another value ("unknown" for a value
+#: apps.demo does not recognise), and its runs never teach.
+HARVESTED_PURPOSE = "live"
+#: characters of another purpose a skip reason quotes (its repr)
+_PURPOSE_SHOWN = 40
 
 
-def _ledger_record(path: Path) -> str | None:
+def _record_skip_reason(path: Path) -> str | None:
     """None when the run record at `path` says the run's runtime had the sim retry
-    ledger (`"sim_retry": true`, `apps.demo._stamp_run`), else why not (one phrase)."""
+    ledger (`"sim_retry": true`, `apps.demo._stamp_run`) and the run was a live one
+    (`"purpose": "live"`), else why not (one phrase)."""
     try:
         with open(path, "rb") as f:
             data = f.read(_RUN_JSON_MAX_BYTES + 1)
@@ -372,23 +382,33 @@ def _ledger_record(path: Path) -> str | None:
         return f"{path.name} is not JSON"
     if not isinstance(meta, dict) or meta.get("sim_retry") is not True:
         return f"{path.name} shows the sim retry ledger off (gate 0 or a hardware profile)"
+    purpose = meta.get("purpose")
+    if purpose is None:
+        return f"{path.name} records no purpose (only live runs are harvested)"
+    if purpose != HARVESTED_PURPOSE:
+        shown = repr(purpose)
+        if len(shown) > _PURPOSE_SHOWN:
+            shown = shown[:_PURPOSE_SHOWN] + "..."
+        return f"{path.name} records purpose {shown} (only live runs are harvested)"
     return None
 
 
 def harvest_skip_reason(run_dir: str | Path) -> str | None:
     """Why `harvest` skips `run_dir` (one line), or None when it harvests it.
 
-    Harvest reads only a run whose `run.json` shows the sim retry ledger on (the
-    kitchen sim at gate 1), and every earlier record a rebuild kept in the same
-    directory (`run.<started>.json`: its rows share the trace) too. Only the
-    ledger marks a failed call that an operator stop ended when the call's error
-    does not name the stop (`ended_in_stop`); without one (gate 0, every hardware
-    profile) such a call looks like a real failure, and a note learned from it
-    could work around a stop. No record, an unreadable one or a ledger that was
-    off: skipped (fail closed)."""
+    Harvest reads only a live run whose `run.json` shows the sim retry ledger on
+    (the kitchen sim at gate 1) and `"purpose": "live"`, and every earlier record a
+    rebuild kept in the same directory (`run.<started>.json`: its rows share the
+    trace) must say the same. Only the ledger marks a failed call that an operator
+    stop ended when the call's error does not name the stop (`ended_in_stop`);
+    without one (gate 0, every hardware profile) such a call looks like a real
+    failure, and a note learned from it could work around a stop. A verify,
+    acceptance or benchmark stack's run has the ledger too but is no live run
+    (spec §4.2: harvest counts only live runs). No record, an unreadable one, a
+    ledger that was off, no purpose or another purpose: skipped (fail closed)."""
     run_dir = Path(run_dir)
     for record in (run_dir / "run.json", *sorted(run_dir.glob("run.*.json"))):
-        reason = _ledger_record(record)
+        reason = _record_skip_reason(record)
         if reason is not None:
             return reason
     return None
@@ -406,8 +426,9 @@ def harvest(runs_dir: str | Path, library, limit: int = 100) -> dict:
     library counts it once per run directory, so harvesting the same runs
     again changes nothing. ``learned``/``entries`` report entries that gained
     evidence this harvest, ``promoted``/``candidates`` their status after it.
-    A run without the sim retry ledger is never diagnosed or learned from
-    (`harvest_skip_reason`): ``skipped`` counts those runs and
+    A run without the sim retry ledger, or whose run.json purpose is not
+    ``live``, is never diagnosed or learned from (`harvest_skip_reason`):
+    ``skipped`` counts those runs and
     ``skipped_runs`` gives one line each, ``"<run>: <reason>"``.
     """
     root = Path(runs_dir).expanduser()

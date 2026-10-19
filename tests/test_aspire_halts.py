@@ -16,7 +16,7 @@ name: with the sim retry ledger (the observed-finger gate on, the kitchen's
 setting) the row is marked `context.sim_retry.ended_in_stop` and never learned
 (A8 follow-ups fix, Important 1); without one (gate 0, every hardware profile)
 no row carries that mark, so harvest skips such a run altogether (#388 re-review
-Minor 1; the synthetic runs here carry a gate-1 run record).
+Minor 1; the synthetic runs here carry a live gate-1 run record).
 """
 import json
 
@@ -81,8 +81,9 @@ def _failed(error, **extra):
     return _call({"ok": False, "error": error, **extra})
 
 
-#: the run record of a kitchen sim run at gate 1: harvest reads only runs with the ledger (#388 re-review Minor 1)
-LEDGER_ON = {"sim_retry": True}
+#: the run record of a live kitchen sim run at gate 1: harvest reads only live runs with the ledger (#388
+#: re-review Minor 1, #393 follow-up)
+LEDGER_ON = {"sim_retry": True, "purpose": "live"}
 
 
 def _run(root, name, task, records, record=LEDGER_ON):

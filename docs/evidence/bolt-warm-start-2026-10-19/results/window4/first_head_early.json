@@ -1,0 +1,44 @@
+{
+ "url": "http://127.0.0.1:18499/v1",
+ "model": "nemotron-3.5-bolt",
+ "date": "2026-10-19 04:02:48",
+ "cmd": "first",
+ "first": {
+  "total_s": 13.739,
+  "ttft_s": null,
+  "prompt_tokens": 13592,
+  "completion_tokens": 1,
+  "tool_calls": 0,
+  "text_head": "",
+  "prefix_queried": 13592,
+  "prefix_hit": 0,
+  "llama_timings": {
+   "cache_n": 0,
+   "prompt_n": 13592,
+   "prompt_ms": 13681.845,
+   "predicted_n": 1,
+   "predicted_per_second": 0.0,
+   "draft_n": null,
+   "draft_n_accepted": null
+  },
+  "sent_at": 1792375368.0197895
+ },
+ "slots_after": [
+  {
+   "id": 0,
+   "id_task": 2,
+   "n_prompt_tokens": 2048,
+   "is_processing": true,
+   "head": "<|im_start|>system\n<!-- openclaw:attempt",
+   "has_tools": true
+  },
+  {
+   "id": 1,
+   "id_task": 3,
+   "n_prompt_tokens": 0,
+   "is_processing": true,
+   "head": "<|im_start|>system\n<!-- openclaw:attempt",
+   "has_tools": true
+  }
+ ]
+}

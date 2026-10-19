@@ -153,7 +153,25 @@ class Settings:
 # ── instances: several isolated routes on one host ────────────────────────
 
 INSTANCE_ENV = "CASCADE_OPENSHELL_INSTANCE"
-_INSTANCE_NAME = re.compile(r"[a-z][a-z0-9-]{0,15}")
+#: OpenShell's gateway refuses a sandbox name longer than this (0.1.3:
+#: MAX_ROUTABLE_NAME_LEN, a DNS label shared with workspace and service names)
+#: or one that is not a-z, 0-9 and single '-' between them
+#: (crates/openshell-server/src/grpc/validation.rs, validate_sandbox_name).
+SANDBOX_NAME_MAX = 19
+_SANDBOX_NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+#: An instance name: a letter, then a-z, 0-9 and single '-' between them, so
+#: that every name derived from it is one OpenShell takes (the sandbox above;
+#: profile ids are '-'-separated runs of a-z, 0-9, so no '--' and no '-' last).
+_INSTANCE_NAME = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*")
+
+
+def named_sandbox(name: str) -> str:
+    """A named instance's default sandbox."""
+    return f"cascade-{name}-agent"
+
+
+#: The longest instance name whose sandbox still fits SANDBOX_NAME_MAX (5).
+INSTANCE_NAME_MAX = SANDBOX_NAME_MAX - len(named_sandbox(""))
 #: A named instance's ports come from one of this many slots (sha256 of its name).
 PORT_SLOTS = 99
 
@@ -214,16 +232,27 @@ def instance(name: str = "") -> Instance:
                         mcp_unit=MCP_UNIT, sandbox_label=SANDBOX_LABEL, brain_provider=BRAIN_PROVIDER,
                         robot_provider=ROBOT_PROVIDER, sandbox=DEFAULT_SANDBOX, mcp_port=DEFAULT_MCP_PORT,
                         chat_port=DEFAULT_CHAT_PORT, home_name=HOME_NAME)
-    if name == "default" or not _INSTANCE_NAME.fullmatch(name):
-        raise SystemExit(f"invalid instance name {name!r}: use 1-16 of a-z, 0-9 and '-', starting with a letter "
-                         "('default' is reserved: omit --instance and CASCADE_OPENSHELL_INSTANCE for the default instance)")
+    if name == "default" or len(name) > INSTANCE_NAME_MAX or not _INSTANCE_NAME.fullmatch(name):
+        raise SystemExit(f"invalid instance name {name!r}: use 1-{INSTANCE_NAME_MAX} characters of a-z, 0-9 and "
+                         "single '-' between them, starting with a letter (its sandbox "
+                         f"{named_sandbox('<name>')} must fit OpenShell's {SANDBOX_NAME_MAX}-character "
+                         "sandbox names); 'default' is reserved: omit --instance and CASCADE_OPENSHELL_INSTANCE "
+                         "for the default instance")
     gateway_port, mcp_port, chat_port = named_ports(port_slot(name))
     return Instance(name=name, gateway_name=f"cascade-{name}", gateway_port=gateway_port,
                     gateway_unit=f"cascade-openshell-{name}-gateway", chat_unit=f"cascade-openshell-{name}-chat",
                     relock_unit=f"cascade-openshell-{name}-relock", mcp_unit=f"cascade-openshell-{name}-mcp",
                     sandbox_label=f"cascade-openshell-{name}", brain_provider=f"cascade-{name}-brain",
-                    robot_provider=f"cascade-{name}-robot", sandbox=f"cascade-{name}-agent",
+                    robot_provider=f"cascade-{name}-robot", sandbox=named_sandbox(name),
                     mcp_port=mcp_port, chat_port=chat_port, home_name=f"openshell-{name}")
+
+
+def check_sandbox_name(name: str) -> None:
+    """Refuse a sandbox name (an explicit --sandbox) OpenShell would refuse,
+    before anything is created."""
+    if len(name) > SANDBOX_NAME_MAX or not _SANDBOX_NAME.fullmatch(name):
+        raise SystemExit(f"sandbox name {name!r}: OpenShell takes 1-{SANDBOX_NAME_MAX} characters of a-z, 0-9 "
+                         "and single '-' between them; pass another --sandbox")
 
 
 DEFAULT_INSTANCE = instance("")
@@ -1014,6 +1043,7 @@ def cmd_teardown(inst: Instance, home: Path, args) -> int:
 
 def cmd_up(inst: Instance, home: Path, args) -> int:
     cfg = _load_settings(home, args, inst)
+    check_sandbox_name(cfg.sandbox)
     brain_key_file = Path(args.brain_key_file).expanduser()
     token_file = Path(args.mcp_token_file or home / "mcp.token")
     if not (home / OPENSHELL_VERSION / "bin" / "openshell").exists():

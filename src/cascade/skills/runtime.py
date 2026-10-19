@@ -1028,11 +1028,28 @@ class SlowPerceptionError(SkillError):
     false -- the caller may analyze a newer frame instead."""
 
 
-def _analyzed_frame_age_s(frame: Frame, analysis_s: float, max_age_s: float = 5.0) -> float:
+class StaleFrameError(SlowPerceptionError):
+    """The frame was ALREADY past the age limit when its analysis began: the
+    camera stopped delivering (`CameraStream.get_frame` returns a dead
+    camera's last frame after its wait). "The camera is live -- retry" would be
+    false. A SlowPerceptionError subclass, so every path that ends on slow
+    perception (no memory fallback, no motion recovery) ends on this too; only
+    the text differs."""
+
+
+def _analyzed_frame_age_s(frame: Frame, analysis_s: float, max_age_s: float = 5.0, *,
+                          age_at_start: float | None = None) -> float:
     """Age of a frame whose freshness was checked BEFORE analysis: past the
-    limit now only because the analysis was slow, reported as exactly that."""
+    limit now only because the analysis was slow, reported as exactly that.
+
+    `age_at_start`: the frame's age when the analysis began (default: its
+    age now minus `analysis_s`). A frame already past the limit then was
+    stale before any analysis (a dead camera): StaleFrameError, which says
+    so, instead of "fresh at capture ... the camera is live"."""
     age = _frame_age_s(frame, max_age_s=float("inf"))
     if age > max_age_s:
+        if (age - analysis_s if age_at_start is None else age_at_start) > max_age_s:
+            raise StaleFrameError(f"Camera frame is {age:.1f}s old; wait for the camera to reconnect")
         raise SlowPerceptionError(
             f"Perception took {analysis_s:.1f}s on a frame that was fresh at capture, so the "
             f"result is {age:.1f}s old; the camera is live -- retry the observation"
@@ -1063,6 +1080,8 @@ def _perception_stop(exc: BaseException, attempt: int) -> str | None:
     the second attempt on."""
     if isinstance(exc, SceneChangedError):
         what = "the scene changed while the object was localized"
+    elif isinstance(exc, StaleFrameError):
+        what = "the camera stopped delivering frames"
     elif isinstance(exc, SlowPerceptionError):
         what = "localization analysis expired"
     elif isinstance(exc, ReanchorError) and attempt >= 2:
@@ -4385,6 +4404,19 @@ class SkillRuntime:
             return (np.all(np.isfinite(point)) and np.all(point >= workspace_bounds[0])
                     and np.all(point <= workspace_bounds[1]))
         frame = None
+        # The primary frame's age when it was grabbed: a dead camera's last
+        # frame is already past the limit then, and the fallbacks below say so
+        # (StaleFrameError) instead of "fresh at capture ... the camera is live".
+        frame_age_at_grab = None
+
+        def grabbed(f):
+            nonlocal frame_age_at_grab
+            try:
+                frame_age_at_grab = time.monotonic() - float(f.t)
+            except (AttributeError, TypeError, ValueError):
+                frame_age_at_grab = None
+            return f
+
         last_err: SkillError | None = None
         reserve = getattr(self.detector, "reserve", nullcontext)
         loop_cfg = self.cfg.get("perception_loop", {})
@@ -4573,7 +4605,7 @@ class SkillRuntime:
         # (table-frame) capture for the VLM fallback, which converts its views.
         def primary_frame0():
             nonlocal frame
-            frame = self.observe()
+            frame = grabbed(self.observe())
             return self._frame_in_arm(frame)
 
         def primary_frame1(frame0):
@@ -4594,7 +4626,7 @@ class SkillRuntime:
                         analyzed, fix = localize_two_phase(primary_frame0, primary_frame1,
                                                            lambda _frame: self.extrinsics)
                         return self._note_localized(query, analyzed, fix)
-                    frame = self.observe()
+                    frame = grabbed(self.observe())
                     analyzed = self._frame_in_arm(frame)
                     fix = analyze(analyzed, self.extrinsics)
                 return self._note_localized(query, analyzed, fix)
@@ -4705,7 +4737,7 @@ class SkillRuntime:
             and in_workspace(belief_in_arm.position)
         )
         if mem_ok:
-            _analyzed_frame_age_s(frame, time.monotonic() - localization_started)
+            _analyzed_frame_age_s(frame, time.monotonic() - localization_started, age_at_start=frame_age_at_grab)
             self.memory.add(
                 "note",
                 f"localize {query!r}: instant detection missed; using the "
@@ -4716,7 +4748,7 @@ class SkillRuntime:
                 self._fix_from_belief(query, belief_in_arm)
         # Last filter: VLM grounding of this one query, when the detector
         # missed it; one slow call only ever runs on this failure path.
-        _analyzed_frame_age_s(frame, time.monotonic() - localization_started)
+        _analyzed_frame_age_s(frame, time.monotonic() - localization_started, age_at_start=frame_age_at_grab)
         grounded = self._vlm_ground_fix(frame, query)
         if grounded is not None and in_workspace(grounded[1].position):
             return grounded

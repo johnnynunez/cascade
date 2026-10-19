@@ -9425,14 +9425,18 @@ class SkillRuntime:
         feedback, or one that is no number) while an object may be in them
         -- an interrupted grasp's provisional hold, or a held object --
         refuse before any command: no stage can be shown not to open them.
-        With nothing held, unread jaws close as before."""
+        With nothing held, unread jaws close as before. So do the jaws of an
+        arm that does not hold the object (R5 / D9; #400 re-review): only the
+        holding arm's jaws can be on it, and this close never commands them.
+        Refusing there pointed at a place_at that the holder rule refuses too.
+        """
         state = self._jaw_state()
         reading = float(state.gripper_pos) if getattr(state, "gripper_valid", True) else None
         if reading is not None and not math.isfinite(reading):
             reading = None
         if reading is None:
             self._raise_on_a_possible_hold()
-            if self.held_object:
+            if self.held_object and self._held_by_another_arm() is None:
                 raise SkillError(_fit_label(_JAWS_NOT_READ + " while holding {}: a close stage could open the "
                                             "jaws on it; place it first (place_at)", repr(self.held_object),
                                             keep=len("SkillError: ")))

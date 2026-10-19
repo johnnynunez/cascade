@@ -240,6 +240,18 @@ def test_an_existing_slot_directory_is_made_private(prepared, key, tmp_path):
     assert stat.S_IMODE(slots.stat().st_mode) == 0o700 and helper_runs(prepared)
 
 
+def test_a_slot_directory_of_another_user_turns_the_warm_start_off(prepared, key, tmp_path):
+    # Another user's directory cannot be made here without root: `id -u` answers another uid instead.
+    shims = tmp_path / "shims"
+    shims.mkdir()
+    (shims / "id").write_text('#!/bin/bash\nif [[ "$*" == -u ]]; then echo 4242; else exec /usr/bin/id "$@"; fi\n')
+    (shims / "id").chmod(0o755)
+    env = {"API_KEY_FILE": str(key), "PATH": f"{shims}{os.pathsep}{os.environ['PATH']}"}
+    result = invoke(prepared, **env)
+    assert_served_without_warm_start(prepared, result, **env)
+    assert "bolt-slots-8080" in result.stderr
+
+
 def test_the_warm_start_follows_the_servers_knobs(prepared, tmp_path):
     key = tmp_path / "brain.key"
     key.write_text("warm-knob-key-91\n")

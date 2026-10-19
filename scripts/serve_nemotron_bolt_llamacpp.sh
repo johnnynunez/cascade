@@ -252,10 +252,15 @@ if [[ "$SPEC" == dflash ]]; then
     set -- "$@" --spec-type draft-dflash --spec-draft-model "$DRAFT_FILE" --spec-draft-n-max "$NSPEC" --spec-draft-ngl 999
 fi
 [[ -z "$CHAT_TEMPLATE_FILE" ]] || set -- "$@" --chat-template-file "$CHAT_TEMPLATE_FILE"
+# Slot files hold the slots' state: a directory of this user (mkdir -p fails on
+# anything else that exists there), never a link elsewhere, mode 0700 even when
+# it existed before.
+private_dir() {
+    mkdir -p -m 700 "$1" && [[ ! -L "$1" ]] \
+        && [[ "$(stat -c %u "$1" 2>/dev/null || stat -f %u "$1")" == "$(id -u)" ]] && chmod 700 "$1"
+}
 warm_slots="$(dirname "$WARM_PREFIX_FILE")/bolt-slots-$PORT"
-# Slot files hold the slots' state: a private directory of this user, never a link elsewhere.
-if [[ "$WARM_START" == 1 ]] && ! { mkdir -p -m 700 "$warm_slots" && [[ -d "$warm_slots" && ! -L "$warm_slots" && -O "$warm_slots" ]] \
-        && chmod 700 "$warm_slots"; } 2>/dev/null; then
+if [[ "$WARM_START" == 1 ]] && ! private_dir "$warm_slots" 2>/dev/null; then
     warm_off "cannot make $warm_slots a private directory"
 fi
 if [[ "$WARM_START" == 1 ]]; then

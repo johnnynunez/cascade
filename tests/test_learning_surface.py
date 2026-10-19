@@ -482,6 +482,123 @@ def test_a_stop_after_the_decision_withdraws_the_line(monkeypatch, tmp_path, gat
         assert res["ok"] is True, res
         _assert_not_granted(res)
         assert _learning_json(tmp_path)["last_event"] is None
+        # the audit trail shows no line the agent never got: the row says it was withheld (#398 review, Minor 2)
+        row = runtime.trace.rows()[-1]
+        assert row["skill"] == "pick_and_place" and row["context"]["learning"] == WITHHELD_NOTE, row["context"]
+        assert _note_line(runtime) not in json.dumps(row)
+
+
+#: the trace row's mark for a line a stop withdrew on delivery (#398 review, Minor 2)
+WITHHELD_NOTE = {"kind": "note", "line": None, "withheld": "stopped"}
+
+
+def _stop_after_the_row(runtime, inject):
+    """Run `inject` once, right AFTER the pick's trace row is written (in its memory event, before execute()
+    delivers the line): the row already holds the decided line when the stop withdraws it."""
+    real = runtime.memory.add
+
+    def add(kind, text, *a, **k):
+        if kind in ("action", "outcome") and str(text).startswith("pick_and_place(") and not fired:
+            fired.append(text)
+            assert runtime.trace.rows()[-1]["context"]["learning"]["line"], "the row is written first"
+            inject()
+        return real(kind, text, *a, **k)
+    fired = []
+    runtime.memory.add = add
+    return fired
+
+
+@needs_pin
+@GATES
+@pytest.mark.parametrize("stop", STOPS + ("both", "arm stop"))
+def test_a_stop_after_the_trace_row_marks_its_line_withheld(monkeypatch, tmp_path, gate, stop):  # #398 Minor 2
+    """The stop lands after the call's trace row was written with the decided line: execute() withdraws the
+    line and the row is rewritten to say so; every other row keeps its bytes."""
+    with _kitchen(monkeypatch, tmp_path, gate=gate) as (runtime, arm):
+        runtime.execute("move_home", {})
+        before = (tmp_path / "run" / "trace.jsonl").read_text().splitlines()
+
+        def inject():
+            harness = runtime.arm.harness
+            if stop == "arm stop":
+                runtime.arm.stop()
+            for kind in (("halt", "e-stop") if stop == "both" else () if stop == "arm stop" else (stop,)):
+                _stop(harness, kind)
+        fired = _stop_after_the_row(runtime, inject)
+        res = runtime.execute("pick_and_place", PICK)
+        assert fired and res["ok"] is True, res
+        _assert_not_granted(res)
+        assert _learning_json(tmp_path)["last_event"] is None
+        after = (tmp_path / "run" / "trace.jsonl").read_text().splitlines()
+        assert after[:len(before)] == before and len(after) == len(before) + 1
+        row = json.loads(after[-1])
+        assert row["context"]["learning"] == WITHHELD_NOTE and _note_line(runtime) not in after[-1], row["context"]
+
+
+@needs_pin
+def test_a_stop_reading_that_fails_after_the_row_marks_its_line_withheld(monkeypatch, tmp_path):  # #398 Minor 2
+    """An unreadable stop reading counts as a stop (fail closed): the row says why the line was withheld."""
+    with _kitchen(monkeypatch, tmp_path, gate=False) as (runtime, arm):
+        def broken():
+            raise RuntimeError("stop token unreadable")
+        _stop_after_the_row(runtime, lambda: setattr(runtime, "_stop_token", broken))
+        res = runtime.execute("pick_and_place", PICK)
+        _assert_not_granted(res)
+        row = runtime.trace.rows()[-1]
+        assert row["context"]["learning"] == {"kind": "note", "line": None, "withheld": "stop unreadable"}
+
+
+@needs_pin
+@GATES
+def test_a_granted_line_stays_in_its_trace_row(monkeypatch, tmp_path, gate):  # #398 Minor 2, the control
+    with _kitchen(monkeypatch, tmp_path, gate=gate) as (runtime, arm):
+        fired = _stop_after_the_row(runtime, lambda: None)
+        res = runtime.execute("pick_and_place", PICK)
+        assert fired
+        _assert_granted(res, _note_line(runtime))
+        assert runtime.trace.rows()[-1]["context"]["learning"] == {"kind": "note", "line": _note_line(runtime)}
+
+
+def test_amend_context_rewrites_one_row_and_keeps_every_other_byte(tmp_path):  # #398 Minor 2
+    from cascade.agent.trace import TraceLogger
+
+    trace = TraceLogger(tmp_path)
+    steps = [trace.record("move_home", {"i": i}, {"ok": True, "x": float("nan") if i == 1 else i / 3}, 1.0,
+                          context={"learning": {"kind": "note", "line": f"line {i}"}} if i == 2 else None)
+             for i in range(4)]
+    assert steps == [0, 1, 2, 3]
+    path = tmp_path / "trace.jsonl"
+    before = path.read_text().splitlines()
+    assert trace.amend_context(2, "learning", WITHHELD_NOTE) is True
+    after = path.read_text().splitlines()
+    assert len(after) == 4 and after[:2] + after[3:] == before[:2] + before[3:]
+    old, new = json.loads(before[2]), json.loads(after[2])
+    assert new["context"] == {"learning": WITHHELD_NOTE} and {**old, "context": None} == {**new, "context": None}
+    unchanged = path.read_bytes()
+    assert trace.amend_context(9, "learning", WITHHELD_NOTE) is False and path.read_bytes() == unchanged
+    assert trace.amend_context(0, "learning", WITHHELD_NOTE) is True   # a row recorded with no context
+    assert trace.rows()[0]["context"] == {"learning": WITHHELD_NOTE}
+    assert not list(tmp_path.glob(".trace.jsonl.*"))
+
+
+def test_amend_context_never_loses_a_row_appended_meanwhile(tmp_path):  # #398 Minor 2
+    import threading
+
+    from cascade.agent.trace import TraceLogger
+
+    trace = TraceLogger(tmp_path)
+    marked = trace.record("pick_and_place", {}, {"ok": True}, 1.0, context={"learning": {"kind": "note", "line": "x"}})
+    writers = [threading.Thread(target=lambda: [trace.record("move_home", {}, {"ok": True}, 1.0) for _ in range(100)])
+               for _ in range(3)]
+    for writer in writers:
+        writer.start()
+    for _ in range(30):
+        assert trace.amend_context(marked, "learning", WITHHELD_NOTE) is True
+    for writer in writers:
+        writer.join()
+    rows = trace.rows()
+    assert len(rows) == 301 and sorted(r["step"] for r in rows) == list(range(301))
+    assert rows[0]["context"]["learning"] == WITHHELD_NOTE
 
 
 @needs_pin
@@ -500,6 +617,7 @@ def test_a_stop_after_the_decision_withdraws_the_retry_line_and_the_panel_says_s
         _assert_not_granted(res)
         event = _learning_json(tmp_path)["last_event"]
         assert {k: event[k] for k in ("kind", "line", "outcome")} == {"kind": "retry", "line": None, "outcome": "halted"}
+        assert runtime.trace.rows()[-1]["context"]["learning"] == {"kind": "retry", "line": None, "withheld": "stopped"}
 
 
 @needs_pin

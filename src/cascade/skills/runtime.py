@@ -785,13 +785,16 @@ _LEARNING_LINE_FIELD = "learning_line"
 @dataclasses.dataclass(frozen=True)
 class _LearningGrant:
     """What `_grant_learning_line` decided for the call `execute()` is finishing: the
-    learning event (`kind`, `line` -- None for THE retry without one -- and `outcome`)
-    and `stopped`, the call's operator-stop reading, taken again on delivery."""
+    learning event (`kind`, `line` -- None for THE retry without one -- and `outcome`),
+    `stopped`, the call's operator-stop reading, taken again on delivery, and
+    `trace_step`, the step of the call's trace row (`_bind_trace_step`; None before
+    the row is written), where a line withdrawn on delivery is marked withheld."""
     learning: Any
     kind: str
     line: str | None
     outcome: str
     stopped: Callable[[], bool]
+    trace_step: int | None = None
 
 
 def _take_learning_grant(runtime) -> _LearningGrant | None:
@@ -799,6 +802,15 @@ def _take_learning_grant(runtime) -> _LearningGrant | None:
     the call `execute()` is finishing, removed (None when there is none)."""
     scope = getattr(runtime, "_motion_scope", None)
     return None if scope is None else scope.__dict__.pop("learning_grant", None)
+
+
+def _bind_trace_step(runtime, step) -> None:
+    """Note on this thread's pending learning grant the step of the trace row that
+    carries its line (`TraceLogger.record`'s return value; a double's None binds nothing)."""
+    scope = getattr(runtime, "_motion_scope", None)
+    grant = getattr(scope, "learning_grant", None)
+    if grant is not None and isinstance(step, int):
+        scope.learning_grant = dataclasses.replace(grant, trace_step=step)
 
 
 def _without_refused(grasps, excluded):
@@ -1889,7 +1901,8 @@ class SkillRuntime:
         on delivery (A9/A10 fix, Minor 2). The line is built from runtime texts and
         the served note's title and tag only, never from the agent's arguments; one
         that would read as a rule trigger is no line. Marks the trace row's
-        `learning` with the decided line. Never fails the call."""
+        `learning` with the decided line; a line a stop withdraws on delivery is
+        marked withheld there (`_mark_line_withheld`). Never fails the call."""
         from ..agent import learning_surface as surface
 
         def stopped() -> bool:
@@ -2377,7 +2390,8 @@ class SkillRuntime:
         put one there; and when `_grant_learning_line` decided a learning event, that
         event delivered (spec §4.8; A9/A10 fix). The operator-stop reading is taken
         again here, so a stop that came after the decision (during the trace write,
-        the status line, the memory event) withdraws the line (Minor 2); the event is
+        the status line, the memory event) withdraws the line (Minor 2) and marks it
+        withheld in the call's trace row (#398 review, Minor 2); the event is
         written to learning.json here too: a note line withdrawn writes nothing, THE
         retry writes `line: null, outcome: halted`. R5 keys on this field only."""
         if isinstance(result, dict) and _LEARNING_LINE_FIELD in result:
@@ -2389,17 +2403,33 @@ class SkillRuntime:
             return result
         from ..agent import learning_surface as surface
 
-        line, outcome = grant.line, grant.outcome
+        line, outcome, withheld = grant.line, grant.outcome, None
         try:
             if grant.stopped():
-                line, outcome = None, "halted"
+                line, outcome, withheld = None, "halted", "stopped"
         except Exception:  # noqa: BLE001 -- fail closed: an unreadable stop is a stop
             logger.exception("learning line withdrawn: the stop reading failed")
-            line, outcome = None, "halted"
+            line, outcome, withheld = None, "halted", "stop unreadable"
+        if withheld is not None and grant.line is not None:
+            self._mark_line_withheld(grant, withheld)
         if line is None and grant.kind != "retry":
             return result
         grant.learning.write(surface.learning_event(grant.kind, line, outcome))
         return result if line is None else surface.with_learning_line(result, line)
+
+    def _mark_line_withheld(self, grant: _LearningGrant, why: str) -> None:
+        """The call's trace row, which `_grant_learning_line` marked with the decided line,
+        rewritten to say the line was withheld (`why`: "stopped", or "stop unreadable") when a
+        stop withdrew it on delivery, so the audit trail never shows a line the agent did not
+        get (#398 review, Minor 2). A trace without `amend_context` or an unwritten row: nothing.
+        Never fails the call."""
+        amend = getattr(self.trace, "amend_context", None)
+        if grant.trace_step is None or amend is None:
+            return
+        try:
+            amend(grant.trace_step, "learning", {"kind": grant.kind, "line": None, "withheld": why})
+        except Exception:  # noqa: BLE001 -- the learning surface never fails a call
+            logger.exception("trace row %s: the withheld learning line was not marked", grant.trace_step)
 
     def _execute_with_obligations(self, name: str, args: dict) -> dict:
         """Dispatch with task obligations covering all tiers and preparation faults."""
@@ -3058,9 +3088,11 @@ class SkillRuntime:
             # after the ledger (its verdict on THE retry), before the trace row
             self._grant_learning_line(learning, name, args, result, trace_context, retry=retry, arm=effective_arm,
                                       baselines=skill_halt, stop_token0=learning_token0)
-        self.trace.record(name, args, result, dur, before, after,
-                          tier=self.current_tier, context=trace_context,
-                          keyframe_before_wrists=before_wrists, keyframe_after_wrists=after_wrists)
+        traced = self.trace.record(name, args, result, dur, before, after,
+                                   tier=self.current_tier, context=trace_context,
+                                   keyframe_before_wrists=before_wrists, keyframe_after_wrists=after_wrists)
+        if learning is not None:
+            _bind_trace_step(self, traced)  # the row a line withdrawn on delivery is marked withheld in
         err = str(result.get("error", "failed"))
         stuck = result.get("outcome") == OUTCOME_STUCK
         # one tail for the status line and the memory event: ok / the ask / the error,

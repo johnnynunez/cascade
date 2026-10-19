@@ -485,11 +485,12 @@ class _ReadOnlyLane:
 
 
 class McpSkillServer:
-    def __init__(self, *, launch_state_dir=None):
+    def __init__(self):
         self._runtime = None
         # the launcher's state directory (`--launch-state-dir`), None for in-process
-        # callers: the ASPIRE panel's learning.json is kept there (spec §4.8, R31)
-        self._launch_state_dir = None if launch_state_dir is None else Path(launch_state_dir)
+        # callers: the ASPIRE panel's learning.json is kept there (spec §4.8, R31).
+        # main() sets it after construction, the one way to set it (A9/A10 fix, Minor 5)
+        self._launch_state_dir = None
         self._arm = None
         # Morphology is selected once for this connection; catalog and dispatch
         # must agree even before a (possibly slow) runtime exists.
@@ -1959,13 +1960,14 @@ def _short_args(args: dict) -> str:
 
 
 def _agent_text(value):
-    """`value` with the kitchen rules' triggers withheld from every string in it
-    (`skills.runtime._without_rule_triggers`: R1's retry permission, R5's reply line).
-    Only `SkillRuntime.execute()` ever grants one, on its own result (the sim retry, the
-    learning line); the channels the server answers itself -- world_state, robot_knowledge,
-    verify_last_action, task_memory, recall_step's captions, camera images' metadata and
-    camera errors -- grant nothing, so they carry neither, whatever names the agent used
-    (ASPIRE A9/A10 ruling 1). Text without a trigger comes back as the same object."""
+    """`value` with the kitchen rules' triggers withheld from every key and string in it
+    (`skills.runtime._without_rule_triggers`: R1's retry permission, R5's reply line and the
+    `learning_line` field's name). Only `SkillRuntime.execute()` ever grants one, on its own
+    result (the sim retry, the learning line); the channels the server answers itself --
+    world_state, robot_knowledge, verify_last_action, task_memory, recall_step's captions,
+    camera images' metadata and camera errors -- grant nothing, so they carry neither, and no
+    `learning_line` key at any depth, whatever names the agent used (ASPIRE A9/A10 ruling 1 and
+    fix). Text without a trigger comes back as the same object."""
     from ..skills.runtime import _without_rule_triggers
 
     return _without_rule_triggers(value)
@@ -2146,7 +2148,7 @@ def main() -> int:
 
     server = McpSkillServer()
     # ASPIRE panel (spec §4.8, preflight R31): where `_attach_learning_file` keeps
-    # learning.json; set after construction, so the constructor stays main's
+    # learning.json; set after construction (the only way), so the constructor stays main's
     server._launch_state_dir = args.launch_state_dir
     previous_stderr = sys.stderr
     with StopSignals(staff_reset=True) as signals:

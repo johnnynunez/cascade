@@ -13,6 +13,7 @@ from ..control import motion_evidence
 from ..control.jaw_stages import closing_stages, opens_past
 
 import contextlib
+import dataclasses
 import functools
 import logging
 from contextlib import nullcontext
@@ -768,9 +769,25 @@ def _sim_retry_state(runtime) -> _SimRetryState | None:
     return getattr(getattr(runtime, "_motion_scope", None), "sim_retry", None)
 
 
-def _take_learning_grant(runtime) -> str | None:
-    """The learning line `_grant_learning_line` left on this thread's motion scope
-    for the call `execute()` is finishing, removed (None when there is none)."""
+#: the top-level result field the kitchen rules' R5 keys on (`agent.learning_surface.LEARNING_LINE_FIELD`)
+_LEARNING_LINE_FIELD = "learning_line"
+
+
+@dataclasses.dataclass(frozen=True)
+class _LearningGrant:
+    """What `_grant_learning_line` decided for the call `execute()` is finishing: the
+    learning event (`kind`, `line` -- None for THE retry without one -- and `outcome`)
+    and `stopped`, the call's operator-stop reading, taken again on delivery."""
+    learning: Any
+    kind: str
+    line: str | None
+    outcome: str
+    stopped: Callable[[], bool]
+
+
+def _take_learning_grant(runtime) -> _LearningGrant | None:
+    """The decision `_grant_learning_line` left on this thread's motion scope for
+    the call `execute()` is finishing, removed (None when there is none)."""
     scope = getattr(runtime, "_motion_scope", None)
     return None if scope is None else scope.__dict__.pop("learning_grant", None)
 
@@ -1884,32 +1901,36 @@ class SkillRuntime:
     def _grant_learning_line(self, learning, name, args, result, trace_context, *, retry, arm, baselines,
                              stop_token0) -> None:
         """Decide the one line this call's result grants (spec §4.8:
-        `learning_surface.learning_line`) and leave it on this thread's motion
-        scope: `execute()` appends the granting instruction after the rule-trigger
-        scrub, so only the runtime's own instruction ever stands in a result. A call
-        an operator stop met -- latched now, a halt since the skill started, or the
-        rig's stop token changed since `stop_token0` (an e-stop raised and reset) --
-        gets none, with or without a retry ledger. The line is built from runtime
-        texts and the served note's title and tag only, never from the agent's
-        arguments; one that would read as a rule trigger is no line. Records the
-        learning event (learning.json, the trace row's `learning`). Never fails the
-        call."""
+        `learning_surface.learning_line`) and leave the decision on this thread's
+        motion scope (`_LearningGrant`): `execute()` delivers it as its last step
+        (`_with_learning_grant`), after the rule-trigger scrub, so only the
+        runtime's own field and instruction ever stand in a result. A call an
+        operator stop met -- latched, a halt since the skill started, or the rig's
+        stop token changed since `stop_token0` (an e-stop raised and reset) -- gets
+        none, with or without a retry ledger; that reading is taken here and again
+        on delivery (A9/A10 fix, Minor 2). The line is built from runtime texts and
+        the served note's title and tag only, never from the agent's arguments; one
+        that would read as a rule trigger is no line. Marks the trace row's
+        `learning` with the decided line. Never fails the call."""
         from ..agent import learning_surface as surface
 
+        def stopped() -> bool:
+            return bool(self._stop_latched(arm) or self._halted_since_skill_start(baselines)
+                        or self._stop_token() != stop_token0)
+
         try:
-            stopped = bool(self._stop_latched(arm) or self._halted_since_skill_start(baselines)
-                           or self._stop_token() != stop_token0)
+            halted = stopped()
             retried = retry is not None and name == "pick_and_place"
             line = None
-            if not stopped:
+            if not halted:
                 matched = None if retried else surface.matched_note(learning.snapshot, name, args)
                 line = surface.learning_line(
                     retried_placed=retried, result=result, matched=matched, sha=learning.snapshot.sha,
                     grasps_refused=retried and retry.refusal == "safety_refusal" and bool(retry.refused_grasps))
-                if line is not None and _without_rule_triggers(line) is not line:
+                if line is not None and not surface.grantable(line):
                     line = None  # fail closed: the line itself never reads as a rule's trigger
             ok = isinstance(result, dict) and result.get("ok") is True
-            outcome = ("halted" if stopped else "failed" if not ok
+            outcome = ("halted" if halted else "failed" if not ok
                        else "unverified" if not surface.succeeded(result)
                        else "placed" if name == "pick_and_place" else "succeeded")
             if line is not None:
@@ -1918,11 +1939,9 @@ class SkillRuntime:
                 kind = "retry"  # THE retry without a line (failed, halted, unverified): the panel says so
             else:
                 return
-            learning.write(surface.learning_event(kind, line, outcome))
-            if line is None:
-                return
-            self._motion_scope.learning_grant = line
-            trace_context["learning"] = {"kind": kind, "line": line}
+            self._motion_scope.learning_grant = _LearningGrant(learning, kind, line, outcome, stopped)
+            if line is not None:
+                trace_context["learning"] = {"kind": kind, "line": line}
         except Exception:  # noqa: BLE001 -- the learning surface never fails a call
             logger.exception("learning line for %s not granted", name)
 
@@ -2374,18 +2393,35 @@ class SkillRuntime:
                 narrator.end(self, result)
 
     def _with_learning_grant(self, result):
-        """`result`, and when this call was granted a learning line
-        (`_grant_learning_line`) that line with its instruction (spec §4.8), AFTER
-        `_with_retry_text`: the scrub withholds R5's words from every string of every
-        result, this one too, and the runtime's own instruction alone is added."""
+        """`result` as execute() returns it (its last step, AFTER `_with_retry_text`,
+        which withholds R5's words and the field's name from every key and string):
+        never a top-level `learning_line` field this call was not granted, whatever
+        put one there; and when `_grant_learning_line` decided a learning event, that
+        event delivered (spec §4.8; A9/A10 fix). The operator-stop reading is taken
+        again here, so a stop that came after the decision (during the trace write,
+        the status line, the memory event) withdraws the line (Minor 2); the event is
+        written to learning.json here too: a note line withdrawn writes nothing, THE
+        retry writes `line: null, outcome: halted`. R5 keys on this field only."""
+        if isinstance(result, dict) and _LEARNING_LINE_FIELD in result:
+            result.pop(_LEARNING_LINE_FIELD)  # only the delivery below writes the field
         if self.learning_state is None:
             return result
-        line = _take_learning_grant(self)
-        if line is None:
+        grant = _take_learning_grant(self)
+        if grant is None:
             return result
-        from ..agent.learning_surface import with_learning_line
+        from ..agent import learning_surface as surface
 
-        return with_learning_line(result, line)
+        line, outcome = grant.line, grant.outcome
+        try:
+            if grant.stopped():
+                line, outcome = None, "halted"
+        except Exception:  # noqa: BLE001 -- fail closed: an unreadable stop is a stop
+            logger.exception("learning line withdrawn: the stop reading failed")
+            line, outcome = None, "halted"
+        if line is None and grant.kind != "retry":
+            return result
+        grant.learning.write(surface.learning_event(grant.kind, line, outcome))
+        return result if line is None else surface.with_learning_line(result, line)
 
     def _execute_with_obligations(self, name: str, args: dict) -> dict:
         """Dispatch with task obligations covering all tiers and preparation faults."""

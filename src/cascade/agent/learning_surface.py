@@ -5,15 +5,19 @@ with `agent.learning_surface: true` (the kitchen profile, `learning_state_for`);
 a real profile never builds one, whatever its switch says (B7 decides the
 reBot), so every hardware payload stays main's.
 
-The chat line. A motion result may carry ONE line the runtime grants
-(`learning_line`), with the instruction "End your reply with this exact line:
-<line>" (`with_learning_line`): the kitchen rules' R5 ends the reply with
-exactly that line, and only when a tool result says so. The runtime is the only
-writer: it appends the instruction to the granted result AFTER the rule-trigger
-scrub (`runtime._with_retry_text`), which withholds R5's words from every other
-string the agent reads -- an operator's halt reason, an object name, a nested
-step, world_state, the memory events -- so no text the agent supplied can ever
-read as the grant. Priority:
+The chat line. A motion result may carry ONE line the runtime grants, as its
+top-level `learning_line` FIELD (`LEARNING_LINE_FIELD`): the kitchen rules' R5
+(`REPLY_LINE_RULE`) ends the reply with exactly that field's text, and only when a
+result has the field. R5 keys on the field, never on words (A9/A10 fix: a word
+list cannot tell a paraphrase from the grant), and no text the agent supplies can
+create it: `SkillRuntime.execute()` writes it as its last step
+(`runtime._with_learning_grant`), drops a top-level field it did not grant, and the
+rule-trigger scrub (`runtime._without_rule_triggers`) withholds the field's name
+from every key and string of every other result and channel. The instruction "End
+your reply with this exact line: <line>" is derived from the field
+(`with_learning_line`); the scrub also keeps R5's words withheld everywhere else,
+as defence in depth (paraphrases pass it: accepted, R5 does not read them).
+Priority:
 
 1. THE retry of this order (the sim retry ledger's own) placed the object:
    RETRY_LINE when the refused attempt was a gate refusal whose refused grasps
@@ -28,14 +32,16 @@ read as the grant. Priority:
 an unverified placement (`verified: false`: the agent must start with
 "Placement unverified."). A call an operator stop met gets no line (the
 runtime's rule: latched at its end, a halt since the skill started, or the rig's
-stop token changed during it). No line on failures, on non-motion tools, or
-with the switch off.
+stop token changed during it; read when the line is decided AND again when
+execute() returns). No line on failures, on non-motion tools, or with the switch
+off.
 
 `learning.json` (schema 1, at most MAX_BYTES): written atomically (a sibling
-temporary file, then `os.replace`) at build and after each learning event, to
-the run directory and, when the MCP server has one, its launch state, which the
-Spark camera surface serves to the extension panel. Writing never fails a call:
-a path that cannot be written is logged and skipped.
+temporary file, then `os.replace`), under the state's lock, at build and after
+each learning event (when execute() returns), to the run directory and, when the
+MCP server has one, its launch state, which the Spark camera surface serves to the
+extension panel. Writing never fails a call: a path that cannot be written is
+logged and skipped.
 """
 from __future__ import annotations
 
@@ -61,14 +67,18 @@ RETRY_LINE_FRESH_LOOK = ("Learning loop: my first attempt was refused, so I retr
                          "fresh look.")
 #: spec §4.8 text 2
 NOTE_LINE = "From earlier runs: {title} ({tag})."
-#: the one instruction that grants the reply line (R5 quotes it)
+#: the one instruction that grants the reply line, derived from the field (`with_learning_line`)
 REPLY_LINE_INSTRUCTION = "End your reply with this exact line: {line}"
+#: the top-level result field R5 keys on: only `SkillRuntime.execute()` writes it (A9/A10 fix)
+LEARNING_LINE_FIELD = "learning_line"
+#: R5 as the visitor block and the plugin identity state it (spec §4.6)
+REPLY_LINE_RULE = "When a tool result has a learning_line field, end your reply with exactly that field's text."
 #: learning.json
 LEARNING_FILE = "learning.json"
 SCHEMA = 1
 MAX_BYTES = 64 * 1024
-#: the most served notes learning.json lists (robot_knowledge's own count)
-SERVED_SHOWN = notes.KNOWLEDGE_SHOWN
+#: the most served notes learning.json lists (spec §4.8)
+SERVED_SHOWN = 5
 
 
 def succeeded(result) -> bool:
@@ -104,16 +114,26 @@ def learning_line(*, retried_placed: bool, result, matched: notes.Note | None, s
     return NOTE_LINE.format(title=notes._ascii(matched.title), tag=notes.note_tag(matched, sha))
 
 
+def grantable(line) -> bool:
+    """`line` may stand in the field: one non-empty line of text that reads as no rule trigger
+    (R1's or R5's words, the field's own name: `runtime._without_rule_triggers`)."""
+    from ..skills.runtime import _without_rule_triggers
+
+    return (isinstance(line, str) and bool(line.strip()) and not any(ch in line for ch in "\r\n\u2028\u2029")
+            and _without_rule_triggers(line) is line)
+
+
 def with_learning_line(result, line: str | None):
-    """`result` with `learning_line` set and the granting instruction appended to `next_action`
-    (once); unchanged when `line` is None."""
-    if line is None or not isinstance(result, dict):
+    """`result` with its `learning_line` field set to `line` and the granting instruction, derived
+    from that field, appended to `next_action` (once); unchanged when `line` is None or not
+    `grantable` (fail closed)."""
+    if not isinstance(result, dict) or not grantable(line):
         return result
-    instruction = REPLY_LINE_INSTRUCTION.format(line=line)
+    result[LEARNING_LINE_FIELD] = line
+    instruction = REPLY_LINE_INSTRUCTION.format(line=result[LEARNING_LINE_FIELD])
     own = str(result.get("next_action") or "").strip()
     if instruction not in own:
         result["next_action"] = f"{own} {instruction}" if own else instruction
-    result["learning_line"] = line
     return result
 
 
@@ -145,37 +165,43 @@ class LearningState:
         with self._lock:
             if Path(path) not in self._paths:
                 self._paths.append(Path(path))
-        self.write()
+            self._write_locked()
 
     def payload(self) -> dict:
         """learning.json's content (schema 1)."""
+        with self._lock:
+            return self._payload_locked()
+
+    def _payload_locked(self) -> dict:
         snapshot = self._snapshot
         sha = str(getattr(snapshot, "sha", ""))
         served = [{"id": notes._shown_name(note.id), "title": notes._ascii(note.title),
                    "tag": notes.note_tag(note, sha)}
                   for note in tuple(getattr(snapshot, "served", ()) or ())[:SERVED_SHOWN]]
-        with self._lock:
-            event = None if self._last_event is None else dict(self._last_event)
+        event = None if self._last_event is None else dict(self._last_event)
         return {"schema": SCHEMA, "library_sha": sha,
                 "profile_class": getattr(snapshot, "profile_class", "real"), "sim_retry": self._sim_retry,
                 "served": served, "counts": _counts(snapshot), "last_event": event}
 
     def write(self, event: dict | None = None) -> None:
         """Record `event` (when given) as the last event, then write learning.json to every path,
-        atomically. Never raises: a path that cannot be written is logged and skipped."""
+        atomically, all under the lock (A9/A10 fix, Minor 4: two writers never leave the older
+        event on disk). Never raises: a path that cannot be written is logged and skipped."""
+        with self._lock:
+            if event is not None:
+                self._last_event = dict(event)
+            self._write_locked()
+
+    def _write_locked(self) -> None:
         try:
-            with self._lock:
-                if event is not None:
-                    self._last_event = dict(event)
-                paths = list(self._paths)
-            data = json.dumps(self.payload(), ensure_ascii=True, sort_keys=True).encode("ascii")
+            data = json.dumps(self._payload_locked(), ensure_ascii=True, sort_keys=True).encode("ascii")
             if len(data) > MAX_BYTES:
                 logger.warning("learning.json would be %d bytes (max %d); not written", len(data), MAX_BYTES)
                 return
         except Exception:  # noqa: BLE001 -- the panel never fails a call
             logger.exception("learning.json not rendered")
             return
-        for path in paths:
+        for path in list(self._paths):
             _write_atomic(path, data)
 
 

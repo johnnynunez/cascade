@@ -32,6 +32,7 @@ through that one child's environment, never argv.
     scripts/openshell_rig.py motion lock     # observe-only: OpenShell denies every motion tool
     scripts/openshell_rig.py up --agent-profile franka   # the Franka FR3 operator agent (docs/FRANKA_OPENCLAW.md)
     scripts/openshell_rig.py status | down
+    scripts/openshell_rig.py brain-profile --read-write   # rollback of the /v1-only brain profile (docs/OPENSHELL.md)
 
 Everything this route owns lives under $CASCADE_OPENSHELL_HOME (default
 ~/.cascade/openshell, 0700), including its own XDG config/state: NemoClaw's
@@ -403,6 +404,17 @@ def brain_profile(port: int = DEFAULT_BRAIN_PORT, *, inst: Instance = DEFAULT_IN
     }
 
 
+def read_write_brain_profile(port: int = DEFAULT_BRAIN_PORT, *, inst: Instance = DEFAULT_INSTANCE) -> dict:
+    """The brain profile main shipped before the /v1 path rules (#403's review): GET, HEAD, OPTIONS, POST, PUT and
+    PATCH on every path of the brain (sha256 7e81c98a... for the default instance on 8081). Only the rollback
+    `brain-profile --read-write` pushes it; the next `up` or `brain-profile` puts /v1-only back."""
+    profile = brain_profile(port, inst=inst)
+    endpoint = profile["endpoints"][0]
+    del endpoint["rules"]
+    endpoint["access"] = "read-write"
+    return profile
+
+
 def robot_profile(port: int | None = None, deny: tuple[str, ...] = DEFAULT_DENY_TOOLS, *,
                   inst: Instance = DEFAULT_INSTANCE) -> dict:
     """Provider profile for cascade's MCP server: the bearer token is
@@ -710,6 +722,63 @@ def _systemd_run(unit: str, argv: list[str], env: dict, log: Path, properties: t
 
 def _unit_active(unit: str) -> bool:
     return subprocess.run(["systemctl", "--user", "is-active", "--quiet", unit], check=False).returncode == 0
+
+
+#: Where `brain-profile --read-write` looks for the Bolt warm start (the tests point it at a fake tree).
+PROC = Path("/proc")
+
+
+def _argv_port(argv: list[str]) -> str | None:
+    for i, arg in enumerate(argv):
+        if arg == "--port" and i + 1 < len(argv):
+            return argv[i + 1]
+        if arg.startswith("--port="):
+            return arg.split("=", 1)[1]
+    return None
+
+
+def _c_atoi(text: str) -> int:
+    """C atoi(), as llama.cpp reads LLAMA_SERVER_SLOTS_DEBUG: leading digits, else 0."""
+    m = re.match(r"\s*([+-]?\d+)", text)
+    return int(m.group(1)) if m else 0
+
+
+def warm_start_on(port: int) -> list[str]:
+    """Why the brain on `port` runs with the Bolt warm start's wider API: one line per process (empty: it does not).
+
+    The warm start (scripts/serve_nemotron_bolt_llamacpp.sh) runs llama-server with --slot-save-path and
+    LLAMA_SERVER_SLOTS_DEBUG=1 beside scripts/brain_warm_start.py, every one of them with `--port <port>`. A
+    process on that port whose environment cannot be read counts too: then nobody can tell."""
+    found = []
+    for d in PROC.iterdir():
+        if not d.name.isdigit():
+            continue
+        try:
+            argv = [a.decode(errors="replace") for a in (d / "cmdline").read_bytes().split(b"\0") if a]
+        except OSError:     # exited meanwhile
+            continue
+        if not argv or _argv_port(argv) != str(port):
+            continue
+        who = f"pid {d.name} ({Path(argv[0]).name})"
+        if any(Path(a).name == "brain_warm_start.py" for a in argv):
+            found.append(f"{who}: the warm-start helper")
+            continue
+        if any(a == "--slot-save-path" or a.startswith("--slot-save-path=") for a in argv):
+            found.append(f"{who}: --slot-save-path")
+            continue
+        try:
+            raw = (d / "environ").read_bytes()
+        except PermissionError:
+            found.append(f"{who}: its environment cannot be read, so LLAMA_SERVER_SLOTS_DEBUG cannot be ruled out")
+            continue
+        except OSError:
+            continue
+        env = dict(item.split("=", 1) for item in raw.decode(errors="replace").split("\0") if "=" in item)
+        if _c_atoi(env.get("LLAMA_SERVER_SLOTS_DEBUG", "")):
+            found.append(f"{who}: LLAMA_SERVER_SLOTS_DEBUG={env['LLAMA_SERVER_SLOTS_DEBUG']}")
+        elif env.get("LLAMA_ARG_SLOT_SAVE_PATH"):
+            found.append(f"{who}: LLAMA_ARG_SLOT_SAVE_PATH")
+    return found
 
 
 def _http_status(url: str, headers: dict, body: bytes | None = None, timeout: float = 10) -> int | str:
@@ -1129,6 +1198,28 @@ def cmd_up(inst: Instance, home: Path, args) -> int:
     return 0
 
 
+def cmd_brain_profile(inst: Instance, home: Path, args) -> int:
+    """Push the brain profile alone, live (the sandbox keeps running): the /v1-only one `up` pushes, or with
+    --read-write the rollback to main's old read-write one. The rollback is refused while the Bolt warm start is on:
+    read-write would give the sandbox GET /slots (every slot's prompt text) and slot save/restore/erase."""
+    cfg = _load_settings(home, args, inst)
+    if not (home / OPENSHELL_VERSION / "bin" / "openshell").exists():
+        raise SystemExit(f"OpenShell is not installed: {inst.cli()} install")
+    if not args.read_write:
+        sync_profile(home, brain_profile(cfg.brain_port, inst=inst))
+        print(f"{inst.brain_provider}: the sandbox reaches the brain on :{cfg.brain_port} only on GET/POST /v1/**")
+        return 0
+    if why := warm_start_on(cfg.brain_port):
+        raise SystemExit(
+            f"refusing read-write: the brain on :{cfg.brain_port} runs the Bolt warm start ({'; '.join(why)}). "
+            "Read-write would give the sandbox GET /slots with every slot's prompt text and slot save/restore/erase. "
+            "Restart the brain with WARM_START=0 first, then rerun.")
+    sync_profile(home, read_write_brain_profile(cfg.brain_port, inst=inst))
+    print(f"{inst.brain_provider}: read-write on every path of the brain on :{cfg.brain_port} (the old profile), "
+          f"until the next `up` or `{inst.cli()} brain-profile`")
+    return 0
+
+
 def cmd_motion(inst: Instance, home: Path, args) -> int:
     cfg = _load_settings(home, args, inst)
     if args.action == "status":
@@ -1290,6 +1381,12 @@ def main(argv: list[str] | None = None) -> int:
     ms.add_argument("--cpus", default=None, help="CPU affinity of the server's unit (e.g. 0-7)")
     ex = add("exec", "run `-- COMMAND` inside this instance's sandbox (the launcher's OpenClaw CLI)")
     settings_flags(ex)
+    bp = add("brain-profile", "push the brain profile alone, live: /v1-only (what `up` pushes), or the --read-write "
+                              "rollback")
+    settings_flags(bp)
+    bp.add_argument("--read-write", action="store_true",
+                    help="rollback: main's old read-write brain profile until the next `up`; refused while the Bolt "
+                         "warm start is on (restart the brain with WARM_START=0 first)")
     td = add("teardown", "stop the chat forward, delete the sandbox, stop the robot server and the re-lock")
     settings_flags(td)
     td.add_argument("--gateway", action="store_true", help="also stop the gateway")
@@ -1318,7 +1415,7 @@ def main(argv: list[str] | None = None) -> int:
     return {"install": cmd_install, "gateway": cmd_gateway, "serve-mcp": cmd_serve_mcp, "up": cmd_up,
             "chat-url": cmd_chat_url, "open": cmd_open, "status": cmd_status, "down": cmd_down,
             "motion": cmd_motion, "mcp-start": cmd_mcp_start, "exec": cmd_exec,
-            "teardown": cmd_teardown}[args.cmd](inst, home, args)
+            "teardown": cmd_teardown, "brain-profile": cmd_brain_profile}[args.cmd](inst, home, args)
 
 
 def _cli() -> int:

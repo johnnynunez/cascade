@@ -28,6 +28,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import types
 from dataclasses import asdict
 from pathlib import Path
@@ -2060,3 +2061,136 @@ def test_render_generic_profile_is_the_default_render(tmp_path):
 def test_the_image_ships_the_franka_plugin_read_only():
     src = (DEPLOY / "Dockerfile").read_text()
     assert re.search(r"^COPY franka-plugin /usr/local/share/cascade/franka-plugin\s*$", src, re.MULTILINE)
+
+
+# ── rollback: `brain-profile [--read-write]` (#405 review, Minor 4) ───────
+# If the /v1-only brain profile fails live, the rollback pushes exactly main's old read-write brain profile from
+# the live checkout, nothing else (no `up` of an old checkout, which brings other old code with it). Read-write plus
+# the Bolt warm start would hand the sandbox every slot's prompt text (GET /slots) and slot save/restore/erase, so
+# the rollback refuses while the warm start is on. The next `up` (or `brain-profile`) puts /v1-only back.
+
+
+def _fake_proc(root: Path, procs: list[tuple[list[str], dict | None]]) -> Path:
+    """A /proc with one directory per process: NUL-separated cmdline and environ (None: environ unreadable)."""
+    for pid, (argv, env) in enumerate(procs, start=4100):
+        d = root / str(pid)
+        d.mkdir(parents=True)
+        (d / "cmdline").write_bytes(b"".join(a.encode() + b"\0" for a in argv))
+        (d / "environ").write_bytes(b"".join(f"{k}={v}".encode() + b"\0" for k, v in (env or {}).items()))
+        if env is None:
+            (d / "environ").chmod(0)
+    (root / "self").mkdir(exist_ok=True)      # not a pid (in /proc an alias of the reader): never read
+    (root / "self" / "cmdline").write_bytes(b"llama-server\0--port\08081\0--slot-save-path\0/s\0")
+    (root / "4099").mkdir(exist_ok=True)      # a process that exited: no cmdline
+    return root
+
+
+LLAMA = "/home/u/cascade/.llama.cpp/build/bin/llama-server"
+WARM_HELPER = ["python3", "-B", "/home/u/cascade/scripts/brain_warm_start.py", "--port", "8081", "--server-pid", "4101"]
+#: Processes that must NOT block the rollback of the brain on 8081: the warm start of a brain on ANOTHER port,
+#: SLOTS_DEBUG set to 0 or empty (llama.cpp reads it with atoi), Qwen on vLLM, a port that only starts with 8081.
+NEAR_MISSES = [
+    ([LLAMA, "--port", "8080", "--slot-save-path", "/s"], {"LLAMA_SERVER_SLOTS_DEBUG": "1"}),
+    (["python3", "-B", "/x/brain_warm_start.py", "--port", "8080"], {}),
+    ([LLAMA, "--host", "127.0.0.1", "--port", "8081"], {"LLAMA_SERVER_SLOTS_DEBUG": "0", "PATH": "/usr/bin"}),
+    ([LLAMA, "--port=8081"], {"LLAMA_SERVER_SLOTS_DEBUG": ""}),
+    (["/home/u/.venvs/vllm/bin/vllm", "serve", "/hub/qwen", "--port", "8081"], {"VLLM_API_KEY": "k"}),
+    ([LLAMA, "--port", "18081", "--slot-save-path", "/s"], None),
+]
+
+
+def test_read_write_brain_profile_is_mains_old_profile_byte_for_byte():
+    rig = _load()
+    assert _profile_sha(rig.read_write_brain_profile()) == READ_WRITE_BRAIN_SHA
+    assert _profile_sha(rig.brain_profile()) == TODAY_PROFILE_SHA["cascade-brain"], "the builder is not mutated"
+    sim = rig.read_write_brain_profile(8123, inst=rig.instance("sim"))
+    assert sim["id"] == "cascade-sim-brain" and sim["endpoints"][0]["port"] == 8123
+    assert sim["endpoints"][0]["access"] == "read-write" and "rules" not in sim["endpoints"][0]
+
+
+def _synced_brain(host) -> list[dict]:
+    """Every brain profile pushed (`profile update --file`), without the gateway's resource_version."""
+    out = []
+    for a in host.argvs:
+        if a[1:4] == ["provider", "profile", "update"]:
+            profile = json.loads(Path(a[a.index("--file") + 1]).read_text())
+            profile.pop("resource_version")
+            out.append(profile)
+    return out
+
+
+def test_brain_profile_read_write_pushes_only_mains_old_brain_profile(host, tmp_path, monkeypatch, capsys):
+    home = host.install(host.user / ".cascade" / "openshell")
+    monkeypatch.setattr(host.rig, "PROC", _fake_proc(tmp_path / "proc", NEAR_MISSES))
+    assert host.rig.main(["brain-profile", "--read-write"]) == 0
+    assert [_profile_sha(p) for p in _synced_brain(host)] == [READ_WRITE_BRAIN_SHA]
+    b = home / "0.1.3" / "bin"
+    assert _targets(host.argvs) == {"profile:cascade-brain", f"bin:{b / 'openshell'}"}, "no sandbox, provider, unit"
+    out = capsys.readouterr().out
+    assert "read-write" in out and "`up`" in out
+
+
+def test_brain_profile_puts_the_v1_only_profile_back(host):
+    host.install(host.user / ".cascade" / "openshell")
+    assert host.rig.main(["brain-profile"]) == 0
+    assert [_profile_sha(p) for p in _synced_brain(host)] == [TODAY_PROFILE_SHA["cascade-brain"]]
+
+
+@pytest.mark.parametrize("warm", [
+    ([LLAMA, "--port", "8081", "--slot-save-path", "/state/bolt-slots-8081"], {}),
+    ([LLAMA, "--port=8081", "--slot-save-path=/state/bolt-slots-8081"], {}),
+    ([LLAMA, "--port", "8081"], {"LLAMA_SERVER_SLOTS_DEBUG": "1"}),
+    ([LLAMA, "--port", "8081"], {"LLAMA_SERVER_SLOTS_DEBUG": " 2x"}),
+    ([LLAMA, "--port", "8081"], {"LLAMA_ARG_SLOT_SAVE_PATH": "/state/bolt-slots-8081"}),
+    (WARM_HELPER, {}),
+], ids=["slot-save-path", "slot-save-path=", "SLOTS_DEBUG", "SLOTS_DEBUG atoi", "LLAMA_ARG_SLOT_SAVE_PATH", "helper"])
+def test_read_write_is_refused_while_the_bolt_warm_start_is_on(host, tmp_path, monkeypatch, warm):
+    host.install(host.user / ".cascade" / "openshell")
+    monkeypatch.setattr(host.rig, "PROC", _fake_proc(tmp_path / "proc", [*NEAR_MISSES, warm]))
+    with pytest.raises(SystemExit, match="WARM_START=0") as refused:
+        host.rig.main(["brain-profile", "--read-write"])
+    assert "4106" in str(refused.value) and "/slots" in str(refused.value)
+    assert _synced_brain(host) == [] and host.argvs == [], "nothing pushed, nothing asked"
+
+
+@pytest.mark.skipif(hasattr(os, "geteuid") and os.geteuid() == 0, reason="root reads any environ")
+def test_read_write_is_refused_when_the_brains_environment_cannot_be_read(host, tmp_path, monkeypatch):
+    """Another user's llama-server on the brain port: its SLOTS_DEBUG cannot be checked, so nothing is assumed."""
+    host.install(host.user / ".cascade" / "openshell")
+    monkeypatch.setattr(host.rig, "PROC", _fake_proc(tmp_path / "proc", [([LLAMA, "--port", "8081"], None)]))
+    with pytest.raises(SystemExit, match="cannot be read"):
+        host.rig.main(["brain-profile", "--read-write"])
+    assert _synced_brain(host) == []
+
+
+def test_the_rollback_follows_the_brain_port(host, tmp_path, monkeypatch):
+    """--brain-port (else the saved setting, else 8081) names the brain, for the check and for the profile."""
+    host.install(host.user / ".cascade" / "openshell")
+    monkeypatch.setattr(host.rig, "PROC", _fake_proc(tmp_path / "proc", [([LLAMA, "--port", "8123"], {
+        "LLAMA_SERVER_SLOTS_DEBUG": "1"})]))
+    with pytest.raises(SystemExit, match="WARM_START=0"):
+        host.rig.main(["brain-profile", "--read-write", "--brain-port", "8123"])
+    assert host.rig.main(["brain-profile", "--read-write"]) == 0          # the brain on 8081 runs no warm start
+    (pushed,) = _synced_brain(host)
+    assert pushed["endpoints"][0]["port"] == 8081 and pushed["endpoints"][0]["access"] == "read-write"
+
+
+def test_the_warm_start_is_found_in_the_real_proc(tmp_path):
+    """The parser on this host's /proc: a child process that looks like a warm-start brain on a private port."""
+    if not Path("/proc/self/cmdline").exists():
+        pytest.skip("no /proc")
+    rig = _load()
+    port = "47" + str(os.getpid() % 1000).zfill(3)
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)", "--port", port],
+                             env={**os.environ, "LLAMA_SERVER_SLOTS_DEBUG": "1"})
+    try:
+        for _ in range(100):   # until the child has exec'd (before that /proc shows pytest's argv)
+            if f"--port\0{port}\0".encode() in Path(f"/proc/{child.pid}/cmdline").read_bytes():
+                break
+            time.sleep(0.05)
+        found = rig.warm_start_on(int(port))
+        assert [line for line in found if f"pid {child.pid} " in line], found
+    finally:
+        child.kill()
+        child.wait()
+    assert not [line for line in rig.warm_start_on(int(port)) if f"pid {child.pid} " in line]

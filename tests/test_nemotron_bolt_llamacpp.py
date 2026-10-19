@@ -131,11 +131,11 @@ def test_a_missing_chat_template_file_is_refused(prepared):
 
 def fake_help(prepared, help_text):
     prepared["server"].write_text(f"#!{sys.executable}\n" + f"""
-import json, sys
+import json, os, sys
 if sys.argv[1:] == ['--help']:
     print({help_text!r})
 else:
-    print(json.dumps({{'server_args': sys.argv[1:]}}))
+    print(json.dumps({{'server_args': sys.argv[1:], 'slots_debug': os.environ.get('LLAMA_SERVER_SLOTS_DEBUG')}}))
 """)
 
 
@@ -146,25 +146,47 @@ def test_a_server_without_chat_template_file_is_refused(prepared):
     assert served(invoke(prepared, CHAT_TEMPLATE_FILE=""))  # the GGUF's own template needs no such flag
 
 
-def test_a_server_without_slot_save_path_is_refused_unless_the_warm_start_is_off(prepared):
-    fake_help(prepared, HELP.replace(" --slot-save-path PATH", ""))
-    result = invoke(prepared)
-    assert result.returncode == 1 and "llama-server lacks --slot-save-path" in result.stderr
-    assert served(invoke(prepared, WARM_START="0"))
-
-
 def helper_runs(p) -> list[list[str]]:
     """argv of every warm-start helper the script started (the stub appends one line each)."""
     log = p["home"] / "warm.jsonl"
     return [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
 
 
-def test_the_warm_start_helper_watches_the_server_the_script_execs(prepared):
+@pytest.fixture
+def key(tmp_path):
+    """The brain's 0600 key file: the warm start runs only behind a key."""
+    path = tmp_path / "brain.key"
+    path.write_text("warm-default-key-5d2\n")
+    path.chmod(0o600)
+    return path
+
+
+def started_server(result) -> dict:
+    return next(json.loads(line) for line in result.stdout.splitlines() if '"server_args"' in line)
+
+
+def assert_served_without_warm_start(p, result, **env):
+    """The server started exactly as with WARM_START=0 (no slot directory, no SLOTS_DEBUG), with no helper beside
+    it, and the script said why."""
+    args = served(result)
+    assert started_server(result)["slots_debug"] is None and helper_runs(p) == []
+    assert served(invoke(p, WARM_START="0", **env)) == args
+    assert "warm start off" in result.stderr and "WARM_START=0" in result.stderr, result.stderr
+
+
+def test_a_server_without_slot_save_path_serves_without_the_warm_start(prepared, key):
+    fake_help(prepared, HELP.replace(" --slot-save-path PATH", ""))
+    result = invoke(prepared, API_KEY_FILE=str(key))
+    assert_served_without_warm_start(prepared, result, API_KEY_FILE=str(key))
+    assert "llama-server lacks --slot-save-path" in result.stderr
+
+
+def test_the_warm_start_helper_watches_the_server_the_script_execs(prepared, key):
     # Started just before `exec llama-server`, so the PID it watches IS the server: it waits for the server's own
     # readiness, prefills the recorded OpenClaw prefix into both slots and ends with the server.
-    result = invoke(prepared)
+    result = invoke(prepared, API_KEY_FILE=str(key))
     args = served(result)
-    started = next(json.loads(line) for line in result.stdout.splitlines() if '"server_args"' in line)
+    started = started_server(result)
     pid = started["pid"]
     assert started["slots_debug"] == "1"     # GET /slots shows the last prompts: what the helper records
     (warm,) = helper_runs(prepared)
@@ -173,16 +195,49 @@ def test_the_warm_start_helper_watches_the_server_the_script_execs(prepared):
     assert flag(warm, "--prefix-file") == str(state / "bolt-openclaw-prefix-8080.json")
     assert flag(warm, "--chat-template-file") == str(prepared["repo"] / TEMPLATE)
     assert flag(warm, "--model-file") == flag(args, "--model")
-    assert "--api-key-file" not in warm
+    assert flag(warm, "--api-key-file") == flag(args, "--api-key-file") == str(key)
     # The helper reads the exact tokens of a changed prefix from a slot file it saves into a private directory.
     assert flag(warm, "--slot-save-dir") == flag(args, "--slot-save-path") == str(state / "bolt-slots-8080")
     assert stat.S_IMODE((state / "bolt-slots-8080").stat().st_mode) == 0o700
     # Otherwise the server starts exactly as without the warm start: its readiness is its own.
     prepared["home"].joinpath("warm.jsonl").unlink()
-    off = invoke(prepared, WARM_START="0")
+    off = invoke(prepared, WARM_START="0", API_KEY_FILE=str(key))
     at = args.index("--slot-save-path")
     assert served(off) == args[:at] + args[at + 2:] and helper_runs(prepared) == []
-    assert next(json.loads(line) for line in off.stdout.splitlines() if '"server_args"' in line)["slots_debug"] is None
+    assert started_server(off)["slots_debug"] is None
+    assert "warm start off" not in off.stderr                     # turned off on purpose: nothing to warn about
+
+
+def test_the_warm_start_never_runs_on_a_port_without_a_key(prepared):
+    # SLOTS_DEBUG puts every slot's prompt text in GET /slots, and --slot-save-path opens slot save / restore / erase:
+    # behind the key only. Without API_KEY_FILE any local process could use them, so the brain serves without.
+    result = invoke(prepared)
+    assert_served_without_warm_start(prepared, result)
+    assert "API_KEY_FILE" in result.stderr and "/slots" in result.stderr
+    assert "--api-key-file" not in served(result)
+
+
+def test_a_slot_directory_that_cannot_be_private_turns_the_warm_start_off(prepared, key, tmp_path):
+    for problem in ("not-a-directory", "symlink"):
+        records = tmp_path / problem
+        records.mkdir()
+        if problem == "not-a-directory":
+            (records / "bolt-slots-8080").write_text("a file where the directory goes")
+        else:
+            (tmp_path / "elsewhere").mkdir(exist_ok=True)
+            (records / "bolt-slots-8080").symlink_to(tmp_path / "elsewhere")
+        env = {"API_KEY_FILE": str(key), "WARM_PREFIX_FILE": str(records / "prefix.json")}
+        result = invoke(prepared, **env)
+        assert_served_without_warm_start(prepared, result, **env)
+        assert "bolt-slots-8080" in result.stderr
+
+
+def test_an_existing_slot_directory_is_made_private(prepared, key, tmp_path):
+    slots = tmp_path / "records" / "bolt-slots-8080"
+    slots.mkdir(parents=True)
+    slots.chmod(0o755)
+    served(invoke(prepared, API_KEY_FILE=str(key), WARM_PREFIX_FILE=str(tmp_path / "records" / "prefix.json")))
+    assert stat.S_IMODE(slots.stat().st_mode) == 0o700 and helper_runs(prepared)
 
 
 def test_the_warm_start_follows_the_servers_knobs(prepared, tmp_path):
@@ -200,24 +255,24 @@ def test_the_warm_start_follows_the_servers_knobs(prepared, tmp_path):
     assert "warm-knob-key-91" not in json.dumps(warm) + result.stdout + result.stderr
 
 
-def test_the_default_record_lives_in_the_xdg_state_home(prepared, tmp_path):
-    served(invoke(prepared, XDG_STATE_HOME=str(tmp_path / "xdg")))
+def test_the_default_record_lives_in_the_xdg_state_home(prepared, key, tmp_path):
+    served(invoke(prepared, XDG_STATE_HOME=str(tmp_path / "xdg"), API_KEY_FILE=str(key)))
     (warm,) = helper_runs(prepared)
     assert flag(warm, "--prefix-file") == str(tmp_path / "xdg/cascade/bolt-openclaw-prefix-8080.json")
 
 
-def test_check_never_starts_the_helper(prepared):
-    assert invoke(prepared, "--check").returncode == 0
+def test_check_never_starts_the_helper(prepared, key):
+    assert invoke(prepared, "--check", API_KEY_FILE=str(key)).returncode == 0
     assert helper_runs(prepared) == []
 
 
-def test_a_missing_warm_start_helper_is_refused_unless_the_warm_start_is_off(prepared):
+def test_a_missing_warm_start_helper_serves_without_the_warm_start(prepared, key):
     (prepared["repo"] / WARM).unlink()
-    for args in ((), ("--check",)):
-        result = invoke(prepared, *args)
-        assert result.returncode == 1 and "WARM_START" in result.stderr, result.stderr
-        assert '"server_args"' not in result.stdout
-    assert served(invoke(prepared, WARM_START="0"))
+    result = invoke(prepared, API_KEY_FILE=str(key))
+    assert_served_without_warm_start(prepared, result, API_KEY_FILE=str(key))
+    assert str(prepared["repo"] / WARM) in result.stderr
+    check = invoke(prepared, "--check", API_KEY_FILE=str(key))   # --check says so, and passes: the brain would serve
+    assert check.returncode == 0 and "warm start off" in check.stderr, check.stderr
 
 
 def test_spec_none_serves_without_the_drafter(prepared):

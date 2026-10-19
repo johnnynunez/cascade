@@ -311,7 +311,7 @@ test('the learning panel shows /state learning as text nodes, and stays hidden w
     const nodes = section.options, reads = panel.stateReads();
     await panel.until(() => panel.stateReads() > reads + 1, 'the panel polls /state again');
     assert.equal(section.options, nodes, 'an unchanged state is not rewritten');
-    panel.fake.learning = {schema: 2};
+    panel.fake.learning = {...panel.fake.learning, schema: 2};
     await panel.until(() => section.hidden === true, 'another schema: hidden again');
     assert.deepEqual(section.options, []);
   } finally {

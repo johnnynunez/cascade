@@ -15,7 +15,10 @@ test('learning lines from a schema-1 state', () => {
 });
 
 test('anything else renders nothing', () => {
+  const full = {library_sha: SHA, served: [{title: 'Retry from home', tag: TAG}],
+    last_event: {kind: 'note', line: 'From earlier runs: x.'}};
   for (const v of [undefined, null, {}, {schema: 2}, {schema: '1'}, {schema: true}, [], 'x', 1,
+    {...full, schema: 2}, {...full, schema: '1'}, {...full, schema: true}, {...full, schema: 1.5}, {...full},
     {schema: 1, library_sha: 3}, {schema: 1, library_sha: 'zz'}, {schema: 1, library_sha: '<b>3fa9c2d1</b>'}])
     assert.deepEqual(learningLines(v), [], JSON.stringify(v));
 });

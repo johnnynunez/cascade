@@ -268,10 +268,11 @@ def _belief_footprint(belief, table_z: float = 0.0) -> tuple[np.ndarray, float]:
     ValueError when its position, top or extents (or points) are not finite:
     an object point_at cannot place is never skipped."""
     name = f"the {belief.color + ' ' if getattr(belief, 'color', None) else ''}{belief.label}"
-    position = np.asarray(belief.position, dtype=float).reshape(-1)
-    ext = getattr(belief, "extent", None)
+    # strict CUDA mode remembers clouds on the GPU (cuda_math.remember_cloud)
+    position = np.asarray(_host(belief.position), dtype=float).reshape(-1)
+    ext = _host(getattr(belief, "extent", None))
     ext = None if ext is None else np.asarray(ext, dtype=float).reshape(-1)
-    pts = getattr(belief, "points", None)
+    pts = _host(getattr(belief, "points", None))
     pts = None if pts is None or not len(pts) else np.asarray(pts, dtype=float).reshape(-1, 3)
     top = getattr(belief, "top_z", None)
     unsized = ext is None and pts is None
@@ -305,6 +306,34 @@ def _raise_if_estopped(harness) -> None:
     reported as the halt by `execute`.)"""
     if getattr(harness, "estopped", False):
         raise SafetyViolation("e-stop latched")
+
+
+def _host_fix(fix):
+    """`fix` with host numpy geometry, for a host-side planner (point_at).
+
+    Strict CUDA perception (CASCADE_REQUIRE_CUDA=1, the GPU kitchen) keeps
+    the fix's cloud a CUDA tensor (`cuda_math.backproject`), and numpy
+    refuses one ("can't convert cuda:0 device type tensor to numpy"), so
+    point_at's object column, top and footprints failed on that stack before
+    any command. This is the deliberate host boundary after CUDA perception
+    that the belief box and the GraspGen-X wire take too: a copy of the
+    already localized cloud (at most a few thousand points), never a CPU
+    re-localization. A fix that is already on the host comes back as is."""
+    import dataclasses
+
+    host = {name: _host(getattr(fix, name, None)) for name in ("position", "points", "extent", "axes")}
+    host = {name: value for name, value in host.items() if value is not getattr(fix, name, None)}
+    return dataclasses.replace(fix, **host) if host else fix
+
+
+def _host(value):
+    """`value` as host data: a torch tensor (strict CUDA mode: localized and
+    remembered clouds stay on the GPU) is copied to numpy, anything else comes
+    back as is. For host-side geometry only (point_at's planner, a belief's
+    footprint); never a CPU re-run of perception."""
+    if hasattr(value, "detach"):
+        return value.detach().cpu().numpy()
+    return value
 
 
 def _lowest_tool_z(T, tool_points) -> float:
@@ -1540,8 +1569,8 @@ class SkillRuntime:
             return belief
         from dataclasses import replace
 
-        position = np.asarray(belief.position, dtype=float).reshape(3)
-        points = getattr(belief, "points", None)
+        position = np.asarray(_host(belief.position), dtype=float).reshape(3)
+        points = _host(getattr(belief, "points", None))
         return replace(
             belief,
             position=arm_frame.to_arm(T, position),
@@ -7847,6 +7876,7 @@ class SkillRuntime:
         reads it) and to the top of an object standing over it (a cup over
         the cube)."""
         _, fix = self._localize(label)
+        fix = _host_fix(fix)
         from . import pointing
 
         budget = pointing.Budget()

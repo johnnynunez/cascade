@@ -357,3 +357,126 @@ def test_a_stop_mid_gesture_sends_no_further_command(rig, kind):
     assert at_stop, "the gesture never streamed"
     assert len(arm.commands) == at_stop["arm"] and len(r.jaws) == at_stop["jaws"]
     assert out["ok"] is False, out
+
+
+# ── strict CUDA perception: the fix's cloud is a device tensor ─────────────
+
+
+class _DeviceCloud:
+    """A CUDA tensor's host contract, without needing a GPU: numpy refuses it
+    with torch's own message, `.detach().cpu().numpy()` copies it."""
+
+    def __init__(self, values):
+        self._host = np.asarray(values, dtype=float)
+
+    def __array__(self, *args, **kwargs):
+        raise TypeError("can't convert cuda:0 device type tensor to numpy. Use Tensor.cpu() to copy the "
+                        "tensor to host memory first.")
+
+    def detach(self):
+        return self
+
+    def cpu(self):
+        return SimpleNamespace(numpy=lambda: self._host.copy())
+
+    def __len__(self):
+        return len(self._host)
+
+    @property
+    def shape(self):
+        return self._host.shape
+
+
+def _cuda_cloud(values):
+    """A real CUDA tensor when this host has one, else the stand-in."""
+    try:
+        import torch
+    except ImportError:
+        return _DeviceCloud(values)
+    if not torch.cuda.is_available():
+        return _DeviceCloud(values)
+    return torch.as_tensor(np.asarray(values, dtype=float), device="cuda")
+
+
+def test_host_fix_copies_device_geometry_and_keeps_a_host_fix():
+    from cascade.skills.runtime import _host_fix
+    from cascade.types import Detection, ObjectFix
+
+    pts = np.array([[0.3, 0.0, 0.05], [0.31, 0.01, 0.04]])
+    host = ObjectFix(label="lemon", position=np.array([0.3, 0.0, 0.03]), points=pts,
+                     detection=Detection(label="lemon", conf=1.0, bbox=np.zeros(4)),
+                     extent=np.array([0.05, 0.04, 0.04]), axes=np.eye(3))
+    assert _host_fix(host) is host
+
+    moved = _host_fix(dataclasses.replace(host, points=_DeviceCloud(pts)))
+    assert isinstance(moved.points, np.ndarray)
+    np.testing.assert_array_equal(moved.points, pts)
+    assert moved.position is host.position and moved.label == "lemon"
+
+
+@needs_pin
+def test_point_at_works_when_strict_cuda_perception_returns_a_device_cloud(rig, monkeypatch):
+    """Live kitchen (isaac_kitchen_gpu, CASCADE_REQUIRE_CUDA=1): `_localize`
+    returns the cloud as a CUDA tensor and point_at failed before any command
+    with "bad arguments for point_at: can't convert cuda:0 device type tensor
+    to numpy". It now points exactly as with a host cloud."""
+    r = rig("isaac_kitchen")
+    orig = r.runtime._localize
+
+    def localize_on_cuda(label, *a, **k):
+        frame, fix = orig(label, *a, **k)
+        return frame, dataclasses.replace(fix, points=_cuda_cloud(fix.points))
+
+    monkeypatch.setattr(r.runtime, "_localize", localize_on_cuda)
+    asked = _record_ik(monkeypatch, r.runtime)
+
+    out = r.runtime.execute("point_at", {"label": "red cube"})
+
+    assert out["ok"] is True, out
+    assert asked[0] == pytest.approx(MOCK_TOP + 0.04, abs=1e-6), asked
+    assert r.runtime.kin.fk(_commands(r)[-1])[2, 3] == pytest.approx(MOCK_TOP + 0.04, abs=1e-3)
+    assert min(_lowest_tool_z(r, q) for q in _commands(r)) >= MOCK_TOP + MARGIN
+
+
+@needs_pin
+def test_point_at_works_when_a_remembered_neighbour_cloud_is_on_cuda(rig, monkeypatch):
+    """Strict CUDA mode also remembers every object's cloud on the GPU
+    (cuda_math.remember_cloud). Live, with the other kitchen objects
+    remembered, point_at failed the same way in the neighbours' footprints
+    after the target's own fix had been copied. A CUDA-cloud neighbour now
+    keeps its margin like a host one."""
+    r = rig("isaac_kitchen")
+    cube = r.runtime.beliefs.find("red cube")
+    xy = np.asarray(cube.position, dtype=float)[:2] + [0.0, 0.15]
+    rng = np.random.default_rng(0)
+    pts = np.column_stack([xy[0] + rng.uniform(-0.02, 0.02, 200), xy[1] + rng.uniform(-0.02, 0.02, 200),
+                           rng.uniform(0.0, 0.06, 200)])
+    r.runtime.beliefs.update("bottle", np.array([xy[0], xy[1], 0.03]), 0.9, extent=np.array([0.06, 0.04, 0.04]),
+                             top_z=0.06, color="blue", points=pts)
+    bottle = r.runtime.beliefs.find("bottle")
+    bottle.points = _cuda_cloud(bottle.points)
+    orig = r.runtime._localize
+
+    def localize_on_cuda(label, *a, **k):
+        frame, fix = orig(label, *a, **k)
+        return frame, dataclasses.replace(fix, points=_cuda_cloud(fix.points))
+
+    monkeypatch.setattr(r.runtime, "_localize", localize_on_cuda)
+
+    out = r.runtime.execute("point_at", {"label": "red cube"})
+
+    assert out["ok"] is True, out
+    assert min(_lowest_tool_z(r, q) for q in _commands(r)) >= MOCK_TOP + MARGIN
+
+
+def test_belief_footprint_reads_a_device_cloud_like_a_host_one():
+    from cascade.skills.runtime import _belief_footprint
+
+    pts = np.array([[0.30, 0.10, 0.0], [0.34, 0.12, 0.06], [0.32, 0.08, 0.03]])
+    host = SimpleNamespace(label="bottle", color="blue", position=np.array([0.32, 0.10, 0.03]),
+                           extent=np.array([0.06, 0.04, 0.04]), points=pts, top_z=0.06)
+    device = SimpleNamespace(**{**vars(host), "points": _DeviceCloud(pts)})
+    poly, top = _belief_footprint(host)
+    poly_d, top_d = _belief_footprint(device)
+    np.testing.assert_array_equal(poly, poly_d)
+    assert top == top_d == 0.06

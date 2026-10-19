@@ -187,8 +187,14 @@ class PlanningTimeout(RouteRefused):
     """Planning ran past its time budget; nothing was commanded."""
 
 
-#: `_fastest_probe_s`, kept for the process once a search completed
+#: `_fastest_probe_s`, kept for the process once a search completed ("s"),
+#: and the incomplete searches' answer with when it was taken ("partial")
 _FASTEST: dict = {}
+#: an incomplete core-speed search (a loaded host: a helper not given its core
+#: in time) serves every call for this long (s, `_wall`) before a call
+#: searches again: a search takes up to ~1.2 s, never on every call (#406
+#: review Minor 1)
+SEARCH_AGAIN_S = 60.0
 
 
 def _speed_probe_s() -> float:
@@ -213,17 +219,25 @@ def _fastest_probe_s() -> float:
     timed by helper threads pinned to one core of each capacity class of the
     process's CPU set, fastest class first, the planning thread's affinity
     untouched), measured at the first use and kept for the process once a
-    search completed. A search that ran out of time serves this call only
-    (it can only understate how much slower a core is) and the next call
-    searches again (#399 review Minor 1)."""
-    if "s" not in _FASTEST:
-        from ..core_speed import fastest
+    search completed. A search that ran out of time is never kept for good
+    (it can only understate how much slower a core is, #399 review Minor 1):
+    its answer, the least of every such search so far, serves every call for
+    SEARCH_AGAIN_S, then a call searches again (#406 review Minor 1: never a
+    search on every call, nor on every re-measure of `Budget.check`)."""
+    if "s" in _FASTEST:
+        return _FASTEST["s"]
+    partial = _FASTEST.get("partial")
+    if partial is not None and _wall() - partial[1] < SEARCH_AGAIN_S:      # NaN searches again
+        return partial[0]
+    from ..core_speed import fastest
 
-        ref = fastest(lambda: _speed_probe_s())
-        if not ref.complete:
-            return ref.seconds
+    ref = fastest(lambda: _speed_probe_s())
+    if ref.complete:
         _FASTEST["s"] = ref.seconds
-    return _FASTEST["s"]
+        return ref.seconds
+    seconds = ref.seconds if partial is None else min(partial[0], ref.seconds)
+    _FASTEST["partial"] = (seconds, _wall())
+    return seconds
 
 
 def core_factor() -> float:

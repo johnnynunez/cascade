@@ -203,11 +203,14 @@ def test_one_core_per_capacity_class_fastest_class_first(monkeypatch):
 def test_a_search_that_ran_out_of_time_is_not_kept(monkeypatch, stall):
     """No helper got its core in time (stalled before it could even pin
     itself, or on its core): this call uses what it measured (its own core,
-    which can only understate the stretch), and the next call searches again
-    instead of keeping a slow reference for good."""
+    which can only understate the stretch), and so does every call for
+    `SEARCH_AGAIN_S` (never a search on every call, #406 review Minor 1);
+    then a call searches again instead of keeping a slow reference for good."""
     from cascade import core_speed
     from cascade.skills import pointing
 
+    now = [100.0]
+    monkeypatch.setattr(pointing, "_wall", lambda: now[0])
     cpus = sorted(os.sched_getaffinity(0))
     fast = cpus[-1]
     _one_fast_core(monkeypatch, fast)
@@ -235,6 +238,8 @@ def test_a_search_that_ran_out_of_time_is_not_kept(monkeypatch, stall):
     finally:
         gate.set()
         _join_probe_helpers()
+    assert pointing._fastest_probe_s() == 3e-3                # within SEARCH_AGAIN_S: no search
+    now[0] += pointing.SEARCH_AGAIN_S
     assert pointing._fastest_probe_s() == 1e-3
     assert pointing._FASTEST["s"] == 1e-3
 

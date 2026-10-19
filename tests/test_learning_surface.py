@@ -322,6 +322,23 @@ def test_a_kitchen_pick_with_a_matching_note_ends_with_the_line(monkeypatch, tmp
 
 @needs_pin
 @GATES
+def test_a_wrist_narrated_call_ends_with_the_line_too(monkeypatch, tmp_path, gate):
+    """With a wrist narrator (B47, `stream.wrist_narration`) execute() takes its other branch: the
+    granted result is the same, and the narrator sees it as returned."""
+    from types import SimpleNamespace
+
+    with _kitchen(monkeypatch, tmp_path, gate=gate) as (runtime, arm):
+        seen = []
+        runtime.wrist_narrator = SimpleNamespace(begin=lambda rt, name, args: True,
+                                                 end=lambda rt, result: seen.append(result))
+        res = runtime.execute("pick_and_place", PICK)
+        _assert_granted(res, _note_line(runtime))
+        assert seen == [res]
+        _assert_not_granted(runtime.execute("move_home", {}))
+
+
+@needs_pin
+@GATES
 def test_the_line_appears_only_on_the_granted_result(monkeypatch, tmp_path, gate):
     """One kitchen session: read-only tools, a home move, a failed pick, an unverified pick and the jaw tools
     get no line; only the confirmed pick of the matched object does, once."""

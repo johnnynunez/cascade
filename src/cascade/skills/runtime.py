@@ -7852,10 +7852,10 @@ class SkillRuntime:
         the margin from the target, every known object and the table: where
         the arm starts (or backed out), else at the waypoint or the pointing
         pose. While holding an object it never leans in and never closes the
-        jaws. No clear pose, route or close, or planning past its 3 s budget,
-        refuses before any arm or jaw command; an e-stop latched while
-        planning, in the last close or in the hold is reported as the
-        e-stop. The object top is the observed top
+        jaws. No clear pose, route or close, or planning past its budget (3 s
+        of CPU, 8 s of wall time), refuses before any arm or jaw command; an
+        e-stop latched while planning, in the last close or in the hold is
+        reported as the e-stop. The object top is the observed top
         raised to the occupancy map's column top (capped as the pregrasp
         reads it) and to the top of an object standing over it (a cup over
         the cube)."""

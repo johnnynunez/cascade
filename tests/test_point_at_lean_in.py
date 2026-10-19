@@ -31,6 +31,7 @@ from __future__ import annotations
 import dataclasses
 import math
 import time
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -1756,6 +1757,94 @@ def test_planning_past_its_budget_refuses_before_any_command(rig, monkeypatch, p
 
     _refused_untouched(r, out)
     assert "planning took longer than its 3.0 s budget" in out["error"], out
+
+
+# ── the budget holds under host load, and it is pinned (#385 review M2, M3) ─
+
+
+def test_the_shipped_planning_budget_is_pinned():
+    """The conftest raises PLAN_BUDGET_S to 30 s for every test and the
+    budget's own tests set their numbers, so the SHIPPED values are read from
+    the source: 3 s of the planning thread's CPU time, an 8 s wall-clock cap,
+    those clocks, and point_at's Budget() takes them (no override)."""
+    import ast
+    import inspect
+
+    from cascade.skills import pointing, runtime
+
+    shipped = {}
+    for node in ast.parse(Path(pointing.__file__).read_text()).body:
+        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            shipped[node.targets[0].id] = ast.unparse(node.value)
+    assert shipped["PLAN_BUDGET_S"] == "3.0"
+    assert shipped["PLAN_WALL_S"] == "8.0"
+    assert shipped["_clock"] == "time.thread_time"
+    assert shipped["_wall"] == "time.monotonic"
+    assert inspect.signature(pointing.Budget).parameters["seconds"].default is None
+    assert inspect.signature(pointing.Budget).parameters["wall"].default is None
+    source = inspect.getsource(runtime.SkillRuntime.skill_point_at)
+    assert source.count("pointing.Budget(") == 1 and "pointing.Budget()" in source
+
+
+def test_the_budget_counts_the_planning_threads_cpu_time_not_a_loaded_hosts_wall_time():
+    """Host load stretches wall time while planning waits for a core (or for
+    the GIL): waiting is not planning. 0.6 s asleep on a 0.3 s budget does
+    not refuse; 0.6 s of CPU does."""
+    from cascade.skills import pointing
+
+    budget = pointing.Budget(0.3, wall=30.0)
+    time.sleep(0.6)
+    budget.check()
+    spin = time.thread_time() + 0.6
+    while time.thread_time() < spin:
+        pass
+    with pytest.raises(pointing.PlanningTimeout, match=r"planning took longer than its 0\.3 s budget"):
+        budget.check()
+
+
+def test_the_wall_clock_cap_bounds_planning_on_a_starved_host(monkeypatch):
+    """However little CPU it gets, planning never runs past PLAN_WALL_S of
+    wall time: never unbounded."""
+    from cascade.skills import pointing
+
+    now = [100.0]
+    monkeypatch.setattr(pointing, "_wall", lambda: now[0])
+    monkeypatch.setattr(pointing, "_clock", lambda: 0.0)          # no CPU at all
+    monkeypatch.setattr(pointing, "PLAN_WALL_S", 8.0)
+    budget = pointing.Budget(3.0)
+    assert budget.wall_s == 8.0
+    now[0] += 8.0
+    budget.check()
+    now[0] += 1e-6
+    with pytest.raises(pointing.PlanningTimeout, match=r"planning took longer than its 8\.0 s wall-clock cap"):
+        budget.check()
+    now[0] = math.nan
+    with pytest.raises(pointing.PlanningTimeout):
+        pointing.Budget(3.0).check()
+
+
+def test_a_budget_read_from_another_thread_counts_wall_time_against_its_cpu_budget():
+    """A thread's CPU clock means nothing in another thread: there the budget
+    is the CPU budget in wall time (the old, strict rule)."""
+    import threading
+
+    from cascade.skills import pointing
+
+    budget = pointing.Budget(0.2, wall=30.0)
+    time.sleep(0.3)
+    budget.check()                     # this thread: barely any CPU
+    seen = []
+
+    def other():
+        try:
+            budget.check()
+        except pointing.PlanningTimeout as exc:
+            seen.append(str(exc))
+
+    worker = threading.Thread(target=other)
+    worker.start()
+    worker.join()
+    assert seen and "planning took longer than its 0.2 s budget" in seen[0], seen
 
 
 # ── remembered objects without a size (#378 review M6) ─────────────────────

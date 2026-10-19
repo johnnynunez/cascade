@@ -72,8 +72,9 @@ model's escape rule cannot promise the real parts do not push it) first backs
 straight out along its approach, the TCP on a line (`withdrawal`), until it
 keeps WITHDRAWN_M from every object; the route starts there. Never while
 holding: the payload in the jaws is not modelled, so that start refuses.
-Planning runs against a time budget (`Budget`, PLAN_BUDGET_S): past it,
-point_at refuses.
+Planning runs against a budget (`Budget`): PLAN_BUDGET_S of the planning
+thread's CPU time and PLAN_WALL_S of wall time; past either, point_at
+refuses.
 
 The jaws close (`Route.close_at`) at the first pose of the route where their
 `sweep` samples keep `margin` from the target, every neighbour and the table
@@ -86,6 +87,7 @@ with no such close, or no clear waypoint, is refused before any command.
 from __future__ import annotations
 
 import math
+import threading
 import time
 from dataclasses import dataclass, field
 
@@ -139,10 +141,19 @@ WITHDRAWN_M = TOUCH_M
 #: it backs out in steps of this (the TCP on its line), at most this far
 WITHDRAW_STEP_M = 0.005
 WITHDRAW_MAX_M = 0.08
-#: the time point_at may spend planning (s): past it, it refuses
+#: the CPU time the planning thread may spend planning (s): past it, point_at
+#: refuses. CPU time, not wall time: a loaded host (other processes on the
+#: cores, other threads holding the GIL) stretches the wall time planning
+#: waits, not the work it does (#385 review M2: rows that planned in < 2.5 s
+#: at load 3 ran past a 3 s wall budget at load 8-10)
 PLAN_BUDGET_S = 3.0
-#: the planning clock (tests replace it)
-_clock = time.monotonic
+#: ... and never more than this wall-clock time, however loaded the host
+#: (s): planning stays bounded (main once planned for 13.3 s)
+PLAN_WALL_S = 8.0
+#: the planning clocks (tests replace them): the calling thread's CPU time,
+#: and wall time
+_clock = time.thread_time
+_wall = time.monotonic
 
 
 #: `ObjectColumn.min_distance` evaluates the exact distance this many points at a time
@@ -159,15 +170,29 @@ class PlanningTimeout(RouteRefused):
 
 class Budget:
     """point_at's planning deadline: `check()` raises PlanningTimeout once
-    `seconds` have passed since it was made (on `_clock`)."""
+    the thread that made it has spent `seconds` of CPU time since (`_clock`,
+    PLAN_BUDGET_S), or `wall` seconds have passed (`_wall`, PLAN_WALL_S).
+    Read from another thread, whose CPU clock says nothing about this one,
+    `seconds` counts wall time (the strict rule)."""
 
-    def __init__(self, seconds: float | None = None):
+    def __init__(self, seconds: float | None = None, wall: float | None = None):
         self.seconds = float(PLAN_BUDGET_S if seconds is None else seconds)
+        self.wall_s = float(PLAN_WALL_S if wall is None else wall)
+        self.thread = threading.get_ident()
         self.end = _clock() + self.seconds
+        start = _wall()
+        self.wall_end = start + self.wall_s
+        self.strict_end = start + self.seconds
 
     def check(self) -> None:
-        if not _clock() <= self.end:       # NaN refuses too
+        # written so that NaN refuses
+        now = _wall()
+        within = _clock() <= self.end if threading.get_ident() == self.thread else now <= self.strict_end
+        if not within:
             raise PlanningTimeout(f"planning took longer than its {self.seconds:.1f} s budget")
+        if not now <= self.wall_end:
+            raise PlanningTimeout(f"planning took longer than its {self.wall_s:.1f} s wall-clock cap "
+                                  f"(the host is loaded)")
 
 
 def _check(budget) -> None:

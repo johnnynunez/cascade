@@ -10,6 +10,9 @@
    helper runs at a time, process-wide: a helper that has not answered in time
    ends its search, no search starts another while it runs, and once its
    search is over it runs no more of its work.
+3. #411 review Minor 3: the busy check and the helper's registration took the
+   lock separately, so a second search could pass its busy check between them
+   and both started a helper. They are one lock section now.
 """
 
 from __future__ import annotations
@@ -152,3 +155,92 @@ def test_a_helper_that_cannot_start_leaves_no_helper_behind(monkeypatch):
     core_speed.fastest(lambda: 1e-3)
     _join_probe_helpers()
     assert "core-speed-probe" in started, "a later search must still start its helpers"
+
+
+# ── 3. the busy check and the registration are one lock section ───────────
+
+
+@needs_affinity
+def test_a_search_that_passed_its_busy_check_holds_the_slot_before_another_search_looks(monkeypatch):
+    """#411 review Minor 3, as a fixed interleaving: search A stops right after
+    its first section under `_running_lock`, search B runs whole, then A goes
+    on. main's first section was the busy check alone: B found no helper
+    running, started one (its work hangs), and A then started a second one
+    beside it. Now A's first section also registers its helper, so B finds it
+    running and starts none: one helper in all, never two alive at once."""
+    from cascade import core_speed
+
+    cpus = sorted(os.sched_getaffinity(0))
+    fast = cpus[-1]
+    _one_fast_core(monkeypatch, fast)
+    # long enough for a helper to reach its work on a loaded runner
+    monkeypatch.setattr(core_speed, "PER_CORE_S", 0.5)
+    _join_probe_helpers()
+    assert not _probe_threads(), "test setup: no helper left by an earlier test"
+    real_lock = threading.Lock()
+    a_paused, b_done, gate = threading.Event(), threading.Event(), threading.Event()
+    paused = []
+
+    class _AStopsAfterItsFirstSection:
+        def __enter__(self):
+            real_lock.acquire()
+            return self
+
+        def __exit__(self, *exc):
+            real_lock.release()
+            if threading.current_thread().name == "search-A" and not paused:
+                paused.append(1)
+                a_paused.set()
+                b_done.wait(10.0)
+            return False
+
+    monkeypatch.setattr(core_speed, "_running_lock", _AStopsAfterItsFirstSection())
+    count = threading.Lock()
+    alive, most = [0], [0]
+
+    def work():
+        if threading.current_thread().name != "core-speed-probe":
+            return 3e-3                          # the callers' own cores
+        with count:
+            alive[0] += 1
+            most[0] = max(most[0], alive[0])
+        try:
+            gate.wait(10.0)                      # a helper's work hangs
+        finally:
+            with count:
+                alive[0] -= 1
+        return 1e-3
+
+    real_start = threading.Thread.start
+    started = []
+
+    def counted(self):
+        if self.name == "core-speed-probe":
+            started.append(threading.current_thread().name)
+        return real_start(self)
+
+    monkeypatch.setattr(threading.Thread, "start", counted)
+    results = {}
+    a = threading.Thread(target=lambda: results.__setitem__("A", core_speed.fastest(work)), name="search-A",
+                         daemon=True)
+    try:
+        a.start()
+        assert a_paused.wait(10.0), "test setup: search A never took the lock"
+        b = threading.Thread(target=lambda: results.__setitem__("B", core_speed.fastest(work)), name="search-B",
+                             daemon=True)
+        b.start()
+        b.join(10.0)
+        b_done.set()
+        a.join(10.0)
+        helpers = len(_probe_threads())
+    finally:
+        b_done.set()
+        gate.set()
+    _join_probe_helpers()
+
+    assert not a.is_alive() and set(results) == {"A", "B"}, results
+    assert started == ["search-A"], f"helpers started by: {started}"
+    assert helpers <= 1 and most[0] <= 1, (helpers, most)
+    assert results["B"] == core_speed.Reference(3e-3, False), results  # it found A's helper running
+    assert not _probe_threads()
+    assert core_speed._running == set(), "a search that found the slot taken registered nothing"

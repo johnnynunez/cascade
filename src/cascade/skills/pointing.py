@@ -80,10 +80,11 @@ When more than FRESH_PLAN_S of wall time passed between the target's
 localization and the end of planning (the budget's core-speed search
 included), point_at looks at the target again before the first command, on a
 detection newer than the plan only (never the remembered belief, never an
-image from before the plan: not seen again, it refuses); moved more than
-FRESH_MOVE_M (`fix_moved_m`), it is planned once more from where it is now,
-on what is left of the same budget, and refused if it moved again; never a
-move toward a stale pose.
+image received before that look started, never a camera's producer capture no
+newer than the one the plan was made from: not seen again, it refuses); moved
+more than FRESH_MOVE_M (`fix_moved_m`), it is planned once more from where it
+is now, on what is left of the same budget, and refused if it moved again;
+never a move toward a stale pose.
 
 The jaws close (`Route.close_at`) at the first pose of the route where their
 `sweep` samples keep `margin` from the target, every neighbour and the table

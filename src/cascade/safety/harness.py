@@ -235,33 +235,43 @@ def _mm(p) -> list:
     return np.round(np.asarray(p, dtype=float), 3).tolist()
 
 
+#: A mount whose rotation is within this (per matrix entry) of turning axes
+#: onto axes is a quarter turn: configs write them rounded (yaw 1.5708 is
+#: 3.7e-6 off pi/2, 4.7124 is 1.1e-5 off 3 pi/2; #412 review Minor 3). Its
+#: bounds then differ from the box by under 0.1 mm per metre of box, below the
+#: mm the texts quote.
+QUARTER_TURN_TOL = 1e-4
+
+
 def table_frame_bounds(T, lo, hi) -> tuple[np.ndarray, np.ndarray, bool]:
     """A base-frame box [lo, hi] as the table frame sees it on a mount T
     (table <- base): `(lo_t, hi_t, exact)`, the axis-aligned bounds of all 8
     corners lifted by T (lo_t <= hi_t on every axis, whatever the yaw), and
     whether those bounds ARE the box: T turns axes onto axes (no rotation, or
-    quarter turns). Otherwise (yaw 45, a tilt) the box sits rotated inside
-    them, and a point between the two lies inside the bounds but outside the
-    box: a refusal text must say so (#407 review follow-up 3)."""
+    quarter turns, within QUARTER_TURN_TOL). Otherwise (yaw 45, a tilt) the
+    box sits rotated inside them, and a point between the two lies inside the
+    bounds but outside the box: a refusal text must say so (#407 review
+    follow-up 3)."""
     T = np.asarray(T, dtype=float)
     lo, hi = np.asarray(lo, dtype=float), np.asarray(hi, dtype=float)
     corners = np.array([[hi[i] if (k >> i) & 1 else lo[i] for i in range(3)] for k in range(8)])
     lifted = corners @ T[:3, :3].T + T[:3, 3]
     R = np.abs(T[:3, :3])
-    exact = bool(np.allclose(R, np.round(R), rtol=0.0, atol=1e-9))
+    exact = bool(np.allclose(R, np.round(R), rtol=0.0, atol=QUARTER_TURN_TOL))
     return lifted.min(axis=0), lifted.max(axis=0), exact
 
 
 def table_frame_zone_text(T, lo, hi) -> str:
     """A base-frame keep-out zone [lo, hi] as a refusal quotes it on a mount
-    T: "<lo>..<hi>" in the table frame (`table_frame_bounds`), plus its
-    base-frame corners when the mount rotates it inside those bounds."""
+    T: "<lo>..<hi>" in the table frame (`table_frame_bounds`); when the mount
+    rotates it inside those bounds, its base-frame corners FIRST, then those
+    bounds: the agent's FAILED line keeps only the first 240 characters of an
+    error (#412 review Minor 4)."""
     lo_t, hi_t, exact = table_frame_bounds(T, lo, hi)
-    text = f"{_mm(lo_t)}..{_mm(hi_t)}"
     if exact:
-        return text
-    return text + (" (table-frame bounds of this arm's keep-out zone, which its base_pose rotates: in the arm's "
-                   f"base frame it is {_mm(lo)}..{_mm(hi)})")
+        return f"{_mm(lo_t)}..{_mm(hi_t)}"
+    return (f"{_mm(lo)}..{_mm(hi)} in the arm's base frame (its base_pose rotates it; table-frame bounds "
+            f"{_mm(lo_t)}..{_mm(hi_t)})")
 
 
 class SafetyHarness:
@@ -1497,11 +1507,14 @@ class SafetyHarness:
         if self.base_pose is None:
             return f"TCP {np.round(tcp, 3).tolist()} outside workspace [{lo_w.tolist()} .. {hi_w.tolist()}]"
         lo_t, hi_t, exact = table_frame_bounds(self.base_pose, lo_w, hi_w)
-        text = f"TCP {self._quoted(tcp)} outside workspace [{_mm(lo_t)} .. {_mm(hi_t)}]"
         if exact:
-            return text
-        return text + (" (table-frame bounds of this arm's workspace, which its base_pose rotates: in the arm's "
-                       f"base frame it is [{_mm(lo_w)} .. {_mm(hi_w)}] and the TCP is at {_mm(tcp)})")
+            return f"TCP {self._quoted(tcp)} outside workspace [{_mm(lo_t)} .. {_mm(hi_t)}]"
+        # a mount that rotates the box: the base frame's numbers decide, so
+        # they come first (the FAILED line keeps 240 characters, #412 review
+        # Minor 4), the table-frame bounds last
+        return (f"TCP {self._quoted(tcp)} outside workspace (its base_pose rotates it: in the arm's base frame the "
+                f"TCP {_mm(tcp)} is outside [{_mm(lo_w)} .. {_mm(hi_w)}]; table-frame bounds "
+                f"[{_mm(lo_t)} .. {_mm(hi_t)}])")
 
     def _table_clearance_refusal(self, tcp, floor: float) -> str:
         if self.base_pose is None:

@@ -68,7 +68,8 @@
 # the GGUF's own), WARM_START (1 | 0), WARM_PREFIX_FILE (default
 # ${XDG_STATE_HOME:-~/.local/state}/cascade/bolt-openclaw-prefix-$PORT.json),
 # MODEL_ROOT, LLAMA_DIR / LLAMA_SERVER, CASCADE_LLAMA_CUDA_ARCH, JOBS,
-# CASCADE_MODEL_MIRROR_URL.
+# CASCADE_MODEL_MIRROR_URL, CASCADE_LLAMA_CONFIG_INI (0 | 1: serve with
+# llama.cpp's config.ini files; see below).
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -115,19 +116,58 @@ case "$SPEC" in dflash|none) ;; *) die "SPEC must be dflash|none (got '$SPEC')" 
 [[ "$ALIAS" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]*$ ]] || die "ALIAS must be a bare id (no '/'): $ALIAS" 2
 case "$WARM_START" in 0|1) ;; *) die "WARM_START must be 0|1 (got '$WARM_START')" 2 ;; esac
 WARM_PREFIX_FILE="${WARM_PREFIX_FILE:-${XDG_STATE_HOME:-$HOME/.local/state}/cascade/bolt-openclaw-prefix-$PORT.json}"
-# The caller's environment never configures the server. llama-server v0.7.0 also
-# takes every flag from LLAMA_ARG_<FLAG> / LLAMA_ARG_NO_<FLAG> (common/arg.cpp; a
-# flag on argv wins), accepts LLAMA_API_KEY beside the key file, and with
+# No inherited variable configures the server. llama-server v0.7.0 also takes
+# every flag from LLAMA_ARG_<FLAG> / LLAMA_ARG_NO_<FLAG> (common/arg.cpp; a flag
+# on argv wins), accepts LLAMA_API_KEY beside the key file, and with
 # AIP_MODE=PREDICTION serves on AIP_HTTP_PORT (argv cannot override it) with a
 # route that reaches every endpoint (tools/server/server-http.cpp). Inherited,
 # LLAMA_ARG_SLOT_SAVE_PATH opens slot save/restore/erase on a keyless or
 # WARM_START=0 start and LLAMA_ARG_ENDPOINT_PROPS POST /props. Everything this
 # server needs is a flag below, so all of them go. The one server variable the
-# script sets itself is LLAMA_SERVER_SLOTS_DEBUG: 1 for the warm start, else unset
-# (below).
-for name in $(compgen -e); do
-    case "$name" in LLAMA_ARG_*|LLAMA_API_KEY|AIP_*) unset "$name" ;; esac
+# script sets itself is LLAMA_SERVER_SLOTS_DEBUG: 1 for the warm start, never
+# inherited (below). A bash without `compgen` refuses rather than serve
+# unscrubbed. KEEP IN SYNC with serve_qwen_llamacpp.sh and deploy/runtime/brain.py
+# LLAMA_SERVER_ENV (tests/test_llama_server_inputs.py pins all three).
+names="$(compgen -e)" || die "cannot list the environment (compgen failed); refusing to start llama-server unscrubbed"
+for name in $names; do
+    case "$name" in LLAMA_ARG_*|LLAMA_API_KEY|AIP_*|LLAMA_SERVER_SLOTS_DEBUG) unset "$name" ;; esac
 done
+# Not a variable, the same effect: before env and argv, llama-server v0.7.0
+# applies /etc/llama.cpp/config.ini, then ${XDG_CONFIG_HOME:-$HOME/.config}/
+# llama.cpp/config.ini (common/arg.cpp common_params_apply_system_config). Each
+# takes ANY server option, no allowlist (common/preset.cpp): `tools = all` serves
+# exec_shell_command at /tools, `api-prefix = /v1` moves every route (/slots too)
+# inside the OpenShell sandbox's /v1/**. The user file follows the caller's
+# XDG_CONFIG_HOME or HOME, so the server gets an empty private config home under
+# the state directory instead; the system file cannot be turned off, so it
+# refuses the start. CASCADE_LLAMA_CONFIG_INI=1 serves with both, with a warning.
+# KEEP IN SYNC with serve_qwen_llamacpp.sh.
+LLAMA_SYSTEM_CONFIG=/etc/llama.cpp/config.ini
+LLAMA_CONFIG_INI="${CASCADE_LLAMA_CONFIG_INI:-0}"
+case "$LLAMA_CONFIG_INI" in 0|1) ;; *) die "CASCADE_LLAMA_CONFIG_INI must be 0|1 (got '$LLAMA_CONFIG_INI')" 2 ;; esac
+check_config_files() {
+    local user="${XDG_CONFIG_HOME:-${HOME:-}/.config}/llama.cpp/config.ini"
+    if [[ "$LLAMA_CONFIG_INI" == 1 ]]; then
+        printf 'serve_nemotron_bolt_llamacpp: WARNING: CASCADE_LLAMA_CONFIG_INI=1: llama-server applies %s and %s, if present, before argv (any option: tools, api-prefix, endpoints, keys)\n' \
+            "$LLAMA_SYSTEM_CONFIG" "$user" >&2
+        return 0
+    fi
+    [[ ! -e "$LLAMA_SYSTEM_CONFIG" && ! -L "$LLAMA_SYSTEM_CONFIG" ]] \
+        || die "$LLAMA_SYSTEM_CONFIG exists: llama-server applies it to every start before argv, any option (tools = all, api-prefix = /v1). Remove it, or set CASCADE_LLAMA_CONFIG_INI=1 to serve with it"
+}
+# A directory of this user (mkdir -p fails on anything else that exists there),
+# never a link elsewhere, mode 0700 even when it existed before.
+private_dir() {
+    mkdir -p -m 700 "$1" && [[ ! -L "$1" ]] \
+        && [[ "$(stat -c %u "$1" 2>/dev/null || stat -f %u "$1")" == "$(id -u)" ]] && chmod 700 "$1"
+}
+# llama-server's config home: private and empty, so it holds no llama.cpp/config.ini.
+private_config_home() {
+    local entries
+    private_dir "$1" 2>/dev/null && entries="$(ls -A "$1")" \
+        || die "cannot make $1 a private directory (llama-server's config home)"
+    [[ -z "$entries" ]] || die "$1 must stay empty (llama-server would read llama.cpp/config.ini there); move its contents away"
+}
 
 # CUDA architecture of the GPU that runs the brain (GB10 = 121, RTX PRO 6000 = 120).
 cuda_arch() {
@@ -220,6 +260,7 @@ check_template
 check_warm
 if [[ "$MODE" == check ]]; then
     check_server
+    check_config_files
     printf 'Nemotron 3.5 Bolt GGUF, vision projector, LiLiCorr drafter and llama-server are prepared; no runtime proof performed.\n'
     exit 0
 fi
@@ -249,6 +290,12 @@ if [[ ! -x "$LLAMA_SERVER" || ( "$LLAMA_DIR" == "$REPO/.llama.cpp" && "$LLAMA_SE
 fi
 check_server
 [[ "$MODE" != setup ]] || exit 0
+check_config_files
+config_home=""
+if [[ "$LLAMA_CONFIG_INI" == 0 ]]; then
+    config_home="${XDG_STATE_HOME:-$HOME/.local/state}/cascade/llama-server-config"
+    private_config_home "$config_home"
+fi
 
 # Authenticated brain (OpenShell routes: PORT=8081 API_KEY_FILE=...). llama-server
 # reads the key from the file itself, so argv carries a path, never the key.
@@ -266,13 +313,7 @@ if [[ "$SPEC" == dflash ]]; then
     set -- "$@" --spec-type draft-dflash --spec-draft-model "$DRAFT_FILE" --spec-draft-n-max "$NSPEC" --spec-draft-ngl 999
 fi
 [[ -z "$CHAT_TEMPLATE_FILE" ]] || set -- "$@" --chat-template-file "$CHAT_TEMPLATE_FILE"
-# Slot files hold the slots' state: a directory of this user (mkdir -p fails on
-# anything else that exists there), never a link elsewhere, mode 0700 even when
-# it existed before.
-private_dir() {
-    mkdir -p -m 700 "$1" && [[ ! -L "$1" ]] \
-        && [[ "$(stat -c %u "$1" 2>/dev/null || stat -f %u "$1")" == "$(id -u)" ]] && chmod 700 "$1"
-}
+# Slot files hold the slots' state: a private directory (private_dir above).
 warm_slots="$(dirname "$WARM_PREFIX_FILE")/bolt-slots-$PORT"
 if [[ "$WARM_START" == 1 ]] && ! private_dir "$warm_slots" 2>/dev/null; then
     warm_off "cannot make $warm_slots a private directory"
@@ -286,11 +327,12 @@ if [[ "$WARM_START" == 1 ]]; then
     # 1 whatever the caller exported: the helper reads the slots' prompts.
     export LLAMA_SERVER_SLOTS_DEBUG=1
     set -- "$@" --slot-save-path "$warm_slots"
-else
-    # Never inherited: with it GET /slots shows every slot's prompt text, here
-    # possibly to any local process (no key).
-    unset LLAMA_SERVER_SLOTS_DEBUG
 fi
+# Without the warm start LLAMA_SERVER_SLOTS_DEBUG stays unset (the scrub above):
+# with it GET /slots shows every slot's prompt text, here possibly to any local
+# process (no key). The config home is the server's alone (the helper started
+# above keeps the caller's).
+[[ -z "$config_home" ]] || export XDG_CONFIG_HOME="$config_home"
 # The model card's llama.cpp recipe (q8_0 KV; DFlash with the LiLiCorr GGUF
 # drafter when SPEC=dflash), loopback only, thinking off, one context of CTX
 # tokens per slot.

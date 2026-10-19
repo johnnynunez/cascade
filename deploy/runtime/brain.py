@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import fnmatch
 import hashlib
 import json
 import os
@@ -20,6 +21,18 @@ LLAMA_RUNTIME_SOURCE = re.compile(
     r"sched_reserve|reserve_compute_meta|system_info|common_init_from_params|"
     r"done_getting_tensors|warmup|set_warmup|slot\s+(?:print_timing|load_model)|"
     r"srv\s+(?:load_model|llama_server)):", re.I)
+#: What llama-server v0.7.0 takes from the environment besides its argv, as `case` globs: every flag from
+#: LLAMA_ARG_<FLAG> (common/arg.cpp), an extra accepted key from LLAMA_API_KEY, the Vertex AI mode (AIP_*: another
+#: port and a route to every endpoint, tools/server/server-http.cpp) and LLAMA_SERVER_SLOTS_DEBUG (every slot's
+#: prompt text in GET /slots). Never from the caller: the plan's argv is the whole configuration. KEEP IN SYNC with
+#: the scrub in scripts/serve_qwen_llamacpp.sh and scripts/serve_nemotron_bolt_llamacpp.sh (tests pin all three).
+LLAMA_SERVER_ENV = ("LLAMA_ARG_*", "LLAMA_API_KEY", "AIP_*", "LLAMA_SERVER_SLOTS_DEBUG")
+
+
+def llama_server_environment(environ):
+    """`environ` without the names in LLAMA_SERVER_ENV."""
+    return {key: value for key, value in environ.items()
+            if not any(fnmatch.fnmatchcase(key, pattern) for pattern in LLAMA_SERVER_ENV)}
 
 
 def now():
@@ -247,7 +260,7 @@ def serve(plan):
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     logfile = Path(plan["state_file"]).parent / "logs" / f"brain-{stamp}-{os.getpid()}.log"
     logfile.parent.mkdir(parents=True, exist_ok=True)
-    child_env = {key: value for key, value in os.environ.items() if not key.startswith("LLAMA_ARG_")}
+    child_env = llama_server_environment(os.environ)
     child_env.update(CUDA_VISIBLE_DEVICES="0", GGML_SCHED_DEBUG="1")
     child = subprocess.Popen(plan["argv"], cwd=ROOT, env=child_env, stdout=subprocess.PIPE,
                              stderr=subprocess.STDOUT, bufsize=64 * 1024)

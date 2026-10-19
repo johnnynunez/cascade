@@ -78,7 +78,8 @@ The limits:
    server binds `127.0.0.1` either way. The same fallback covers a missing helper, a llama-server
    without `--slot-save-path` and a slot directory that cannot be private.
 2. The slot directory is the user's own, mode 0700, never a symlink. A save needs 4 GiB free
-   there (`--min-free-gb`), else it waits; its file is deleted right after the read.
+   there before it starts (`--min-free-gb`; its file comes on top), else it waits; the file is
+   deleted right after the read.
 3. The sandbox reaches only `GET` and `POST /v1/*` of every brain (`brain_profile`, OpenShell
    REST rules): `/slots`, `/completion`, `/props` and `/tokenize` (llama-server), `/metrics`
    (vLLM) get 403. The profile names no model: Bolt under a custom `ALIAS`, `--model

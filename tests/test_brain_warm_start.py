@@ -733,6 +733,28 @@ def test_a_slot_is_saved_only_while_the_disk_keeps_room(env, capsys):
     assert len(fake.seen("POST", "/slots/")) == 1 and (env / "state" / "prefix.json").exists()
 
 
+def test_min_free_gb_is_the_free_space_a_save_needs_before_it_starts(env, capsys):  # #403 review, Minor 3
+    """The check reads the free space BEFORE the save (exactly --min-free-gb free: it saves), and the save then writes
+    its slot file on top: the help and the low-disk log say "before", never that the save "leaves" that much."""
+    m = load_module()
+    with pytest.raises(SystemExit):
+        m.main(["--help"])
+    usage = " ".join(capsys.readouterr().out.split())
+    option = usage[usage.rindex("--min-free-gb MIN_FREE_GB"):]   # its entry under options, not the usage line
+    option = option[:option.index("--poll") if "--poll" in option else len(option)]
+    assert "free space --slot-save-dir needs before a slot save starts, else it waits" in option, option
+    assert "leaves" not in option
+    free = [2**20]
+    with FakeLlamaServer(env / "slots", slots=[{"id": 0, "id_task": 4, "text": rendered("aaaa")}]) as fake:
+        m, rec = recorder(env, fake, min_free_bytes=2**30, free_bytes=lambda path: free[0])
+        rec.step()
+        log = capsys.readouterr().err
+        assert "under the 1.0 GiB a slot save needs before it starts" in log and "leaves" not in log, log
+        free[0] = 2**30
+        rec.step()
+    assert len(fake.seen("POST", "/slots/")) == 1
+
+
 def test_free_space_that_cannot_be_read_counts_as_low(env):
     def unreadable(path):
         raise OSError("no such device")

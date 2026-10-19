@@ -1835,8 +1835,9 @@ def test_another_active_gateway_is_not_this_instances(host):
 
 def test_up_refuses_a_home_with_no_gateway_registered(host):
     host.install(host.user / ".cascade" / "openshell-sim", "sim")
-    with pytest.raises(SystemExit, match="gateway is down"):
+    with pytest.raises(SystemExit, match="gateway is down") as refused:
         host.rig.main(["--instance", "sim", "up"])
+    assert "cascade-sim" in str(refused.value) and "127.0.0.1:17710" in str(refused.value)   # which gateway
     assert not [a for a in host.argvs if a[0].endswith("/openshell") and a[1] in ("provider", "sandbox")]
 
 
@@ -2167,8 +2168,15 @@ def _synced_brain(host) -> list[dict]:
     return out
 
 
-def test_brain_profile_read_write_pushes_only_mains_old_brain_profile(host, tmp_path, monkeypatch, capsys):
+def _installed_and_up(host) -> Path:
+    """The default instance installed, its gateway active and Connected."""
     home = host.install(host.user / ".cascade" / "openshell")
+    host.gateways_up.add(str(home / "0.1.3" / "bin" / "openshell"))
+    return home
+
+
+def test_brain_profile_read_write_pushes_only_mains_old_brain_profile(host, tmp_path, monkeypatch, capsys):
+    home = _installed_and_up(host)
     monkeypatch.setattr(host.rig, "PROC", _fake_proc(tmp_path / "proc", NEAR_MISSES))
     assert host.rig.main(["brain-profile", "--read-write"]) == 0
     assert [_profile_sha(p) for p in _synced_brain(host)] == [READ_WRITE_BRAIN_SHA]
@@ -2179,9 +2187,22 @@ def test_brain_profile_read_write_pushes_only_mains_old_brain_profile(host, tmp_
 
 
 def test_brain_profile_puts_the_v1_only_profile_back(host):
-    host.install(host.user / ".cascade" / "openshell")
+    _installed_and_up(host)
     assert host.rig.main(["brain-profile"]) == 0
     assert [_profile_sha(p) for p in _synced_brain(host)] == [TODAY_PROFILE_SHA["cascade-brain"]]
+
+
+@pytest.mark.parametrize("args", [["brain-profile"], ["brain-profile", "--read-write"]])
+def test_brain_profile_refuses_a_down_gateway_and_names_it(host, tmp_path, monkeypatch, args):
+    """#410 review, Minor 4: `brain-profile` lacked `up`'s gateway check, so with the gateway down it failed inside
+    `provider profile import` and named that, not the gateway."""
+    host.install(host.user / ".cascade" / "openshell-sim", "sim")
+    monkeypatch.setattr(host.rig, "PROC", _fake_proc(tmp_path / "proc", NEAR_MISSES))
+    with pytest.raises(SystemExit, match="gateway is down") as refused:
+        host.rig.main(["--instance", "sim", *args])
+    assert "cascade-sim" in str(refused.value) and "127.0.0.1:17710" in str(refused.value)
+    assert "--instance sim gateway start" in str(refused.value)
+    assert not [a for a in host.argvs if a[1:3] == ["provider", "profile"]], "nothing pushed"
 
 
 @pytest.mark.parametrize("warm", [
@@ -2213,7 +2234,7 @@ def test_read_write_is_refused_when_the_brains_environment_cannot_be_read(host, 
 
 def test_the_rollback_follows_the_brain_port(host, tmp_path, monkeypatch):
     """--brain-port (else the saved setting, else 8081) names the brain, for the check and for the profile."""
-    host.install(host.user / ".cascade" / "openshell")
+    _installed_and_up(host)
     monkeypatch.setattr(host.rig, "PROC", _fake_proc(tmp_path / "proc", [([LLAMA, "--port", "8123"], {
         "LLAMA_SERVER_SLOTS_DEBUG": "1"})]))
     with pytest.raises(SystemExit, match="WARM_START=0"):

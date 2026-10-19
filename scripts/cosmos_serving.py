@@ -79,14 +79,18 @@ KV_CACHE_ARGS = {
 # vLLM 0.32.0 adds HTTP routes from these, or swaps its HTTP server: the dev and
 # RL routes (/collective_rpc, /sleep, /update_weights; outside /v1, where a key
 # does not reach), /v1/load_lora_adapter (inside the OpenShell sandbox's /v1/**),
-# /cohere/v2/chat, a Rust frontend binary. The server never takes them from the
-# caller. KEEP IN SYNC with serve_qwen_vllm.sh (tests pin both).
+# /cohere/v2/chat, a Rust frontend binary. VLLM_ENABLE_RESPONSES_API_STORE keeps
+# every stored /v1/responses request and answer in memory until the server exits
+# (vllm/envs.py: never freed), so a caller inside /v1/** grows it without bound.
+# The server never takes them from the caller. KEEP IN SYNC with
+# serve_qwen_vllm.sh (tests pin both).
 VLLM_ROUTE_ENV = (
     "VLLM_SERVER_DEV_MODE",
     "VLLM_ALLOW_RUNTIME_LORA_UPDATING",
     "VLLM_ENABLE_COHERE_API",
     "VLLM_USE_RUST_FRONTEND",
     "VLLM_RUST_FRONTEND_PATH",
+    "VLLM_ENABLE_RESPONSES_API_STORE",
 )
 
 

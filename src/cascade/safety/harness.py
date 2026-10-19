@@ -356,6 +356,12 @@ class SafetyHarness:
 
     # ── state management ─────────────────────────────────────────────────
 
+    #: Appended to every perception-watchdog refusal of this arm. Empty by
+    #: default; `apps.demo.build_runtime` sets it on a multi-arm rig for an
+    #: arm that no camera feeds (`_unfed_arm_note`), so the refusal says why
+    #: its last observation never gets newer while a camera streams.
+    watchdog_note: str = ""
+
     def heartbeat(self, at: float | None = None) -> None:
         """Mark perception fresh as of `at`, the client-monotonic time the
         observation ARRIVED (`perception.freshness.observed_at(frame)`; None:
@@ -382,6 +388,9 @@ class SafetyHarness:
             # an older frame processed later must not age the newer beat.
             if at > self._last_heartbeat:
                 self._last_heartbeat = at
+
+    def _watchdog_refusal(self, age: float) -> str:
+        return f"perception watchdog: last observation {age:.1f}s old{self.watchdog_note}"
 
     def estop(self, reason: str = "manual") -> None:
         with self._observation_lock:
@@ -1080,7 +1089,7 @@ class SafetyHarness:
             self._halt = None
         age = time.monotonic() - self._last_heartbeat
         if age > self.limits.watchdog_s:
-            self._reject(f"perception watchdog: last observation {age:.1f}s old")
+            self._reject(self._watchdog_refusal(age))
         self._motion_active = True
         self._motion_uncounted = True
 
@@ -1104,7 +1113,7 @@ class SafetyHarness:
             raise MotionHalted(f"halted: {self._halt}")
         age = time.monotonic() - self._last_heartbeat
         if age > self.limits.watchdog_s:
-            self._reject(f"perception watchdog: last observation {age:.1f}s old")
+            self._reject(self._watchdog_refusal(age))
 
     # ── the gate ─────────────────────────────────────────────────────────
 
@@ -1152,7 +1161,7 @@ class SafetyHarness:
         if live_checks and not self._motion_active:
             age = time.monotonic() - self._last_heartbeat
             if age > self.limits.watchdog_s:
-                reject(f"perception watchdog: last observation {age:.1f}s old")
+                reject(self._watchdog_refusal(age))
 
         q_prev = np.asarray(q_prev, dtype=float)
         q_next = np.asarray(q_next, dtype=float)

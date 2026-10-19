@@ -261,6 +261,36 @@ def _camera_watchdog_feed(arm_rig, ccfg, extrinsics):
     return _RigHeartbeat(())
 
 
+def _unfed_arm_note(name) -> str:
+    """The watchdog-refusal note of an arm no camera feeds (`_warn_unfed_arms`)."""
+    return (f"; no camera on this rig feeds arm {name!r} (a `role: wrist` view feeds no arm, an "
+            "eye-in-hand camera only the primary): it needs a fixed scene camera")
+
+
+def _warn_unfed_arms(arm_rig, watched) -> list[str]:
+    """On a rig of two or more arms, the arms whose perception watchdog no
+    camera feeds (`_camera_watchdog_feed`: e.g. a rig whose only cameras are
+    wrist views): every motion of such an arm is refused by its watchdog, while
+    the cameras stream. Say so at build, naming the arm, and append the reason
+    to its watchdog refusals (`SafetyHarness.watchdog_note`); otherwise the
+    refusal only quotes an age that keeps growing (#412 review Minor 2)."""
+    arms = dict(getattr(arm_rig, "arms", {})) if arm_rig is not None else {}
+    if len(arms) < 2:
+        return []
+    fed = {id(h) for cam in watched for h in getattr(cam.watchdog_feed, "_harnesses", ())}
+    unfed = []
+    for name, safe in arms.items():
+        harness = safe.__dict__["harness"]
+        if id(harness) in fed:
+            continue
+        unfed.append(name)
+        harness.watchdog_note = _unfed_arm_note(name)
+        print(f"[cascade] arm {name!r}: no camera feeds its perception watchdog (a `role: wrist` view "
+              "feeds no arm, an eye-in-hand camera only the primary arm); every motion of this arm "
+              "will be refused -- add a fixed scene camera", file=sys.stderr)
+    return unfed
+
+
 class _ArmPrepass(NamedTuple):
     """One arm's pure-config build (`_arm_safety`), made before its backend."""
 
@@ -925,6 +955,7 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
                 watchdog_feed=_camera_watchdog_feed(arm_rig, ccfg, extrinsics),
             )
         )
+    _warn_unfed_arms(arm_rig, watched)
     rig = CameraRig(streams)
     # From here a failure closes the rig (build_runtime -> _abandon_build):
     # a partial build must not leak open camera streams, even when the ROS

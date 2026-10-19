@@ -358,6 +358,45 @@ def test_the_wrist_cameras_own_arm_still_moves_on_its_live_frames(make_runtime, 
     assert sent[a] > 0 and sent[b] == 0
 
 
+# ── #412 review Minor 2: an arm no camera feeds is named ──────────────────
+
+
+def _wrist_only_pair(make_runtime):  # noqa: F811
+    """Two mock arms whose only camera is an eye-in-hand camera on the primary."""
+    from cascade.config import load_demo_config
+
+    cfg = load_demo_config(arms=["mock", "mock"], cameras=["mock_small"], llm="mock")
+    cam = cfg._data["cameras"][0]
+    cam["name"] = "wrist"
+    cam["extrinsics"]["mode"] = "eye_in_hand"
+    cam["extrinsics"]["T"] = np.eye(4).tolist()
+    cfg._data["relative_motion"]["wrist_camera"] = None
+    return make_runtime(cfg)
+
+
+def test_an_arm_no_camera_feeds_is_named_at_build_and_in_its_refusal(make_runtime, capsys):  # noqa: F811
+    rt = _wrist_only_pair(make_runtime)
+    a, b = rt.arm_rig.names
+    err = capsys.readouterr().err
+    assert f"arm {b!r}: no camera feeds its perception watchdog" in err
+    assert f"arm {a!r}: no camera feeds" not in err
+    hs = _harnesses(rt)
+    assert hs[a].watchdog_note == ""
+    hs[b]._last_heartbeat = time.monotonic() - DIED_S
+    out, sent = _call(rt, *MOVE, arm=b)
+    assert out["ok"] is False and sent == {a: 0, b: 0}, out
+    error = str(out.get("error"))
+    assert "perception watchdog: last observation" in error
+    assert f"no camera on this rig feeds arm {b!r}" in error
+    assert "fixed scene camera" in error
+
+
+def test_a_rig_with_a_fixed_camera_warns_about_no_arm(make_runtime, capsys):  # noqa: F811
+    rt = _so101_pair(make_runtime)
+    assert "no camera feeds its perception watchdog" not in capsys.readouterr().err
+    assert all(h.watchdog_note == "" for h in _harnesses(rt).values())
+
+
 # ── localization on a dead camera says so ─────────────────────────────────
 
 

@@ -52,7 +52,8 @@ import json, os, sys
 if sys.argv[1:] == ['--help']:
     print({HELP!r})
 else:
-    print(json.dumps({{'server_args': sys.argv[1:], 'pid': os.getpid()}}))
+    print(json.dumps({{'server_args': sys.argv[1:], 'pid': os.getpid(),
+                      'slots_debug': os.environ.get('LLAMA_SERVER_SLOTS_DEBUG')}}))
 """)
     server.chmod(0o755)
     (repo / WARM).write_text("import json, os, sys\n"
@@ -62,7 +63,8 @@ else:
     env = {**os.environ, "HOME": str(tmp_path / "home"), "PY": sys.executable, "LLAMA_SERVER": str(server),
            "CASCADE_LLAMA_CUDA_ARCH": "121"}
     for key in ("LLAMA_DIR", "MODEL_ROOT", "PORT", "CTX", "PARALLEL", "SPEC", "NSPEC", "ALIAS", "API_KEY_FILE",
-                "CASCADE_MODEL_MIRROR_URL", "CHAT_TEMPLATE_FILE", "WARM_START", "WARM_PREFIX_FILE", "XDG_STATE_HOME"):
+                "CASCADE_MODEL_MIRROR_URL", "CHAT_TEMPLATE_FILE", "WARM_START", "WARM_PREFIX_FILE", "XDG_STATE_HOME",
+                "LLAMA_SERVER_SLOTS_DEBUG"):
         env.pop(key, None)
     return {"repo": repo, "dir": directory, "server": server, "env": env, "home": tmp_path / "home"}
 
@@ -151,7 +153,9 @@ def test_the_warm_start_helper_watches_the_server_the_script_execs(prepared):
     # readiness, prefills the recorded OpenClaw prefix into both slots and ends with the server.
     result = invoke(prepared)
     args = served(result)
-    pid = next(json.loads(line) for line in result.stdout.splitlines() if '"server_args"' in line)["pid"]
+    started = next(json.loads(line) for line in result.stdout.splitlines() if '"server_args"' in line)
+    pid = started["pid"]
+    assert started["slots_debug"] == "1"     # GET /slots shows the last prompts: what the helper records
     (warm,) = helper_runs(prepared)
     assert (flag(warm, "--port"), flag(warm, "--slots"), flag(warm, "--server-pid")) == ("8080", "2", str(pid))
     assert flag(warm, "--prefix-file") == str(prepared["home"] / ".local/state/cascade/bolt-openclaw-prefix-8080.json")
@@ -159,7 +163,9 @@ def test_the_warm_start_helper_watches_the_server_the_script_execs(prepared):
     assert "--api-key-file" not in warm
     # The server itself starts exactly as without the warm start: its readiness is its own.
     prepared["home"].joinpath("warm.jsonl").unlink()
-    assert served(invoke(prepared, WARM_START="0")) == args and helper_runs(prepared) == []
+    off = invoke(prepared, WARM_START="0")
+    assert served(off) == args and helper_runs(prepared) == []
+    assert next(json.loads(line) for line in off.stdout.splitlines() if '"server_args"' in line)["slots_debug"] is None
 
 
 def test_the_warm_start_follows_the_servers_knobs(prepared, tmp_path):

@@ -43,7 +43,10 @@
 # meanwhile waits for it and then reuses it. While serving it records the
 # server's own rendering of the latest OpenClaw request (text before OpenClaw's
 # per-session boundary, 0600, WARM_PREFIX_FILE), so it never builds a prefix
-# and follows any change of tools or prompt at the next chat.
+# and follows any change of tools or prompt at the next chat. To read it, the
+# server runs with LLAMA_SERVER_SLOTS_DEBUG=1: GET /slots (behind the API key
+# when API_KEY_FILE is set) then shows each slot's last prompt, and a request
+# that reuses part of a slot logs the 2 tokens where it diverges.
 #
 # Knobs: PORT (8080), API_KEY_FILE, CTX (65536 per slot), PARALLEL (2),
 # SPEC (dflash | none: the LiLiCorr drafter or none), NSPEC (7, drafted tokens),
@@ -235,6 +238,7 @@ if [[ "$WARM_START" == 1 ]]; then
           --chat-template-file "$CHAT_TEMPLATE_FILE")
     [[ -z "$key_file" ]] || warm+=(--api-key-file "$key_file")
     "$PY" -B "$WARM_HELPER" "${warm[@]}" &
+    export LLAMA_SERVER_SLOTS_DEBUG="${LLAMA_SERVER_SLOTS_DEBUG:-1}"
 fi
 # The model card's llama.cpp recipe (q8_0 KV; DFlash with the LiLiCorr GGUF
 # drafter when SPEC=dflash), loopback only, thinking off, one context of CTX

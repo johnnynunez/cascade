@@ -14,7 +14,8 @@ from chat to chat, but right after a start nothing is cached and the first chat 
    --timeout (120 s; 13.6k tokens take ~14 s alone). A request that arrives meanwhile waits for a free slot, then
    reuses the prefix.
 3. records the prefix while the server runs: every --record-every seconds it reads the server's own rendering of
-   the latest OpenClaw request (GET /slots, the detokenized prompt), keeps the text before OpenClaw's prompt-cache
+   the latest OpenClaw request (GET /slots, the detokenized prompt; llama-server shows it only with
+   LLAMA_SERVER_SLOTS_DEBUG=1, which the serve script sets), keeps the text before OpenClaw's prompt-cache
    boundary (`<!-- openclaw:attempt:DYNAMIC -->`: before it the system text and tools, after it the date and the
    session ids) and writes it (0600) when it changed. The next start prefills exactly what OpenClaw last sent; no
    prefix is ever built here. A record made with another chat template is not prefilled (the next chat replaces
@@ -153,6 +154,12 @@ def warm(server: Server, prefix: str, slots: int, timeout: float) -> None:
     log(f"warmed {len(results)} slot(s) with the recorded OpenClaw prefix ({tokens} tokens) in {took:.1f} s")
 
 
+def prompts_hidden(slots) -> bool:
+    """llama-server lists a slot's last prompt only with LLAMA_SERVER_SLOTS_DEBUG set."""
+    ran = [s for s in slots if isinstance(s, dict) and s.get("id_task") is not None] if isinstance(slots, list) else []
+    return bool(ran) and not any("prompt" in s for s in ran)
+
+
 def latest_openclaw_prefix(slots) -> str | None:
     best = None
     for slot in slots if isinstance(slots, list) else []:
@@ -202,11 +209,14 @@ def main(argv=None) -> int:
     else:
         log(why)
 
-    next_read = time.monotonic()
+    next_read, hidden = time.monotonic(), False
     while alive():                                    # 3. keep the record equal to what OpenClaw last sent
         if time.monotonic() >= next_read:
             next_read = time.monotonic() + args.record_every
             status, slots = server.call("/slots")
+            if status == 200 and not hidden and prompts_hidden(slots):
+                hidden = True
+                log("GET /slots shows no prompts (llama-server without LLAMA_SERVER_SLOTS_DEBUG=1): nothing to record")
             prefix = latest_openclaw_prefix(slots) if status == 200 else None
             if prefix and prefix != current and usable_prefix(prefix):
                 try:

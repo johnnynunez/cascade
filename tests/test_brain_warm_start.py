@@ -315,6 +315,16 @@ def test_perception_prompts_and_the_warm_up_itself_are_never_recorded(run, tmp_p
     assert not proc["prefix_file"].exists()
 
 
+def test_a_server_that_hides_prompts_records_nothing_and_says_why(run, tmp_path):
+    # llama-server lists a slot's last prompt only with LLAMA_SERVER_SLOTS_DEBUG=1 (the serve script sets it).
+    with FakeLlamaServer(slots=[{"id": 0, "id_task": 4, "n_prompt_tokens": 13600}, {"id": 1}]) as fake:
+        proc = run(fake)
+        assert wait_for(lambda: len(fake.seen("GET", "/slots")) >= 3)
+        log = stop(proc)
+    assert not proc["prefix_file"].exists()
+    assert log.count("LLAMA_SERVER_SLOTS_DEBUG") == 1
+
+
 def test_the_latest_openclaw_request_is_recorded(run, tmp_path):
     other = PREFIX.replace("cascade__describe_scene", "cascade__wave")
     with FakeLlamaServer(slots=[{"id": 0, "id_task": 4, "prompt": rendered("aaaa")},

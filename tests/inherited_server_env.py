@@ -12,12 +12,19 @@ llama.cpp v0.7.0 (620d2225):
   override it) and adds `POST $AIP_PREDICT_ROUTE`, which dispatches to ANY registered route by name (/slots, /props).
 - tools/server/server-context.cpp: `LLAMA_SERVER_SLOTS_DEBUG` puts every slot's prompt text in GET /slots.
 
+Not the environment, the same effect: before env and argv, llama-server applies `/etc/llama.cpp/config.ini`, then
+`${XDG_CONFIG_HOME:-$HOME/.config}/llama.cpp/config.ini` (common/arg.cpp `common_params_apply_system_config`,
+common/common.cpp `fs_get_config_directory`). Each takes ANY server option, no allowlist (common/preset.cpp):
+HOSTILE_CONFIG_INI below. The user file follows an inherited XDG_CONFIG_HOME or HOME.
+
 vLLM 0.32.0 (entrypoints/): `VLLM_SERVER_DEV_MODE` adds the dev and RL routes (/collective_rpc, /sleep,
 /update_weights, ...; outside /v1, so keyless), `VLLM_ALLOW_RUNTIME_LORA_UPDATING` adds /v1/load_lora_adapter and
 /v1/unload_lora_adapter (inside the sandbox's /v1/**), `VLLM_ENABLE_COHERE_API` adds /cohere/v2/chat, and
 `VLLM_USE_RUST_FRONTEND` + `VLLM_RUST_FRONTEND_PATH` replace the whole HTTP server with another binary.
 """
 from __future__ import annotations
+
+from pathlib import Path
 
 #: Inherited by a llama.cpp serve script; none may reach llama-server. The values are what an attacker or a stray
 #: shell would set: each one alone opens something on a keyless or WARM_START=0 start.
@@ -46,6 +53,10 @@ HOSTILE_VLLM_ENV = {
     "VLLM_RUST_FRONTEND_PATH": "/tmp/other-frontend",
 }
 
+#: A llama.cpp config.ini as an attacker would write it: every tool (exec_shell_command, write_file) at /tools, and
+#: every route (/slots, /props, /tools) moved under /v1, inside the OpenShell sandbox's /v1/**.
+HOSTILE_CONFIG_INI = "tools = all\napi-prefix = /v1\nslot-save-path = /tmp\n"
+
 #: Inherited values a server may keep: unrelated settings, the server's own logging knobs, and names that only look
 #: like the scrubbed ones. A scrub that drops these is too wide (an operator's CUDA or HF settings would vanish).
 BENIGN_ENV = {
@@ -68,3 +79,10 @@ def leaked(server_env: dict, hostile: dict) -> dict:
 def dropped(server_env: dict, benign: dict = BENIGN_ENV) -> dict:
     """Benign names the server did not get with their inherited value."""
     return {k: v for k, v in benign.items() if server_env.get(k) != v}
+
+
+def llama_config_files(server_env: dict, system: Path) -> list[Path]:
+    """The config.ini files llama-server v0.7.0 applies when started with `server_env`, in its order: the system
+    file (`system` stands for /etc/llama.cpp/config.ini), then the user's, found as llama.cpp finds it."""
+    config_home = server_env.get("XDG_CONFIG_HOME") or str(Path(server_env["HOME"]) / ".config")
+    return [p for p in (system, Path(config_home) / "llama.cpp" / "config.ini") if p.exists()]

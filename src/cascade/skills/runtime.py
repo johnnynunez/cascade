@@ -768,6 +768,13 @@ def _sim_retry_state(runtime) -> _SimRetryState | None:
     return getattr(getattr(runtime, "_motion_scope", None), "sim_retry", None)
 
 
+def _take_learning_grant(runtime) -> str | None:
+    """The learning line `_grant_learning_line` left on this thread's motion scope
+    for the call `execute()` is finishing, removed (None when there is none)."""
+    scope = getattr(runtime, "_motion_scope", None)
+    return None if scope is None else scope.__dict__.pop("learning_grant", None)
+
+
 def _without_refused(grasps, excluded):
     """`grasps` without every candidate that repeats one of `excluded` (the
     refused attempt's grasps): the same candidate or its jaws-swapped twin
@@ -1398,6 +1405,11 @@ class SkillRuntime:
     #: of the sim retry runs and every call runs exactly as before. Its per-call
     #: state is `_SimRetryState`, on the calling thread's motion scope.
     sim_retry = None
+    #: ASPIRE learning surface (`agent.learning_surface.LearningState`, spec §4.8):
+    #: built by `apps.demo.build_runtime` only for a sim profile with
+    #: `agent.learning_surface: true` (`learning_state_for`); None everywhere else
+    #: (preflight R29), and then no result ever gets a learning line.
+    learning_state = None
 
     #: The PRIMARY arm's Kinematics and Cfg (the `kin` / `cfg` setters write
     #: these), and the other arms' bindings by rig name (build_runtime's
@@ -1855,6 +1867,65 @@ class SkillRuntime:
             trace_context["sim_retry"] = mark
         return result
 
+    # ── ASPIRE learning surface (spec §4.8) ──────────────────────────────
+
+    def _learning_for(self, name):
+        """This call's learning state: the runtime's (None on every profile that
+        built none: a real profile, the switch off), for a motion skill only, and
+        only for the outermost motion call of this thread (as the retry ledger)."""
+        state = self.learning_state
+        if state is None or name not in _MOTION_SKILLS:
+            return None
+        scope = getattr(self, "_motion_scope", None)
+        if getattr(scope, "context", None) is not None:
+            return None
+        return state
+
+    def _grant_learning_line(self, learning, name, args, result, trace_context, *, retry, arm, baselines,
+                             stop_token0) -> None:
+        """Decide the one line this call's result grants (spec §4.8:
+        `learning_surface.learning_line`) and leave it on this thread's motion
+        scope: `execute()` appends the granting instruction after the rule-trigger
+        scrub, so only the runtime's own instruction ever stands in a result. A call
+        an operator stop met -- latched now, a halt since the skill started, or the
+        rig's stop token changed since `stop_token0` (an e-stop raised and reset) --
+        gets none, with or without a retry ledger. The line is built from runtime
+        texts and the served note's title and tag only, never from the agent's
+        arguments; one that would read as a rule trigger is no line. Records the
+        learning event (learning.json, the trace row's `learning`). Never fails the
+        call."""
+        from ..agent import learning_surface as surface
+
+        try:
+            stopped = bool(self._stop_latched(arm) or self._halted_since_skill_start(baselines)
+                           or self._stop_token() != stop_token0)
+            retried = retry is not None and name == "pick_and_place"
+            line = None
+            if not stopped:
+                matched = None if retried else surface.matched_note(learning.snapshot, name, args)
+                line = surface.learning_line(
+                    retried_placed=retried, result=result, matched=matched, sha=learning.snapshot.sha,
+                    grasps_refused=retried and retry.refusal == "safety_refusal" and bool(retry.refused_grasps))
+                if line is not None and _without_rule_triggers(line) is not line:
+                    line = None  # fail closed: the line itself never reads as a rule's trigger
+            ok = isinstance(result, dict) and result.get("ok") is True
+            outcome = ("halted" if stopped else "failed" if not ok
+                       else "unverified" if not surface.succeeded(result)
+                       else "placed" if name == "pick_and_place" else "succeeded")
+            if line is not None:
+                kind = "retry" if retried else "note"
+            elif retry is not None:
+                kind = "retry"  # THE retry without a line (failed, halted, unverified): the panel says so
+            else:
+                return
+            learning.write(surface.learning_event(kind, line, outcome))
+            if line is None:
+                return
+            self._motion_scope.learning_grant = line
+            trace_context["learning"] = {"kind": kind, "line": line}
+        except Exception:  # noqa: BLE001 -- the learning surface never fails a call
+            logger.exception("learning line for %s not granted", name)
+
     def attach_verifier(self, object_pose=None) -> None:
         """Enable postcondition checking (Pigey closed loop).
 
@@ -2282,21 +2353,39 @@ class SkillRuntime:
         exactly the previous dispatch. The narrator only records -- it never
         alters args, the result, or whether the skill runs."""
         narrator = getattr(self, "wrist_narrator", None)
+        if self.learning_state is not None:
+            _take_learning_grant(self)  # never a line an earlier call on this thread left behind
         if narrator is None or name not in _MOTION_SKILLS:
             # Every failed result tells the agent so, including the ones the
             # dispatcher refuses before the skill runs (idempotent: results
             # that went through the full fold already carry it). Every result
             # passes `_with_retry_text`, with or without a retry ledger: only a
             # retry the ledger granted may carry the rules' retry trigger.
-            return _with_retry_text(_with_failure_instruction(self._execute_with_obligations(name, args)), name)
+            return self._with_learning_grant(
+                _with_retry_text(_with_failure_instruction(self._execute_with_obligations(name, args)), name))
         owns = narrator.begin(self, name, args)
         result = None
         try:
-            result = _with_retry_text(_with_failure_instruction(self._execute_with_obligations(name, args)), name)
+            result = self._with_learning_grant(
+                _with_retry_text(_with_failure_instruction(self._execute_with_obligations(name, args)), name))
             return result
         finally:
             if owns:
                 narrator.end(self, result)
+
+    def _with_learning_grant(self, result):
+        """`result`, and when this call was granted a learning line
+        (`_grant_learning_line`) that line with its instruction (spec §4.8), AFTER
+        `_with_retry_text`: the scrub withholds R5's words from every string of every
+        result, this one too, and the runtime's own instruction alone is added."""
+        if self.learning_state is None:
+            return result
+        line = _take_learning_grant(self)
+        if line is None:
+            return result
+        from ..agent.learning_surface import with_learning_line
+
+        return with_learning_line(result, line)
 
     def _execute_with_obligations(self, name: str, args: dict) -> dict:
         """Dispatch with task obligations covering all tiers and preparation faults."""
@@ -2480,6 +2569,11 @@ class SkillRuntime:
                     # taken when this skill started (execute()'s skill baseline)
                     retry_g0 = next((generation for harness, generation in skill_halt if harness is effective_harness),
                                     getattr(effective_harness, "_halt_generation", None))
+            # ASPIRE learning surface (spec §4.8): only a runtime that built one (the
+            # kitchen), only the outermost motion call; the stop token now, so a stop
+            # during the call (even one cleared again) grants no line
+            learning = self._learning_for(name)
+            learning_token0 = self._stop_token() if learning is not None else None
             retry_home = False
             refused_by = None  # the exact class name of the exception that ended the skill (R6)
             # the call's arguments as the agent wrote them (halt_motion's reason, an object
@@ -2951,6 +3045,10 @@ class SkillRuntime:
                 ledger, name, ledger_args, result, trace_context, retry=retry, retry_home=retry_home,
                 exc_type=refused_by if refused_by is not None else retry_state.refusal_exc_type, state=retry_state,
                 arm=effective_arm, harness=effective_harness, baselines=skill_halt, stop_token0=stop_token0)
+        if learning is not None:
+            # after the ledger (its verdict on THE retry), before the trace row
+            self._grant_learning_line(learning, name, args, result, trace_context, retry=retry, arm=effective_arm,
+                                      baselines=skill_halt, stop_token0=learning_token0)
         self.trace.record(name, args, result, dur, before, after,
                           tier=self.current_tier, context=trace_context,
                           keyframe_before_wrists=before_wrists, keyframe_after_wrists=after_wrists)
@@ -10755,9 +10853,10 @@ def _withhold_spans(text: str, pattern: re.Pattern = _RULE_TRIGGER_RE) -> str:
 def _without_rule_triggers(value, pattern: re.Pattern = _RULE_TRIGGER_RE, phrases: tuple = _TRIGGER_SQUEEZED):
     """`value` with every span that reads as a rule trigger (`_RULE_TRIGGER_RE` on
     `_trigger_reading`: R1's retry permission and R5's reply line) withheld from every
-    string in it: dicts, lists and tuples are walked, and a container is copied only
-    where a string changed (shared objects are never edited). A plain-ASCII string
-    skips the Unicode reading (A8 fix 2, Minor 6: no mark, compatibility form or
+    string in it: dicts (their string keys too: a failure model or a grasp prior is keyed
+    by the agent's own object name), lists and tuples are walked, and a container is
+    copied only where a string changed (shared objects are never edited). A plain-ASCII
+    string skips the Unicode reading (A8 fix 2, Minor 6: no mark, compatibility form or
     look-alike can be in it); a string without a trigger comes back as it was, the same
     object, and so does any other value. `pattern` / `phrases`: `_without_reply_line`'s."""
     if isinstance(value, str):
@@ -10766,9 +10865,13 @@ def _without_rule_triggers(value, pattern: re.Pattern = _RULE_TRIGGER_RE, phrase
             return value
         return pattern.sub(_withheld, value) if reading is value else _withhold_spans(value, pattern)
     if isinstance(value, dict):
-        changed = {key: new for key, item in value.items()
-                   if (new := _without_rule_triggers(item, pattern, phrases)) is not item}
-        return {**value, **changed} if changed else value
+        out, changed = {}, False
+        for key, item in value.items():
+            new_key = _without_rule_triggers(key, pattern, phrases) if isinstance(key, str) else key
+            new = _without_rule_triggers(item, pattern, phrases)
+            changed = changed or new_key is not key or new is not item
+            out[new_key] = new
+        return out if changed else value
     if isinstance(value, (list, tuple)):
         items = [_without_rule_triggers(item, pattern, phrases) for item in value]
         if all(new is old for new, old in zip(items, value)):

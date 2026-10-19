@@ -508,6 +508,12 @@ agent:
   # this says. Optional: sim_retry_window_s (>= 360) and sim_retry_reserve_s
   # (< 300). The kitchen profile (configs/arms/isaac_kitchen.yaml) turns it on.
   sim_retry: false
+  # ASPIRE learning surface (same spec, §4.8): a confirmed pick may end the agent's
+  # reply with ONE line the runtime grants (the sim retry placed the object, or a
+  # served note names the object), and learning.json feeds the camera-extension
+  # panel. Sim profiles only: a real profile never builds it, whatever this says.
+  # The kitchen profile turns it on.
+  learning_surface: false
   # Harness² agent harness (src/cascade/harnessing): advice text (rules, tool guidance,
   # triggered skills) learned by scripts/harness2_improve.py and validated before use. null = the
   # built-in agent's prompt and tool specs exactly. CASCADE_AGENT_HARNESS overrides.

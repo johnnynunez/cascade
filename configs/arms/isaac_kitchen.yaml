@@ -58,6 +58,9 @@ overrides:
     # ASPIRE sim retry (spec §4.5; configs/demo.yaml `agent.sim_retry`): one
     # bounded retry after a refused pick, simulation only.
     sim_retry: true
+    # ASPIRE learning surface (spec §4.8; configs/demo.yaml `agent.learning_surface`):
+    # the granted chat line and learning.json for the extension panel.
+    learning_surface: true
 gripper:
   # B36: the bounded post-contact hold (`hold_squeeze_frac`, inherited from
   # isaac.yaml) was measured on the bare scene only; the kitchen keeps the plain

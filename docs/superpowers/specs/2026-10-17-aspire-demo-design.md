@@ -478,12 +478,14 @@ R5's removal), so R1, R3 and R4 replace or compress existing sentences instead o
   first, call anything else 'also visible, not detected', and never describe what you cannot see."
 - **R4, placement recipe** (kitchen visitor block; replaces "If placement is failed, report the failure plainly."):
   "If placement failed, say 'I could not place the <object>:' and the reason from the result."
-- **R5, the learning line: removed until a tool result grants a line** (A8 follow-ups fix, Minor 1). A8 added "If a
-  tool result gives a line to end your reply with, end with exactly that line." to the visitor block, but no tool
-  result gives one, and no word list tells every paraphrase of such a line in a halt reason or other free text from
-  one a result grants. So no rule, identity or tool description asks for a reply line now; A9/A10 bring R5 back
-  together with the result that grants the line (§4.8). The runtime keeps withholding R5's listed words (above) and
-  the note lint keeps refusing them, as defence in depth.
+- **R5, the learning line, grant-based** (A9; the A8 follow-ups fix, Minor 1, had removed A8's ungranted "If a tool
+  result gives a line to end your reply with, end with exactly that line."): "Only when a tool result says 'End your
+  reply with this exact line:', end with exactly that line." in the visitor block (after R1's remaining prohibition)
+  and the plugin identity (after its retry rule); the attendee pick_and_place description asks for no line. Only the
+  result that grants a learning line (§4.8) carries that instruction: `SkillRuntime.execute()` appends it after the
+  rule-trigger scrub, which withholds R5's listed words from every other string the agent reads (an operator's halt
+  reason, an object name, world_state, robot_knowledge, verify_last_action, task_memory, the memory events, the status
+  line), so no text the agent supplied ever reads as the grant. The note lint keeps refusing R5's words.
 
 ### 4.7 Seeded `reset_scene` (simulation only)
 
@@ -504,16 +506,24 @@ Switch `agent.learning_surface` (default false; true in `isaac_kitchen.yaml`; B7
 **Chat line.** A motion result may carry `learning_line` (one string) and the instruction "End your reply with this
 exact line: <line>". R5 returns to the visitor block in the same change, never before (§4.6; A8 follow-ups fix). Only
 one line per result, priority:
-1. a retry of this order placed the object: "Learning loop: my first grasp was refused, so I retried once in simulation
-   with a different grasp."
-2. the call succeeded and a served note's `when` words overlap the goal words:
-   "From earlier runs: <title> (<tag>)."
-No line on failures, on non-motion tools, or with the switch off.
+1. THE retry of this order (the sim retry ledger's) placed the object: "Learning loop: my first grasp was refused, so I
+   retried once in simulation with a different grasp." after a gate refusal whose refused grasps the retry excluded;
+   otherwise (a perception or planning refusal: no grasp was refused) "Learning loop: my first attempt was refused,
+   so I retried once in simulation after a fresh look." (preflight R30).
+2. the call succeeded and a served note's `when` words contain every word of the order's object (R30: one shared word
+   is no match; the better-ranked note wins): "From earlier runs: <title> (<tag>)."
+"Succeeded": `ok` true, outcome ok, not an unverified placement. No line on failures, on non-motion tools, with the
+switch off, on any real profile (the switch is read on sim-class profiles only), or on a call an operator stop met (a
+stop latched at its end, a halt since the skill started, or an e-stop raised and reset during it), with or without
+the ledger. The line is built from runtime texts and the served note's title and tag only, never from the agent's
+arguments.
 
 **Panel.** The robot server writes `learning.json` atomically to `<run_dir>/` and, when started with
-`--launch-state-dir`, to `<launch state>/learning.json`, at build and after each motion call that produced a learning
-event: `{schema: 1, library_sha, profile_class, sim_retry, served: [{id, title, tag}], counts: {promoted, verified,
-candidates, refuted}, last_event: {t, kind: retry|note, line, outcome} | null}`.
+`--launch-state-dir`, to `<launch state>/learning.json` (attached after the build, preflight R31; a runtime without
+the surface deletes a previous stack's file there), at build and after each motion call that produced a learning
+event (a granted line, or THE retry ending without one: `line: null`): `{schema: 1, library_sha, profile_class,
+sim_retry, served: [{id, title, tag}] (at most 5, ids through `notes._shown_name`), counts: {promoted, verified,
+candidates, refuted}, last_event: {t, kind: retry|note, line, outcome} | null}`, at most 64 KB.
 - Spark: `spark_cameras.py --learning-file <launch state>/learning.json` adds the parsed file (<= 64 KB, schema 1) as
   `learning` to its `/state` reply; `spark_browser.start_surfaces` passes the flag.
 - Real rig: `stream_server` adds `learning` to `/state` from the runtime, only with the switch on (the mock golden

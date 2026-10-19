@@ -485,8 +485,11 @@ class _ReadOnlyLane:
 
 
 class McpSkillServer:
-    def __init__(self):
+    def __init__(self, *, launch_state_dir=None):
         self._runtime = None
+        # the launcher's state directory (`--launch-state-dir`), None for in-process
+        # callers: the ASPIRE panel's learning.json is kept there (spec §4.8, R31)
+        self._launch_state_dir = None if launch_state_dir is None else Path(launch_state_dir)
         self._arm = None
         # Morphology is selected once for this connection; catalog and dispatch
         # must agree even before a (possibly slow) runtime exists.
@@ -552,6 +555,26 @@ class McpSkillServer:
         # built with the arm runtime when on; None = off, and the receive
         # side then queues every frame for the worker exactly as before
         self._readonly_lane: _ReadOnlyLane | None = None
+
+    def _attach_learning_file(self, runtime) -> None:
+        """ASPIRE panel (spec §4.8, preflight R31): keep `<launch state>/learning.json`
+        for the Spark camera surface. A runtime with a learning state (the kitchen)
+        writes it from now on; any other runtime removes a previous stack's file, so
+        the panel never shows learning this stack does not have. Never fails the build."""
+        state = getattr(self, "_launch_state_dir", None)
+        if state is None:
+            return
+        from ..agent.learning_surface import LEARNING_FILE
+
+        path = state / LEARNING_FILE
+        learning = getattr(runtime, "learning_state", None)
+        try:
+            if learning is None:
+                path.unlink(missing_ok=True)
+            else:
+                learning.add_path(path)
+        except Exception as exc:  # noqa: BLE001 -- the panel never stops the robot
+            print(f"[cascade-mcp] learning panel file {path}: {type(exc).__name__}: {exc}", file=sys.stderr)
 
     # ── programs tier (docs/PROGRAMS_TIER.md, B42) ───────────────────────
 
@@ -715,6 +738,7 @@ class McpSkillServer:
                         self._runtime, self._arm = runtime, arm
                         if not self._bounded:
                             self._runtime.motion_cancel_requested = lambda: self._stop_pending
+                            self._attach_learning_file(runtime)
                         if self._stop_pending:
                             # Publish before checking, so a concurrent STOP
                             # is caught here or by stop_now(). Latch before
@@ -1389,7 +1413,7 @@ class McpSkillServer:
                 raise RuntimeError("no camera rig on this runtime")
             frame = _fresh_camera_frame(rig.get(camera) if camera else rig.primary)
         except Exception as exc:  # noqa: BLE001 -- same envelope as _camera_snapshot
-            return _text_result({"ok": False, "error": str(exc)}, is_error=True)
+            return _text_result(_agent_text({"ok": False, "error": str(exc)}), is_error=True)
         return self._image_result(runtime, frame, camera=camera)
 
     def _call_mobile_tool(self, name, arguments):
@@ -1486,7 +1510,7 @@ class McpSkillServer:
         except Exception:
             pass
         out.update(self._learned_notes(runtime))
-        return out
+        return _agent_text(out)  # the priors are keyed by the agent's own object names
 
     @staticmethod
     def _learned_notes(runtime) -> dict:
@@ -1530,7 +1554,7 @@ class McpSkillServer:
         frames = mem.memory_frames(max(0, k))
         content: list[dict] = []
         for fr in frames:
-            content.append({"type": "text", "text": mem.frame_caption(fr)})
+            content.append({"type": "text", "text": _agent_text(mem.frame_caption(fr))})
             content.append({
                 "type": "image",
                 "data": base64.b64encode(fr["jpeg"]).decode(),
@@ -1560,7 +1584,7 @@ class McpSkillServer:
             ) + (" Fresh current view attached." if current else
                  " Current camera view unavailable; saved frames are history only."),
         }
-        content.append({"type": "text", "text": json.dumps(summary)})
+        content.append({"type": "text", "text": json.dumps(_agent_text(summary))})
         return {"content": content, "isError": False}
 
     def _recall_result(self, runtime, result: dict) -> dict:
@@ -1575,7 +1599,7 @@ class McpSkillServer:
             jpeg = fr.get("jpeg")
             if not jpeg:
                 continue
-            content.append({"type": "text", "text": str(fr.get("caption") or result.get("caption", ""))})
+            content.append({"type": "text", "text": _agent_text(str(fr.get("caption") or result.get("caption", "")))})
             content.append({
                 "type": "image",
                 "data": base64.b64encode(jpeg).decode(),
@@ -1594,12 +1618,12 @@ class McpSkillServer:
                 "note": "effect verification is off (config verify_effects: false)",
             }
         history = checker.history[-5:]
-        return {
+        return _agent_text({  # the evidence names the objects as the agent did
             "ok": True,
             "digest": checker.digest() or "(no verifiable actions yet)",
             "recent": [pc.as_dict() for pc in history],
             "contradictions": [pc.as_dict() for pc in checker.contradictions()[-3:]],
-        }
+        })
 
     # ── programs tier tools (docs/PROGRAMS_TIER.md "MCP chat hosts") ─────
 
@@ -1827,7 +1851,8 @@ class McpSkillServer:
         state["tools_withheld"] = self.withheld_tools()
         state["tools_hidden_by_operator"] = sorted(_hidden_tools())
         state["ok"] = True
-        return state
+        # the held object, the task line and the grasp priors carry the agent's own names
+        return _agent_text(state)
 
     def _camera_snapshot(self, runtime, camera: str | None = None) -> dict:
         from ..skills.runtime import _fresh_camera_frame
@@ -1838,7 +1863,8 @@ class McpSkillServer:
                 frame = (_fresh_camera_frame(rig.get(camera)) if camera and rig is not None
                          else runtime.observe_fresh())
             except Exception as exc:
-                return _text_result({"ok": False, "error": str(exc)}, is_error=True)
+                # the error can quote the camera name the agent asked for
+                return _text_result(_agent_text({"ok": False, "error": str(exc)}), is_error=True)
             return self._image_result(runtime, frame, camera=camera)
 
     def _image_result(self, runtime, frame, payload=None, camera=None, *, annotations=None) -> dict:
@@ -1893,7 +1919,7 @@ class McpSkillServer:
                 },
                 {
                     "type": "text",
-                    "text": json.dumps(result),
+                    "text": json.dumps(_agent_text(result)),  # `camera` is the agent's own argument
                 },
             ],
             "isError": False,
@@ -1930,6 +1956,19 @@ def _short_args(args: dict) -> str:
         return ", ".join(f"{k}={str(v)[:24]}" for k, v in (args or {}).items())
     except Exception:  # noqa: BLE001
         return "?"
+
+
+def _agent_text(value):
+    """`value` with the kitchen rules' triggers withheld from every string in it
+    (`skills.runtime._without_rule_triggers`: R1's retry permission, R5's reply line).
+    Only `SkillRuntime.execute()` ever grants one, on its own result (the sim retry, the
+    learning line); the channels the server answers itself -- world_state, robot_knowledge,
+    verify_last_action, task_memory, recall_step's captions, camera images' metadata and
+    camera errors -- grant nothing, so they carry neither, whatever names the agent used
+    (ASPIRE A9/A10 ruling 1). Text without a trigger comes back as the same object."""
+    from ..skills.runtime import _without_rule_triggers
+
+    return _without_rule_triggers(value)
 
 
 def _text_result(payload: dict, is_error: bool = False) -> dict:
@@ -2105,7 +2144,7 @@ def main() -> int:
         os.environ["CASCADE_RUN_DIR"] = str(run_dir)
         register_process(args.launch_state_dir, owner, os.getpid(), "mcp", run_dir=run_dir)
 
-    server = McpSkillServer()
+    server = McpSkillServer(launch_state_dir=args.launch_state_dir)
     previous_stderr = sys.stderr
     with StopSignals(staff_reset=True) as signals:
         server._signals = signals

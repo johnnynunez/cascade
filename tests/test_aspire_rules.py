@@ -1,13 +1,13 @@
-"""ASPIRE A8: the agent rules and recipes R1-R4 (spec §4.6, as amended by preflight ruling R2), and R5's removal.
+"""ASPIRE A8/A9: the agent rules and recipes R1-R5 (spec §4.6, as amended by preflight ruling R2).
 
 R1 lets the kitchen agent repeat a motion order once, and only when that order's own result says SIMULATION ONLY and
 allows one more attempt: the visitor block, the plugin identity and the attendee pick_and_place description all say
 it, and none of their absolute "one motion per order, no retry" rules is left without it. R2 tells the OpenShell
 route's agent to set a held object down with place_at, on a sim-class profile only (a hardware profile's tool
-catalogue stays main's, spec §6.3). R3 and R4 are kitchen recipes. R5 ("end your reply with the line a tool result
-gives") is gone until a tool result actually grants such a line (A8 follow-ups fix, Minor 1): no word list can tell
-every paraphrase of the line from the agent's own text, so no rule acts on one; the runtime still withholds R5's words
-as defence in depth.
+catalogue stays main's, spec §6.3). R3 and R4 are kitchen recipes. R5 ends the reply with the learning line, and only
+with the one a tool result grants: it quotes the runtime's own instruction ("End your reply with this exact line:"),
+which only the result that grants a line carries (A9; A8 follow-ups fix, Minor 1, removed A8's ungranted wording):
+the runtime withholds R5's words from every other string the agent reads (tests/test_learning_surface.py).
 
 Two cross-checks keep the rules sound:
 - only a retry the ledger granted carries the R1 trigger: a refusal under a halt, an e-stop (also withdrawn or reset
@@ -74,9 +74,12 @@ R1_NEVER_OTHERWISE = "Never retry otherwise, reset automatically or turn a faile
 R3 = ("For an inventory, name describe_scene's detected objects first, call anything else 'also visible, not "
       "detected', and never describe what you cannot see.")
 R4 = "If placement failed, say 'I could not place the <object>:' and the reason from the result."
-#: R5 as A8 wrote it into the visitor block (removed again: A8 follow-ups fix, Minor 1)
-R5 = "If a tool result gives a line to end your reply with, end with exactly that line."
-#: the words of any reply-line rule: none may stand in the rules the agent reads until a result grants a line
+#: R5 as A8 wrote it into the visitor block (removed by the A8 follow-ups fix, Minor 1: no result granted a line)
+R5_A8 = "If a tool result gives a line to end your reply with, end with exactly that line."
+#: R5, grant-based (A9): it quotes the instruction only a result that grants a learning line carries
+#: (`learning_surface.REPLY_LINE_INSTRUCTION`), in the visitor block and the plugin identity
+R5 = "Only when a tool result says 'End your reply with this exact line:', end with exactly that line."
+#: the words of any reply-line rule: none may stand in the rules the agent reads besides R5 itself
 REPLY_LINE_RULE_WORDS = ("end your reply", "end your answer", "end with", "exact line", "exactly that line",
                          "exactly this line", "line to end", "last line", "final line")
 #: the plugin identity (index.mjs:10 and :12)
@@ -122,13 +125,21 @@ def test_r3_r4_are_the_kitchen_recipes():
     assert visitor.count("I could not place the <object>:") == 1
 
 
-def test_no_rule_asks_for_a_reply_line_until_a_result_grants_one():  # A8 follow-ups fix, Minor 1
-    """R5 is gone from the visitor block (it ended the paragraph after R1's remaining
-    prohibition), and neither the plugin identity nor the attendee pick_and_place
-    description asks for a reply line."""
-    visitor = _visitor()
-    assert R5 not in visitor
-    for text in (visitor, _identity(), _attendee("pick_and_place")):
+def test_r5_asks_only_for_the_line_a_result_grants():  # A9; A8 follow-ups fix, Minor 1
+    """R5 is back, grant-based: the visitor block (right after R1's remaining prohibition, where A8 had it) and
+    the plugin identity (right after its retry rule) end the reply with a line only when a tool result carries
+    the runtime's own instruction, which only the result that grants a learning line does. A8's ungranted
+    wording stays gone, no other reply-line rule stands beside R5, and the attendee pick_and_place description
+    asks for none (the result carries the instruction itself)."""
+    from cascade.agent.learning_surface import REPLY_LINE_INSTRUCTION
+
+    quoted = REPLY_LINE_INSTRUCTION.format(line="").strip()
+    assert f"'{quoted}'" in R5 and quoted == "End your reply with this exact line:"
+    visitor, identity = _visitor(), _identity()
+    assert R5_A8 not in visitor
+    assert R1_NEVER_OTHERWISE + " " + R5 in visitor and visitor.count(R5) == 1
+    assert IDENTITY_NO_INVENTION + " " + R5 in identity and identity.count(R5) == 1
+    for text in (visitor.replace(R5, ""), identity.replace(R5, ""), _attendee("pick_and_place")):
         folded = text.casefold()
         assert not [w for w in REPLY_LINE_RULE_WORDS if w in folded], text
 

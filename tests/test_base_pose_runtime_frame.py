@@ -1677,16 +1677,61 @@ def test_a_long_label_never_cuts_the_refusals_way_out(make_runtime, gate_off, st
 
 def test_the_possible_hold_refusal_names_the_arm_whose_close_left_it(make_runtime, gate_off):  # noqa: F811
     """#379's entry refusal (`_possible_hold_refusal`, the skills that open the
-    jaws first) on this arm while ANOTHER arm's close left the provisional hold
-    (R5): it names that arm and the way out on it, never this arm's jaws, and
-    fits the agent's failure line with execute()'s "SkillError: "."""
+    jaws first) covers the running arm's OWN possible hold only (#387 review
+    Minor 2): another arm's provisional hold is refused, naming that arm and
+    the way out on it, by `_refuse_on_another_arms_provisional` (the grasp
+    entries, turn_screw, handover), never with this arm's "my jaws" ask."""
     rt = make_runtime(_pair_world_rig())
     _stalled_provisional(rt, "so101_right", label="red cube")
-    refusal = _in_bound_call(rt, "so101_left", rt._possible_hold_refusal)
-    assert "'red cube' may be held by arm 'so101_right'" in refusal and "not 'so101_left'" in refusal, refusal
-    assert refusal.endswith("then try again; no motion was sent") and len("SkillError: " + refusal) <= 240, refusal
+    assert _in_bound_call(rt, "so101_left", rt._possible_hold_refusal) is None
     # on the arm whose close left it: #379's own refusal (its jaws, unreconciled here)
     assert _in_bound_call(rt, "so101_right", rt._possible_hold_refusal).startswith("the jaw state could not be read")
+
+
+@pytest.mark.parametrize("skill", ["turn_screw", "handover"])
+def test_turn_screw_and_handover_refuse_another_arms_possible_hold(make_runtime, gate_off, monkeypatch, skill):  # noqa: F811
+    """Both open the jaws first and close later: another arm's provisional
+    hold refuses them before any command, a SkillError naming that arm and
+    the way out on it (main's text), never STUCK with this arm's ask."""
+    from cascade.types import SkillError, SkillStuck
+
+    rt = make_runtime(_pair_world_rig())
+    prov = _stalled_provisional(rt, "so101_right", label="red cube")
+    log = _JawLog(rt, monkeypatch)
+    mark = log.mark()
+
+    def refused():
+        with pytest.raises(SkillError) as raised:
+            getattr(rt, f"skill_{skill}")("red cube")
+        return raised.value
+
+    error = _in_bound_call(rt, "so101_left", refused)
+    assert not isinstance(error, SkillStuck), (type(error), error)
+    assert str(error).startswith("'red cube' may be held by arm 'so101_right' (stopped after its close), "
+                                 "not 'so101_left'"), error
+    assert str(error).endswith("then try again; no motion was sent") and len(f"SkillError: {error}") <= 240, error
+    assert log.since(mark) == _NOTHING_SENT and rt._held_provisional is prov
+
+
+def test_close_gripper_on_the_other_arm_with_its_jaws_unread_closes(make_runtime, gate_off, monkeypatch):  # noqa: F811
+    """#387 review Minor 2: so101_right's grasp stopped after its close; on
+    so101_left, whose own jaws cannot be read and hold nothing, close_gripper
+    went STUCK with "my jaws may still hold an object" and its ask
+    (open_gripper on so101_left, ask again) looped on the same STUCK. Only
+    so101_right's jaws may hold the cube: so101_left closes as on main, and
+    the hold stays so101_right's."""
+    rt = make_runtime(_pair_world_rig())
+    prov = _interrupted_right_grasp(rt, monkeypatch)
+    left = raw_arm(rt.arm_rig.get("so101_left"))
+    real = type(left).get_state.__get__(left)
+    monkeypatch.setattr(left, "get_state", lambda: dataclasses.replace(real(), gripper_valid=False))
+    log = _JawLog(rt, monkeypatch)
+    for _ in range(2):                                   # the re-ask too
+        mark = log.mark()
+        result = rt.execute("close_gripper", {"arm": "so101_left"})
+        assert result["ok"] is True and result.get("outcome") != "stuck", result
+        assert log.since(mark) == ({"so101_left": 0, "so101_right": 0}, {"so101_left": 2, "so101_right": 0})
+        assert rt._held_provisional is prov and not rt.held_object
 
 
 def test_already_holding_on_a_single_arm_reads_as_before(make_runtime, gate_off):  # noqa: F811

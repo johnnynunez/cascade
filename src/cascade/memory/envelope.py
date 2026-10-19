@@ -130,6 +130,10 @@ _FAILURE_PATTERNS: tuple[tuple[str, str], ...] = (
     # own "already holding 'X'; place it first" (grasp_object, turn_screw, the
     # scene composites) is the same state, with ";" for ":" (#379 review).
     (r"\bholding [^;:]+[:;] (?:place it first|call move_home first)", "state:holding"),
+    # Another arm holds the object, or may (its grasp stopped after its
+    # close): R5's refusals on this arm (`_held_elsewhere_refusal`), filed by
+    # that state however they are raised, never by the label in front.
+    (r"\b(?:may be|is) held by arm .+, not .+: (?:settle|place) it with arm=", "state:held_by_another_arm"),
     (r"\bthe jaw (?:state could not be read|reading could not be judged)\b"
      r"|\bended in an unfinished contact episode, so the jaws were not read\b", "state:jaws_unreadable"),
     (r"would hit the table|below the table|link/joint \d+", "geometry:link_below_table"),

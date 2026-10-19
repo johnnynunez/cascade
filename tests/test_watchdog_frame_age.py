@@ -29,7 +29,9 @@ import time
 import numpy as np
 import pytest
 from base_pose_oracle import make_runtime, raw_arm  # noqa: F401  (make_runtime: a fixture, by name)
+from conftest import needs_pin
 from test_brain_two_phase_localize import make, tp  # noqa: F401  (fixtures, by name)
+from test_point_at_planning_followups import rig  # noqa: F401  (a fixture, by name)
 
 from cascade.perception.stream import CameraStream
 from cascade.safety.harness import SafetyHarness, SafetyLimits
@@ -487,6 +489,34 @@ def test_slow_analysis_of_a_fresh_frame_keeps_its_own_text():
     assert _analyzed_frame_age_s(frame, 1.0, max_age_s=10.0, age_at_start=6.5) == pytest.approx(7.0, abs=0.5)
 
 
+# ── point_at's look again (#413) on a camera that died at the localization ─
+
+
+@needs_pin
+def test_point_at_look_again_on_a_dead_camera_names_the_camera(rig, monkeypatch):  # noqa: F811
+    """#413's look again after a long plan calls `_localize(memory=False)`. The camera's driver
+    froze at the localization and the plan took 5.6 s, so every frame the look again gets was
+    already stale when it was grabbed: the refusal names the dead camera ("Camera frame is Xs
+    old; wait for the camera to reconnect"). Main (#413 without this branch): "Perception took
+    ... on a frame that was fresh at capture ... the camera is live -- retry". Nothing moves."""
+    from test_point_at_fresh_detection import _Device, _looks, _real_long_plan
+    from test_point_at_planning_followups import _commands
+
+    r = rig("mock")
+    rt = r.runtime
+    _real_long_plan(monkeypatch, seconds=5.6)
+    device = _Device(monkeypatch, rt)
+    looks = _looks(monkeypatch, rt, after_first=lambda frame: device.freeze(None))
+
+    out = rt.execute("point_at", {"label": "red cube"})
+
+    assert len(looks) == 1, "test setup: the look again raises (it returns no frame)"
+    assert out["ok"] is False and _commands(r) == [] and r.jaws == [], out
+    assert "it was not seen again after a long plan" in out["error"], out["error"]
+    assert "StaleFrameError: Camera frame is " in out["error"], out["error"]
+    assert "wait for the camera to reconnect" in out["error"] and "camera is live" not in out["error"], out["error"]
+
+
 # ── the two-phase localization's fresh frame ──────────────────────────────
 
 
@@ -608,7 +638,7 @@ def test_the_calibration_park_beats_at_the_frames_arrival_time(monkeypatch):
     h._last_heartbeat = time.monotonic() - 60.0
     parked = []
     monkeypatch.setattr(demo, "_park_arm", lambda rt: parked.append(h._last_heartbeat))
-    rig = SimpleNamespace(camera=SimpleNamespace(get_frame=lambda: old, close=lambda: None),
-                          safe_arm=SimpleNamespace(harness=h), raw_arm=SimpleNamespace(disconnect=lambda: None))
-    cli._cleanup(rig, park=True)
+    calib_rig = SimpleNamespace(camera=SimpleNamespace(get_frame=lambda: old, close=lambda: None),
+                                safe_arm=SimpleNamespace(harness=h), raw_arm=SimpleNamespace(disconnect=lambda: None))
+    cli._cleanup(calib_rig, park=True)
     assert parked == [old.t]

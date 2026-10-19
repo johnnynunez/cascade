@@ -59,7 +59,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: uv run python scripts/kitchen_assets.py
+      - name: fetch the SO-101 meshes outside the checkout (the jaw-volume STL check)
+        # Into the runner's temp dir, not assets/mjcf/: there the MJCF would
+        # turn on every MuJoCo test. The STL check reads the folder from
+        # CASCADE_SO101_MESHES and FAILS without it in CI (never skips).
+        run: uv run python scripts/fetch_robot_assets.py so101 --assets "$RUNNER_TEMP/so101-assets"
       - run: uv run pytest tests/ deploy/brev/tests/test_public_visitor.py deploy/brev/tests/test_visitor_video.py -q
+        env:
+          CASCADE_SO101_MESHES: ${{ runner.temp }}/so101-assets/mjcf/so101/assets
       - name: verify offline kitchen packaging and portable bundle admission
         run: uv run pytest deploy/brev/tests/test_build_bundle.py deploy/brev/tests/test_prepare_bundle.py -q
 

@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import dataclasses
 import math
+import os
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -2616,7 +2617,49 @@ def test_the_so101_jaw_volume_holds_the_mujoco_jaws_at_every_angle():
                                   f"{np.round(bad[0] * 1000, 1).tolist()} mm (TCP frame)")
 
 
-STL_DIR = REPO / "assets" / "mjcf" / "so101" / "assets"
+#: the SO-101 URDF's STL meshes (`python scripts/fetch_robot_assets.py so101`,
+#: gitignored); CI fetches them outside the checkout and names the folder in
+#: CASCADE_SO101_MESHES (.github/workflows/ci.yml)
+STL_DIR = Path(os.environ.get("CASCADE_SO101_MESHES") or REPO / "assets" / "mjcf" / "so101" / "assets")
+
+
+def _stl_meshes_or_skip(stl_dir: Path, env) -> None:
+    """Where the meshes are EXPECTED (CI, or CASCADE_SO101_MESHES set) a
+    missing mesh fails the check, never skips it silently (#385 review M4);
+    elsewhere it skips, naming what to fetch."""
+    if (stl_dir / "moving_jaw_so101_v1.stl").exists():
+        return
+    why = f"the SO-101 STL meshes are missing from {stl_dir} (`python scripts/fetch_robot_assets.py so101`)"
+    if env.get("CASCADE_SO101_MESHES") or str(env.get("CI", "")).strip().lower() in ("1", "true", "yes"):
+        pytest.fail(f"{why}; they are expected here, so this check fails instead of skipping")
+    pytest.skip(why)
+
+
+def test_the_stl_check_fails_where_its_meshes_are_expected(tmp_path):
+    """CI must run the STL check, never report it as a quiet skip."""
+    for env in ({"CI": "true"}, {"CASCADE_SO101_MESHES": str(tmp_path)}):
+        with pytest.raises(pytest.fail.Exception, match="expected here"):
+            _stl_meshes_or_skip(tmp_path, env)
+    for env in ({}, {"CI": "false"}):
+        with pytest.raises(pytest.skip.Exception, match="fetch_robot_assets"):
+            _stl_meshes_or_skip(tmp_path, env)
+    (tmp_path / "moving_jaw_so101_v1.stl").write_bytes(b"solid x")
+    _stl_meshes_or_skip(tmp_path, {"CI": "true"})
+
+
+def test_ci_fetches_the_so101_meshes_for_the_stl_check():
+    """The CI test job fetches the meshes OUTSIDE the checkout (assets/mjcf
+    would turn on every MuJoCo test) and hands the folder to pytest."""
+    import yaml
+
+    jobs = yaml.safe_load((REPO / ".github" / "workflows" / "ci.yml").read_text())["jobs"]
+    steps = jobs["tests"]["steps"]
+    fetch = next(i for i, st in enumerate(steps) if "fetch_robot_assets.py so101" in str(st.get("run", "")))
+    assert "--assets" in steps[fetch]["run"] and "RUNNER_TEMP" in steps[fetch]["run"], steps[fetch]
+    run = next(i for i, st in enumerate(steps) if str(st.get("run", "")).startswith("uv run pytest tests/"))
+    assert fetch < run, "the meshes must be there before the tests run"
+    where = steps[run].get("env", {}).get("CASCADE_SO101_MESHES", "")
+    assert where.endswith("/mjcf/so101/assets") and "runner.temp" in where, steps[run]
 
 
 def _read_stl(path) -> np.ndarray:
@@ -2648,8 +2691,6 @@ def _triangle_samples(tris, step=0.0015) -> np.ndarray:
 
 
 @needs_pin_so101
-@pytest.mark.skipif(not (STL_DIR / "moving_jaw_so101_v1.stl").exists(),
-                    reason="needs `python scripts/fetch_robot_assets.py so101` (the STL meshes)")
 def test_the_so101_jaw_volume_holds_the_urdf_stl_meshes_at_every_angle():
     """The same check on the real parts, without MuJoCo: the URDF's own
     visual meshes (the STL files, read here) placed by the URDF through
@@ -2660,6 +2701,8 @@ def test_the_so101_jaw_volume_holds_the_urdf_stl_meshes_at_every_angle():
     import pinocchio as pin
 
     from cascade.skills import pointing
+
+    _stl_meshes_or_skip(STL_DIR, os.environ)
 
     acfg, vol = _so101_jaw_volume()
     urdf = SO101_URDF

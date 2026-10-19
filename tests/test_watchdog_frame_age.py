@@ -445,23 +445,20 @@ def test_localize_on_a_dead_camera_says_the_camera_stopped_not_that_it_is_live(m
 
 
 def test_slow_analysis_of_a_fresh_frame_keeps_its_own_text():
-    """A frame fresh when analysis began keeps the slow-perception text (the camera is live)."""
+    """A frame fresh when it was grabbed (or one whose freshness the caller checked before the
+    analysis: no `age_at_start`) keeps the slow-perception text (the camera is live)."""
     from cascade.skills.runtime import SlowPerceptionError, StaleFrameError, _analyzed_frame_age_s
     from cascade.types import Frame
 
     frame = Frame(rgb=np.zeros((2, 2, 3), np.uint8), depth_m=None, K=np.eye(3), t=time.monotonic() - 7.0)
-    with pytest.raises(SlowPerceptionError) as slow:
-        _analyzed_frame_age_s(frame, 6.0)
-    assert not isinstance(slow.value, StaleFrameError)
-    assert "the camera is live" in str(slow.value)
+    for kw in ({}, {"age_at_start": 0.1}, {"age_at_start": 5.0}):
+        with pytest.raises(SlowPerceptionError) as slow:
+            _analyzed_frame_age_s(frame, 6.0, **kw)
+        assert not isinstance(slow.value, StaleFrameError)
+        assert "the camera is live" in str(slow.value)
     with pytest.raises(StaleFrameError, match="Camera frame is 7.0s old; wait for the camera to reconnect"):
-        _analyzed_frame_age_s(frame, 1.0)
-    with pytest.raises(StaleFrameError):
-        _analyzed_frame_age_s(frame, 6.0, age_at_start=5.5)
-    with pytest.raises(SlowPerceptionError) as slow:
-        _analyzed_frame_age_s(frame, 1.0, age_at_start=0.1)
-    assert not isinstance(slow.value, StaleFrameError)
-    assert _analyzed_frame_age_s(frame, 1.0, max_age_s=10.0) == pytest.approx(7.0, abs=0.5)
+        _analyzed_frame_age_s(frame, 1.0, age_at_start=5.5)
+    assert _analyzed_frame_age_s(frame, 1.0, max_age_s=10.0, age_at_start=6.5) == pytest.approx(7.0, abs=0.5)
 
 
 # ── the two-phase localization's fresh frame ──────────────────────────────

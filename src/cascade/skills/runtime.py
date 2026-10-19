@@ -1042,13 +1042,14 @@ def _analyzed_frame_age_s(frame: Frame, analysis_s: float, max_age_s: float = 5.
     """Age of a frame whose freshness was checked BEFORE analysis: past the
     limit now only because the analysis was slow, reported as exactly that.
 
-    `age_at_start`: the frame's age when the analysis began (default: its
-    age now minus `analysis_s`). A frame already past the limit then was
-    stale before any analysis (a dead camera): StaleFrameError, which says
-    so, instead of "fresh at capture ... the camera is live"."""
+    `age_at_start`: the frame's age when it was grabbed, from a caller whose
+    frame was NOT checked before (`_localize`'s fallbacks). A frame already
+    past the limit then was stale before any analysis (a dead camera's last
+    frame): StaleFrameError, which says so, instead of "fresh at capture ...
+    the camera is live"."""
     age = _frame_age_s(frame, max_age_s=float("inf"))
     if age > max_age_s:
-        if (age - analysis_s if age_at_start is None else age_at_start) > max_age_s:
+        if age_at_start is not None and age_at_start > max_age_s:
             raise StaleFrameError(f"Camera frame is {age:.1f}s old; wait for the camera to reconnect")
         raise SlowPerceptionError(
             f"Perception took {analysis_s:.1f}s on a frame that was fresh at capture, so the "

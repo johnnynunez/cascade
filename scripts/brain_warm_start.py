@@ -23,9 +23,10 @@ tokens (13.6 s with the brain alone). So the helper:
      LLAMA_SERVER_SLOTS_DEBUG=1, which the serve script sets). That text is detokenized with llama.cpp's clean_spaces
      (" 're" -> "'re"), so it only tells WHEN the prefix changed and where two sessions' system turns part;
    - then, while no slot is busy, the exact tokens: POST /slots/<id>?action=save (--slot-save-path) writes the slot
-     (~0.1 s of server time, ~0.75 GB for 13.6k tokens), the helper reads the token list from the file's header and
-     deletes the file at once; /detokenize (plain concatenation of the tokens' text) maps the cut points onto those tokens. Once per new
-     prefix (prefixes read before are kept in memory); a slot above --max-capture-tokens is left for a shorter one;
+     (~0.1 s of server time; the file holds the slot's state, its context checkpoints alone ~0.5 GB at 13.6k tokens),
+     the helper reads the token list from the file's header and deletes the file at once; /detokenize (plain
+     concatenation of the tokens' text) maps the cut points onto those tokens. Once per new prefix (prefixes read
+     before are kept in memory); a slot above --max-capture-tokens is left for a shorter one;
    - writes them (0600) to --prefix-file with the system turn of the latest session (to pair it with the next
      session after a restart). A record made with another chat template or model file is not prefilled (the next
      chat replaces it); before the first chat on a host there is nothing to prefill.

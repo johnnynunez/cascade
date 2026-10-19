@@ -5,8 +5,11 @@
 #       --camera mock_small --task "pick and place the red object"
 #
 # Pairs with so101_right_mujoco.yaml. Everything the mock pair says about
-# `base_pose`, the shared workspace and the inter-arm gate (so101_left.yaml's
-# header) holds here unchanged -- this profile only swaps the transport.
+# `base_pose`, the frames (agent coordinates table-frame, `drop_zone` in this
+# arm's base frame), the shared workspace and the inter-arm gate
+# (so101_left.yaml's header) holds here unchanged -- this profile only swaps
+# the transport. The MuJoCo world attaches each arm at its base_pose, so a
+# prop's physics position is table-frame too.
 #
 # HOW TWO MUJOCO ARMS SHARE A WORLD. The loader (config.py) sees two
 # `type: mujoco` arms and plants the same `mj_rig` on both: every arm's

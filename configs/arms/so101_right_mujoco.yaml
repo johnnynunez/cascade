@@ -1,6 +1,8 @@
 # SO-101, RIGHT arm of a two-arm setup, ON PHYSICS -- pairs with
-# so101_left_mujoco.yaml (read its header: how the rig shares one world, and
-# what a rig does not do yet). Same transport swap over so101_right.yaml.
+# so101_left_mujoco.yaml (read its header: how the rig shares one world, the
+# frames, and what a rig does not do yet). Same transport swap over
+# so101_right.yaml: base_pose [0, -0.22, ...] in the table frame, agent
+# coordinates table-frame, `drop_zone` in this arm's base frame.
 extends: so101_right
 
 type: mujoco

@@ -44,6 +44,7 @@ from ..perception.reference import ReferenceResolutionError, parse_reference
 from typing import TYPE_CHECKING, Any, Callable
 
 from ..perception.workspace import WorkspaceFilter
+from ..robot_context import declares_base_pose
 from ..safety import people_guard
 from ..safety.trajectory import ROUTE_LIFT_HEIGHTS_M
 
@@ -3297,6 +3298,16 @@ class SkillRuntime:
         if not getattr(getattr(self.arm, "raw", None), "connected", True):
             return None
         return self._tcp()
+
+    def _tcp_world_if_awake(self) -> np.ndarray | None:
+        """`_tcp_if_awake()` lifted into the table frame by the SAME arm's
+        base_pose, for the viewers (base_pose spec §3.4, R14): on a skill
+        thread the bound arm's TCP and frame, on viewer / MCP threads the
+        primary's. Without a base_pose: `_tcp_if_awake()` itself. Raises
+        ArmFrameError for an unreadable base_pose (callers draw no TCP)."""
+        T = self.T_world_base
+        tcp = self._tcp_if_awake()
+        return tcp if tcp is None else arm_frame.to_world(T, tcp)
 
     def _note_measurement(self, **values) -> None:
         """Record derived envelope features for the current top-level call.
@@ -10322,21 +10333,32 @@ class SkillRuntime:
         path = self.trace.save_keyframe(img, "annotated_view")
         if hasattr(self.camera, "set_overlay"):
             self.camera.set_overlay(status="annotated view")
-        note = (
-            "Objects carry numbered badges; grid values are robot base-frame "
-            "coordinates in metres (X forward, Y left, Z up), not camera range."
-        )
+        table_frame = declares_base_pose(self.cfg)
+        if table_frame:
+            # base_pose spec §3.5: the grid is the running arm's workspace,
+            # drawn where it stands on the table; every number is table-frame.
+            note = ("Objects carry numbered badges; grid values and positions are table-frame "
+                    "coordinates in metres (X forward, Y left, Z up), the same for every arm on this rig, "
+                    "not camera range.")
+            frame_words = ("The grid covers this arm's workspace, drawn in the shared table frame "
+                           "(+X forward, +Y left, +Z up).")
+        else:
+            note = (
+                "Objects carry numbered badges; grid values are robot base-frame "
+                "coordinates in metres (X forward, Y left, Z up), not camera range."
+            )
+            frame_words = "Grid coordinates use the robot base frame (+X forward, +Y left, +Z up)."
         if configured_reach_x(self.cfg) is not None:
             note += " The green band shows the explicitly configured top-down IK band."
         return {
-            "key": VisualInterface.describe(marks),
+            "key": VisualInterface.describe(marks, table_frame=table_frame),
             "objects": [m.as_dict() for m in marks],
             "image": path,
             "note": (
                 "Badges describe tracked estimates, which may be stale or mislabeled. "
                 "No badges does not mean the scene is empty. This refreshes the "
                 "camera image, not object detection; use get_observation to refresh "
-                "tracking. Grid coordinates use the robot base frame (+X forward, +Y left, +Z up). Any shaded grasp band is a "
+                f"tracking. {frame_words} Any shaded grasp band is a "
                 "configured display hint, not an IK or grasp-reachability check."
             ),
         }
@@ -10444,7 +10466,7 @@ class SkillRuntime:
 
             _, marks = annotate_frame(self)
             out["objects"] = [m.as_dict() for m in marks]
-            out["key"] = VisualInterface.describe(marks)
+            out["key"] = VisualInterface.describe(marks, table_frame=declares_base_pose(self.cfg))
         except Exception:
             pass
         if self.live_view is not None:
@@ -11948,12 +11970,13 @@ def tool_specs_for_config(cfg=None):
     import copy
 
     from .. import sim_profile
-    from ..robot_context import arm_profiles
+    from ..robot_context import arm_profiles, declares_base_pose
 
     specs = copy.deepcopy(TOOL_SPECS)
     if cfg is None:
         return specs
     arms = arm_profiles(cfg)
+    table_frame = declares_base_pose(cfg)
     cameras = cfg.get("cameras") or [cfg.camera]
     camera_names = [c.get("name") for c in cameras if c.get("name")]
     unsupported = set.intersection(*(set(a.get("unsupported_skills", [])) for a in arms))
@@ -12012,4 +12035,26 @@ def tool_specs_for_config(cfg=None):
                 " Bare directions default to the robot base frame; use an explicit frame "
                 "for viewer- or tool-relative requests."
             )
+        if table_frame and spec["name"] in TABLE_FRAME_TOOLS:
+            _say_table_frame(spec)
     return specs
+
+
+#: The coordinate tools: their descriptions name the frame of the positions
+#: they take or return (base_pose spec §3.5, D7).
+TABLE_FRAME_TOOLS: frozenset[str] = frozenset({"localize_object", "place_at", "annotated_view", "probe_point"})
+#: Their base-frame wording and its table-frame replacement, on a rig where
+#: any arm declares a base_pose (the agent's coordinates are table-frame, Q1 a).
+_BASE_FRAME_WORDS = (("base-frame grid", "workspace grid drawn in the table frame"),
+                     ("base-frame", "table-frame"), ("the robot's base frame", "the shared table frame"),
+                     ("the robot base frame", "the shared table frame"))
+_TABLE_FRAME_SENTENCE = " Coordinates are in the shared table frame: the same numbers for every arm on this rig."
+
+
+def _say_table_frame(spec: dict) -> None:
+    """A coordinate tool's description in table-frame words, plus the one
+    sentence that says so (base_pose spec §3.5)."""
+    text = spec["description"]
+    for old, new in _BASE_FRAME_WORDS:
+        text = text.replace(old, new)
+    spec["description"] = text + _TABLE_FRAME_SENTENCE

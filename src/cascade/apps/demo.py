@@ -1955,6 +1955,16 @@ def _premotion_critic(cfg, llm, runtime, is_mock: bool):
         verifier = make_plausibility_verifier(llm)
     # `Cfg` and dict both answer .get("min"/"max"), which is all the digest reads.
     workspace = cfg.safety.get("workspace") if "safety" in cfg else None
+    template = None
+    from ..robot_context import declares_base_pose
+
+    if declares_base_pose(cfg):
+        # base_pose spec §3.5 (R11): the beliefs are table-frame; the
+        # workspace box is one arm's, in its own base frame, so it is not
+        # quoted beside them.
+        from ..agent.prompts import PLAUSIBILITY_USER_TABLE_FRAME
+
+        template, workspace = PLAUSIBILITY_USER_TABLE_FRAME, None
     return PlausibilityChecker(
         verifier,
         beliefs=getattr(runtime, "beliefs", None),
@@ -1962,6 +1972,7 @@ def _premotion_critic(cfg, llm, runtime, is_mock: bool):
         max_checks=int(agent_cfg.get("premotion_max_checks", 3)),
         workspace=workspace,
         skip_reason=skip_reason,
+        prompt_template=template,
     )
 
 

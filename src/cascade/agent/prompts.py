@@ -98,6 +98,11 @@ Answer with exactly one word first -- YES if the action is plausible as \
 proposed, NO if it is implausible -- then one sentence of reasons. If the \
 image and the world model do not let you tell, answer UNSURE."""
 
+#: PLAUSIBILITY_USER on a rig where any arm declares a base_pose (base_pose
+#: spec §3.5, R11): the beliefs it lists are in the shared TABLE frame.
+PLAUSIBILITY_USER_TABLE_FRAME = PLAUSIBILITY_USER.replace(
+    "World model (robot base frame, meters;", "World model (shared table frame, meters;")
+
 MATERIAL_USER = """Look at the object in the image crop labeled {label!r}. \
 Classify how a parallel-jaw gripper should treat it. Answer with exactly one \
 word from: rigid, fragile, soft, deformable, slippery, heavy."""

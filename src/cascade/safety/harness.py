@@ -1157,10 +1157,7 @@ class SafetyHarness:
             tcp_prev = self.kin.fk(np.asarray(q_prev, dtype=float))[:3, 3]
             prev_out = np.any(tcp_prev < lo_w) or np.any(tcp_prev > hi_w)
             if not (prev_out and _dist_to_box(tcp) <= _dist_to_box(tcp_prev) + 1e-3):
-                reject(
-                    f"TCP {np.round(tcp, 3).tolist()} outside workspace "
-                    f"[{lo_w.tolist()} .. {hi_w.tolist()}]"
-                )
+                reject(self._workspace_refusal(tcp))
 
         up = self._tool_up_z(T)
         if up is not None and up < self.limits.min_tool_up_z:
@@ -1191,14 +1188,11 @@ class SafetyHarness:
             dxy = float(np.linalg.norm(tcp[:2] - T_prev[:2, 3]))
             ascending = tcp[2] > prev_z + 1e-9 or (dxy < 1e-6 and tcp[2] >= prev_z - 1e-9)
             if not (prev_z < floor and ascending):
-                reject(
-                    f"TCP z={tcp[2]:.3f} below table clearance {floor:.3f} "
-                    "outside the grasp exemption zone"
-                )
+                reject(self._table_clearance_refusal(tcp, floor) + " outside the grasp exemption zone")
 
         for kmin, kmax in self.limits.keep_out:
             if np.all(tcp >= kmin) and np.all(tcp <= kmax):
-                reject(f"TCP inside keep-out zone {kmin.tolist()}..{kmax.tolist()}")
+                reject(self._keep_out_refusal(kmin, kmax))
 
         reason = self._visitor_zone_reason(tcp)
         if reason is not None:
@@ -1221,7 +1215,7 @@ class SafetyHarness:
         elbow_links = links[1:-1] if len(links) > 2 else links[1:]
         for i, p in enumerate(elbow_links, start=2):
             if p[2] < self.limits.table_z + 0.01 and not self._in_grasp_cylinder(p):
-                reject(f"link/joint {i} at z={p[2]:.3f} would hit the table")
+                reject(self._link_table_refusal(i, p))
 
         if self.occupancy is not None:
             # Each map gate files a snapshot report only once it refuses
@@ -1318,18 +1312,15 @@ class SafetyHarness:
             return self._tool_up_reason(up)
         lo_w, hi_w = self.limits.workspace_min, self.limits.workspace_max
         if np.any(tcp < lo_w) or np.any(tcp > hi_w):
-            return (
-                f"TCP {np.round(tcp, 3).tolist()} outside workspace "
-                f"[{lo_w.tolist()} .. {hi_w.tolist()}]"
-            )
+            return self._workspace_refusal(tcp)
 
         floor = self.limits.table_z + self.limits.table_clearance
         if tcp[2] < floor and not self._in_cylinder(tcp, exempt):
-            return f"TCP z={tcp[2]:.3f} below table clearance {floor:.3f}"
+            return self._table_clearance_refusal(tcp, floor)
 
         for kmin, kmax in self.limits.keep_out:
             if np.all(tcp >= kmin) and np.all(tcp <= kmax):
-                return f"TCP inside keep-out zone {kmin.tolist()}..{kmax.tolist()}"
+                return self._keep_out_refusal(kmin, kmax)
 
         reason = self._visitor_zone_reason(tcp)
         if reason is not None:
@@ -1343,7 +1334,7 @@ class SafetyHarness:
         links = self.kin.link_positions(q)
         for i, p in enumerate(links[1:], start=2):
             if p[2] < self.limits.table_z + 0.01 and not self._in_cylinder(p, exempt):
-                return f"link/joint {i} at z={p[2]:.3f} would hit the table"
+                return self._link_table_refusal(i, p)
 
         if self.occupancy is not None:
             ctx = self._gate_ctx("vet_pose", q, None, T)
@@ -1416,6 +1407,42 @@ class SafetyHarness:
         from ..types import transform_points
 
         return transform_points(np.linalg.inv(self.base_pose), points)
+
+    # ── refusal text: agent coordinates are table-frame ──────────────────
+    #
+    # The workspace box, the table plane, keep-outs and every FK point are in
+    # this arm's BASE frame, while the agent reads and sends TABLE-frame
+    # coordinates (base_pose spec Q1 a). On an arm with a base_pose the
+    # refusal texts below quote the same geometry lifted into the table frame
+    # (points and box corners by `base_pose`, a height as the table-frame z of
+    # its point); the decisions themselves never change. Without a base_pose
+    # the text is byte-identical to before.
+
+    def _quoted(self, p) -> list:
+        """A base-frame point as a refusal quotes it: table frame, mm."""
+        return np.round(self._to_map_frame(np.asarray(p, dtype=float)), 3).tolist()
+
+    def _workspace_refusal(self, tcp) -> str:
+        lo_w, hi_w = self.limits.workspace_min, self.limits.workspace_max
+        if self.base_pose is None:
+            return f"TCP {np.round(tcp, 3).tolist()} outside workspace [{lo_w.tolist()} .. {hi_w.tolist()}]"
+        return f"TCP {self._quoted(tcp)} outside workspace [{self._quoted(lo_w)} .. {self._quoted(hi_w)}]"
+
+    def _table_clearance_refusal(self, tcp, floor: float) -> str:
+        if self.base_pose is None:
+            return f"TCP z={tcp[2]:.3f} below table clearance {floor:.3f}"
+        tcp_w = self._to_map_frame(np.asarray(tcp, dtype=float))
+        floor_w = self._to_map_frame(np.array([tcp[0], tcp[1], floor], dtype=float))
+        return f"TCP z={tcp_w[2]:.3f} below table clearance {floor_w[2]:.3f}"
+
+    def _link_table_refusal(self, i: int, p) -> str:
+        z = float(p[2]) if self.base_pose is None else float(self._to_map_frame(np.asarray(p, dtype=float))[2])
+        return f"link/joint {i} at z={z:.3f} would hit the table"
+
+    def _keep_out_refusal(self, kmin, kmax) -> str:
+        if self.base_pose is None:
+            return f"TCP inside keep-out zone {kmin.tolist()}..{kmax.tolist()}"
+        return f"TCP inside keep-out zone {self._quoted(kmin)}..{self._quoted(kmax)}"
 
     def _check_level_tool_mount(self, arm_name: str | None = None) -> None:
         """Refuse a tool volume on a tilted mount (fail closed at build).

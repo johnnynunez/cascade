@@ -105,7 +105,9 @@ _XY_IN_TEXT = re.compile(r"\[(-?\d+(?:\.\d+)?), (-?\d+(?:\.\d+)?)\]")
 _SIGNED_ZERO = re.compile(r"-(?=0\.0*(?![0-9]*[1-9]))")
 _XYZ_IN_TEXT = re.compile(r"\[(-?\d+(?:\.\d+)?), (-?\d+(?:\.\d+)?), (-?\d+(?:\.\d+)?)\]")
 #: "z=<n>" (a height; "+0.000" after `_SIGNED_ZERO`), never "dz=" / "wz=".
-_Z_IN_TEXT = re.compile(r"\bz=([-+]?\d+(?:\.\d+)?)")
+#: Also the harness's "below table clearance <n>" (the clearance plane's
+#: height, table-frame on a base_pose arm): the same height rule.
+_Z_IN_TEXT = re.compile(r"(?:\bz=|\btable clearance )([-+]?\d+(?:\.\d+)?)")
 
 
 def transform(pose) -> np.ndarray:
@@ -398,6 +400,11 @@ def _is_vector(v) -> bool:
             and all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in v))
 
 
+def _height_placeholder(m) -> str:
+    """A quoted height with its number blanked, its words kept."""
+    return m.group(0)[:m.start(1) - m.start(0)] + "<z>"
+
+
 def _key_of(path) -> str | None:
     return next((p for p in reversed(path) if isinstance(p, str)), None)
 
@@ -444,7 +451,7 @@ def _compare(a, b, T, path, problems) -> None:
         pa3, pb3 = _XYZ_IN_TEXT.findall(a), _XYZ_IN_TEXT.findall(b)
         a2, b2 = _XYZ_IN_TEXT.sub("[x, y, z]", a), _XYZ_IN_TEXT.sub("[x, y, z]", b)
         za, zb = _Z_IN_TEXT.findall(a2), _Z_IN_TEXT.findall(b2)
-        a2, b2 = _Z_IN_TEXT.sub("z=<z>", a2), _Z_IN_TEXT.sub("z=<z>", b2)
+        a2, b2 = _Z_IN_TEXT.sub(_height_placeholder, a2), _Z_IN_TEXT.sub(_height_placeholder, b2)
         xa, xb = _XY_IN_TEXT.findall(a2), _XY_IN_TEXT.findall(b2)
         if (_XY_IN_TEXT.sub("[x, y]", a2) != _XY_IN_TEXT.sub("[x, y]", b2) or len(xa) != len(xb)
                 or len(pa3) != len(pb3) or len(za) != len(zb)):

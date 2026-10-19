@@ -83,8 +83,10 @@ R5_A9 = "Only when a tool result says 'End your reply with this exact line:', en
 #: R5, field-based (A9/A10 fix): the top-level `learning_line` field only the runtime writes, in the visitor block
 #: and the plugin identity (`learning_surface.REPLY_LINE_RULE`)
 R5 = "When a tool result has a learning_line field, end your reply with exactly that field's text."
-#: R5 in the attendee pick_and_place description (its 650-character cap), right before its last sentence
-PICK_R5 = "End your reply with any learning_line."
+#: R5 in the attendee pick_and_place description (its 650-character cap), right before its last sentence: the
+#: visitor rule's wording, keyed on the field (#398 review, Minor 3: "End your reply with any learning_line." is gone)
+PICK_R5 = "If the result has a learning_line field, end your reply with that field's text."
+PICK_R5_398 = "End your reply with any learning_line."
 #: the words of any reply-line rule: none may stand in the rules the agent reads besides R5 itself
 REPLY_LINE_RULE_WORDS = ("end your reply", "end your answer", "end with", "exact line", "exactly that line",
                          "exactly this line", "line to end", "last line", "final line", "learning_line",
@@ -140,10 +142,13 @@ def test_r5_keys_on_the_field_only_the_runtime_writes():  # A9/A10 fix; A9; A8 f
     from cascade.agent.learning_surface import LEARNING_LINE_FIELD, REPLY_LINE_RULE
 
     assert LEARNING_LINE_FIELD == "learning_line" and REPLY_LINE_RULE == R5
-    assert f" {LEARNING_LINE_FIELD} field" in R5 and f" {LEARNING_LINE_FIELD}." in PICK_R5
+    assert f" {LEARNING_LINE_FIELD} field" in R5 and f" {LEARNING_LINE_FIELD} field" in PICK_R5
+    assert R5.endswith("end your reply with exactly that field's text.") and PICK_R5.endswith(
+        "end your reply with that field's text.")
     visitor, identity, pick = _visitor(), _identity(), _attendee("pick_and_place")
     for text in (visitor, identity, pick):
         assert R5_A8 not in text and R5_A9 not in text and "End your reply with this exact line" not in text
+        assert PICK_R5_398 not in text
     assert R1_NEVER_OTHERWISE + " " + R5 in visitor and visitor.count(R5) == 1
     assert IDENTITY_NO_INVENTION + " " + R5 in identity and identity.count(R5) == 1
     assert pick.endswith(f" {PICK_R5} {PICK_LAST}") and pick.count(PICK_R5) == 1 and len(pick) < 650

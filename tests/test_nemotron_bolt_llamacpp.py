@@ -278,6 +278,30 @@ def test_check_never_starts_the_helper(prepared, key):
     assert helper_runs(prepared) == []
 
 
+@pytest.mark.parametrize("inherited", ["1", "0", ""])
+@pytest.mark.parametrize("route", ["keyless", "WARM_START=0", "no --slot-save-path"])
+def test_an_inherited_slots_debug_never_reaches_a_server_without_the_warm_start(prepared, key, route, inherited):
+    """#403 review, Minor 1: LLAMA_SERVER_SLOTS_DEBUG from the caller's environment reached a keyless llama-server,
+    whose GET /slots then showed every slot's prompt text to any local process. Without the warm start the script
+    unsets it, whatever its value (llama.cpp may read any value as on)."""
+    env = {"LLAMA_SERVER_SLOTS_DEBUG": inherited}
+    if route == "WARM_START=0":
+        env.update(WARM_START="0", API_KEY_FILE=str(key))
+    elif route == "no --slot-save-path":
+        fake_help(prepared, HELP.replace(" --slot-save-path PATH", ""))
+        env.update(API_KEY_FILE=str(key))
+    result = invoke(prepared, **env)
+    assert "--slot-save-path" not in served(result) and helper_runs(prepared) == []
+    assert started_server(result)["slots_debug"] is None, route
+
+
+@pytest.mark.parametrize("inherited", ["0", "", "1"])
+def test_the_warm_start_sets_slots_debug_to_1_whatever_was_inherited(prepared, key, inherited):
+    """With the warm start on, the helper needs GET /slots prompts: an inherited 0 or empty value would hide them."""
+    result = invoke(prepared, API_KEY_FILE=str(key), LLAMA_SERVER_SLOTS_DEBUG=inherited)
+    assert started_server(result)["slots_debug"] == "1" and helper_runs(prepared)
+
+
 def test_a_missing_warm_start_helper_serves_without_the_warm_start(prepared, key):
     (prepared["repo"] / WARM).unlink()
     result = invoke(prepared, API_KEY_FILE=str(key))

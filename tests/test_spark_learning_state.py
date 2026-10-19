@@ -76,10 +76,15 @@ def test_read_learning_refuses_anything_else(tmp_path, content):
     json.dumps({**LEARNING, "counts": {"promoted": float("nan")}}).encode(),
     json.dumps({**LEARNING, "t": float("inf")}).encode(),
     json.dumps({**LEARNING, "t": float("-inf")}).encode(),
-], ids=["deep unclosed", "deep closed", "NaN", "Infinity", "-Infinity"])
+    b'{"schema": 1, "t": 1e999}',
+    b'{"schema": 1, "t": -1e999}',
+    b'{"schema": 1, "counts": {"promoted": [0.5, 1E+999]}}',
+], ids=["deep unclosed", "deep closed", "NaN", "Infinity", "-Infinity", "1e999", "-1e999", "nested 1E+999"])
 def test_read_learning_refuses_what_a_browser_cannot_parse(tmp_path, content):  # A9/A10 fix, Minor 3
     """Deep nesting (Python's RecursionError, not a ValueError) and NaN / Infinity (Python accepts them, the
-    extension's JSON.parse then fails the whole /state): no `learning` key, never an exception."""
+    extension's JSON.parse then fails the whole /state): no `learning` key, never an exception. A number that
+    overflows a float (`1e999`) is no token Python refuses: it reads as inf and /state would write `Infinity`
+    (#398 review, Minor 1)."""
     cameras = _cameras()
     path = tmp_path / "learning.json"
     path.write_bytes(content)
@@ -170,7 +175,12 @@ def surface(tmp_path):
             servers.append(server)
             threading.Thread(target=server.serve_forever, daemon=True).start()
         origin = f"http://127.0.0.1:{http.server_address[1]}"
-        return lambda path: json.load(urlopen(origin + path, timeout=5))
+
+        def get(path, raw=False):
+            with urlopen(origin + path, timeout=5) as reply:
+                body = reply.read()
+            return body if raw else json.loads(body)
+        return get
 
     yield start
     for server in servers:
@@ -193,6 +203,22 @@ def test_state_includes_learning_only_from_a_valid_file(tmp_path, surface):
     assert "learning" not in get("/state"), "bad JSON: no key"
     path.write_text(json.dumps({**LEARNING, "schema": 2}))
     assert "learning" not in get("/state"), "another schema: no key"
+
+
+def test_state_with_an_overflowing_number_stays_json_a_browser_parses(tmp_path, surface):  # #398 review, Minor 1
+    """A hand-edited or corrupted learning.json holding `1e999`: /state is still strict JSON (no `Infinity`
+    token, which the extension's JSON.parse refuses) and carries no `learning` key; the next valid file shows."""
+    def refuse(name):
+        raise ValueError(f"{name} in /state: no JSON a browser parses")
+
+    path = tmp_path / "learning.json"
+    get = surface(path)
+    path.write_text(json.dumps(LEARNING)[:-1] + ', "t": 1e999}')
+    for route in ("/state", "/api/status"):
+        state = json.loads(get(route, raw=True), parse_constant=refuse)
+        assert "learning" not in state and set(state["cameras"]) == {"kitchen", "worktop", "side"}
+    path.write_text(json.dumps(LEARNING))
+    assert json.loads(get("/state", raw=True), parse_constant=refuse)["learning"] == LEARNING
 
 
 def test_state_without_the_flag_is_main_s(surface):

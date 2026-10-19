@@ -25,7 +25,7 @@ forward. The older [NemoClaw route](#nemoclaw-route-opt-in) (pinned to OpenShell
         │                                               │ $CASCADE_MCP_TOKEN     = placeholder
  robot MCP :18741  cascade.apps.mcp_server              ▼
         ▲   plain HTTP + bearer (loopback only)    OpenShell supervisor (proxy, L7)
-        │  CASCADE_MCP_TOKEN (real)                  - only host.openshell.internal:8081 (Bolt: /v1/*)
+        │  CASCADE_MCP_TOKEN (real)                  - only host.openshell.internal:8081/v1/* (GET, POST)
         └──────────── host.openshell.internal ◄──    - only host.openshell.internal:18741/mcp
                                                      - only for /usr/local/bin/node
  chat  127.0.0.1:18799 ◄── openshell forward ──      - swaps placeholder -> real secret
@@ -78,13 +78,18 @@ The limits:
    server binds `127.0.0.1` either way. The same fallback covers a missing helper, a llama-server
    without `--slot-save-path` and a slot directory that cannot be private.
 2. The slot directory is the user's own, mode 0700, never a symlink. A save needs 4 GiB free
-   there (`--min-free-gb`), else it waits; its file is deleted right after the read.
-3. The sandbox reaches only `GET` and `POST /v1/*` of the Bolt brain (`brain_profile`, OpenShell
-   REST rules): `/slots`, `/completion` and `/props` get 403. Other brains (`--model
-   qwen3.8-27b`) keep the read-write profile.
-4. Not yet verified live (next `up` after this change, ~1 min): a chat still answers, and
-   `scripts/openshell_rig.py exec -- node -e "fetch('http://host.openshell.internal:8081/slots',{headers:{authorization:'Bearer '+process.env.CASCADE_BRAIN_API_KEY}}).then(r=>console.log(r.status))"`
-   prints 403.
+   there before it starts (`--min-free-gb`; its file comes on top), else it waits; the file is
+   deleted right after the read.
+3. The sandbox reaches only `GET` and `POST /v1/*` of every brain (`brain_profile`, OpenShell
+   REST rules): `/slots`, `/completion`, `/props` and `/tokenize` (llama-server), `/metrics`
+   (vLLM) get 403. The profile names no model: Bolt under a custom `ALIAS`, `--model
+   qwen3.8-27b` and Cosmos get the same one (OpenClaw only calls `<brain>/v1`).
+4. Not yet verified live (next `up` after this change, ~1 min per brain): `up` prints no
+   `openshell provider profile update failed`; a chat still answers with no `policy_denied`
+   in the sandbox log; and, with `P=/v1/models`, then `P=/slots` (llama-server) or `P=/metrics`
+   (vLLM), then `P=/props`,
+   `scripts/openshell_rig.py exec -- node -e "fetch('http://host.openshell.internal:8081'+process.argv[1],{headers:{authorization:'Bearer '+process.env.CASCADE_BRAIN_API_KEY}}).then(r=>console.log(r.status))" $P`
+   prints 200, then 403, 403. Do it for Bolt (`up`) and Qwen (`up --model qwen3.8-27b`).
 5. Still trusted with the key: host processes that read `llama.key` (the robot server's
    perception, the helper). `WARM_START=0` closes all of the above.
 

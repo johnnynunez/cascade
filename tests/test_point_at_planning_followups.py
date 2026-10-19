@@ -285,3 +285,322 @@ def test_the_search_order_is_one_class_per_capacity_fastest_first(monkeypatch):
     assert core_speed._search_order({0, 1, 2, 3, 4, 5}) == [[2], [3, 4], [5], [0, 1]]
     monkeypatch.setattr(core_speed, "_capacities", lambda cpus: None)
     assert core_speed._search_order({3, 0, 2}) == [[0], [2], [3]]      # no classes: every core
+
+
+# ── 2. a halt while planning is reported as the halt ───────────────────────
+
+
+def _fire(harness, kind):
+    if kind in ("halt", "halt_then_estop"):
+        harness.halt("operator: stop")
+    if kind in ("estop", "halt_then_estop"):
+        harness.estop("operator e-stop")
+
+
+@needs_pin
+@pytest.mark.parametrize("kind", ["halt", "estop", "halt_then_estop"])
+@pytest.mark.parametrize("where", ["topdown_held", "lean", "route", "wall_cap"])
+def test_a_stop_while_planning_then_a_refusal_reports_the_stop(rig, monkeypatch, where, kind):
+    """The review's rows `eord * halt` (a halt in the top-down search, the
+    lean-in or the route, then their geometric refusal) and `delay9_timer5
+    halt` (a halt, then the 8 s wall cap): main named the geometry or the
+    clock. The halt is what the agent must hear; an e-stop still wins over
+    it; nothing is commanded."""
+    from cascade.skills import pointing
+
+    r = rig("mock")
+    rt = r.runtime
+    harness = rt.arm.harness
+    fired = []
+
+    def once():
+        if not fired:
+            fired.append(True)
+            _fire(harness, kind)
+
+    if where == "topdown_held":
+        rt.beliefs.update("cup", np.array([0.5, 0.4, 0.04]), 0.95, extent=np.array([0.08, 0.06, 0.06]),
+                          top_z=0.08, color="yellow")
+        rt.held_object = "yellow cup"
+
+        def ik(T, q_init=None, *a, **k):
+            once()
+            return SimpleNamespace(q=np.asarray(q_init, float), success=False, error=1.0)
+
+        monkeypatch.setattr(rt.kin, "ik", ik)
+    elif where == "lean":
+        monkeypatch.setattr(pointing, "neighbour_clearance", lambda kin, q, tool, neighbours=(): (0.0, "a stub"))
+        real_lean = pointing.lean_in
+
+        def lean(*a, **k):
+            found = real_lean(*a, **k)
+            once()
+            return pointing.LeanIn(q=None, clearance=found.clearance, solved=found.solved)
+
+        monkeypatch.setattr(pointing, "lean_in", lean)
+    elif where == "route":
+        def route(*a, **k):
+            once()
+            raise pointing.RouteRefused("a stubbed geometric refusal")
+
+        monkeypatch.setattr(pointing, "plan_route", route)
+    else:
+        now = [1000.0]
+        monkeypatch.setattr(pointing, "_wall", lambda: now[0])
+        monkeypatch.setattr(pointing, "PLAN_WALL_S", 8.0)
+        real_check = pointing.Budget.check
+
+        def check(self):
+            if not fired:
+                once()
+                now[0] += 9.0              # the host stalls planning past the wall cap
+            return real_check(self)
+
+        monkeypatch.setattr(pointing.Budget, "check", check)
+
+    out = rt.execute("point_at", {"label": "red cube"})
+
+    assert fired, f"{where} never ran"
+    assert out["ok"] is False and _commands(r) == [] and r.jaws == [], out
+    if kind == "halt":
+        assert out["error"].startswith("MotionHalted: "), out
+        assert "operator: stop" in out["error"], out
+    else:
+        assert out["error"] == "SafetyViolation: e-stop latched", out
+    for geometry in ("leaning in", "while holding", "stubbed geometric", "wall-clock cap", "no pose"):
+        assert geometry not in out["error"], out
+
+
+@needs_pin
+def test_a_halt_while_planning_is_reported_outside_execute_too(rig, monkeypatch):
+    """skill_point_at called directly (no execute(), so no skill halt scope):
+    its own start generation still names the halt."""
+    from cascade.skills import pointing
+    from cascade.types import MotionHalted
+
+    r = rig("mock")
+    rt = r.runtime
+
+    def route(*a, **k):
+        rt.arm.harness.halt("operator: stop")
+        raise pointing.RouteRefused("a stubbed geometric refusal")
+
+    monkeypatch.setattr(pointing, "plan_route", route)
+    with pytest.raises(MotionHalted, match="halted: operator: stop"):
+        rt.skill_point_at("red cube")
+    assert _commands(r) == [] and r.jaws == []
+
+
+@needs_pin
+def test_a_halt_in_the_hold_is_not_remembered_as_a_pointing(rig, monkeypatch):
+    """The fifth place: the halt arrives after the last leg, in the hold. The
+    result already said halted (execute); the gesture is no longer noted as
+    done either, and nothing follows the halt."""
+    r = rig("mock")
+    rt = r.runtime
+    real = rt._move_joints
+    calls = []
+
+    def move(q, *a, **k):
+        ok = real(q, *a, **k)
+        calls.append(len(_commands(r)))
+        rt.arm.harness.halt("operator: stop")
+        return ok
+
+    monkeypatch.setattr(rt, "_move_joints", move)
+    out = rt.execute("point_at", {"label": "red cube"})
+
+    assert len(calls) == 1, "test setup: a direct route (one leg, then the hold)"
+    assert out["ok"] is False and "MotionHalted: halted: operator: stop" in out["error"], out
+    assert len(_commands(r)) == calls[0]
+    assert not [e for e in rt.memory.events(("action",)) if "pointed at" in e.text]
+
+
+# ── 3. a long plan looks at the target again before the first command ──────
+
+
+def _shifted(fix, d):
+    """The fix moved by d[:3]; a fourth entry raises its points (its observed
+    top) that much more, its centre staying where it is (a taller object)."""
+    from dataclasses import replace
+
+    d = np.asarray(d, float)
+    points = np.asarray(fix.points, float) + d[:3]
+    if len(d) > 3:
+        points = points + [0.0, 0.0, d[3]]
+    return replace(fix, position=np.asarray(fix.position, float) + d[:3], points=points)
+
+
+def _long_plans(monkeypatch, seconds=4.0):
+    """Each route planning takes `seconds` of (fake) wall time."""
+    from cascade.skills import pointing
+
+    now = [1000.0]
+    monkeypatch.setattr(pointing, "_wall", lambda: now[0])
+    monkeypatch.setattr(pointing, "FRESH_PLAN_S", 3.0, raising=False)
+    real_route = pointing.plan_route
+
+    def route(*a, **k):
+        now[0] += seconds
+        return real_route(*a, **k)
+
+    monkeypatch.setattr(pointing, "plan_route", route)
+    return now
+
+
+def _localizations(monkeypatch, rt, shifts):
+    """`_localize` answers the real fix moved by shifts[i] on its i-th call
+    (the last shift repeats); a shift that is an exception is raised."""
+    real = rt._localize
+    calls = []
+
+    def localize(label, *a, **k):
+        frame, fix = real(label, *a, **k)
+        d = shifts[min(len(calls), len(shifts) - 1)]
+        calls.append(fix)
+        if isinstance(d, Exception):
+            raise d
+        return frame, _shifted(fix, d)
+
+    monkeypatch.setattr(rt, "_localize", localize)
+    return calls
+
+
+def _tcp_xy(r, q):
+    return np.asarray(r.runtime.kin.fk(q), float)[:2, 3]
+
+
+@needs_pin
+def test_a_long_plan_replans_toward_where_the_target_is_now(rig, monkeypatch):
+    """Planning took 4 s; the target is 3 cm away from where it was planned
+    for. main moved to the stale pose. Now it is planned once more, from the
+    fresh fix, and the arm points there."""
+    r = rig("mock")
+    rt = r.runtime
+    _long_plans(monkeypatch)
+    calls = _localizations(monkeypatch, rt, [(0.0, 0.0, 0.0), (0.0, 0.03, 0.0)])
+
+    out = rt.execute("point_at", {"label": "red cube"})
+
+    assert out["ok"] is True, out
+    stale = np.asarray(calls[0].position, float)[:2]
+    fresh = stale + [0.0, 0.03]
+    final = _tcp_xy(r, _commands(r)[-1])
+    assert np.linalg.norm(final - fresh) < 2e-3, (final, fresh)
+    assert np.linalg.norm(final - stale) > 0.02
+    # the first plan, a look, the plan from the fresh fix (4 s too), a look that confirms it
+    assert len(calls) == 3
+    assert out["position"] == pytest.approx([round(float(x), 3) for x in rt._to_world(calls[0].position + [0, .03, 0])])
+
+
+@needs_pin
+def test_a_long_plan_with_the_target_still_there_moves_as_planned(rig, monkeypatch):
+    """5 mm (perception noise, within FRESH_MOVE_M): the plan stands."""
+    r = rig("mock")
+    rt = r.runtime
+    _long_plans(monkeypatch)
+    calls = _localizations(monkeypatch, rt, [(0.0, 0.0, 0.0), (0.0, 0.005, 0.0)])
+
+    out = rt.execute("point_at", {"label": "red cube"})
+
+    assert out["ok"] is True, out
+    assert len(calls) == 2, "planning took 4 s: the target must be looked at again"
+    stale = np.asarray(calls[0].position, float)[:2]
+    assert np.linalg.norm(_tcp_xy(r, _commands(r)[-1]) - stale) < 2e-3
+
+
+@needs_pin
+@pytest.mark.parametrize("again", [(0.0, 0.06, 0.0), (0.0, 0.03, 0.0, 0.015)], ids=["sideways", "its_top_rose"])
+def test_a_target_that_moved_again_while_replanning_is_refused(rig, monkeypatch, again):
+    """Planned once more and it moved again (sideways, or its top rose 1.5
+    cm, its centre staying): refused, nothing commanded (one re-plan only;
+    never toward a stale pose)."""
+    r = rig("mock")
+    rt = r.runtime
+    _long_plans(monkeypatch)
+    calls = _localizations(monkeypatch, rt, [(0.0, 0.0, 0.0), (0.0, 0.03, 0.0), again])
+
+    out = rt.execute("point_at", {"label": "red cube"})
+
+    assert len(calls) == 3
+    assert out["ok"] is False and _commands(r) == [] and r.jaws == [], out
+    assert "moved" in out["error"] and "nothing was moved" in out["error"], out
+
+
+@needs_pin
+def test_a_fresh_fix_that_is_not_finite_counts_as_moved(rig, monkeypatch):
+    """NaN in the fresh fix is never read as 'not moved' (the plan from it
+    then refuses the non-finite top); nothing moves."""
+    r = rig("mock")
+    rt = r.runtime
+    _long_plans(monkeypatch)
+    calls = _localizations(monkeypatch, rt, [(0.0, 0.0, 0.0), (0.0, 0.0, 0.0, math.nan)])
+
+    out = rt.execute("point_at", {"label": "red cube"})
+
+    assert len(calls) == 2
+    assert out["ok"] is False and _commands(r) == [] and r.jaws == [], out
+    assert "not a finite height" in out["error"], out
+
+
+@needs_pin
+def test_a_target_not_found_again_after_a_long_plan_is_refused(rig, monkeypatch):
+    from cascade.types import SkillError
+
+    r = rig("mock")
+    rt = r.runtime
+    _long_plans(monkeypatch)
+    calls = _localizations(monkeypatch, rt, [(0.0, 0.0, 0.0), SkillError("No current visual match for 'red cube'")])
+
+    out = rt.execute("point_at", {"label": "red cube"})
+
+    assert len(calls) == 2
+    assert out["ok"] is False and _commands(r) == [] and r.jaws == [], out
+    assert "No current visual match" in out["error"], out
+
+
+@needs_pin
+def test_the_replan_runs_on_what_is_left_of_the_same_budget(rig, monkeypatch):
+    """5 s per plan against the 8 s wall cap: the second plan runs past it
+    and refuses (a fresh budget would have let it finish)."""
+    from cascade.skills import pointing
+
+    r = rig("mock")
+    rt = r.runtime
+    monkeypatch.setattr(pointing, "PLAN_WALL_S", 8.0)
+    _long_plans(monkeypatch, seconds=5.0)
+    calls = _localizations(monkeypatch, rt, [(0.0, 0.0, 0.0), (0.0, 0.03, 0.0)])
+
+    out = rt.execute("point_at", {"label": "red cube"})
+
+    assert len(calls) == 2
+    assert out["ok"] is False and _commands(r) == [] and r.jaws == [], out
+    assert "8.0 s wall-clock cap" in out["error"], out
+
+
+@needs_pin
+def test_a_short_plan_does_not_look_again(rig, monkeypatch):
+    from cascade.skills import pointing
+
+    r = rig("mock")
+    rt = r.runtime
+    monkeypatch.setattr(pointing, "_wall", lambda: 1000.0)       # planning takes no wall time
+    monkeypatch.setattr(pointing, "FRESH_PLAN_S", 3.0, raising=False)
+    calls = _localizations(monkeypatch, rt, [(0.0, 0.0, 0.0), (0.0, 0.03, 0.0)])
+
+    out = rt.execute("point_at", {"label": "red cube"})
+
+    assert out["ok"] is True and len(calls) == 1, out
+
+
+def test_the_shipped_freshness_rule_is_pinned():
+    import ast
+    import inspect
+
+    from cascade.skills import pointing
+
+    shipped = {node.targets[0].id: ast.unparse(node.value) for node in ast.parse(inspect.getsource(pointing)).body
+               if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name)}
+    assert shipped["FRESH_PLAN_S"] == "3.0"
+    assert shipped["FRESH_MOVE_M"] == "AIM_TOLERANCE_M"
+    assert pointing.AIM_TOLERANCE_M == 0.01

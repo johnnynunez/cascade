@@ -75,6 +75,10 @@ holding: the payload in the jaws is not modelled, so that start refuses.
 Planning runs against a budget (`Budget`): PLAN_BUDGET_S of the planning
 thread's CPU time (stretched on a core slower than the host's fastest,
 `core_factor`) and PLAN_WALL_S of wall time; past either, point_at refuses.
+Planning that took longer than FRESH_PLAN_S of wall time looks at the target
+again before the first command (`fix_moved_m`): moved more than FRESH_MOVE_M,
+it is planned once more from where it is now, on what is left of the same
+budget, and refused if it moved again; never a move toward a stale pose.
 
 The jaws close (`Route.close_at`) at the first pose of the route where their
 `sweep` samples keep `margin` from the target, every neighbour and the table
@@ -157,6 +161,13 @@ PLAN_WALL_S = 8.0
 #: core is than the host's fastest (`core_factor`), never past PLAN_WALL_S;
 #: a core within this ratio of the fastest counts as it (timing noise)
 SLOWER_CORE_MIN = 1.25
+#: Up to PLAN_WALL_S can pass between the target's localization and the
+#: first command. Planning that took longer than this (s, wall) looks at the
+#: target again before that command (#399 review Minor 3, `fix_moved_m`) ...
+FRESH_PLAN_S = 3.0
+#: ... and plans once more, from where it is now, when it moved more than
+#: this (m: its centre or its observed top), the pose's own aim tolerance
+FRESH_MOVE_M = AIM_TOLERANCE_M
 #: the planning clocks (tests replace them): the calling thread's CPU time,
 #: and wall time
 _clock = time.thread_time
@@ -269,6 +280,19 @@ class Budget:
 def _check(budget) -> None:
     if budget is not None:
         budget.check()
+
+
+def fix_moved_m(before, after) -> float:
+    """How far a target moved between two fixes (`ObjectFix`): its centre,
+    or its observed top (the highest point, what point_at keeps the margin
+    above), whichever moved more (m). NaN when either is not finite."""
+    def top(fix):
+        pts = np.asarray(fix.points, dtype=float).reshape(-1, 3)
+        return float(pts[:, 2].max()) if len(pts) else math.nan
+
+    centre = float(np.linalg.norm(np.asarray(after.position, dtype=float) - np.asarray(before.position, dtype=float)))
+    raised = abs(top(after) - top(before))
+    return max(centre, raised) if math.isfinite(centre) and math.isfinite(raised) else math.nan
 
 
 # ── the object columns ─────────────────────────────────────────────────────

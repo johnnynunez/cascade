@@ -190,7 +190,7 @@ class FakeLlamaServer:
         self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
 
     def slot_json(self, slot):
-        out = {"id": slot["id"], "id_task": slot.get("id_task"), "is_processing": False}
+        out = {"id": slot["id"], "id_task": slot.get("id_task"), "is_processing": slot.get("busy", False)}
         if slot.get("text") is not None:
             out["n_prompt_tokens"] = slot.get("n_prompt_tokens", len(tokenize(slot["text"])))
             if not self.hide_prompts:                 # the task's prompt, special tokens spelled out, cleaned
@@ -518,6 +518,19 @@ def test_the_latest_openclaw_request_is_recorded(run, env):
         stop(proc)
     assert record_of(proc)["tokens"] == tokenize(other)
     assert [r["path"] for r in fake.seen("POST", "/slots/")] == ["/slots/1?action=save"]
+
+
+def test_a_slot_is_saved_only_while_the_server_is_idle(run, env):
+    # The save runs on llama-server's main loop (~0.1 s): never while a request is being served.
+    busy = {"id": 1, "id_task": 5, "text": PERCEPTION, "busy": True}
+    with FakeLlamaServer(env / "slots", slots=[{"id": 0, "id_task": 4, "text": rendered("aaaa")}, busy]) as fake:
+        proc = run(fake)
+        assert wait_for(lambda: len(fake.seen("GET", "/slots")) >= 4)
+        assert not fake.seen("POST", "/slots/")
+        busy["busy"] = False
+        assert wait_for(lambda: proc["prefix_file"].exists())
+        stop(proc)
+    assert len(fake.seen("POST", "/slots/")) == 1
 
 
 def test_a_long_slot_is_not_saved_to_record(run, env):

@@ -22,9 +22,9 @@ tokens (13.6 s with the brain alone). So the helper:
    - every --record-every seconds GET /slots shows each slot's last prompt (llama-server lists it only with
      LLAMA_SERVER_SLOTS_DEBUG=1, which the serve script sets). That text is detokenized with llama.cpp's clean_spaces
      (" 're" -> "'re"), so it only tells WHEN the prefix changed and where two sessions' system turns part;
-   - then the exact tokens: POST /slots/<id>?action=save (--slot-save-path) writes the slot (~0.1 s of server time,
-     ~1 GB written for 13.6k tokens), the helper reads the token list from the file's header and deletes the file at
-     once; /detokenize (plain concatenation of the tokens' text) maps the cut points onto those tokens. Once per new
+   - then, while no slot is busy, the exact tokens: POST /slots/<id>?action=save (--slot-save-path) writes the slot
+     (~0.1 s of server time, ~0.75 GB for 13.6k tokens), the helper reads the token list from the file's header and
+     deletes the file at once; /detokenize (plain concatenation of the tokens' text) maps the cut points onto those tokens. Once per new
      prefix (prefixes read before are kept in memory); a slot above --max-capture-tokens is left for a shorter one;
    - writes them (0600) to --prefix-file with the system turn of the latest session (to pair it with the next
      session after a restart). A record made with another chat template or model file is not prefilled (the next
@@ -371,6 +371,8 @@ def main(argv=None) -> int:
                         large = want
                         log(f"a changed OpenClaw prefix sits in a {slot['n_prompt_tokens']}-token slot; "
                             "recording it from a shorter one")
+                elif entry is None and any(s.get("is_processing") for s in slots if isinstance(s, dict)):
+                    next_read = time.monotonic() + min(args.record_every, 2.0)  # save a slot only while idle
                 elif entry is None and tries.get(want, 0) < CAPTURE_TRIES:
                     tries[want] = tries.get(want, 0) + 1
                     t1 = time.monotonic()

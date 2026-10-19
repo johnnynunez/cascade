@@ -2,9 +2,10 @@
 
 The helper runs beside llama-server (scripts/serve_nemotron_bolt_llamacpp.sh starts it). Once the server answers
 /health it prefills the last recorded OpenClaw prefix TOKENS (stable system text + tool block, as the server itself
-tokenized them) into every slot with ONE raw /completion (n_cmpl = slots). While the server runs it notices a changed
-OpenClaw prefix in GET /slots (text detokenized with clean_spaces, so unusable as a prompt) and reads the exact tokens
-from a slot file (POST /slots/<id>?action=save), deleted at once.
+tokenized them) into every slot with a raw /completion (n_cmpl = slots), then what the last two sessions shared after
+OpenClaw's boundary. While the server runs it notices a changed prefix in GET /slots (text detokenized with
+clean_spaces, so unusable as a prompt) and reads the exact tokens from a slot file (POST /slots/<id>?action=save),
+deleted at once.
 
 Here a fake llama-server on an OS-assigned loopback port answers those endpoints with a character tokenizer (BOS + one
 token per character), a lossy /slots text (no space before a quote or a comma, like llama.cpp's clean_spaces) and slot
@@ -46,9 +47,13 @@ TOOLS = [{"type": "function", "function": {
 
 
 def dynamic(session: str, date: str = "2026-10-18") -> str:
-    return (f"{MARK}\n## Temporal Context\nCurrent date: {date}\n## Runtime\nRuntime: agent=main | "
-            f"session=agent:main:dashboard:{session} | sessionId={session} | model=cascade/nemotron-3.5-bolt\n"
-            "<!-- /openclaw:attempt:DYNAMIC -->")
+    return (f"{MARK}\n## Temporal Context\nCurrent date: {date}\nTime zone: UTC , local\n## Runtime\n"
+            f"Runtime: agent=main | session=agent:main:dashboard:{session} | sessionId={session} | "
+            "model=cascade/nemotron-3.5-bolt\n<!-- /openclaw:attempt:DYNAMIC -->")
+
+
+#: What every session of the day shares after OpenClaw's boundary, up to its session ids (exact text).
+SHARED = "\n\n" + dynamic("")[:dynamic("").index("dashboard:") + len("dashboard:")]
 
 
 def openclaw_messages(session: str, order: str = "What do you see on the table?", date: str = "2026-10-18"):
@@ -167,8 +172,9 @@ class FakeLlamaServer:
                     self._reply(200, one if body.get("n_cmpl", 1) == 1 else [one] * body["n_cmpl"])
                 elif url.path.startswith("/slots/") and parse_qs(url.query).get("action") == ["save"]:
                     slot = next(s for s in fake.slots if s["id"] == int(url.path.rsplit("/", 1)[1]))
-                    if fake.save_status == 200:
-                        (fake.save_dir / body["filename"]).write_bytes(slot_file(tokenize(slot["text"])))
+                    if fake.save_status == 200:                # "file_text": the slot ran another request since
+                        text = slot.get("file_text", slot["text"])
+                        (fake.save_dir / body["filename"]).write_bytes(slot_file(tokenize(text)))
                     self._reply(fake.save_status, {"id_slot": slot["id"], "filename": body["filename"]})
                 elif url.path == "/detokenize":
                     self._reply(200, {"content": detokenize(body["tokens"])})
@@ -187,8 +193,8 @@ class FakeLlamaServer:
         out = {"id": slot["id"], "id_task": slot.get("id_task"), "is_processing": False}
         if slot.get("text") is not None:
             out["n_prompt_tokens"] = slot.get("n_prompt_tokens", len(tokenize(slot["text"])))
-            if not self.hide_prompts:
-                out["prompt"] = cleaned(slot["text"])
+            if not self.hide_prompts:                 # the task's prompt, special tokens spelled out, cleaned
+                out["prompt"] = cleaned(detokenize(tokenize(slot["text"])))
         return out
 
     def __enter__(self):
@@ -260,11 +266,17 @@ def wait_for(predicate, timeout=10.0):
     return False
 
 
-def write_record(env: Path, tokens, **override):
+def write_record(env: Path, tokens, extension=(), **override):
     m = load_module()
     record = {"template": m.template_id(str(env / "template.jinja")), "model": m.model_id(str(env / "model.gguf")),
-              "text": cleaned(PREFIX), "tokens": tokens, **override}
+              "text": cleaned(PREFIX), "tokens": tokens, "shared": cleaned(SHARED.lstrip()) if extension else "",
+              "extension": list(extension), "last": "", **override}
     m.write_record(env / "state" / "prefix.json", record)
+
+
+def ext(text: str) -> list[int]:
+    """The fake server's tokens of text that follows the prefix (no BOS)."""
+    return [ord(c) for c in text]
 
 
 def record_of(proc) -> dict:
@@ -274,21 +286,23 @@ def record_of(proc) -> dict:
         return {}
 
 
-def test_waits_for_readiness_then_prefills_every_slot_once_with_the_recorded_tokens(run, env):
-    write_record(env, tokenize(PREFIX))
+def test_waits_for_readiness_then_prefills_every_slot_with_the_recorded_tokens(run, env):
+    write_record(env, tokenize(PREFIX), ext(SHARED))
     with FakeLlamaServer(env / "slots", unready=5) as fake:
         proc = run(fake)
-        assert wait_for(lambda: fake.seen("POST", "/completion"))
+        assert wait_for(lambda: len(fake.seen("POST", "/completion")) == 2)
         time.sleep(0.3)
         log = stop(proc)
     health = fake.seen("GET", "/health")
-    (warm,) = fake.seen("POST", "/completion")
-    assert len(health) == 6 and max(r["t"] for r in health) < warm["t"]   # 5 x 503 "loading", 200, then the warm-up
-    # One raw token prompt (no chat, so no user turn), copied to both slots, one token generated.
-    assert warm["body"] == {"prompt": tokenize(PREFIX), "n_predict": 1, "n_cmpl": 2, "cache_prompt": True,
-                            "temperature": 0.0}
-    assert warm["auth"] == f"Bearer {KEY}"
-    assert "warmed 2 slot(s)" in log and KEY not in log and KEY not in " ".join(proc["argv"])
+    prefix, shared = fake.seen("POST", "/completion")
+    assert len(health) == 6 and max(r["t"] for r in health) < prefix["t"]  # 5 x 503 "loading", 200, then the warm-up
+    # Raw token prompts (no chat, so no user turn), copied to both slots, one token generated: first the prefix before
+    # OpenClaw's boundary, then what its sessions share after it (the first step's checkpoints stay for another day).
+    assert prefix["body"] == {"prompt": tokenize(PREFIX), "n_predict": 1, "n_cmpl": 2, "cache_prompt": True,
+                              "temperature": 0.0}
+    assert shared["body"] == {**prefix["body"], "prompt": tokenize(PREFIX + SHARED)}
+    assert prefix["auth"] == shared["auth"] == f"Bearer {KEY}"
+    assert log.count("warmed 2 slot(s)") == 2 and KEY not in log and KEY not in " ".join(proc["argv"])
 
 
 def test_without_a_record_nothing_is_prefilled_and_the_first_openclaw_request_is_recorded_exactly(run, env):
@@ -313,18 +327,104 @@ def test_without_a_record_nothing_is_prefilled_and_the_first_openclaw_request_is
     assert tokenize(later)[:len(tokens)] == tokens
 
 
+def test_two_sessions_record_what_they_share_after_the_boundary_as_the_server_tokenized_it(run, env):
+    # Rendered by cascade's template: what a new chat reuses from the previous one, up to the session ids. The /slots
+    # text dropped the space in "UTC , local"; the record holds the server's own tokens.
+    first = render(messages=openclaw_messages("1e6f762d-0b80"), tools=TOOLS)
+    second = render(messages=openclaw_messages("92798453-b3e7", "Reset the scene."), tools=TOOLS)
+    with FakeLlamaServer(env / "slots", slots=[{"id": 0, "id_task": 7, "text": first},
+                                               {"id": 1, "id_task": 9, "text": second}]) as fake:
+        proc = run(fake)
+        assert wait_for(lambda: proc["prefix_file"].exists())
+        time.sleep(0.5)
+        log = stop(proc)
+    record = record_of(proc)
+    stable = first[:first.index(MARK)].rstrip()
+    assert record["tokens"] == tokenize(stable)
+    assert detokenize(record["extension"]) == SHARED and "UTC , local" in SHARED
+    assert record["shared"] == cleaned(SHARED.lstrip())
+    assert [r["path"] for r in fake.seen("POST", "/slots/")] == ["/slots/1?action=save"]    # one slot save
+    assert "+ 0 its sessions share" not in log
+    # No drift: a third session (another order) starts with exactly those tokens; its own ids come right after.
+    third = render(messages=openclaw_messages("5a5a5a5a", "Wave."), tools=TOOLS)
+    assert tokenize(third)[:len(record["tokens"]) + len(record["extension"])] == record["tokens"] + record["extension"]
+    assert third[len(stable) + len(SHARED):].startswith("5a5a5a5a")
+
+
+def test_session_ids_that_start_alike_are_not_shared(run, env):
+    with FakeLlamaServer(env / "slots", slots=[{"id": 0, "id_task": 7, "text": rendered("1e6f762d")},
+                                               {"id": 1, "id_task": 9, "text": rendered("1a2b3c4d")}]) as fake:
+        proc = run(fake)
+        assert wait_for(lambda: proc["prefix_file"].exists())
+        stop(proc)
+    assert detokenize(record_of(proc)["extension"]) == SHARED      # up to "dashboard:", not "dashboard:1"
+
+
+def test_follow_ups_of_one_session_share_their_whole_system_turn_and_extend_nothing(run, env):
+    with FakeLlamaServer(env / "slots", slots=[{"id": 0, "id_task": 7, "text": rendered("1e6f762d", "First.")},
+                                               {"id": 1, "id_task": 9, "text": rendered("1e6f762d", "Then.")}]) as fake:
+        proc = run(fake)
+        assert wait_for(lambda: proc["prefix_file"].exists())
+        time.sleep(0.5)
+        stop(proc)
+    assert record_of(proc)["tokens"] == tokenize(PREFIX) and record_of(proc)["extension"] == []
+
+
+def test_the_session_of_the_previous_run_pairs_with_the_first_session_after_a_restart(run, env):
+    with FakeLlamaServer(env / "slots", slots=[{"id": 0, "id_task": 2, "text": rendered("1e6f762d")}]) as fake:
+        proc = run(fake)                                              # one session: the prefix alone
+        assert wait_for(lambda: proc["prefix_file"].exists())
+        stop(proc)
+    assert record_of(proc)["extension"] == [] and "1e6f762d" in record_of(proc)["last"]
+    with FakeLlamaServer(env / "slots", slots=[{"id": 0, "id_task": 3, "text": rendered("92798453")}]) as fake:
+        proc = run(fake)                                              # the next start, then a new session
+        assert wait_for(lambda: record_of(proc)["extension"])
+        stop(proc)
+    assert [r["body"]["prompt"] for r in fake.seen("POST", "/completion")] == [tokenize(PREFIX)]
+    assert detokenize(record_of(proc)["extension"]) == SHARED
+    with FakeLlamaServer(env / "slots") as fake:
+        proc = run(fake)                                              # and the start after: both steps
+        assert wait_for(lambda: len(fake.seen("POST", "/completion")) == 2)
+        stop(proc)
+    assert [r["body"]["prompt"] for r in fake.seen("POST", "/completion")] == [tokenize(PREFIX),
+                                                                                 tokenize(PREFIX + SHARED)]
+
+
+def test_a_new_day_records_what_its_sessions_share(run, env):
+    write_record(env, tokenize(PREFIX), ext(SHARED))
+    new_day = SHARED.replace("2026-10-18", "2026-10-19")
+    slots = [{"id": 0, "id_task": 4, "text": rendered("1e6f762d").replace("2026-10-18", "2026-10-19")},
+             {"id": 1, "id_task": 5, "text": rendered("92798453").replace("2026-10-18", "2026-10-19")}]
+    with FakeLlamaServer(env / "slots", slots=slots) as fake:
+        proc = run(fake)
+        assert wait_for(lambda: detokenize(record_of(proc).get("extension", [])) == new_day)
+        stop(proc)
+    assert record_of(proc)["tokens"] == tokenize(PREFIX)
+
+
+def test_a_slot_that_ran_another_request_before_it_was_saved_is_not_recorded(run, env):
+    # GET /slots showed one OpenClaw request; by the time the slot is saved it holds another prompt.
+    with FakeLlamaServer(env / "slots", slots=[{"id": 0, "id_task": 4, "text": rendered("aaaa"),
+                                                "file_text": rendered("aaaa", prefix=PREFIX.replace("Find", "Seek"))}]) as fake:
+        proc = run(fake)
+        assert wait_for(lambda: len(fake.seen("POST", "/slots/")) == 3)
+        time.sleep(0.3)
+        log = stop(proc)
+    assert not proc["prefix_file"].exists() and "could not read the tokens" in log
+
+
 def test_a_restart_prefills_what_the_previous_run_recorded(run, env):
     with FakeLlamaServer(env / "slots", slots=[{"id": 1, "id_task": 2, "text": rendered("1e6f762d")}]) as fake:
         proc = run(fake)
         assert wait_for(lambda: proc["prefix_file"].exists())
         stop(proc)
-    with FakeLlamaServer(env / "slots", slots=[{"id": 0, "id_task": 9, "text": rendered("2f00aa11")}]) as fake:
-        proc = run(fake)                                              # the next start, then a chat
+    with FakeLlamaServer(env / "slots", slots=[{"id": 0, "id_task": 9, "text": rendered("1e6f762d", "Then.")}]) as fake:
+        proc = run(fake)                                              # the next start, then that session goes on
         assert wait_for(lambda: fake.seen("POST", "/completion"))
         time.sleep(0.5)
         stop(proc)
     assert fake.seen("POST", "/completion")[0]["body"]["prompt"] == tokenize(PREFIX)
-    assert not fake.seen("POST", "/slots/")      # the same prefix again: no slot is saved
+    assert not fake.seen("POST", "/slots/")      # the same prefix, the same session: no slot is saved
 
 
 def test_a_changed_prefix_replaces_the_record_once(run, env):
@@ -344,8 +444,8 @@ def test_alternating_openclaw_prefixes_cost_one_slot_save_each(run, env):
     with FakeLlamaServer(env / "slots", slots=[{"id": 0, "id_task": 4, "text": rendered("aaaa")}]) as fake:
         proc = run(fake)
         assert wait_for(lambda: record_of(proc).get("tokens") == tokenize(PREFIX))
-        for n, prefix in enumerate((other, PREFIX, other, PREFIX), start=5):
-            fake.slots = [{"id": n % 2, "id_task": n, "text": rendered(f"s{n}", prefix=prefix)}]
+        for n, prefix in enumerate((other, PREFIX, other, PREFIX), start=5):   # each agent: one session
+            fake.slots = [{"id": n % 2, "id_task": n, "text": rendered("b" if prefix == other else "aaaa", prefix=prefix)}]
             assert wait_for(lambda p=prefix: record_of(proc).get("tokens") == tokenize(p))
         log = stop(proc)
     assert len(fake.seen("POST", "/slots/")) == 2

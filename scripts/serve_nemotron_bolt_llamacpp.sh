@@ -36,19 +36,21 @@
 #
 # Warm start (WARM_START=1): scripts/brain_warm_start.py runs beside the server.
 # Once the server answers /health (its own readiness, never delayed) it
-# prefills the OpenClaw prefix (system text + tools) that the previous run
-# recorded, once, into every slot: the first chat after a start then costs what
-# any new chat costs instead of a full prefill (13.6 s alone). It is a raw token
-# prompt, no chat and no user turn, bounded at 120 s (~13 s alone); a request
-# arriving meanwhile waits for it. While serving it records the server's own
-# tokens of the latest OpenClaw request up to OpenClaw's per-session boundary
+# prefills what the previous run recorded into every slot: the OpenClaw prefix
+# (system text + tools, up to OpenClaw's cache boundary), then what its last two
+# sessions shared after the boundary (date, directives; up to the session ids).
+# The first chat after a start then costs what any new chat costs instead of a
+# full prefill (13.6 s alone); on another day it parts at the date and resumes
+# at the boundary. Raw token prompts, no chat and no user turn, each bounded at
+# 120 s (~13 s alone); a request arriving meanwhile waits for them. While
+# serving it records the server's own tokens of the latest OpenClaw requests
 # (0600, WARM_PREFIX_FILE), so it never builds a prefix and follows any change
 # of tools or prompt at the next chat. For that the server runs with
 # LLAMA_SERVER_SLOTS_DEBUG=1 (GET /slots, behind the API key when API_KEY_FILE
 # is set, shows each slot's last prompt; a request reusing part of a slot logs
 # the 2 tokens where it diverges) and --slot-save-path WARM_PREFIX_FILE's
-# directory/bolt-slots-PORT: once per changed prefix one slot is saved there,
-# its token list read and the file deleted.
+# directory/bolt-slots-PORT: once per new prefix one slot is saved there
+# (~0.1 s of server time), its token list read and the file deleted.
 #
 # Knobs: PORT (8080), API_KEY_FILE, CTX (65536 per slot), PARALLEL (2),
 # SPEC (dflash | none: the LiLiCorr drafter or none), NSPEC (7, drafted tokens),

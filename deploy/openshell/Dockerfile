@@ -22,6 +22,9 @@ RUN npm install -g --no-audit --no-fund "openclaw@${OPENCLAW_VERSION}" \
 
 COPY openclaw.json /usr/local/share/cascade/openclaw.json
 COPY render-config.mjs /usr/local/share/cascade/render-config.mjs
+# The Franka FR3 agent profile (CASCADE_AGENT_PROFILE=franka): the operator
+# command plugin and its instructions, read-only next to the template.
+COPY franka-plugin /usr/local/share/cascade/franka-plugin
 COPY --chmod=0755 cascade-openclaw /usr/local/bin/cascade-openclaw
 
 RUN install -d -o node -g node -m 0700 /sandbox

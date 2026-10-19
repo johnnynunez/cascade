@@ -7,7 +7,7 @@ import subprocess
 import pytest
 
 
-ROUTER = Path(__file__).resolve().parents[1] / "configs/openclaw/franka-plugin/command-router.mjs"
+ROUTER = Path(__file__).resolve().parents[1] / "deploy/openshell/franka-plugin/command-router.mjs"
 
 
 @pytest.mark.parametrize("text,expected", [

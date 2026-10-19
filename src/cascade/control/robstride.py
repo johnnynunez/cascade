@@ -226,6 +226,34 @@ def contact_squeeze_cap(value) -> float | None:
     return cap
 
 
+def driver_close_stages(driver, stages, start_pos: float | None) -> tuple:
+    """The stages of a reBot driver's own two-stage close that it sends
+    (`jaw_stages.closing_stages`): never one more open than the jaws, so the
+    close never opens them. They are judged by `start_pos`, the jaws read
+    when the close starts. A start the driver could not read (`_gripper_pos()`
+    None: a failed read, NaN or +-inf refused, no turn reference) is judged by
+    the gripper guard's last jaw target instead: the jaws rest at it, or
+    stalled more open on an object. With no last target either (unreferenced
+    jaws) it is judged by the most closed stage, so every stage more open than
+    that one is skipped. One failed read must never send the 3.1 rad scout
+    stage to jaws seated on an object at 0.93 rad: the guard's next good read
+    ramped them open off it (#387 review, Important 1). `driver.
+    close_stages_skipped` records how many stages it skipped: the count the
+    runtime reports, never its own guess."""
+    open_pos, closed_pos = driver._grip_open, driver._grip_closed
+    limit = start_pos
+    if limit is None:
+        limit, by = getattr(getattr(driver, "_grip_guard", None), "_last_target", None), "the last jaw target"
+        if limit is None:
+            limit, by = min((stage[0] for stage in stages), key=lambda target: (
+                (float(target) - float(closed_pos)) * (float(open_pos) - float(closed_pos)))), "the most closed stage"
+        print(f"[rebot] gripper position unread at the start of the close: its stages are judged by {by} "
+              f"({float(limit):.3f} rad), so none opens the jaws")
+    kept = closing_stages(stages, limit, open_pos, closed_pos, log=lambda line: print(f"[rebot] {line}"))
+    driver.close_stages_skipped = len(stages) - len(kept)
+    return kept
+
+
 def capped_squeeze_target(stage_target: float, contact: float | None, cap: float,
                           open_pos: float, closed_pos: float) -> float:
     """The stage target, but never more than `cap` past `contact` toward closed.
@@ -266,7 +294,8 @@ def close_two_stage_capped(driver, stages, cap: float, timeout_s: float) -> floa
 
     Every command goes through `driver.set_gripper`, which keeps the travel
     clamp and refuses everything after `stop()`. As in that close, a stage
-    more open than the jaws already are is skipped (`closing_stages`).
+    more open than the jaws already are is skipped, an unread start judged by
+    the guard's last jaw target (`driver_close_stages`).
     Returns the final jaw angle
     (None when feedback failed); `driver._grip_contact_pos` keeps the contact.
     """
@@ -274,8 +303,7 @@ def close_two_stage_capped(driver, stages, cap: float, timeout_s: float) -> floa
     start_pos = driver._gripper_pos()
     contact = None
     driver._grip_contact_pos = None
-    for stage_target, effort in closing_stages(stages, start_pos, open_pos, closed_pos,
-                                               log=lambda line: print(f"[rebot] {line}")):
+    for stage_target, effort in driver_close_stages(driver, stages, start_pos):
         target = capped_squeeze_target(stage_target, contact, cap, open_pos, closed_pos)
         driver.set_gripper(target, effort=effort)
         time.sleep(GRIP_GRACE_S)  # spin-up grace: a still-moving jaw is not a stall

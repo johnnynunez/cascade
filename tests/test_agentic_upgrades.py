@@ -205,6 +205,18 @@ JAW_STATE_REFUSALS = [
      "open_gripper, then try again. Error: no valid jaw feedback", "state:jaws_unreadable"),
     ("SkillError: the jaw state could not be read while holding 'stale bread': a close stage could open the "
      "jaws on it; place it first (place_at)", "state:jaws_unreadable"),
+    # another arm holds the object, or may (its grasp stopped after its close):
+    # by that state, never the label's own words, however it is raised
+    (("SkillStuck: 'stale bread' may be held by arm 'so101_right' (stopped after its close), not 'so101_left': "
+      "settle it with arm='so101_right' first (move_home, then place_at or open_gripper), then try again; no "
+      "motion was sent"), "state:held_by_another_arm"),
+    (("SkillError: 'stale bread' may be held by arm 'so101_right' (stopped after its close), not 'so101_left': "
+      "settle it with arm='so101_right' first (move_home, then place_at or open_gripper), then grasp_object; no "
+      "motion was sent"), "state:held_by_another_arm"),
+    (("'red cube' is held by arm 'so101_right', not 'so101_left': place it with arm='so101_right' first "
+      "(place_at), then reset_scene; no motion was sent"), "state:held_by_another_arm"),
+    (("SkillError: 'stale bread' is held by arm 'so101_right', not 'so101_left': place it with arm='so101_right' "
+      "first (place_at), then grasp_object; no motion was sent"), "state:held_by_another_arm"),
 ]
 
 

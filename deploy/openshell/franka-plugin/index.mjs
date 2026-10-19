@@ -122,7 +122,7 @@ export default {
       record.toolStarted = true;
     });
     api.registerProvider({
-      id: modelProviderId, label: 'CASCADE local Cosmos', auth: [],
+      id: modelProviderId, label: 'CASCADE local brain', auth: [],
       wrapStreamFn(ctx) {
         const inner = ctx.streamFn;
         if (!inner || ctx.agentId !== 'main' || ctx.workspaceDir !== workspaceDir
@@ -150,6 +150,12 @@ export default {
                 + 'Send a new command when ready.');
             }
             const tool = context.tools?.find(tool => toolName(tool) === name);
+            if (!tool && record.plan.name === 'reset_stop') {
+              // The OpenShell route refuses reset_stop for the agent: clearing
+              // a STOP stays on the operator's STOP / Resume & Home page.
+              return reply('Resume & Home is the operator\'s control on the STOP page (the robot server\'s '
+                + 'live view, http://127.0.0.1:8090/ by default). The chat cannot clear a STOP. Nothing was dispatched.');
+            }
             if (!tool || !acceptsArguments(tool, record.plan.arguments)) {
               return reply('That command is unavailable in the current robot tool catalog. Nothing was dispatched.');
             }
@@ -176,7 +182,7 @@ export default {
             return syntheticAssistantStream(model, {text: 'Direct command: ' + action + '.',
               toolCall: call, signal: options?.signal});
           }
-          // Cosmos remains available for vision and explanations. Unsupported
+          // The brain remains available for vision and explanations. Unsupported
           // phrasing cannot make it guess a physical action or reset a STOP.
           const inspectionContext = {...context, tools: context.tools?.filter(t => inspectionTools.has(toolName(t))),
             systemPrompt: context.systemPrompt + '\nThis turn is for observation or explanation only. '

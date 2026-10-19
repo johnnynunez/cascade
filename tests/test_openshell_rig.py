@@ -729,7 +729,10 @@ TODAY_SETTINGS = {"brain_port": 8081, "mcp_port": 18741, "chat_port": 18799,
                   "model": "nemotron-3.5-bolt", "sandbox": "cascade-agent",
                   # added with the launcher route; a deployed.json written before it
                   # carries no such key and is NOT stale for it (see the test below)
-                  "context_window": 65536}
+                  "context_window": 65536,
+                  # added with the Franka FR3 profile; same rule (see
+                  # test_settings_saved_before_the_agent_profile_existed_are_not_stale)
+                  "agent_profile": "generic"}
 #: sha256 of json.dumps(profile, sort_keys=True): the profiles the live
 #: gateway holds. Any change here is an update pushed to the running sandbox.
 TODAY_PROFILE_SHA = {
@@ -1716,3 +1719,175 @@ def test_gateway_health_is_the_instance_named_and_connected(rc, out, healthy):
     rig = _load()
     inst = rig.instance("sim")
     assert rig.gateway_healthy(Path("/nonexistent"), inst, run=lambda argv, **kw: _done(argv, rc, out)) is healthy
+
+
+# ── the agent's robot profile (generic | franka) ─────────────────────────
+
+
+def test_the_franka_profile_rides_the_sandbox_env_and_generic_adds_nothing():
+    """`up --agent-profile franka` (launch.sh --sim none --arm fr3) tells the
+    sandbox's render-config to load the FR3 operator plugin; the generic
+    profile is the template's own, so its argv is today's."""
+    rig = _load()
+    assert rig.AGENT_PROFILES == ("generic", "franka")
+    argv = rig.sandbox_create_argv(rig.Settings(agent_profile="franka"), image="t")
+    assert argv[argv.index("CASCADE_AGENT_PROFILE=franka") - 1] == "--env"
+    assert not any(a.startswith("CASCADE_AGENT_PROFILE") for a in rig.sandbox_create_argv(rig.Settings(), "t"))
+
+
+def test_settings_saved_before_the_agent_profile_existed_are_not_stale(host):
+    """A deployed.json written before agent_profile existed is the generic
+    profile: no recreate. Switching the profile recreates the sandbox (its
+    config is rendered once, at first start)."""
+    rig = host.rig
+    home = host.install(host.user / ".cascade" / "openshell")
+    host.gateways_up.add(str(home / "0.1.3" / "bin" / "openshell"))
+    old = {k: v for k, v in TODAY_SETTINGS.items() if k != "agent_profile"}
+    rig._write_state(home, image=rig.image_tag(), settings=old)
+    assert rig.main(["up", "--agent-profile", "generic"]) == 0
+    sandbox = [a[1:3] for a in host.argvs if a[0].endswith("/openshell") and a[1] == "sandbox"
+               and a[2] in ("delete", "create")]
+    assert sandbox == []
+    assert rig.main(["up", "--agent-profile", "franka"]) == 0
+    created = [a for a in host.argvs if a[0].endswith("/openshell") and a[1:3] == ["sandbox", "create"]]
+    assert len(created) == 1 and "CASCADE_AGENT_PROFILE=franka" in created[0]
+    assert json.loads((home / "deployed.json").read_text())["settings"]["agent_profile"] == "franka"
+
+
+def test_an_unknown_agent_profile_is_refused(host):
+    host.install(host.user / ".cascade" / "openshell")
+    with pytest.raises(SystemExit):
+        host.rig.main(["up", "--agent-profile", "cosmos"])
+
+
+def test_the_ros_env_server_runs_through_ros_env_sh(host, monkeypatch, tmp_path):
+    """A native-controller arm (the FR3): serve-mcp --ros-env execs the server
+    through scripts/ros_env.sh, which sources the ROS setup the env file
+    names; without the flag the argv is today's."""
+    seen = _rig_exec(host, monkeypatch)
+    monkeypatch.setattr(host.rig.os, "chdir", lambda p: None)
+    home = host.install(host.user / ".cascade" / "openshell")
+    f = _env_file(tmp_path, {"CASCADE_ARM": "fr3", "CASCADE_ROS_SETUP": "/opt/ros/jazzy/setup.bash"})
+    assert host.rig.main(["serve-mcp", "--env-file", str(f), "--ros-env", "--", "--launch-owner", "o1"]) == 0
+    ((argv, env),) = seen
+    assert argv[:2] == ["/bin/bash", str(REPO / "scripts" / "ros_env.sh")]
+    assert argv[3:] == ["-m", "cascade.apps.mcp_server", "--http", "127.0.0.1:18741", "--token-file",
+                        str(home / "mcp.token"), "--launch-owner", "o1"]
+    assert env["CASCADE_ROS_SETUP"] == "/opt/ros/jazzy/setup.bash"
+
+
+def test_mcp_start_passes_ros_env_and_pins_cpus(host, tmp_path):
+    home = host.install(host.user / ".cascade" / "openshell")
+    f = _env_file(tmp_path, {"CASCADE_ARM": "fr3"})
+    assert host.rig.main(["mcp-start", "--env-file", str(f), "--ros-env", "--cpus", "0-7",
+                          "--", "--launch-owner", "o1"]) == 0
+    (unit,) = [a for a in host.argvs if a[0] == "systemd-run"]
+    assert unit[unit.index("CPUAffinity=0-7") - 1] == "-p"
+    tail = unit[unit.index(str(SCRIPT.resolve())) + 1:]
+    assert tail == ["serve-mcp", "--mcp-port", "18741", "--mcp-token-file", str(home / "mcp.token"), "--ros-env",
+                    "--env-file", str(home / "mcp-env.json"), "--", "--launch-owner", "o1"]
+
+
+def test_mcp_start_without_the_new_flags_is_todays_unit(host, tmp_path):
+    home = host.install(host.user / ".cascade" / "openshell")
+    assert host.rig.main(["mcp-start"]) == 0
+    (unit,) = [a for a in host.argvs if a[0] == "systemd-run"]
+    log = home / "mcp-server.log"
+    assert unit[:12] == ["systemd-run", "--user", "--unit=cascade-openshell-mcp", "--collect", "-p", "UMask=0077",
+                         "-p", "MemoryMax=infinity", "-p", f"StandardOutput=append:{log}",
+                         "-p", f"StandardError=append:{log}"]
+    assert not any(a.startswith("CPUAffinity") for a in unit) and "--ros-env" not in unit
+
+
+@pytest.mark.parametrize("bad", ["all", "0-", "1;rm", "0-7 "])
+def test_a_malformed_cpu_list_is_refused(host, bad):
+    host.install(host.user / ".cascade" / "openshell")
+    with pytest.raises(SystemExit, match="CPU list"):
+        host.rig.main(["mcp-start", "--cpus", bad])
+    assert [a for a in host.argvs if a[0] == "systemd-run"] == []
+
+
+def test_ros_env_sh_sources_the_named_setup_and_defaults_the_domain(tmp_path):
+    """The real wrapper, with inert setup files and a recorder."""
+    ros, franka = tmp_path / "ros.bash", tmp_path / "franka.bash"
+    ros.write_text("export CASCADE_TEST_ROS=1\n")
+    franka.write_text("export CASCADE_TEST_FRANKA=1\n")
+    env = {k: v for k, v in os.environ.items() if k != "ROS_DOMAIN_ID"}
+    env.update(CASCADE_ROS_SETUP=str(ros), CASCADE_FRANKA_SETUP=str(franka))
+    r = subprocess.run(["/bin/bash", str(REPO / "scripts" / "ros_env.sh"), sys.executable, "-c",
+                        "import json,os;print(json.dumps({k:os.environ.get(k) for k in "
+                        "('CASCADE_TEST_ROS','CASCADE_TEST_FRANKA','ROS_DOMAIN_ID')}))"],
+                       env=env, capture_output=True, text=True, timeout=30, check=True)
+    assert json.loads(r.stdout) == {"CASCADE_TEST_ROS": "1", "CASCADE_TEST_FRANKA": "1", "ROS_DOMAIN_ID": "31"}
+    env["ROS_DOMAIN_ID"] = "47"
+    r = subprocess.run(["/bin/bash", str(REPO / "scripts" / "ros_env.sh"), sys.executable, "-c",
+                        "import os;print(os.environ['ROS_DOMAIN_ID'])"], env=env, capture_output=True, text=True,
+                       timeout=30, check=True)
+    assert r.stdout.strip() == "47"
+    missing = subprocess.run(["/bin/bash", str(REPO / "scripts" / "ros_env.sh"), "true"],
+                             env={**env, "CASCADE_ROS_SETUP": str(tmp_path / "absent.bash")},
+                             capture_output=True, text=True, timeout=30)
+    assert missing.returncode != 0, "a missing ROS setup never starts the server outside ROS"
+
+
+def test_render_franka_profile_loads_the_operator_plugin_and_its_instructions(tmp_path):
+    """CASCADE_AGENT_PROFILE=franka: the plugin next to the template, the
+    FR3 instructions as the workspace AGENTS.md (0600), the FR3 operator
+    catalog without reset_stop (OpenShell refuses it; Resume & Home is the
+    operator page), no heartbeat/cron/memory plugin, one tool at a time,
+    temperature 0 and short replies on top of Nemotron's thinking-off."""
+    r = _render(tmp_path, CASCADE_AGENT_PROFILE="franka")
+    assert r.returncode == 0, r.stderr
+    cfg = json.loads((tmp_path / ".openclaw" / "openclaw.json").read_text())
+    plugin = DEPLOY / "franka-plugin"
+    assert cfg["plugins"]["load"]["paths"] == [str(plugin)]
+    entry = cfg["plugins"]["entries"]["cascade-franka-prompt"]
+    manifest = json.loads((plugin / "openclaw.plugin.json").read_text())
+    assert manifest["id"] == "cascade-franka-prompt"
+    schema = manifest["configSchema"]
+    assert set(entry["config"]) == set(schema["properties"]) == set(schema["required"])
+    assert entry["config"] == {"workspaceDir": cfg["agents"]["defaults"]["workspace"],
+                               "modelProviderId": "cascade", "modelId": "nemotron-3.5-bolt"}
+    assert entry["hooks"] == {"allowConversationAccess": True, "allowPromptInjection": True}
+    assert cfg["plugins"]["entries"]["memory-core"] == {"enabled": False}
+    allow = cfg["tools"]["allow"]
+    assert "cascade__pick_and_place" in allow and "cascade__emergency_stop" in allow
+    assert "cascade__reset_stop" not in allow and all(a.startswith("cascade__") for a in allow)
+    assert cfg["cron"] == {"enabled": False} and cfg["agents"]["defaults"]["heartbeat"] == {"every": "0m"}
+    assert cfg["mcp"]["servers"]["cascade"]["supportsParallelToolCalls"] is False
+    assert cfg["agents"]["defaults"]["models"] == {"cascade/nemotron-3.5-bolt": {"params": {
+        "chat_template_kwargs": {"enable_thinking": False}, "temperature": 0, "maxTokens": 512}}}
+    agents = tmp_path / ".openclaw" / "workspace" / "AGENTS.md"
+    assert agents.read_text() == (plugin / "instructions.md").read_text()
+    assert agents.stat().st_mode & 0o077 == 0
+    assert "profile franka" in r.stdout
+
+
+def test_render_franka_keeps_an_operators_instructions(tmp_path):
+    ws = tmp_path / ".openclaw" / "workspace"
+    ws.mkdir(parents=True)
+    (ws / "AGENTS.md").write_text("Operator edit.\n")
+    assert _render(tmp_path, CASCADE_AGENT_PROFILE="franka").returncode == 0
+    assert (ws / "AGENTS.md").read_text() == "Operator edit.\n"
+
+
+@pytest.mark.parametrize("profile", ["Franka", "cosmos", "../x"])
+def test_render_refuses_an_unknown_agent_profile(tmp_path, profile):
+    r = _render(tmp_path, CASCADE_AGENT_PROFILE=profile)
+    assert r.returncode != 0 and "CASCADE_AGENT_PROFILE" in r.stderr
+    assert not (tmp_path / ".openclaw" / "openclaw.json").exists()
+
+
+def test_render_generic_profile_is_the_default_render(tmp_path):
+    a, b = tmp_path / "a", tmp_path / "b"
+    a.mkdir()
+    b.mkdir()
+    assert _render(a).returncode == 0 and _render(b, CASCADE_AGENT_PROFILE="generic").returncode == 0
+    strip = lambda p: re.sub(r'"token": "[0-9a-f]{48}"', "T", (p / ".openclaw" / "openclaw.json").read_text())  # noqa: E731
+    assert strip(a) == strip(b)
+    assert not (a / ".openclaw" / "workspace" / "AGENTS.md").exists()
+
+
+def test_the_image_ships_the_franka_plugin_read_only():
+    src = (DEPLOY / "Dockerfile").read_text()
+    assert re.search(r"^COPY franka-plugin /usr/local/share/cascade/franka-plugin\s*$", src, re.MULTILINE)

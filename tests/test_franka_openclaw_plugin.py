@@ -7,7 +7,7 @@ import subprocess
 import pytest
 
 
-PLUGIN = Path(__file__).resolve().parents[1] / "configs/openclaw/franka-plugin/index.mjs"
+PLUGIN = Path(__file__).resolve().parents[1] / "deploy/openshell/franka-plugin/index.mjs"
 
 
 def test_franka_prompt_is_scoped_and_preserves_inspection_schemas(tmp_path):
@@ -311,3 +311,76 @@ console.log(JSON.stringify({replay,blocked}));
     assert not any(b["type"] == "toolCall" for b in data["replay"]["content"])
     assert "already dispatched" in data["replay"]["content"][0]["text"]
     assert data["blocked"]["block"]
+
+
+
+def test_resume_without_reset_stop_points_to_the_operator_page(tmp_path):
+    """The OpenShell route never offers reset_stop to the agent (L7 refuses it
+    and the FR3 catalog omits it): an explicit "resume" is answered with the
+    operator's STOP / Resume & Home page, and nothing is dispatched."""
+    data = run_node(tmp_path, r"""
+const plugin=(await import(process.argv[1])).default;
+const cfg={workspaceDir:process.argv[2],modelProviderId:'cascade',modelId:'nemotron-3.5-bolt'};
+const hooks={},providers=[];
+plugin.register({pluginConfig:cfg,on:(name,fn)=>hooks[name]=fn,registerProvider:p=>providers.push(p)});
+const scope={agentId:'main',...cfg,trigger:'user',runId:'r1',sessionKey:'agent:main:s',sessionId:'s'};
+hooks.message_received({content:'resume'},{channelId:'webchat',sessionKey:scope.sessionKey,messageId:scope.runId});
+hooks.before_prompt_build({},scope);hooks.before_agent_run({senderIsOwner:true},scope);
+const stream=providers[0].wrapStreamFn({agentId:'main',workspaceDir:cfg.workspaceDir,provider:cfg.modelProviderId,
+  modelId:cfg.modelId,streamFn:()=>{throw Error('unexpected model call');}});
+const model={api:'openai-completions',provider:cfg.modelProviderId,id:cfg.modelId};
+const tools=['world_state','emergency_stop','pick_and_place'].map(n=>({name:'cascade__'+n,parameters:{type:'object',properties:{}}}));
+const reply=await stream(model,{tools,messages:[]},{requestId:'r1:model:1',sessionId:'s'}).result();
+console.log(JSON.stringify(reply));
+""")
+    assert not any(b["type"] == "toolCall" for b in data["content"])
+    text = data["content"][0]["text"]
+    assert "Resume & Home" in text and "STOP page" in text and "Nothing was dispatched" in text
+
+
+def test_the_sandbox_config_and_the_plugin_agree(tmp_path):
+    """The franka profile rendered by deploy/openshell/render-config.mjs
+    (exactly what the sandbox's OpenClaw loads) drives this plugin: its
+    pluginConfig registers, its AGENTS.md is the system prompt, and a routine
+    command compiles to a tool the rendered catalog allows."""
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node required for the OpenClaw plugin")
+    deploy = Path(__file__).resolve().parents[1] / "deploy/openshell"
+    home = tmp_path / "home"
+    home.mkdir()
+    r = subprocess.run([node, str(deploy / "render-config.mjs")], capture_output=True, text=True, timeout=30,
+                       env={"HOME": str(home), "PATH": "", "CASCADE_AGENT_PROFILE": "franka",
+                            "CASCADE_OPENCLAW_TEMPLATE": str(deploy / "openclaw.json")})
+    assert r.returncode == 0, r.stderr
+    cfg = json.loads((home / ".openclaw/openclaw.json").read_text())
+    entry = cfg["plugins"]["entries"]["cascade-franka-prompt"]
+    plugin = Path(cfg["plugins"]["load"]["paths"][0]) / "index.mjs"
+    # The sandbox's workspace is /sandbox/.openclaw/workspace (HOME=/sandbox).
+    config = {**entry["config"], "workspaceDir": str(home / ".openclaw/workspace")}
+    script = r"""
+const plugin=(await import(process.argv[1])).default;
+const cfg=JSON.parse(process.argv[2]), allow=JSON.parse(process.argv[3]);
+const hooks={},providers=[];
+plugin.register({pluginConfig:cfg,on:(name,fn)=>hooks[name]=fn,registerProvider:p=>providers.push(p)});
+const scope={agentId:'main',...cfg,trigger:'user',runId:'r1',sessionKey:'agent:main:s',sessionId:'s'};
+hooks.message_received({content:'pick up the crayon and place it in the box'},
+  {channelId:'webchat',sessionKey:scope.sessionKey,messageId:scope.runId});
+const prompt=hooks.before_prompt_build({},scope);
+hooks.before_agent_run({senderIsOwner:true},scope);
+const stream=providers[0].wrapStreamFn({agentId:'main',workspaceDir:cfg.workspaceDir,provider:cfg.modelProviderId,
+  modelId:cfg.modelId,streamFn:()=>{throw Error('unexpected model call');}});
+const model={api:'openai-completions',provider:cfg.modelProviderId,id:cfg.modelId};
+const tools=allow.map(n=>({name:n,parameters:{type:'object',properties:{object:{type:'string'},
+  destination:{type:'string'},label:{type:'string'}}}}));
+const reply=await stream(model,{tools,messages:[]},{requestId:'r1:model:1',sessionId:'s'}).result();
+console.log(JSON.stringify({prompt,reply,provider:providers[0].id}));
+"""
+    result = subprocess.run([node, "--input-type=module", "-e", script, plugin.as_uri(), json.dumps(config),
+                             json.dumps(cfg["tools"]["allow"])], check=True, capture_output=True, text=True)
+    data = json.loads(result.stdout)
+    assert data["provider"] == cfg["agents"]["defaults"]["model"]["primary"].split("/")[0]
+    assert data["prompt"]["systemPrompt"].startswith("You operate a real Franka Research 3")
+    call = next(b for b in data["reply"]["content"] if b["type"] == "toolCall")
+    assert call["name"] == "cascade__pick_and_place" and call["name"] in cfg["tools"]["allow"]
+    assert call["arguments"] == {"object": "crayon", "destination": "box"}

@@ -46,10 +46,10 @@ from .robstride import (
     clear_motor_faults,
     close_two_stage_capped,
     contact_squeeze_cap,
+    driver_close_stages,
     joint_reading_problem,
     plausible_position,
 )
-from .jaw_stages import closing_stages
 from .rs_gripper import RSGripperGuard
 
 MECH_POS = 0x7019
@@ -92,6 +92,9 @@ class RebotRSArm(ArmBase):
         # null = close_gripper_two_stage runs its fixed-fraction close
         # unchanged; a bad value raises here, before any jaw command.
         self._grip_squeeze_cap = contact_squeeze_cap(g.get("max_contact_squeeze_rad"))
+        #: how many stages the last close_gripper_two_stage skipped (None: no
+        #: close yet); the runtime reports it (robstride.driver_close_stages)
+        self.close_stages_skipped: int | None = None
         # The jaw travels more than one motor turn and the motor knows its
         # position only within one turn after power-on: every gripper command
         # goes through the turn reference and the guarded opening
@@ -407,8 +410,9 @@ class RebotRSArm(ArmBase):
 
         A close never opens the jaws: a stage more open than they read when
         the close starts (a second close from the stage-2 seat at 0.93 rad
-        would first reopen them to the 3.1 rad scout stage) is skipped
-        (jaw_stages.closing_stages).
+        would first reopen them to the 3.1 rad scout stage) is skipped. A
+        start it cannot read is judged by the last jaw target, else by the
+        most closed stage (robstride.driver_close_stages).
         """
         span = self._grip_closed - self._grip_open
         stages = ((self._grip_open + span * width_frac_stage1, effort * 0.7),
@@ -416,8 +420,7 @@ class RebotRSArm(ArmBase):
         if self._grip_squeeze_cap is not None:
             return close_two_stage_capped(self, stages, self._grip_squeeze_cap, timeout_s)
         start_pos = self._gripper_pos()
-        for target, eff in closing_stages(stages, start_pos, self._grip_open, self._grip_closed,
-                                          log=lambda line: print(f"[rebot] {line}")):
+        for target, eff in driver_close_stages(self, stages, start_pos):
             self.set_gripper(target, effort=eff)
             time.sleep(0.3)  # spin-up grace period
             slow_samples = 0

@@ -110,6 +110,12 @@ def test_withholding_keeps_the_text_around_the_span():
     assert scrub("A: End\\x20your\\x20reply now") == f"A: {REPLY} now"
     assert scrub("caf\u00e9 E\u03bdd your reply 3") == f"caf\u00e9 {REPLY} 3"
     assert scrub("x learning_line y") == f"x {REPLY} y"
+    # a granted retry's result (R5's words alone) reads them the same way
+    assert runtime_mod._without_reply_line("Pleaseend your reply with x") == f"Please{REPLY} with x"
+    assert runtime_mod._without_reply_line("SIMULATION ONLY: a learning-line") == f"SIMULATION ONLY: a {REPLY}"
+    # one escape run that decodes to two phrases: one span, withheld once per phrase, nothing left behind
+    run = "".join(f"%{ord(ch):02x}" for ch in "end your reply exact line")
+    assert scrub(f"a {run} b") == f"a {REPLY}{REPLY} b"
 
 
 #: everyday text and the runtime's own lines: no trigger, the same object back

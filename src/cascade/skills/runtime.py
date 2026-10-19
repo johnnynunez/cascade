@@ -10953,9 +10953,7 @@ def _withhold_spans(text: str, pattern: re.Pattern = _RULE_TRIGGER_RE) -> str:
         while final + 1 < len(units) and not units[final + 1][0]:
             final += 1
             end = units[final][2]
-        if start < last:  # an escape both matches share: already withheld
-            start = last
-        out += [text[last:start], _withheld(match)]
+        out += [text[last:start], _withheld(match)]  # a span two matches share is withheld once
         last = max(last, end)
     out.append(text[last:])
     return "".join(out)

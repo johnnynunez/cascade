@@ -106,6 +106,23 @@ def test_read_learning_never_blocks_on_a_fifo(tmp_path):  # A9/A10 fix, Minor 3
     assert out == [None]
 
 
+def test_read_learning_reads_only_a_regular_file(tmp_path):  # A9/A10 fix, Minor 3
+    """A FIFO whose writer already wrote a valid schema-1 file is still no panel: only a regular file is read."""
+    import os
+
+    cameras = _cameras()
+    path = tmp_path / "learning.json"
+    os.mkfifo(path)
+    keep = os.open(path, os.O_RDONLY | os.O_NONBLOCK)  # a reader, so the writer's open never blocks
+    writer = os.open(path, os.O_WRONLY)
+    try:
+        os.write(writer, json.dumps(LEARNING).encode())
+        assert cameras.read_learning(path) is None
+    finally:
+        os.close(writer)
+        os.close(keep)
+
+
 def test_read_learning_refuses_a_missing_path_a_directory_and_no_flag(tmp_path):
     cameras = _cameras()
     assert cameras.read_learning(None) is None

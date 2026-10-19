@@ -69,7 +69,8 @@ TLS from a private CA).
 #    on llama.cpp v0.7.0 with the LiLiCorr drafter, two slots; llama-server reads the key
 #    file itself, never argv. Once per host: scripts/serve_nemotron_bolt_llamacpp.sh
 #    --setup-only (pinned GGUF + projector + drafter, 24.8 GB, and the pinned llama.cpp
-#    build). Restart this unit after pulling a new revision.
+#    build). Restart this unit after pulling a new revision. After a restart it prefills the
+#    agent prefix OpenClaw last sent (scripts/brain_warm_start.py; WARM_START=0 turns it off).
 systemd-run --user --unit=cascade-brain --collect -p MemoryMax=infinity \
     -E PORT=8081 -E API_KEY_FILE="$HOME/.cascade/nemoclaw/llama.key" \
     "$PWD/scripts/serve_nemotron_bolt_llamacpp.sh"
@@ -128,8 +129,11 @@ because a systemd user unit has `DISPLAY=:0` and OpenCV would open a window.
 
 Everything above is the **default instance**: the live rig's route. `--instance NAME` (or
 `CASCADE_OPENSHELL_INSTANCE=NAME`; the flag wins, `--instance ''` selects the default) runs a
-fully isolated route beside it, e.g. a simulator agent next to the real robot. Names: 1–16
-characters from `a-z`, `0-9`, `-`, starting with a letter; `default` is reserved.
+fully isolated route beside it, e.g. a simulator agent next to the real robot. Names: 1–5
+characters from `a-z`, `0-9` and single `-` between them, starting with a letter; `default` is
+reserved. Five because OpenShell takes sandbox names of at most 19 characters and a named
+instance's sandbox is `cascade-<name>-agent`: `openshell_rig.py` and `launch.sh` refuse any other
+name before they start anything (an explicit `up --sandbox` is held to the same 19 characters).
 
 | | default instance | named instance `<name>` | example: `sim` |
 |---|---|---|---|

@@ -175,7 +175,7 @@ class PlanningTimeout(RouteRefused):
     """Planning ran past its time budget; nothing was commanded."""
 
 
-#: `_fastest_probe_s`, measured once per process
+#: `_fastest_probe_s`, kept for the process once a search completed
 _FASTEST: dict = {}
 
 
@@ -197,13 +197,20 @@ def _speed_probe_s() -> float:
 
 
 def _fastest_probe_s() -> float:
-    """`_speed_probe_s` on the host's fastest core (`core_speed.fastest_seconds`:
-    timed on every core by helper threads pinned there, the planning thread's
-    affinity untouched), measured once per process."""
+    """`_speed_probe_s` on the host's fastest core (`core_speed.fastest`:
+    timed by helper threads pinned to one core of each capacity class of the
+    process's CPU set, fastest class first, the planning thread's affinity
+    untouched), measured at the first use and kept for the process once a
+    search completed. A search that ran out of time serves this call only
+    (it can only understate how much slower a core is) and the next call
+    searches again (#399 review Minor 1)."""
     if "s" not in _FASTEST:
-        from ..core_speed import fastest_seconds
+        from ..core_speed import fastest
 
-        _FASTEST["s"] = fastest_seconds(lambda: _speed_probe_s())
+        ref = fastest(lambda: _speed_probe_s())
+        if not ref.complete:
+            return ref.seconds
+        _FASTEST["s"] = ref.seconds
     return _FASTEST["s"]
 
 

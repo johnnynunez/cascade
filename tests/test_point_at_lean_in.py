@@ -1903,10 +1903,13 @@ def test_the_core_is_measured_again_at_most_three_times(monkeypatch):
 def test_the_fastest_core_is_timed_on_that_core(monkeypatch):
     """The reference is the probe on each core in turn (a helper thread
     pinned there), not on the caller's core: here only the last core is
-    fast, and the caller may run anywhere."""
+    fast, and the caller may run anywhere. (No capacity classes here, as on
+    an x86 host: every core is a class of its own.)"""
+    from cascade import core_speed
     from cascade.skills import pointing
 
     fast = max(os.sched_getaffinity(0))
+    monkeypatch.setattr(core_speed, "_capacities", lambda cpus: None)
     monkeypatch.setattr(pointing, "_speed_probe_s", lambda: 1e-3 if os.sched_getaffinity(0) == {fast} else 3e-3)
     monkeypatch.setattr(pointing, "_FASTEST", {})
     assert pointing._fastest_probe_s() == 1e-3

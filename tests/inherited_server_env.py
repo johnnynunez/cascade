@@ -21,6 +21,8 @@ vLLM 0.32.0 (entrypoints/): `VLLM_SERVER_DEV_MODE` adds the dev and RL routes (/
 /update_weights, ...; outside /v1, so keyless), `VLLM_ALLOW_RUNTIME_LORA_UPDATING` adds /v1/load_lora_adapter and
 /v1/unload_lora_adapter (inside the sandbox's /v1/**), `VLLM_ENABLE_COHERE_API` adds /cohere/v2/chat, and
 `VLLM_USE_RUST_FRONTEND` + `VLLM_RUST_FRONTEND_PATH` replace the whole HTTP server with another binary.
+`VLLM_ENABLE_RESPONSES_API_STORE` (vllm/envs.py) keeps every stored /v1/responses request and answer in memory until
+the server exits: a caller inside /v1/** grows the brain's memory without bound.
 """
 from __future__ import annotations
 
@@ -51,6 +53,7 @@ HOSTILE_VLLM_ENV = {
     "VLLM_ENABLE_COHERE_API": "1",
     "VLLM_USE_RUST_FRONTEND": "1",
     "VLLM_RUST_FRONTEND_PATH": "/tmp/other-frontend",
+    "VLLM_ENABLE_RESPONSES_API_STORE": "1",
 }
 
 #: A llama.cpp config.ini as an attacker would write it: every tool (exec_shell_command, write_file) at /tools, and

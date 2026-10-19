@@ -52,6 +52,7 @@ from typing import NamedTuple
 
 import numpy as np
 
+from ..safety.harness import table_frame_zone_text
 from ..types import SafetyViolation, SkillError
 from . import arm_frame, carry_attachment
 from . import relative_motion as rm
@@ -393,11 +394,13 @@ def _camera_volume(rt, poses, s: Settings):
             # no escape rule, like the harness's own keep-out check for the TCP
             where = "is already inside" if hits[0] == 0 else "would enter"
             # The zone is this arm's (its base frame); the agent reads
-            # table-frame numbers (T3 re-review: lifted corners on a base_pose).
+            # table-frame numbers (T3 re-review): the bounds of its lifted
+            # corners on a base_pose, with its base-frame corners when the
+            # mount rotates it (#407 review follow-up 3).
             T = _world_from_base(rt)
-            lo, hi = arm_frame.to_world(T, kmin), arm_frame.to_world(T, kmax)
-            return "wrist_camera", (f"{what} {where} keep-out zone "
-                                    f"{np.round(lo, 3).tolist()}..{np.round(hi, 3).tolist()}")
+            zone = (f"{np.round(kmin, 3).tolist()}..{np.round(kmax, 3).tolist()}" if T is None
+                    else table_frame_zone_text(T, kmin, kmax))
+            return "wrist_camera", f"{what} {where} keep-out zone {zone}"
     if s.camera_occupancy and getattr(harness, "occupancy", None) is not None:
         for b in boxes:
             reason = harness._arm_occupancy_violation(b.points(0.02), None)

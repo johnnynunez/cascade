@@ -19,19 +19,28 @@ Rig A's pick_and_place leaves the prop ~5 cm from its drop zone, tipped (R1:
 pre-existing, out of scope), so that sequence is judged by equivariance only.
 
 Needs `mujoco`, `pinocchio` and the fetched MJCF (`scripts/fetch_robot_assets.py
-so101`); skips otherwise, like the other MuJoCo tests (CI fetches the meshes
-outside `assets/mjcf/`, so this file skips there). CPU only: no rendered camera.
+so101`); skips otherwise, like the other MuJoCo tests. CI runs this file in its
+own step after the suite (#407 review follow-up 6): it fetches the MJCF into
+`assets/mjcf/so101` (pinned, where `MJCF` points) and sets
+`CASCADE_REQUIRE_MUJOCO_PAIR=1`, which turns that skip into a collection
+failure, so the step can never pass by skipping. CPU only: no rendered camera.
 """
 
 from __future__ import annotations
 
 import contextlib
+import os
 
 import numpy as np
 import pytest
 from base_pose_oracle import SHIPPED_RIGHT, lift, moved_cfg, transform
 from test_base_pose_runtime_frame import gate_off  # noqa: F401  (a fixture, by name)
 from test_multi_arm_physics import needs_rig
+
+#: Set by CI's MuJoCo pair step: a missing requirement fails instead of skipping.
+REQUIRE_ENV = "CASCADE_REQUIRE_MUJOCO_PAIR"
+if os.environ.get(REQUIRE_ENV) == "1" and needs_rig.args[0]:
+    pytest.fail(f"{REQUIRE_ENV}=1 but this acceptance cannot run: {needs_rig.kwargs['reason']}", pytrace=False)
 
 pytestmark = needs_rig
 

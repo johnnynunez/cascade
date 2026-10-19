@@ -38,7 +38,7 @@ from ..control.kinematics import Kinematics
 from ..control.lazy_arm import LazyArm
 from ..memory import BeliefStore, EpisodicMemory
 from ..memory.beliefs import NEIGHBOUR_COLOUR_IOU
-from ..perception.camera_base import make_camera
+from ..perception.camera_base import is_wrist_view, make_camera
 from ..perception.depth_provider import DepthProvider
 from ..perception.grounding import Extrinsics
 from ..perception.stream import CameraRig, CameraStream
@@ -209,12 +209,14 @@ class _MeshArmState:
 
 
 class _RigHeartbeat:
-    """Fresh perception keeps EVERY arm's watchdog alive on a rig: the cameras
-    watch the shared table, not one arm. The watcher heartbeats this; with one
-    harness per arm (#400 follow-up, the MuJoCo pair acceptance): only the
-    primary's was kept alive, so a motion on another arm longer than
+    """Fresh perception keeps EVERY arm's watchdog alive on a rig: a fixed
+    camera watches the shared table, not one arm. The watcher heartbeats this;
+    with one harness per arm (#400 follow-up, the MuJoCo pair acceptance): only
+    the primary's was kept alive, so a motion on another arm longer than
     `watchdog_s` between its skill's own observes (a MuJoCo pick, the park at
-    shutdown) stopped with "perception watchdog: last observation 7.7s old"."""
+    shutdown) stopped with "perception watchdog: last observation 7.7s old".
+    A wrist camera's feed holds only the arm it rides on (or none):
+    `_camera_watchdog_feed`."""
 
     def __init__(self, harnesses):
         self._harnesses = tuple(harnesses)
@@ -227,11 +229,35 @@ class _RigHeartbeat:
 def _watcher_heartbeat(arm_rig, primary_harness):
     """What the watcher heartbeats: the primary's harness itself on one arm
     (unchanged), every arm's harness on a rig of two or more. Harnesses are
-    read from the SafeArm's instance dict (never a LazyArm attribute probe)."""
+    read from the SafeArm's instance dict (never a LazyArm attribute probe).
+    On a rig every camera also carries its own feed (`_camera_watchdog_feed`),
+    which the watcher uses instead."""
     arms = list(getattr(arm_rig, "arms", {}).values()) if arm_rig is not None else []
     if len(arms) < 2:
         return primary_harness
     return _RigHeartbeat([a.__dict__["harness"] for a in arms])
+
+
+def _camera_watchdog_feed(arm_rig, ccfg, extrinsics):
+    """Whose perception watchdog a NEW frame of this camera feeds on a rig of
+    two or more arms (#407 review follow-up 5); None on one arm, where the
+    watcher keeps heartbeating that arm's harness from every camera (unchanged).
+
+    - a fixed camera (not a wrist view) watches the shared table: every arm;
+    - an eye-in-hand camera rides on the PRIMARY arm (its extrinsics compose
+      the primary's FK, `build_runtime`'s `fk()`): that arm only, so a live
+      wrist camera never keeps another arm moving whose cameras are dead;
+    - a `role: wrist` view without hand-eye extrinsics does not say which arm
+      it rides on: no arm (fail closed; the fixed cameras still feed them all).
+    """
+    arms = list(getattr(arm_rig, "arms", {}).values()) if arm_rig is not None else []
+    if len(arms) < 2:
+        return None
+    if not is_wrist_view(ccfg):
+        return _RigHeartbeat([a.__dict__["harness"] for a in arms])
+    if extrinsics.mode == "eye_in_hand":
+        return _RigHeartbeat([arm_rig.primary.__dict__["harness"]])
+    return _RigHeartbeat(())
 
 
 class _ArmPrepass(NamedTuple):
@@ -895,6 +921,7 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
                 # video + overlays + heartbeats.
                 fuse=fuse,
                 map_depth=map_depth,
+                watchdog_feed=_camera_watchdog_feed(arm_rig, ccfg, extrinsics),
             )
         )
     rig = CameraRig(streams)

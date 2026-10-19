@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 
 import numpy as np
 import pytest
@@ -27,6 +28,7 @@ from base_pose_oracle import (
     run_pair,
     transform,
 )
+from test_base_pose_yawed_refusal_texts import YAW90, assert_text_close, box_text, zone_text
 
 # ── 1. the safety harness's refusal texts (#400 re-review (4)) ─────────────
 
@@ -73,18 +75,76 @@ def _pose_refused_by(harness, kind, rng, home):
 
 
 def _texts_equivariant(a, b, T):
+    a, b = _honest_boxes(a, b, T)
     assert_equivariant({"cmds_a": [], "cmds_b": [], "jaws_a": [], "jaws_b": [], "beliefs_a": [], "beliefs_b": [],
                         "result_a": {"error": a}, "result_b": {"error": b}}, T)
 
 
-@pytest.mark.parametrize("pose", [RAISED, YAWED], ids=["raised", "yawed"])
+#: A box a refusal quotes: the workspace with the TCP it refused, or a
+#: keep-out zone, each with the base-frame note of a mount that rotates it.
+_BOX_QUOTE = re.compile(
+    r"TCP (\[[^\]]*\]) outside workspace \[(\[[^\]]*\]) \.\. (\[[^\]]*\])\]"
+    r"( \(table-frame bounds of this arm's workspace, which its base_pose rotates: [^)]*\))?"
+    r"|keep-out (zone (\[[^\]]*\])\.\.(\[[^\]]*\])"
+    r"( \(table-frame bounds of this arm's keep-out zone, which its base_pose rotates: [^)]*\))?)")
+
+
+def _honest_boxes(a: str, b: str, T):
+    """Rig B's quoted boxes are the texts rig A's base-frame numbers owe on a
+    base_pose arm (#407 review follow-up 3: the table-frame bounds of all 8
+    corners, plus the base frame's box when the mount rotates it), not two
+    lifted corners; returns both texts with those quotes blanked, for the
+    equivariance oracle to compare the rest. A shifted / raised mount's bounds
+    are its lifted corners: the same numbers as T a."""
+    if not isinstance(a, str) or not isinstance(b, str):
+        return a, b
+    quotes_a, quotes_b = list(_BOX_QUOTE.finditer(a)), list(_BOX_QUOTE.finditer(b))
+    assert len(quotes_a) == len(quotes_b), (a, b)
+    for qa, qb in zip(quotes_a, quotes_b, strict=True):
+        if qa.group(2) is not None:
+            tcp, lo, hi = (json.loads(qa.group(i)) for i in (1, 2, 3))
+            assert qa.group(4) is None, a        # rig A has no base_pose
+            assert_text_close(qb.group(0), box_text("workspace", T, lo, hi, tcp))
+        else:
+            lo, hi = json.loads(qa.group(6)), json.loads(qa.group(7))
+            assert qa.group(8) is None, a
+            assert_text_close(qb.group(5), zone_text(T, lo, hi))
+    return _BOX_QUOTE.sub("<box>", a), _BOX_QUOTE.sub("<box>", b)
+
+
+#: execute()'s FAILED line (`runtime._with_failure_instruction`): it quotes
+#: the error up to 240 characters, so a longer table-frame quote is cut there.
+_FAILED_LINE = re.compile(
+    r"This attempt FAILED: .*? Tell the user it failed; never report a failed or refuted result as success\.")
+
+
+def _honest_run(run, T):
+    """`_honest_boxes` over every prose field of a run's two results. A FAILED
+    line that cut rig B's longer error (" (truncated; see error)") must quote
+    a prefix of that error; it is blanked on both rigs."""
+    error_b = " ".join(str(run["result_b"].get("error")).split())
+    for key in set(run["result_a"]) | set(run["result_b"]):
+        a, b = run["result_a"].get(key), run["result_b"].get(key)
+        if isinstance(a, str) and isinstance(b, str):
+            fa, fb = _FAILED_LINE.search(a), _FAILED_LINE.search(b)
+            if fa and fb and "(truncated; see error)" in fb.group(0):
+                quoted = fb.group(0).removeprefix("This attempt FAILED: ").split(" (truncated; see error)")[0]
+                assert error_b.startswith(quoted), (quoted, error_b)
+                a, b = a.replace(fa.group(0), "<failed>"), b.replace(fb.group(0), "<failed>")
+            run["result_a"][key], run["result_b"][key] = _honest_boxes(a, b, T)
+    return run
+
+
+@pytest.mark.parametrize("pose", [RAISED, YAWED, YAW90], ids=["raised", "yawed", "yaw90"])
 @pytest.mark.parametrize("kind", sorted(_KINDS))
 def test_harness_refusals_quote_table_frame_numbers_on_a_base_pose_arm(make_runtime, pose, kind):  # noqa: F811
     """The same joint pose on so101_right without and with a base_pose: both
     harnesses refuse it for the same reason (the geometry is the arm's own),
     and the base_pose arm's text quotes the TCP, the workspace / keep-out
-    corners and the heights in the table frame: rig A's numbers mapped by T
-    (points by T, heights by T's z). On main they quoted base-frame numbers."""
+    boxes and the heights in the table frame: rig A's numbers mapped by T
+    (points by T, heights by T's z; a box by the bounds of its 8 corners, with
+    its base-frame numbers when the mount rotates it, `_honest_boxes`). On
+    main they quoted base-frame numbers."""
     box = ([0.05, -0.30, -0.05], [0.30, 0.30, 0.10]) if kind == "keep_out" else None
     h_a, home = _harness(make_runtime, None, keep_out=box)
     h_b, _ = _harness(make_runtime, pose, keep_out=box)
@@ -148,7 +208,7 @@ def test_a_harness_refusal_reaches_the_agent_in_the_table_frame(make_pair_rigs, 
     run = run_pair(rt_a, rt_b, T, skill, args)
     assert "refused by the safety harness" in str(run["result_a"].get("error")), run["result_a"]
     assert not run["cmds_a"] and not run["cmds_b"]
-    assert_equivariant(run, T)
+    assert_equivariant(_honest_run(run, T), T)
 
 
 # ── 2. tool specs, robot description, plausibility prompt (spec §3.5, R11) ──
@@ -477,12 +537,14 @@ def test_annotated_view_text_reads_as_before_without_a_base_pose(make_runtime): 
 # ── 5. the wrist-camera keep-out text (spatial_moves; T3 re-review) ─────────
 
 
-@pytest.mark.parametrize("pose", [SHIPPED_RIGHT, YAWED], ids=["shifted", "yawed"])
+@pytest.mark.parametrize("pose", [SHIPPED_RIGHT, YAWED, YAW90], ids=["shifted", "yawed", "yaw90"])
 def test_the_wrist_camera_keep_out_refusal_quotes_the_table_frame(make_pair_rigs, make_runtime, pose):  # noqa: F811
     """`mock`'s wrist camera (8 cm above the gripper) already sits in a
     keep-out box over its home TCP (the arm's own config, base frame): the
-    refusal quotes the box's corners in the table frame on a base_pose arm
-    (main: base-frame corners)."""
+    refusal quotes the box in the table frame on a base_pose arm (main:
+    base-frame corners): the bounds of its 8 corners, plus the base-frame box
+    when the mount rotates it (#407 review follow-up 3: two lifted corners
+    read lo > hi on yaw 90)."""
     rt0 = make_runtime(moved_cfg("mock", None))
     tcp = rt0.kin.fk(rt0.arm.get_state().q)[:3, 3]
     lo = [float(tcp[0]) - 0.05, -0.05, float(tcp[2]) + 0.04]
@@ -496,4 +558,4 @@ def test_the_wrist_camera_keep_out_refusal_quotes_the_table_frame(make_pair_rigs
     run = run_pair(rt_a, rt_b, T, "move_relative", {"direction": "up", "frame": "base", "distance_m": 0.03})
     assert "refused by the wrist-camera rule" in run["result_a"]["error"], run["result_a"]
     assert "keep-out zone" in run["result_a"]["error"]
-    assert_equivariant(run, T)
+    assert_equivariant(_honest_run(run, T), T)

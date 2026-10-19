@@ -233,6 +233,11 @@ class WatchedCamera:
     # change at runtime (the extrinsic drift monitor): a tick that started
     # under the old generation must not commit.
     generation: int = 0
+    # Whose perception watchdog a NEW frame of this camera feeds (anything
+    # with `heartbeat()`). None: the watcher's own `harness`. A rig of two or
+    # more arms sets it per camera (apps/demo._camera_watchdog_feed): a wrist
+    # camera feeds only the arm it rides on.
+    watchdog_feed: object | None = None
 
     @property
     def maps_depth(self):
@@ -495,9 +500,11 @@ class WorldWatcher:
         # this frame's heartbeat neither waits for the detector nor depends on
         # its success; a dead camera still stops it. Also with an empty table
         # or the arm mid-motion (motion skills outlast the watchdog window and
-        # rely on this).
-        if self._harness is not None:
-            self._harness.heartbeat()
+        # rely on this). On a multi-arm rig the camera names whose watchdog it
+        # feeds (`WatchedCamera.watchdog_feed`).
+        feed = self._harness if cam.watchdog_feed is None else cam.watchdog_feed
+        if feed is not None:
+            feed.heartbeat()
         # One heartbeat per tick: a call that blocks for the watchdog window
         # (5 s) would starve it all the same. detect_nowait never waits for a
         # slow backend (the brain detector answers from its cache and asks the

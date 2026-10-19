@@ -11,7 +11,9 @@ first, the least of them. The process's set, not the caller's: a caller
 pinned to a slow core still finds the fast one. Each helper gets PER_CORE_S to
 be given its core (a loaded core may make it wait tens of ms); a search that
 ran out of time before every class answered is `complete=False`, and its
-caller must not keep it (it can only overstate the reference). Without
+caller must not keep it for good (it can only overstate the reference). At most one
+helper runs at a time, process-wide: a late helper ends its search and stops
+after the work in hand. Without
 capacities (an x86 host) every core is a class of its own, in CPU-number
 order. Linux only (per-thread affinity); elsewhere the caller's own core is
 the reference, i.e. no core counts as slower.
@@ -39,6 +41,12 @@ SEARCH_S = 1.0
 PER_CORE_S = 0.2
 #: where Linux publishes each core's capacity (1024 = the host's fastest)
 SYSFS_CPU = "/sys/devices/system/cpu"
+
+#: the helpers still running (one at most, #406 review Minor 2): a helper
+#: that has not answered in time ends its search, no search starts a helper
+#: while one runs, and a helper whose search is over runs no more of its work
+_running: set = set()
+_running_lock = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -87,43 +95,77 @@ def fastest(workload: Callable[[], float], repeats: int = 3) -> Reference:
     """The least of `workload()` (CPU seconds of a fixed slice of work, timed
     by the workload itself on its own thread), `repeats` times each, over the
     caller's core and one core of each capacity class of the process's CPU
-    set (a class's next core only when this one cannot be pinned)."""
+    set (a class's next core only when this one cannot be pinned).
+
+    One helper at a time, process-wide (#406 review Minor 2: a hung workload
+    left one helper per class alive): a helper that has not answered within
+    its PER_CORE_S ends the search (`complete=False`), a search finds one
+    still running and starts none (`complete=False`), and a helper whose
+    search is over runs no more of its repeats."""
     best = min(workload() for _ in range(repeats))
     if not (hasattr(os, "sched_setaffinity") and hasattr(os, "sched_getaffinity")):
         return Reference(best, True)
     stop = time.monotonic() + SEARCH_S
+    over = threading.Event()             # this search is over
     complete = True
-    for cores in _search_order(_process_cpus()):
-        answered = pinnable = False
-        for cpu in cores:
-            left = stop - time.monotonic()
-            if not left > 0.0:
-                pinnable = True        # out of time before this class was tried
-                break
-            out: list = []
-            pinned: list = []
+    try:
+        for cores in _search_order(_process_cpus()):
+            answered = pinnable = False
+            for cpu in cores:
+                left = stop - time.monotonic()
+                with _running_lock:
+                    busy = bool(_running)
+                if busy or not left > 0.0:
+                    pinnable = True        # out of time, or a helper still runs, before this class was tried
+                    break
+                out: list = []
+                pinned: list = []
+                token = object()
 
-            def timed(cpu=cpu, out=out, pinned=pinned):
+                def timed(cpu=cpu, out=out, pinned=pinned, token=token):
+                    found = None
+                    try:
+                        try:
+                            os.sched_setaffinity(0, {cpu})          # this helper thread only
+                        except OSError:
+                            return                                 # not this core: the class's next one
+                        pinned.append(cpu)
+                        times = []
+                        for _ in range(repeats):
+                            if over.is_set():
+                                return                             # its search ended without it
+                            times.append(workload())
+                        found = min(times)
+                    finally:
+                        with _running_lock:                        # its answer and its end, at once
+                            if found is not None:
+                                out.append(found)
+                            _running.discard(token)
+
+                helper = threading.Thread(target=timed, daemon=True, name="core-speed-probe")
+                with _running_lock:
+                    _running.add(token)
                 try:
-                    os.sched_setaffinity(0, {cpu})          # this helper thread only
-                except OSError:
-                    return                                 # not this core: the class's next one
-                pinned.append(cpu)
-                out.append(min(workload() for _ in range(repeats)))
-
-            helper = threading.Thread(target=timed, daemon=True, name="core-speed-probe")
-            helper.start()
-            helper.join(min(PER_CORE_S, left))
-            if pinned or helper.is_alive():
-                # this class's core: its answer, if it came in time (a late or
-                # failed one leaves the class open); never another of its cores
-                pinnable = True
-                if out:
-                    best = min(best, out[0])
-                    answered = True
-                break
-        if pinnable and not answered:
-            complete = False
+                    helper.start()
+                except BaseException:
+                    with _running_lock:
+                        _running.discard(token)
+                    raise
+                helper.join(min(PER_CORE_S, left))
+                with _running_lock:
+                    running = token in _running
+                if pinned or running:
+                    # this class's core: its answer, if it came in time (a late or
+                    # failed one leaves the class open); never another of its cores
+                    pinnable = True
+                    if out:
+                        best = min(best, out[0])
+                        answered = True
+                    break
+            if pinnable and not answered:
+                complete = False
+    finally:
+        over.set()
     return Reference(best, complete)
 
 

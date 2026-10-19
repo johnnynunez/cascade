@@ -76,10 +76,14 @@ holding: the payload in the jaws is not modelled, so that start refuses.
 Planning runs against a budget (`Budget`): PLAN_BUDGET_S of the planning
 thread's CPU time (stretched on a core slower than the host's fastest,
 `core_factor`) and PLAN_WALL_S of wall time; past either, point_at refuses.
-Planning that took longer than FRESH_PLAN_S of wall time looks at the target
-again before the first command (`fix_moved_m`): moved more than FRESH_MOVE_M,
-it is planned once more from where it is now, on what is left of the same
-budget, and refused if it moved again; never a move toward a stale pose.
+When more than FRESH_PLAN_S of wall time passed between the target's
+localization and the end of planning (the budget's core-speed search
+included), point_at looks at the target again before the first command, on a
+detection newer than the plan only (never the remembered belief, never an
+image from before the plan: not seen again, it refuses); moved more than
+FRESH_MOVE_M (`fix_moved_m`), it is planned once more from where it is now,
+on what is left of the same budget, and refused if it moved again; never a
+move toward a stale pose.
 
 The jaws close (`Route.close_at`) at the first pose of the route where their
 `sweep` samples keep `margin` from the target, every neighbour and the table
@@ -163,8 +167,10 @@ PLAN_WALL_S = 8.0
 #: a core within this ratio of the fastest counts as it (timing noise)
 SLOWER_CORE_MIN = 1.25
 #: Up to PLAN_WALL_S can pass between the target's localization and the
-#: first command. Planning that took longer than this (s, wall) looks at the
-#: target again before that command (#399 review Minor 3, `fix_moved_m`) ...
+#: first command. When longer than this (s, wall, from the localization: the
+#: budget's core-speed search counts, #406 review Minor 1) passed, point_at
+#: looks at the target again before that command (#399 review Minor 3,
+#: `fix_moved_m`), on a detection newer than the plan (#406 review) ...
 FRESH_PLAN_S = 3.0
 #: ... and plans once more, from where it is now, when it moved more than
 #: this (m: its centre or its observed top), the pose's own aim tolerance
@@ -187,8 +193,14 @@ class PlanningTimeout(RouteRefused):
     """Planning ran past its time budget; nothing was commanded."""
 
 
-#: `_fastest_probe_s`, kept for the process once a search completed
+#: `_fastest_probe_s`, kept for the process once a search completed ("s"),
+#: and the incomplete searches' answer with when it was taken ("partial")
 _FASTEST: dict = {}
+#: an incomplete core-speed search (a loaded host: a helper not given its core
+#: in time) serves every call for this long (s, `_wall`) before a call
+#: searches again: a search takes up to ~1.2 s, never on every call (#406
+#: review Minor 1)
+SEARCH_AGAIN_S = 60.0
 
 
 def _speed_probe_s() -> float:
@@ -213,17 +225,25 @@ def _fastest_probe_s() -> float:
     timed by helper threads pinned to one core of each capacity class of the
     process's CPU set, fastest class first, the planning thread's affinity
     untouched), measured at the first use and kept for the process once a
-    search completed. A search that ran out of time serves this call only
-    (it can only understate how much slower a core is) and the next call
-    searches again (#399 review Minor 1)."""
-    if "s" not in _FASTEST:
-        from ..core_speed import fastest
+    search completed. A search that ran out of time is never kept for good
+    (it can only understate how much slower a core is, #399 review Minor 1):
+    its answer, the least of every such search so far, serves every call for
+    SEARCH_AGAIN_S, then a call searches again (#406 review Minor 1: never a
+    search on every call, nor on every re-measure of `Budget.check`)."""
+    if "s" in _FASTEST:
+        return _FASTEST["s"]
+    partial = _FASTEST.get("partial")
+    if partial is not None and _wall() - partial[1] < SEARCH_AGAIN_S:      # NaN searches again
+        return partial[0]
+    from ..core_speed import fastest
 
-        ref = fastest(lambda: _speed_probe_s())
-        if not ref.complete:
-            return ref.seconds
+    ref = fastest(lambda: _speed_probe_s())
+    if ref.complete:
         _FASTEST["s"] = ref.seconds
-    return _FASTEST["s"]
+        return ref.seconds
+    seconds = ref.seconds if partial is None else min(partial[0], ref.seconds)
+    _FASTEST["partial"] = (seconds, _wall())
+    return seconds
 
 
 def core_factor() -> float:

@@ -203,11 +203,14 @@ def test_one_core_per_capacity_class_fastest_class_first(monkeypatch):
 def test_a_search_that_ran_out_of_time_is_not_kept(monkeypatch, stall):
     """No helper got its core in time (stalled before it could even pin
     itself, or on its core): this call uses what it measured (its own core,
-    which can only understate the stretch), and the next call searches again
-    instead of keeping a slow reference for good."""
+    which can only understate the stretch), and so does every call for
+    `SEARCH_AGAIN_S` (never a search on every call, #406 review Minor 1);
+    then a call searches again instead of keeping a slow reference for good."""
     from cascade import core_speed
     from cascade.skills import pointing
 
+    now = [100.0]
+    monkeypatch.setattr(pointing, "_wall", lambda: now[0])
     cpus = sorted(os.sched_getaffinity(0))
     fast = cpus[-1]
     _one_fast_core(monkeypatch, fast)
@@ -235,6 +238,8 @@ def test_a_search_that_ran_out_of_time_is_not_kept(monkeypatch, stall):
     finally:
         gate.set()
         _join_probe_helpers()
+    assert pointing._fastest_probe_s() == 3e-3                # within SEARCH_AGAIN_S: no search
+    now[0] += pointing.SEARCH_AGAIN_S
     assert pointing._fastest_probe_s() == 1e-3
     assert pointing._FASTEST["s"] == 1e-3
 
@@ -581,8 +586,9 @@ def test_a_target_not_found_again_after_a_long_plan_is_refused(rig, monkeypatch)
 
     assert len(calls) == 2
     assert out["ok"] is False and _commands(r) == [] and r.jaws == [], out
-    assert "planning took 4.0 s, and looking at it again before the first command failed (SkillError: No " \
-           "current visual match for 'red cube'); nothing was moved" in out["error"], out
+    assert "cannot point at 'red cube': it was not seen again after a long plan (4.0 s): SkillError: No current " \
+           "visual match for 'red cube'; point_at moves only on a detection newer than the plan, never toward " \
+           "where it was before; nothing was moved" in out["error"], out
 
 
 @needs_pin
@@ -708,15 +714,25 @@ _PAIR = ("so101_left", "so101_right")
 _OTHER = {"so101_left": "so101_right", "so101_right": "so101_left"}
 #: puts the cube in reach of that arm (the pair's table-frame camera shift)
 _SHIFT = {"so101_left": (0.0, 0.10), "so101_right": (0.0, -0.10)}
+#: a call that records heartbeat ages starts this long after the cube is seen
+#: (s): an arm nobody heartbeats is at least that old at its first motion
+#: start on any runner, past _BEAT_AGE_MAX_S
+_BEAT_GAP_S = 1.2
+#: every arm's perception-watchdog age at every motion start stays under this
+#: (s): the watcher heartbeats every arm of a rig at ~0.33 s (#407); the
+#: shipped watchdog (5 s) stays as it is
+_BEAT_AGE_MAX_S = 1.0
 
 
 def _pair_point_at(make_runtime, monkeypatch, *, side, caller, holder, box, cup=False,  # noqa: F811
-                   camera_part=False):
+                   camera_part=False, beats=None):
     """point_at by `caller` on the shipped so101 pair (the cube on `side`'s
     side); `holder` (None: nothing held) holds the red cube (what a completed
     grasp leaves, injected), or the yellow cup when `cup`. `camera_part`:
     the caller's harness models a small wrist-camera box (a reBot-like tool
-    volume).
+    volume). `beats` (a list): the call starts _BEAT_GAP_S after the cube is
+    seen, and gets {arm: its heartbeat age} for every arm at every motion start
+    of any arm during the call.
     Returns (result fields, every arm's commands, every arm's jaws, the hold)."""
     from contextlib import ExitStack
 
@@ -759,7 +775,23 @@ def _pair_point_at(make_runtime, monkeypatch, *, side, caller, holder, box, cup=
                 local=box_grid(c, axes, half, 0.004), part=np.zeros(len(box_grid(c, axes, half, 0.004)), dtype=int),
                 names=("wrist camera",), boxes=((c, axes, half),))
         n0 = {n: len(raw.commands) for n, raw in raws.items()}
-        out = rt.execute("point_at", {"label": "red cube", "arm": caller})
+        recording = [False]
+        if beats is not None:
+            harnesses = {n: rt.arm_rig.get(n).harness for n in _PAIR}
+            for h in harnesses.values():
+                def begin(*a, _real=h.begin_motion, **k):
+                    if recording[0]:
+                        now = time.monotonic()
+                        beats.append({n: round(now - other._last_heartbeat, 3) for n, other in harnesses.items()})
+                    return _real(*a, **k)
+
+                monkeypatch.setattr(h, "begin_motion", begin)
+            time.sleep(_BEAT_GAP_S)
+            recording[0] = True
+        try:
+            out = rt.execute("point_at", {"label": "red cube", "arm": caller})
+        finally:
+            recording[0] = False
         cmds = {n: [np.round(np.asarray(q, float), 9).tolist() for q in raws[n].commands[n0[n]:]] for n in _PAIR}
         keep = ("ok", "error", "pointed_at", "position", "lean_deg", "rose_first", "backed_out_m")
         return {k: out.get(k) for k in keep}, cmds, jaws, (rt.held_object, getattr(rt, "_held_arm", None))
@@ -775,9 +807,18 @@ def test_on_a_pair_the_empty_arm_points_as_if_nothing_were_held(make_runtime, mo
     same call with nothing held (result, its commands, both arms' jaws), the
     holding arm gets no command, and the hold stays where it was. With a cup
     in the other arm's jaws, the cup's remembered place still counts as a
-    neighbour (main skipped it as if it were in this arm's jaws)."""
-    none = _pair_point_at(make_runtime, monkeypatch, side=mover, caller=mover, holder=None, box=box, cup=cup)
-    held = _pair_point_at(make_runtime, monkeypatch, side=mover, caller=mover, holder=_OTHER[mover], box=box, cup=cup)
+    neighbour (main skipped it as if it were in this arm's jaws).
+
+    The cup rows also keep the shipped watchdog and check every arm's
+    heartbeat age at every motion start (r406-407 review, follow-up 4): #406's
+    CI failed exactly these rows when only the primary arm got the watcher's
+    heartbeat (#407 fixed it; #408's lifted watchdog would have hidden a
+    revert of that fix)."""
+    beats = {"none": [], "held": []} if cup else {"none": None, "held": None}
+    none = _pair_point_at(make_runtime, monkeypatch, side=mover, caller=mover, holder=None, box=box, cup=cup,
+                          beats=beats["none"])
+    held = _pair_point_at(make_runtime, monkeypatch, side=mover, caller=mover, holder=_OTHER[mover], box=box, cup=cup,
+                          beats=beats["held"])
 
     assert held[0] == none[0]
     assert held[1] == none[1] and held[1][_OTHER[mover]] == []
@@ -785,6 +826,13 @@ def test_on_a_pair_the_empty_arm_points_as_if_nothing_were_held(make_runtime, mo
     assert held[3] == (("yellow cup" if cup else "red cube"), _OTHER[mover])
     if not cup:
         assert none[0]["ok"] is True and none[1][mover], "test setup: the empty arm must point"
+    else:
+        for call, result in (("none", none), ("held", held)):
+            ages = beats[call]
+            # a call that commanded its arm started a motion (so101_left's
+            # cup rows refuse before any: no pose clears the cup)
+            assert bool(ages) == bool(result[1][mover]), (call, ages, result[0])
+            assert all(age < _BEAT_AGE_MAX_S for at_start in ages for age in at_start.values()), (call, ages)
 
 
 @needs_pin

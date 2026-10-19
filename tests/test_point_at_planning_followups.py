@@ -720,11 +720,20 @@ def _pair_point_at(make_runtime, monkeypatch, *, side, caller, holder, box, cup=
     Returns (result fields, every arm's commands, every arm's jaws, the hold)."""
     from contextlib import ExitStack
 
-    from base_pose_oracle import moved_cfg, raw_arm
+    from base_pose_oracle import _arm_entries, _data, moved_cfg, raw_arm
 
     from cascade.safety.tool_volume import ToolVolume, box_grid
 
     cfg = moved_cfg(list(_PAIR), {}, move_cameras=False, shift_xy=_SHIFT[side])
+    # The planning thread can starve the watcher's heartbeat past the 5 s
+    # perception watchdog on a loaded CI runner (#406's arm job: both calls
+    # refused "last observation 5.6s old" / "5.8s old"); this test is about who
+    # holds what, so the watchdog is lifted like the planning budget is: the
+    # top level and every arm entry's resolved `safety` (each arm's harness)
+    sections = [cfg._data.get("safety")] + [_data(e["resolved"]).get("safety") for e in _arm_entries(cfg._data)
+                                            if e.get("resolved") is not None]
+    for safety in filter(None, sections):
+        _data(safety)["watchdog_s"] = 1e9
     if box == "nobox":
         cfg._data["relative_motion"]["wrist_camera"] = None
     rt = make_runtime(cfg)
@@ -760,6 +769,8 @@ def _pair_point_at(make_runtime, monkeypatch, *, side, caller, holder, box, cup=
                 names=("wrist camera",), boxes=((c, axes, half),))
         n0 = {n: len(raw.commands) for n, raw in raws.items()}
         out = rt.execute("point_at", {"label": "red cube", "arm": caller})
+        # a test of who holds what, never of a slow runner's perception watchdog
+        assert "perception watchdog" not in str(out.get("error")), out
         cmds = {n: [np.round(np.asarray(q, float), 9).tolist() for q in raws[n].commands[n0[n]:]] for n in _PAIR}
         keep = ("ok", "error", "pointed_at", "position", "lean_deg", "rose_first", "backed_out_m")
         return {k: out.get(k) for k in keep}, cmds, jaws, (rt.held_object, getattr(rt, "_held_arm", None))

@@ -344,6 +344,7 @@ def test_reset_scene_is_refused_while_another_arms_stop_column_is_live(make_runt
     live column is retraced by its reset as before (never this refusal)."""
     from cascade.skills import stop_retrace
 
+    monkeypatch.setattr(stop_retrace, "_clock", lambda: 1000.0)      # the verbatim seconds never tick (#400 Minor 5)
     rt = make_runtime(_pair_world_rig())
     left, right = rt.arm_rig.get("so101_left"), _right(rt)
     column = _kept_column(right)
@@ -377,9 +378,12 @@ def test_another_arms_column_comes_before_its_hold_in_the_reset_refusal(make_run
     names move_home on the right arm first; the hold refusal's place_at would
     forfeit that column (execute() forgets the running arm's column on any
     other motion skill) and freeze the right arm at its object."""
+    from cascade.skills import stop_retrace
+
     rt = make_runtime(_pair_world_rig())
     right = _right(rt)
     assert rt.execute("grasp_object", {"label": "red cube", "arm": "so101_right"})["held"] == "red cube"
+    monkeypatch.setattr(stop_retrace, "_clock", lambda: 1000.0)      # the verbatim 300 s never ticks
     rt._stop_retraces = {id(right): _kept_column(right)}
     log = _JawLog(rt, monkeypatch)
     mark = log.mark()
@@ -479,6 +483,7 @@ def test_the_frozen_planning_prior_is_the_running_arms_row(monkeypatch):
     rt.skill_grasp_object("orange", _fix=fix, _frame=frame)
     assert batches == [1] and labels == ["orange@so101_right"], labels
     assert records == ["orange@so101_right"], records
+
 
 # ── #400 review Important 1: the arm that does not hold moves with its own empty jaws ──
 

@@ -1705,6 +1705,15 @@ def _no_visitor_sides(cfg):
     return _people({"visitor_sides": []})(cfg)
 
 
+def _throw_rig(cfg):
+    """The throw row's rig: no visitor side, and the table 3 cm below the
+    arm's base (`raised_table`). At the shipped table_z 0 the SO-101's
+    wind-up passes 1.9 cm over the table, under its 2 cm clearance: rig A is
+    refused mid-throw and the release would never be compared (#400 review
+    Minor 2)."""
+    return raised_table(_no_visitor_sides(cfg))
+
+
 #: Task 6's oracle sequences: (arm, steps, config edit). Each step runs on both
 #: rigs and is compared (`run_pair`). move_near_object moves `closer` on
 #: `mock`: above / next_to are out of every shipped chain's reach from home
@@ -1718,7 +1727,7 @@ ORACLE_T6 = {
     "restore_scene": ("so101_right", [("snapshot_scene", {"name": "scene"}), _SHIFT_SNAPSHOT,
                                       ("restore_scene", {"name": "scene", "max_moves": 1})], None),
     "turn_screw": ("so101_right", [("turn_screw", {"label": "red cube"})], None),
-    "throw": ("so101_right", [("throw", {"label": "red cube"})], _no_visitor_sides),
+    "throw": ("so101_right", [("throw", {"label": "red cube"})], _throw_rig),
     "handover": ("so101_right", [("handover", {"label": "red cube"})], None),
     "move_near_object": ("mock", [("move_near_object", {"label": "red cube", "relation": "closer",
                                                         "distance_m": 0.03})], None),
@@ -1726,6 +1735,12 @@ ORACLE_T6 = {
 }
 #: Steps that move nothing (they still compare their results).
 _LOOKS = {"snapshot_scene", "probe_point", "search_for_object"}
+#: Rows whose rig A verdict is not ok by design; their motion completes and is
+#: compared: the occluder search never sees the ball (exhausted after lifting
+#: the occluder), and turn_screw cannot verify a fastening on the mock stack.
+#: Every other step completes on rig A (#400 review Minor 2: a refusal on both
+#: rigs would compare nothing the skill does).
+_NOT_OK_BY_DESIGN = {"search_for_object, occluder", "turn_screw"}
 
 
 def _shift_snapshots(rt_a, rt_b, T):
@@ -1754,6 +1769,7 @@ def test_remaining_skills_are_equivariant(make_pair_rigs, observed_gate, pose, s
         run = run_pair(rt_a, rt_b, T, skill, args)
         if skill not in _LOOKS or seq == "search_for_object, occluder":
             assert run["cmds_a"], f"rig A moved for {skill}: {run['result_a']}"
+        assert run["result_a"].get("ok", True) is (seq not in _NOT_OK_BY_DESIGN), (skill, run["result_a"])
         assert_equivariant(run, T)
 
 
@@ -1867,6 +1883,25 @@ def test_restore_checks_the_target_in_the_arm_frame(make_runtime, gate_off, monk
     assert checked and placed, (checked, placed)
     np.testing.assert_allclose(checked[0], _in_arm_frame(T, target)[:2], rtol=0.0, atol=1e-9)
     np.testing.assert_allclose(placed[0], target[:2], rtol=0.0, atol=1e-9)
+
+
+@pytest.mark.parametrize("pose", [SHIPPED_RIGHT, YAWED, COMBO], ids=["so101_right", "yawed", "combo"])
+def test_the_park_spot_avoids_its_neighbours_in_the_arm_frame(make_pair_rigs, pose):  # noqa: F811
+    """#400 review Minor 1: `_free_park_spot` takes its neighbours (`avoid`,
+    table-frame (xy, radius)) into the arm frame with `around`. A neighbour on
+    rig A's first candidate (its first direction at the first offset) moves
+    rig A's spot off it; rig B gets the same neighbour moved by T and parks at
+    T of rig A's spot. Left in the table frame, rig B's neighbour sits away
+    from the spot it should block (arm profile `mock`: every candidate in reach)."""
+    rt_a, rt_b, T = make_pair_rigs(pose, arm="mock")
+    around = np.asarray(rt_a.beliefs.find("red cube").position, dtype=float)
+    first = around + np.array([0.0, 0.20, 0.0])
+    assert np.allclose(rt_a._free_park_spot(around[:2], []), first[:2], rtol=0.0, atol=1e-9)
+    spot_a = rt_a._free_park_spot(around[:2], [(first[:2], 0.07)])
+    spot_b = rt_b._free_park_spot(lift(T, around)[:2], [(lift(T, first)[:2], 0.07)])
+    assert spot_a is not None and spot_b is not None, (spot_a, spot_b)
+    assert float(np.linalg.norm(np.asarray(spot_a) - first[:2])) > 0.07, (spot_a, first)
+    np.testing.assert_allclose(spot_b, lift(T, [float(spot_a[0]), float(spot_a[1]), 0.0])[:2], rtol=0.0, atol=1e-9)
 
 
 @pytest.mark.parametrize("cube_y", [-0.10, -0.20], ids=["cube at W y -0.10", "cube at the zone's arm numbers"])

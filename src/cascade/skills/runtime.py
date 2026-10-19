@@ -378,8 +378,8 @@ def _hold_on_another_arm(runtime) -> bool:
 class _PointTargetMoved(Exception):
     """point_at's target moved while it planned (`_point_at_still_there`):
     plan once more from `fix`, where it is now, localized at `localized`
-    ((`pointing._wall()`, `time.monotonic()`)). Never leaves
-    `skill_point_at`."""
+    ((`pointing._wall()`, `time.monotonic()`, the image it came from)). Never
+    leaves `skill_point_at`."""
 
     def __init__(self, fix, localized):
         super().__init__("the target moved while point_at planned")
@@ -8076,23 +8076,25 @@ class SkillRuntime:
         operator's reason. When more than 3 s of wall time passed between the
         localization and the end of planning, it looks at the object again
         before the first command, on a detection newer than the plan only
-        (never the remembered belief, never an image from before the plan):
-        not seen again, it refuses; moved more than 1 cm (its centre or its
-        top), it is planned once more from where it is now, on what is left
-        of the same budget; moved again, refuses (nothing was moved). The
-        object top is
+        (never the remembered belief, never an image received before that
+        look started, never a camera's producer capture no newer than the one
+        the plan was made from): not seen again, it refuses; moved more than
+        1 cm (its centre or its top), it is planned once more from where it is
+        now, on what is left of the same budget; moved again, refuses (nothing
+        was moved). The object top is
         the observed top raised to the occupancy map's column top (capped as
         the pregrasp reads it) and to the top of an object standing over it
         (a cup over the cube)."""
         harness = getattr(self.arm, "harness", None)
         generation = getattr(harness, "_halt_generation", None)
-        _, fix = self._localize(label)
+        frame, fix = self._localize(label)
         fix = _host_fix(fix)
         from . import pointing
 
         # the freshness clock starts here, at the localization, before the
-        # budget's core-speed search (#406 review Minor 1): (wall, monotonic)
-        localized = (pointing._wall(), time.monotonic())
+        # budget's core-speed search (#406 review Minor 1): (wall, monotonic,
+        # the image the fix came from)
+        localized = (pointing._wall(), time.monotonic(), frame)
         budget = pointing.Budget()
         try:
             try:
@@ -8116,7 +8118,8 @@ class SkillRuntime:
         `generation`: the harness's halt generation when the call started;
         `replanned`: this is the plan from a fix taken again after a long
         first plan (`_point_at_still_there`); `localized`: (`pointing._wall()`,
-        `time.monotonic()`) when `fix` was localized."""
+        `time.monotonic()`) when `fix` was localized, and the image it came
+        from."""
         from . import pointing
 
         gcfg = self.cfg.grasp
@@ -8310,18 +8313,27 @@ class SkillRuntime:
                               replanned: bool) -> None:
         """point_at, before its first command: when more than
         `pointing.FRESH_PLAN_S` of wall time passed since `fix` was localized
-        (`localized`: (`pointing._wall()`, `time.monotonic()`) then), the plan
-        acted on an old fix, so the target is localized again, on a detection
-        newer than the plan only (#406 review): `_localize(memory=False)`, never
-        its belief fallback (inside the skill that is what was known before the
-        plan, read as unmoved), on an image received after `localized`. Not
+        (`localized`: (`pointing._wall()`, `time.monotonic()`) then, and the
+        image `fix` came from), the plan acted on an old fix, so the target is
+        localized again, on a detection newer than the plan only (#406
+        review): `_localize(memory=False)`, never its belief fallback (inside
+        the skill that is what was known before the plan, read as unmoved), on
+        an image RECEIVED after this look started (`Frame.t`, the client's
+        receipt time: a camera that stalled during the plan hands back an
+        image received then, #411 review Minor 2). When either image carries a
+        producer capture (an Isaac / OVRTX camera's own clock), the new one's
+        must also be newer than the one `fix` came from
+        (`freshness.newer_capture`): a bridge re-sends an old capture in a new
+        Frame, with a new `Frame.t` (#411 review Minor 1); one that cannot be
+        compared with it (another identity, none any more) refuses too. Not
         seen again: refuses. Moved more than `pointing.FRESH_MOVE_M`
         (`fix_moved_m`): raises `_PointTargetMoved` with the fresh fix (planned
         once more), or, when this already was that plan, refuses. Nothing was
         commanded either way; a stop that came meanwhile is reported first."""
+        from ..perception import freshness
         from . import pointing
 
-        planned_from, since = localized
+        planned_from, since, planned_on = localized
         took = pointing._wall() - planned_from
         if took <= pointing.FRESH_PLAN_S:      # NaN looks again
             return
@@ -8332,13 +8344,24 @@ class SkillRuntime:
                               f"{why}; point_at moves only on a detection newer than the plan, never toward where "
                               f"it was before; nothing was moved")
 
+        looking = time.monotonic()
         try:
             frame, fresh = self._localize(label, memory=False)
         except SkillError as exc:
             raise not_seen(f"{type(exc).__name__}: {exc}") from None
-        seen_again = (pointing._wall(), time.monotonic())
-        if not float(getattr(frame, "t", math.nan)) > since:       # NaN, or no image: not newer
-            raise not_seen("the image it was found on again was taken before the plan started")
+        seen_again = (pointing._wall(), time.monotonic(), frame)
+        received = float(getattr(frame, "t", math.nan))
+        if not received > looking:             # NaN, or no image: not newer
+            raise not_seen("the image it was found on again was taken before the plan started" if not received > since
+                           else "the image it was found on again was received during the plan, before this look "
+                                "started")
+        if getattr(frame, "capture", None) is not None or getattr(planned_on, "capture", None) is not None:
+            try:
+                newer = freshness.newer_capture(frame, planned_on)
+            except ValueError as exc:
+                raise not_seen(f"its capture cannot be compared with the one the plan was made from ({exc})") from None
+            if not newer:
+                raise not_seen("its camera re-sent a capture no newer than the one the plan was made from")
         fresh = _host_fix(fresh)
         moved = pointing.fix_moved_m(fix, fresh)
         if moved <= pointing.FRESH_MOVE_M:     # NaN counts as moved

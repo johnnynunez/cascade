@@ -113,14 +113,19 @@ def fastest(workload: Callable[[], float], repeats: int = 3) -> Reference:
             answered = pinnable = False
             for cpu in cores:
                 left = stop - time.monotonic()
+                token = object()
+                # no helper running, and this search's own registered, in ONE
+                # section: a search checking in between finds it running
+                # (#411 review Minor 3)
                 with _running_lock:
                     busy = bool(_running)
+                    if not busy and left > 0.0:
+                        _running.add(token)
                 if busy or not left > 0.0:
                     pinnable = True        # out of time, or a helper still runs, before this class was tried
                     break
                 out: list = []
                 pinned: list = []
-                token = object()
 
                 def timed(cpu=cpu, out=out, pinned=pinned, token=token):
                     found = None
@@ -142,10 +147,8 @@ def fastest(workload: Callable[[], float], repeats: int = 3) -> Reference:
                                 out.append(found)
                             _running.discard(token)
 
-                helper = threading.Thread(target=timed, daemon=True, name="core-speed-probe")
-                with _running_lock:
-                    _running.add(token)
                 try:
+                    helper = threading.Thread(target=timed, daemon=True, name="core-speed-probe")
                     helper.start()
                 except BaseException:
                     with _running_lock:

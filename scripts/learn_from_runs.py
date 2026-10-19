@@ -21,9 +21,11 @@ scheduled job, or by hand between demo sessions:
 
 This runs as a separate process so harvesting does not change guidance
 mid-session. Better future performance still requires independent trials.
-Notes come only from runs whose run.json shows the sim retry ledger on (the
-kitchen sim at gate 1): gate-0 and hardware runs are skipped, each with a
-one-line reason, and counted (`aspire.harvest_skip_reason`).
+Notes come only from live runs whose run.json shows the sim retry ledger on
+(the kitchen sim at gate 1) and `"purpose": "live"`: gate-0 and hardware runs,
+and verify / acceptance / benchmark stack runs (any other purpose, or none),
+are skipped, each with a one-line reason, and counted
+(`aspire.harvest_skip_reason`).
 See docs/DREAM_RSI_ADAPTATION.md for admission rules, legacy traces and the
 separate envelope path. --report alone writes updates; --dry-run may create
 an empty library directory, and --export-md always writes its requested file.
@@ -104,7 +106,7 @@ def main() -> int:
     print(f"traces folded : {ingested['traces']} traces, {ingested['records']} calls")
     print(f"skills learned: {learned.get('learned', 0)} {learned.get('entries', [])}")
     skipped = learned.get("skipped_runs") or []
-    print(f"runs skipped  : {len(skipped)} (notes come only from runs with the sim retry ledger on)")
+    print(f"runs skipped  : {len(skipped)} (notes come only from live runs with the sim retry ledger on)")
     for line in skipped[:_SKIPPED_SHOWN]:
         print(f"  {line}")
     if len(skipped) > _SKIPPED_SHOWN:

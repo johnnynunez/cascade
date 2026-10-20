@@ -170,13 +170,13 @@ PLAN_WALL_S = 8.0
 #: 6 of 32 so101_mock and 14 of 32 g1_mock rows ran past 3 s; none on an
 #: X925). The budget counts the planning thread's CPU in the fastest core
 #: class's time: CPU spent on a slower class counts at that class's speed
-#: (`class_factors`, each class timed once per process on its own core), so
-#: it is PLAN_BUDGET_S of the fastest class's CPU wherever the plan ran, and
-#: a factor never stretches it past PLAN_WALL_S. A class within this ratio of
-#: the fastest counts as it (timing noise). Any factor is capped at
-#: PLAN_WALL_S / PLAN_BUDGET_S = 2.67: one thread's CPU never outruns the
-#: wall clock (an A725 reads 2.7-2.8x on the factor's kernel, real plans
-#: 2.7-4.0x, `_speed_probe_s`).
+#: (`class_factors`, each class timed once per process on its own core), as
+#: far as the cores sampled at the budget checks tell (`Budget`: what that
+#: guarantees), and a factor never stretches it past PLAN_WALL_S. A class
+#: within this ratio of the fastest counts as it (timing noise). Any factor
+#: is capped at PLAN_WALL_S / PLAN_BUDGET_S = 2.67: one thread's CPU never
+#: outruns the wall clock (an A725 reads 2.7-2.8x on the factor's kernel,
+#: real plans 2.7-4.0x, `_speed_probe_s`).
 SLOWER_CORE_MIN = 1.25
 #: Up to PLAN_WALL_S can pass between the target's localization and the
 #: first command. When longer than this (s, wall, from the localization: the
@@ -312,16 +312,30 @@ class Budget:
     the thread that made it has spent `seconds` (PLAN_BUDGET_S) of the host's
     fastest core class's CPU time since (`charged`), or `wall` seconds have
     passed (`_wall`, PLAN_WALL_S). Each check charges this thread's CPU time
-    since the last one (`_clock`) by the class of the core it ran on (`_cpu`,
-    sampled at both checks, milliseconds apart in a plan: the faster class of
-    the two counts, as that time may have run on either): divided by that
-    class's factor (`class_factors`, read once, here, before planning; never
-    above `wall` / `seconds`, so the CPU it allows never passes the wall cap;
-    1 for a core of no measured class or a factor that is not a finite number
-    >= 1). So the budget is the same wherever the plan ran and whatever core
-    the thread woke on (#425 review Important 1 and follow-up 2: one timing of
-    the planning thread's core before planning read 1.3-1.7x on an X925 after
-    the localization's wait, or an A725 the thread left within 60 ms, and a
+    since the last check (`_clock`) divided by the smaller of two factors:
+    that of the core sampled at the last check and that of the core sampled
+    now (`_cpu`; `class_factors`, read once, here, before planning; never
+    above `wall` / `seconds`, 8 / 3 = 2.67 as shipped; 1 for a core of no
+    measured class or a factor that is not a finite number >= 1).
+
+    What that guarantees (#429 review Minor 1). The core is sampled only at
+    the checks, so a span between two checks is judged by its two ends:
+    - an end on the fastest class charges the whole span as the fastest
+      class's CPU (conservative: A725 time in it counts as X925 time);
+    - both ends on a slower class charge it at that class's rate, also when
+      the thread ran on a faster class in between: an A725..X925..A725 span
+      undercharges its X925 time by up to 1 - 1/2.67 = 62.5 %;
+    - whatever the samples, the CPU the thread may spend never passes
+      `seconds` x its largest factor (8 s as shipped, `wall`), nor planning
+      `wall` of wall time.
+    Real plans check at most ~39 ms of CPU apart on an idle GB10 (~118 ms on
+    an A725 under a toggling load; a refused search ~210 ms), so a migration
+    can hide only inside such a span; one long uninterrupted span (a CPU spin
+    between two checks) is decided by its two end samples alone. The thread
+    itself is never timed, so a core it woke on cold cannot stretch its budget
+    (#425 review Important 1 and follow-up 2: one timing of the planning
+    thread's core before planning read 1.3-1.7x on an X925 after the
+    localization's wait, or an A725 the thread left within 60 ms; and a
     thread moved to a slower core mid-plan kept the faster core's budget).
     Read from another thread, whose CPU clock says nothing about this one,
     `seconds` counts wall time (the strict rule)."""

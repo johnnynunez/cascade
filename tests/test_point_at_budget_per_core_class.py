@@ -8,8 +8,9 @@ kept the faster core's budget: 3 of 52 heavy plans were refused under a toggling
 re-measure). Now:
 
 1. every budget check charges the planning thread's CPU since the last check by the class of the core it ran on
-   (`pointing._cpu`, sampled at both checks; the faster of the two counts): the budget is 3 s of the fastest class's
-   CPU, wherever the plan ran, and still never past the 8 s wall cap;
+   (`pointing._cpu`, sampled at both checks; the faster of the two counts, so a span is judged by its two ends,
+   `pointing.Budget`): the budget is 3 s of the fastest class's CPU as far as those samples tell, and still never
+   past the 8 s wall cap;
 2. a class's factor is measured once per process by a helper thread pinned to one of its cores
    (`core_speed.class_times`: an untimed warm-up, then the median of CLASS_RUNS runs); the planning thread is never
    timed, so a cold core after a sleep cannot stretch its budget. A class not measured in time counts as the
@@ -477,6 +478,7 @@ def test_measuring_the_classes_leaves_no_thread_behind(monkeypatch):
     _join_probe_helpers()
     assert [t.name for t in threading.enumerate() if t.name == "core-speed-probe"] == []
 
+
 # ── 4. two first Budgets at once (#429 review Minor 3) ──────────────────────
 
 
@@ -585,6 +587,7 @@ def test_the_shipped_search_wait_outlasts_one_search():
 
     assert pointing.SEARCH_WAIT_S >= core_speed.SEARCH_S + core_speed.PER_CORE_S
     assert pointing.SEARCH_WAIT_S <= 2.0, "a bounded wait: it counts toward FRESH_PLAN_S"
+
 
 # ── 5. a Python without ctypes (#429 review Minor 5) ────────────────────────
 

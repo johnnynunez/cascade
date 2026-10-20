@@ -1326,8 +1326,10 @@ brain_local() {  # brain_local <base_url> <model_id> <ctx>
         # (a subshell), never on its argv.
         custom_key="${CASCADE_MODEL_API_KEY:-}"
         if [[ -z "$custom_key" ]]; then
-            # a literal ~ (a quoted value) names HOME, as demo_proof reads it
-            key_file="${CASCADE_MODEL_API_KEY_FILE/#\~/$HOME}"
+            # a literal ~ or ~user (a quoted value) expands as demo_proof
+            # expands it for the brain checks (expanduser), not only a ~/ prefix
+            key_file="$("$PY" -c 'import os, sys; print(os.path.expanduser(sys.argv[1]))' \
+                "$CASCADE_MODEL_API_KEY_FILE")" || die "cannot expand the brain key file path $CASCADE_MODEL_API_KEY_FILE"
             custom_key="$(tr -d '[:space:]' < "$key_file")" \
                 || die "cannot read the brain key file $key_file"
         fi

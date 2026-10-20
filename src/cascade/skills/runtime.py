@@ -8630,11 +8630,13 @@ class SkillRuntime:
         elif captured:
             # another camera's image: two cameras on one producer clock (one
             # Isaac sim's physics loop, `freshness.producer_clock`) are ordered
-            # by it, whatever stream each came through. A stream's first-receipt
-            # record restarts on one bad or local frame or a reconnect, so a
-            # capture frozen since before the call can read as first received
-            # now (#418 review Minors 1-2); captures on different clocks are
-            # judged by their receipts alone
+            # by it, whatever stream each came through (#418 review Minors
+            # 1-2): another stream's first-receipt record knows nothing of the
+            # plan's capture. That record survives a bad or a local frame
+            # (#422) and, keyed on the producer clock, a reconnect to another
+            # bridge port (#423 review follow-up 1), so a capture frozen since
+            # before the call keeps its old first receipt, checked below;
+            # captures on different clocks are judged by their receipts alone
             try:
                 found, planned = freshness.producer_clock(frame), freshness.producer_clock(planned_on)
             except ValueError as exc:

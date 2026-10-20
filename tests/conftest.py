@@ -222,15 +222,17 @@ def _point_at_budget_for_slow_runners(monkeypatch):
     runners running ~19k tests are slower and loaded: a test about a refusal
     reason must not see the budget's refusal instead, nor a second
     localization. The budget's own tests set their numbers and drive
-    fake clocks (`pointing._clock`, `_wall`); one pins the shipped values. The
-    slower-core stretch (`pointing.core_factor`) is 1 here: a budget test must
-    not depend on the core the test runs on (its own tests restore it)."""
+    fake clocks (`pointing._clock`, `_wall`); one pins the shipped values. No
+    core class is measured here (`pointing.class_factors` is empty: every core
+    counts as the fastest): a budget test must not depend on the cores the
+    test runs on, nor start the class search's helper threads (its own tests
+    restore it)."""
     from cascade.skills import pointing
 
     monkeypatch.setattr(pointing, "PLAN_BUDGET_S", 30.0)
     monkeypatch.setattr(pointing, "PLAN_WALL_S", 120.0)
     monkeypatch.setattr(pointing, "FRESH_PLAN_S", 120.0)
-    monkeypatch.setattr(pointing, "core_factor", lambda: 1.0)
+    monkeypatch.setattr(pointing, "class_factors", lambda: {})
 
 
 @pytest.fixture(autouse=True)

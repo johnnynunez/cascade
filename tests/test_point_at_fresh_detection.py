@@ -11,7 +11,7 @@
    newer than the plan: a miss (or an image from before the plan) refuses with
    no command.
 2. Minor 1: the freshness clock starts at the localization, before
-   `Budget()` (whose core-speed search can take ~1.2 s), and a re-plan's at
+   `Budget()` (whose core class search can take ~1.2 s), and a re-plan's at
    the look again that gave its fix. (The search itself:
    tests/test_point_at_core_speed_search.py.)
 3. Minor 3: a halt noticed at the first command (or later) keeps the
@@ -1031,8 +1031,8 @@ def test_the_first_receipt_must_be_a_time_the_heartbeat_would_take(rig, monkeypa
 
 
 @needs_pin
-def test_the_core_speed_search_counts_toward_the_look_again(rig, monkeypatch):  # noqa: F811
-    """Budget()'s core-speed search took 3.5 s (a loaded host), the plan
+def test_the_core_class_search_counts_toward_the_look_again(rig, monkeypatch):  # noqa: F811
+    """Budget()'s core class search took 3.5 s (a loaded host), the plan
     itself no time: the fix is 3.5 s old at the first command, so the target
     is looked at again. main started the clock after Budget() and never
     looked."""
@@ -1044,9 +1044,9 @@ def test_the_core_speed_search_counts_toward_the_look_again(rig, monkeypatch):  
 
     def slow_search():
         now[0] += 3.5
-        return 1.0
+        return {}
 
-    monkeypatch.setattr(pointing, "core_factor", slow_search)
+    monkeypatch.setattr(pointing, "class_factors", slow_search)
     calls = _localizations(monkeypatch, rt, [(0.0, 0.0, 0.0), (0.0, 0.005, 0.0)])
 
     out = rt.execute("point_at", {"label": "red cube"})

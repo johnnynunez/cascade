@@ -2,9 +2,9 @@
 
 1. Minor 1: a search that ran out of time (a loaded host: up to ~1.2 s) was
    repeated on every point_at call and on every re-measure of `Budget.check`.
-   Its answer (the least of every such search) now serves every call for
-   `pointing.SEARCH_AGAIN_S`; then a call searches again; a complete search is
-   kept for good.
+   Its answer (the classes it measured) now serves every call for
+   `pointing.SEARCH_AGAIN_S`; then a call measures the classes still missing;
+   a complete search is kept for good.
 2. Minor 2: a hung helper left one helper per capacity class alive (5 on the
    GB10, 2.5 s after the search, each then running all its repeats). One
    helper runs at a time, process-wide: a helper that has not answered in time
@@ -22,7 +22,7 @@ import threading
 
 import pytest
 from test_point_at_planning_followups import (
-    _CORE_FACTOR,
+    _CLASS_FACTORS,
     _join_probe_helpers,
     _one_fast_core,
     needs_affinity,
@@ -32,41 +32,41 @@ from test_point_at_planning_followups import (
 
 
 def test_an_incomplete_core_speed_search_is_not_repeated_on_every_call(monkeypatch):
-    """A search that ran out of time (a loaded host, ~1.2 s) serves every
-    call for SEARCH_AGAIN_S (the least of every such search), then one call
-    searches again; a complete one is kept for good. main searched again on
-    every call (and on every re-measure of `Budget.check`)."""
+    """A search that left a class out (a loaded host, ~1.2 s) serves every
+    call for SEARCH_AGAIN_S (the classes it measured), then one call measures
+    the classes still missing; a complete one is kept for good. main searched
+    again on every call (and on every re-measure of `Budget.check`)."""
     from cascade import core_speed
     from cascade.skills import pointing
 
     now = [100.0]
     monkeypatch.setattr(pointing, "_wall", lambda: now[0])
-    monkeypatch.setattr(pointing, "_FASTEST", {})
-    monkeypatch.setattr(pointing, "core_factor", _CORE_FACTOR)
-    answers = iter([core_speed.Reference(3e-3, False), core_speed.Reference(4e-3, False),
-                    core_speed.Reference(2e-3, False), core_speed.Reference(1e-3, True)])
+    monkeypatch.setattr(pointing, "_CLASSES", {})
+    monkeypatch.setattr(pointing, "class_factors", _CLASS_FACTORS)
+    answers = iter([core_speed.ClassTimes({(0, 1): 1e-3}, False),       # the A725 class did not answer
+                    core_speed.ClassTimes({}, False),                    # nor again
+                    core_speed.ClassTimes({(2, 3): 2.5e-3}, True)])
     searches = []
 
-    def fastest(workload, repeats=3):
-        searches.append(now[0])
+    def class_times(workload, *, skip=frozenset(), **_):
+        searches.append((now[0], set(skip)))
         return next(answers)
 
-    monkeypatch.setattr(core_speed, "fastest", fastest)
+    monkeypatch.setattr(core_speed, "class_times", class_times)
 
     for _ in range(3):
         pointing.Budget()                          # one search, not three
-    assert searches == [100.0]
-    assert pointing._fastest_probe_s() == 3e-3
+    assert searches == [(100.0, set())]
+    assert pointing.class_factors() == {0: 1.0, 1: 1.0}
     now[0] += pointing.SEARCH_AGAIN_S - 1.0
-    assert pointing._fastest_probe_s() == 3e-3 and len(searches) == 1
+    assert pointing.class_factors() == {0: 1.0, 1: 1.0} and len(searches) == 1
     now[0] += 1.0
-    assert pointing._fastest_probe_s() == 3e-3 and len(searches) == 2    # searched again; the least is kept
+    assert pointing.class_factors() == {0: 1.0, 1: 1.0}
+    assert searches[1:] == [(now[0], {(0, 1)})]                         # the missing classes only
     now[0] += pointing.SEARCH_AGAIN_S
-    assert pointing._fastest_probe_s() == 2e-3 and len(searches) == 3
-    now[0] += pointing.SEARCH_AGAIN_S
-    assert pointing._fastest_probe_s() == 1e-3 and len(searches) == 4    # complete: kept for good
+    assert pointing.class_factors() == {0: 1.0, 1: 1.0, 2: 2.5, 3: 2.5} and len(searches) == 3
     now[0] += 1e6
-    assert pointing._fastest_probe_s() == 1e-3 and len(searches) == 4
+    assert pointing.class_factors() == {0: 1.0, 1: 1.0, 2: 2.5, 3: 2.5} and len(searches) == 3  # complete
 
 
 def test_the_shipped_search_again_interval_is_pinned():
@@ -110,17 +110,17 @@ def test_a_hung_core_speed_helper_is_the_only_one_and_ends_with_its_hang(monkeyp
         return 1e-3 if os.sched_getaffinity(0) == {fast} else 3e-3
 
     try:
-        first = core_speed.fastest(work)
+        first = core_speed.class_times(work)
         alive = _probe_threads()
-        again = core_speed.fastest(work)
+        again = core_speed.class_times(work)
         still = _probe_threads()
     finally:
         gate.set()
     for t in still:
         t.join(5.0)
 
-    assert first == core_speed.Reference(3e-3, False), first
-    assert again == core_speed.Reference(3e-3, False), again
+    assert first == core_speed.ClassTimes({}, False), first
+    assert again == core_speed.ClassTimes({}, False), again
     assert len(alive) == 1 and still == alive, (alive, still)
     assert runs == [[fast]], runs                  # one helper, one run of its work
     assert not _probe_threads()
@@ -143,7 +143,7 @@ def test_a_helper_that_cannot_start_leaves_no_helper_behind(monkeypatch):
 
     monkeypatch.setattr(threading.Thread, "start", start)
     with pytest.raises(RuntimeError, match="can't start new thread"):
-        core_speed.fastest(lambda: 1e-3)
+        core_speed.class_times(lambda: 1e-3)
     assert core_speed._running == set()
     started = []
 
@@ -152,7 +152,7 @@ def test_a_helper_that_cannot_start_leaves_no_helper_behind(monkeypatch):
         return real_start(self)
 
     monkeypatch.setattr(threading.Thread, "start", counted)
-    core_speed.fastest(lambda: 1e-3)
+    core_speed.class_times(lambda: 1e-3)
     _join_probe_helpers()
     assert "core-speed-probe" in started, "a later search must still start its helpers"
 
@@ -221,12 +221,12 @@ def test_a_search_that_passed_its_busy_check_holds_the_slot_before_another_searc
 
     monkeypatch.setattr(threading.Thread, "start", counted)
     results = {}
-    a = threading.Thread(target=lambda: results.__setitem__("A", core_speed.fastest(work)), name="search-A",
+    a = threading.Thread(target=lambda: results.__setitem__("A", core_speed.class_times(work)), name="search-A",
                          daemon=True)
     try:
         a.start()
         assert a_paused.wait(10.0), "test setup: search A never took the lock"
-        b = threading.Thread(target=lambda: results.__setitem__("B", core_speed.fastest(work)), name="search-B",
+        b = threading.Thread(target=lambda: results.__setitem__("B", core_speed.class_times(work)), name="search-B",
                              daemon=True)
         b.start()
         b.join(10.0)
@@ -241,6 +241,6 @@ def test_a_search_that_passed_its_busy_check_holds_the_slot_before_another_searc
     assert not a.is_alive() and set(results) == {"A", "B"}, results
     assert started == ["search-A"], f"helpers started by: {started}"
     assert helpers <= 1 and most[0] <= 1, (helpers, most)
-    assert results["B"] == core_speed.Reference(3e-3, False), results  # it found A's helper running
+    assert results["B"] == core_speed.ClassTimes({}, False), results  # it found A's helper running
     assert not _probe_threads()
     assert core_speed._running == set(), "a search that found the slot taken registered nothing"

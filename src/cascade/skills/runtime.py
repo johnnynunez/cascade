@@ -8279,7 +8279,8 @@ class SkillRuntime:
         the arm starts (or backed out), else at the waypoint or the pointing
         pose. While holding an object it never leans in and never closes the
         jaws. No clear pose, route or close, or planning past its budget (3 s
-        of CPU, more on a slower core, 8 s of wall time), refuses before any
+        of the fastest core class's CPU, CPU on a slower class counted at its
+        speed; 8 s of wall time), refuses before any
         arm or jaw command; an e-stop latched while planning, in the last
         close or in the hold is reported as the e-stop, an operator halt
         received since the call started as the halt (e-stop first), with the
@@ -8304,7 +8305,7 @@ class SkillRuntime:
         from . import pointing
 
         # the freshness clock starts here, at the localization, before the
-        # budget's core-speed search (#406 review Minor 1): (wall, monotonic,
+        # budget's core class search (#406 review Minor 1): (wall, monotonic,
         # the image the fix came from, that image's camera)
         localized = (pointing._wall(), time.monotonic(), frame, self._localized_camera())
         budget = pointing.Budget()

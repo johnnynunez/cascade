@@ -74,11 +74,11 @@ straight out along its approach, the TCP on a line (`withdrawal`), until it
 keeps WITHDRAWN_M from every object; the route starts there. Never while
 holding: the payload in the jaws is not modelled, so that start refuses.
 Planning runs against a budget (`Budget`): PLAN_BUDGET_S of the planning
-thread's CPU time (stretched when that thread's core, timed once before
-planning, is slower than the host's fastest, `core_factor`) and PLAN_WALL_S of
+thread's CPU time counted in the host's fastest core class's time (CPU on a
+slower class counts at that class's speed, `class_factors`) and PLAN_WALL_S of
 wall time; past either, point_at refuses.
 When more than FRESH_PLAN_S of wall time passed between the target's
-localization and the end of planning (the budget's core-speed search
+localization and the end of planning (the budget's core class search
 included), point_at looks at the target again before the first command, on a
 detection newer than the plan only (never the remembered belief, never an
 image received before that look started (FRESH_IN_FLIGHT_S aside) or whose
@@ -105,6 +105,8 @@ import time
 from dataclasses import dataclass, field
 
 import numpy as np
+
+from .. import core_speed
 
 #: lean-in tilt from straight down, tried in this order (smallest first)
 LEAN_IN_TILTS_DEG = (15.0, 25.0, 35.0, 45.0)
@@ -166,14 +168,19 @@ PLAN_WALL_S = 8.0
 #: A loaded GB10 also runs the planner on its Cortex-A725 cores, which take
 #: 2.5-3x an X925's CPU time for the same plan (at load 2 pinned to one:
 #: 6 of 32 so101_mock and 14 of 32 g1_mock rows ran past 3 s; none on an
-#: X925). The CPU budget stretches by how much slower the planning thread's
-#: core is than the host's fastest (`core_factor`, timed once, before
-#: planning), never past PLAN_WALL_S; a core within this ratio of the fastest
-#: counts as it (timing noise)
+#: X925). The budget counts the planning thread's CPU in the fastest core
+#: class's time: CPU spent on a slower class counts at that class's speed
+#: (`class_factors`, each class timed once per process on its own core), so
+#: it is PLAN_BUDGET_S of the fastest class's CPU wherever the plan ran, and
+#: a factor never stretches it past PLAN_WALL_S. A class within this ratio of
+#: the fastest counts as it (timing noise). Any factor is capped at
+#: PLAN_WALL_S / PLAN_BUDGET_S = 2.67: one thread's CPU never outruns the
+#: wall clock (an A725 reads 2.7-2.8x on the factor's kernel, real plans
+#: 2.7-4.0x, `_speed_probe_s`).
 SLOWER_CORE_MIN = 1.25
 #: Up to PLAN_WALL_S can pass between the target's localization and the
 #: first command. When longer than this (s, wall, from the localization: the
-#: budget's core-speed search counts, #406 review Minor 1) passed, point_at
+#: budget's core class search counts, #406 review Minor 1) passed, point_at
 #: looks at the target again before that command (#399 review Minor 3,
 #: `fix_moved_m`), on a detection newer than the plan (#406 review) ...
 FRESH_PLAN_S = 3.0
@@ -195,9 +202,10 @@ FRESH_IN_FLIGHT_S = 0.1
 #: case and a sixth of FRESH_PLAN_S (the age a short plan acts on unseen).
 FRESH_OBSERVED_S = 0.5
 #: the planning clocks (tests replace them): the calling thread's CPU time,
-#: and wall time
+#: wall time, and the core the calling thread runs on (-1: unknown)
 _clock = time.thread_time
 _wall = time.monotonic
+_cpu = core_speed.current_cpu
 
 
 #: `ObjectColumn.min_distance` evaluates the exact distance this many points at a time
@@ -212,87 +220,92 @@ class PlanningTimeout(RouteRefused):
     """Planning ran past its time budget; nothing was commanded."""
 
 
-#: `_fastest_probe_s`, kept for the process once a search completed ("s"),
-#: and the incomplete searches' answer with when it was taken ("partial")
-_FASTEST: dict = {}
-#: an incomplete core-speed search (a loaded host: a helper not given its core
+#: the core classes' speeds (`class_factors`): "probe" the kernel's data
+#: (`_speed_probe_s`); "s" {a class's cores (a tuple): the kernel's median CPU
+#: seconds on one of them} for every class measured, kept for the process;
+#: "complete" once every class was; "searched" (`_wall`) when the last search
+#: that left one out ran
+_CLASSES: dict = {}
+#: a search that left a class out (a loaded host: a helper not given its core
 #: in time) serves every call for this long (s, `_wall`) before a call
-#: searches again: a search takes up to ~1.2 s, never on every call (#406
-#: review Minor 1)
+#: measures the classes still missing: a search takes up to ~1.2 s, never on
+#: every call (#406 review Minor 1)
 SEARCH_AGAIN_S = 60.0
 
 
 def _speed_probe_s() -> float:
     """CPU seconds this thread takes for a fixed slice of the planner's own
-    work (`ObjectColumn.min_distance`, 216 points, 8 times; ~0.4 ms on a
-    GB10 X925)."""
-    probe = _FASTEST.get("probe")
+    work (`ObjectColumn.min_distance`, 2744 points, twice; ~0.25 ms on a GB10
+    X925). Real plans take 2.7-4.0x (median 3.1) an X925's CPU on a Cortex-A725
+    (#425 review Minor 5); this slice reads 2.7-2.8x there once warm, the
+    216-point one before it 2.5x, so the A725 class gets the whole capped
+    stretch (SLOWER_CORE_MIN)."""
+    probe = _CLASSES.get("probe")
     if probe is None:
         square = np.array([[-0.02, -0.02], [0.02, -0.02], [0.02, 0.02], [-0.02, 0.02]])
-        grid = np.stack(np.meshgrid(*[np.linspace(-0.05, 0.05, 6)] * 3, indexing="ij"), -1).reshape(-1, 3)
-        probe = _FASTEST["probe"] = (ObjectColumn(footprints=(square,), tops=(0.05,), z_lo=0.0,
+        grid = np.stack(np.meshgrid(*[np.linspace(-0.05, 0.05, 14)] * 3, indexing="ij"), -1).reshape(-1, 3)
+        probe = _CLASSES["probe"] = (ObjectColumn(footprints=(square,), tops=(0.05,), z_lo=0.0,
                                                   aim=np.array([0.0, 0.0, 0.05])), grid + [0.0, 0.1, 0.1])
     column, points = probe
     t0 = time.thread_time()
-    for i in range(8):
+    for i in range(2):
         column.min_distance(points + i * 1e-5)
     return time.thread_time() - t0
 
 
-def _fastest_probe_s() -> float:
-    """`_speed_probe_s` on the host's fastest core (`core_speed.fastest`:
-    timed by helper threads pinned to one core of each capacity class of the
-    process's CPU set, fastest class first, the planning thread's affinity
-    untouched), measured at the first use and kept for the process once a
-    search completed. A search that ran out of time is never kept for good
-    (it can only understate how much slower a core is, #399 review Minor 1):
-    its answer, the least of every such search so far, serves every call for
-    SEARCH_AGAIN_S, then a call searches again (#406 review Minor 1: never a
-    search on every call, nor on every re-measure of `Budget.check`)."""
-    if "s" in _FASTEST:
-        return _FASTEST["s"]
-    partial = _FASTEST.get("partial")
-    if partial is not None and _wall() - partial[1] < SEARCH_AGAIN_S:      # NaN searches again
-        return partial[0]
-    from ..core_speed import fastest
-
-    ref = fastest(lambda: _speed_probe_s())
-    if ref.complete:
-        _FASTEST["s"] = ref.seconds
-        return ref.seconds
-    seconds = ref.seconds if partial is None else min(partial[0], ref.seconds)
-    _FASTEST["partial"] = (seconds, _wall())
-    return seconds
-
-
-def core_factor() -> float:
-    """How many times slower than the host's fastest core this thread's
-    core runs the planner's own work now (>= 1; 1 within SLOWER_CORE_MIN, or
-    when it cannot tell). This thread's core is timed FIRST: finding the
-    fastest (`_fastest_probe_s`) can search the host's cores with helper
-    threads while this one sleeps, and the scheduler may wake it on an idle
-    slower core that it leaves within milliseconds once busy (#423 review
-    follow-up 5: an idle GB10 timed 2.6-2.7 on a Cortex-A725 there, then
-    planned on X925s)."""
-    now = min(_speed_probe_s() for _ in range(2))
-    ref = _fastest_probe_s()
-    ratio = now / ref if ref > 0.0 else math.nan
-    return float(ratio) if math.isfinite(ratio) and ratio >= SLOWER_CORE_MIN else 1.0
+def class_factors() -> dict:
+    """{core: how many times slower than the host's fastest core class the
+    core's class runs the planner's own work} (>= 1; 1 within
+    SLOWER_CORE_MIN) for every core of the process's CPU set whose class was
+    measured (`core_speed.class_times`: a helper thread pinned to one core of
+    each `cpu_capacity` class, an untimed warm-up, then the median of its
+    timed runs). The planning thread is neither timed nor moved (#425 review
+    Important 1: timed right after the localization's wait, it read 1.3-1.7x
+    on an X925, or timed an A725 it left within 60 ms). Each class is measured
+    once per process, at the first call; a search that left a class out
+    (#399 review Minor 1: never kept as measured) serves every call for
+    SEARCH_AGAIN_S, then a call measures the classes still missing (never a
+    search on every call). A core of no measured class is not in the map
+    (`Budget` counts it as the fastest's: no stretch)."""
+    known = _CLASSES.setdefault("s", {})
+    searched = _CLASSES.get("searched")
+    if not _CLASSES.get("complete") and (searched is None or not _wall() - searched < SEARCH_AGAIN_S):
+        # (a NaN clock searches again)
+        found = core_speed.class_times(lambda: _speed_probe_s(), skip=frozenset(known))
+        known.update(found.seconds)
+        if found.complete:
+            _CLASSES["complete"] = True
+        else:
+            _CLASSES["searched"] = _wall()
+    measured = list(known.items())          # (another thread's search may add to it)
+    if not measured:
+        return {}
+    fastest = min(seconds for _, seconds in measured)
+    factors = {}
+    for cores, seconds in measured:
+        ratio = seconds / fastest
+        for cpu in cores:
+            factors[cpu] = ratio if ratio >= SLOWER_CORE_MIN else 1.0
+    return factors
 
 
 class Budget:
     """point_at's planning deadline: `check()` raises PlanningTimeout once
-    the thread that made it has spent `seconds` of CPU time since (`_clock`,
-    PLAN_BUDGET_S) times `factor` (`core_factor`: how much slower its core
-    is than the host's fastest, timed once, here, before planning), or `wall`
-    seconds have passed (`_wall`, PLAN_WALL_S); the factor never stretches
-    the CPU budget past `wall`. Nothing read later stretches it: a core timed
-    again once the budget ran out read 1.29x on the fastest core (timing
-    noise right after seconds of work) and admitted CPU time already spent
-    there (#423 review follow-up 5); a thread moved to a slower core
-    mid-plan can run out (an availability cost: the next call times the core
-    it then runs on). Read
-    from another thread, whose CPU clock says nothing about this one,
+    the thread that made it has spent `seconds` (PLAN_BUDGET_S) of the host's
+    fastest core class's CPU time since (`charged`), or `wall` seconds have
+    passed (`_wall`, PLAN_WALL_S). Each check charges this thread's CPU time
+    since the last one (`_clock`) by the class of the core it ran on (`_cpu`,
+    sampled at both checks, milliseconds apart in a plan: the faster class of
+    the two counts, as that time may have run on either): divided by that
+    class's factor (`class_factors`, read once, here, before planning; never
+    above `wall` / `seconds`, so the CPU it allows never passes the wall cap;
+    1 for a core of no measured class or a factor that is not a finite number
+    >= 1). So the budget is the same wherever the plan ran and whatever core
+    the thread woke on (#425 review Important 1 and follow-up 2: one timing of
+    the planning thread's core before planning read 1.3-1.7x on an X925 after
+    the localization's wait, or an A725 the thread left within 60 ms, and a
+    thread moved to a slower core mid-plan kept the faster core's budget).
+    Read from another thread, whose CPU clock says nothing about this one,
     `seconds` counts wall time (the strict rule)."""
 
     def __init__(self, seconds: float | None = None, wall: float | None = None):
@@ -300,21 +313,38 @@ class Budget:
         self.wall_s = float(PLAN_WALL_S if wall is None else wall)
         self.thread = threading.get_ident()
         self.most = max(1.0, self.wall_s / self.seconds) if self.seconds > 0.0 else 1.0
-        self.factor = min(core_factor(), self.most)
-        self.start = _clock()
+        self.factors = class_factors()
+        #: this thread's CPU time since the start (s), that time counted in
+        #: the fastest class's (s), and whether any of it counted slower
+        self.spent = self.charged = 0.0
+        self.slower = False
+        self._at = (_clock(), _cpu())
         start = _wall()
         self.wall_end = start + self.wall_s
         self.strict_end = start + self.seconds
+
+    def _factor_of(self, cpu) -> float:
+        factor = self.factors.get(cpu, 1.0)
+        if not isinstance(factor, (int, float)) or not math.isfinite(factor) or factor < 1.0:
+            return 1.0
+        return min(float(factor), self.most)
 
     def check(self) -> None:
         # written so that NaN refuses
         now = _wall()
         if threading.get_ident() == self.thread:
-            within = _clock() - self.start <= self.seconds * self.factor
+            clock, cpu = _clock(), _cpu()
+            ran = clock - self._at[0]
+            factor = min(self._factor_of(self._at[1]), self._factor_of(cpu))
+            self._at = (clock, cpu)
+            self.spent += ran
+            self.charged += ran / factor if ran >= 0.0 else math.nan
+            self.slower = self.slower or (factor > 1.0 and ran > 0.0)
+            within = self.charged <= self.seconds
         else:
             within = now <= self.strict_end
         if not within:
-            slower = f" (x{self.factor:.1f} on a slower core)" if self.factor > 1.0 else ""
+            slower = f" ({self.spent:.1f} s of CPU, slower cores counted at their speed)" if self.slower else ""
             raise PlanningTimeout(f"planning took longer than its {self.seconds:.1f} s budget{slower}")
         if not now <= self.wall_end:
             raise PlanningTimeout(f"planning took longer than its {self.wall_s:.1f} s wall-clock cap "

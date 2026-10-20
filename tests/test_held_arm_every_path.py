@@ -252,6 +252,13 @@ def test_a_raised_rebot_with_no_marker_is_refused_on_parameter_reads_alone(monke
     assert set(kinds) <= {"connect", "param_read", "close_bus", "close"}, log
     assert kinds.count("param_read") == 6 and kinds[-2:] == ["close_bus", "close"], log
     assert "arm_hold.py" not in str(err.value) and "holding the arm" not in str(err.value)
+    why = {"raised": "rad from park_q", "just_out": "rad from park_q", "j3_unread": "joint(s) [3] did not answer",
+           "j1_nan": "joint(s) [1] gave an implausible reading"}
+    assert any(w in str(err.value) for w in why.values()) and str(err.value).count("joint(s)") <= 1, err.value
+    if None in table.values():
+        assert why["j3_unread"] in str(err.value), err.value
+    elif any(v != v for v in table.values()):
+        assert why["j1_nan"] in str(err.value), err.value
     assert arm_hold.read("can0") is None, "a measurement refuses; it records nothing"
 
 

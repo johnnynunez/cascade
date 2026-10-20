@@ -1862,40 +1862,123 @@ def test_the_budget_stretches_on_a_slower_core_never_past_the_wall_cap(monkeypat
     assert capped.factor == pytest.approx(8.0 / 3.0)
 
 
-def test_the_budget_measures_the_core_again_before_it_refuses(monkeypatch):
-    """The thread moved to a slower core while planning: measured again
-    before refusing (at most 3 times), so the stretch follows it."""
-    from cascade.skills import pointing
-
-    now = [0.0]
-    factors = iter([1.0, 2.0, 2.0, 2.0, 2.0])
-    monkeypatch.setattr(pointing, "_clock", lambda: now[0])
-    monkeypatch.setattr(pointing, "core_factor", lambda: next(factors))
-    budget = pointing.Budget(3.0, wall=30.0)
-    assert budget.factor == 1.0
-    now[0] = 3.5
-    budget.check()                     # measured again: 2.0
-    assert budget.factor == 2.0
-    now[0] = 6.5
-    with pytest.raises(pointing.PlanningTimeout):
-        budget.check()
-
-
-def test_the_core_is_measured_again_at_most_three_times(monkeypatch):
-    """Measuring costs ~1 ms: a budget long spent refuses on every check,
-    measuring the core again at most 3 times in all."""
+def test_the_core_is_measured_once_before_planning_and_never_again(monkeypatch):
+    """#423 review follow-up 5 (the r399f `spin3.5_cpu` row: 3.5 s of CPU
+    against the 3 s budget pointed in 7 of 24 runs on main): the budget
+    measured the core again once it ran out, right after the spin, and a
+    reading 1.29x the fastest on an X925 (cache-cold timing noise past the
+    1.25 bound) stretched the budget to 3.9 s for CPU time already spent on
+    the fastest core. The factor is measured once, before planning: 3 s x
+    that factor (capped by the wall time) is the budget, and nothing read
+    later stretches it."""
     from cascade.skills import pointing
 
     calls = []
     now = [0.0]
     monkeypatch.setattr(pointing, "_clock", lambda: now[0])
-    monkeypatch.setattr(pointing, "core_factor", lambda: calls.append(1) or 1.0 + 0.1 * len(calls))
+    monkeypatch.setattr(pointing, "core_factor", lambda: calls.append(1) or (1.0 if len(calls) == 1 else 1.3))
     budget = pointing.Budget(3.0, wall=30.0)
-    now[0] = 100.0
-    for _ in range(6):
-        with pytest.raises(pointing.PlanningTimeout):
+    assert budget.factor == 1.0
+    now[0] = 3.0
+    budget.check()
+    now[0] = 3.5
+    for _ in range(4):
+        with pytest.raises(pointing.PlanningTimeout, match=r"planning took longer than its 3\.0 s budget$"):
             budget.check()
-    assert len(calls) == 1 + 3
+    assert len(calls) == 1 and budget.factor == 1.0, "measured once, before planning"
+
+
+def _woke_on_a_slower_core(monkeypatch, *, before_s=0.4e-3, after_s=1.2e-3, ref_s=0.4e-3):
+    """The core-speed probes as a GB10 answers them when the reference search
+    blocks the planning thread: `before_s` on its core until the search
+    (`_fastest_probe_s`, the host's fastest: `ref_s`) has run, `after_s` from
+    then on (the scheduler woke it on a Cortex-A725, which it leaves again
+    within milliseconds once busy). Returns the order of the calls."""
+    from cascade.skills import pointing
+
+    order = []
+
+    def probe():
+        order.append("probe")
+        return after_s if "search" in order else before_s
+
+    def search():
+        order.append("search")
+        return ref_s
+
+    monkeypatch.setattr(pointing, "_speed_probe_s", probe)
+    monkeypatch.setattr(pointing, "_fastest_probe_s", search)
+    return order
+
+
+def test_the_planning_threads_core_is_timed_before_the_core_speed_search(monkeypatch):
+    """#423 review follow-up 5: in 6 of the 7 runs that pointed, the factor
+    (2.6-2.7) was timed right after the core-speed search had put the planning
+    thread to sleep; it woke on an idle Cortex-A725 for those few milliseconds
+    and then spent 87-98 % of its CPU samples on X925 cores. This thread's
+    core is timed first, where it was planning from; the search after it."""
+    from cascade.skills import pointing
+
+    monkeypatch.setattr(pointing, "core_factor", _CORE_FACTOR)
+    order = _woke_on_a_slower_core(monkeypatch)
+    assert pointing.core_factor() == 1.0
+    assert order == ["probe", "probe", "search"]
+    # control: a thread on a slower core when its budget starts still stretches it
+    _woke_on_a_slower_core(monkeypatch, before_s=1.0e-3, after_s=1.0e-3)
+    assert pointing.core_factor() == pytest.approx(2.5)
+
+
+#: how the planning thread's core reads before planning: (core_factor, points after a 3.5 s CPU spin)
+_SPIN_ROWS = {
+    "re_measured_noisy_after_the_spin": (lambda mp: mp.setattr(
+        "cascade.skills.pointing.core_factor", iter([1.0] + [1.3] * 9).__next__), False),
+    "woke_on_a_slower_core_after_the_search": (lambda mp: (
+        mp.setattr("cascade.skills.pointing.core_factor", _CORE_FACTOR), _woke_on_a_slower_core(mp)), False),
+    "on_a_slower_core_before_planning": (lambda mp: (
+        mp.setattr("cascade.skills.pointing.core_factor", _CORE_FACTOR),
+        _woke_on_a_slower_core(mp, before_s=1.08e-3, after_s=1.08e-3)), True),
+}
+
+
+@pytest.mark.parametrize("row", list(_SPIN_ROWS))
+def test_a_cpu_spin_past_the_budget_is_refused_unless_the_core_read_slower_before_planning(rig, monkeypatch, row):
+    """The r399f stop lane's `spin3.5_cpu` row, deterministic: 3.5 s of the
+    planning thread's CPU at the first budget check, against the shipped 3 s
+    budget. Main pointed (136 commands and a jaw close) when the core was
+    measured again after the spin and read noisy (1.3x), or when it was timed
+    on the core the core-speed search woke it on; both refuse now, nothing
+    sent. A thread on a slower core when planning starts (2.7x the fastest)
+    keeps the documented stretch (3 s x 2.67, the 8 s wall cap): it points,
+    on main as now."""
+    from cascade.skills import pointing
+
+    r = rig("mock", camera="mock")
+    monkeypatch.setattr(pointing, "PLAN_BUDGET_S", 3.0)
+    monkeypatch.setattr(pointing, "PLAN_WALL_S", 8.0)
+    setup, points = _SPIN_ROWS[row]
+    setup(monkeypatch)
+    cpu = [0.0]
+    monkeypatch.setattr(pointing, "_clock", lambda: cpu[0])
+    real_check, seen = pointing.Budget.check, []
+
+    def check(self):
+        if not seen:
+            cpu[0] += 3.5                # the planning thread's CPU spin
+        seen.append(self.factor)
+        return real_check(self)
+
+    monkeypatch.setattr(pointing.Budget, "check", check)
+
+    out = r.runtime.execute("point_at", {"label": "red cube"})
+
+    assert seen, "test setup: planning checked its budget"
+    if points:
+        assert seen[0] == pytest.approx(8.0 / 3.0), "test setup: measured on the slower core before planning"
+        assert out["ok"] is True and _commands(r) and r.jaws, out
+    else:
+        _refused_untouched(r, out)
+        assert "planning took longer than its 3.0 s budget (the pose" in out["error"], out
+        assert seen == [1.0], "the factor measured before planning, refused at its first check"
 
 
 @pytest.mark.skipif(not hasattr(os, "sched_setaffinity") or len(os.sched_getaffinity(0)) < 2,

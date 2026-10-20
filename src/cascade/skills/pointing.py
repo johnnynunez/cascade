@@ -74,8 +74,9 @@ straight out along its approach, the TCP on a line (`withdrawal`), until it
 keeps WITHDRAWN_M from every object; the route starts there. Never while
 holding: the payload in the jaws is not modelled, so that start refuses.
 Planning runs against a budget (`Budget`): PLAN_BUDGET_S of the planning
-thread's CPU time (stretched on a core slower than the host's fastest,
-`core_factor`) and PLAN_WALL_S of wall time; past either, point_at refuses.
+thread's CPU time (stretched when that thread's core, timed once before
+planning, is slower than the host's fastest, `core_factor`) and PLAN_WALL_S of
+wall time; past either, point_at refuses.
 When more than FRESH_PLAN_S of wall time passed between the target's
 localization and the end of planning (the budget's core-speed search
 included), point_at looks at the target again before the first command, on a
@@ -166,8 +167,9 @@ PLAN_WALL_S = 8.0
 #: 2.5-3x an X925's CPU time for the same plan (at load 2 pinned to one:
 #: 6 of 32 so101_mock and 14 of 32 g1_mock rows ran past 3 s; none on an
 #: X925). The CPU budget stretches by how much slower the planning thread's
-#: core is than the host's fastest (`core_factor`), never past PLAN_WALL_S;
-#: a core within this ratio of the fastest counts as it (timing noise)
+#: core is than the host's fastest (`core_factor`, timed once, before
+#: planning), never past PLAN_WALL_S; a core within this ratio of the fastest
+#: counts as it (timing noise)
 SLOWER_CORE_MIN = 1.25
 #: Up to PLAN_WALL_S can pass between the target's localization and the
 #: first command. When longer than this (s, wall, from the localization: the
@@ -266,9 +268,14 @@ def _fastest_probe_s() -> float:
 def core_factor() -> float:
     """How many times slower than the host's fastest core this thread's
     core runs the planner's own work now (>= 1; 1 within SLOWER_CORE_MIN, or
-    when it cannot tell)."""
-    ref = _fastest_probe_s()
+    when it cannot tell). This thread's core is timed FIRST: finding the
+    fastest (`_fastest_probe_s`) can search the host's cores with helper
+    threads while this one sleeps, and the scheduler may wake it on an idle
+    slower core that it leaves within milliseconds once busy (#423 review
+    follow-up 5: an idle GB10 timed 2.6-2.7 on a Cortex-A725 there, then
+    planned on X925s)."""
     now = min(_speed_probe_s() for _ in range(2))
+    ref = _fastest_probe_s()
     ratio = now / ref if ref > 0.0 else math.nan
     return float(ratio) if math.isfinite(ratio) and ratio >= SLOWER_CORE_MIN else 1.0
 
@@ -277,11 +284,16 @@ class Budget:
     """point_at's planning deadline: `check()` raises PlanningTimeout once
     the thread that made it has spent `seconds` of CPU time since (`_clock`,
     PLAN_BUDGET_S) times `factor` (`core_factor`: how much slower its core
-    is than the host's fastest, measured again, at most 3 times, before it
-    refuses), or `wall` seconds have passed (`_wall`, PLAN_WALL_S); the
-    factor never stretches the CPU budget past `wall`. Read from another
-    thread, whose CPU clock says nothing about this one, `seconds` counts
-    wall time (the strict rule)."""
+    is than the host's fastest, timed once, here, before planning), or `wall`
+    seconds have passed (`_wall`, PLAN_WALL_S); the factor never stretches
+    the CPU budget past `wall`. Nothing read later stretches it: a core timed
+    again once the budget ran out read 1.29x on the fastest core (timing
+    noise right after seconds of work) and admitted CPU time already spent
+    there (#423 review follow-up 5); a thread moved to a slower core
+    mid-plan can run out (an availability cost: the next call times the core
+    it then runs on). Read
+    from another thread, whose CPU clock says nothing about this one,
+    `seconds` counts wall time (the strict rule)."""
 
     def __init__(self, seconds: float | None = None, wall: float | None = None):
         self.seconds = float(PLAN_BUDGET_S if seconds is None else seconds)
@@ -289,7 +301,6 @@ class Budget:
         self.thread = threading.get_ident()
         self.most = max(1.0, self.wall_s / self.seconds) if self.seconds > 0.0 else 1.0
         self.factor = min(core_factor(), self.most)
-        self.measured = 0
         self.start = _clock()
         start = _wall()
         self.wall_end = start + self.wall_s
@@ -299,12 +310,7 @@ class Budget:
         # written so that NaN refuses
         now = _wall()
         if threading.get_ident() == self.thread:
-            spent = _clock() - self.start
-            within = spent <= self.seconds * self.factor
-            if not within and self.measured < 3 and self.factor < self.most:
-                self.measured += 1
-                self.factor = max(self.factor, min(core_factor(), self.most))
-                within = spent <= self.seconds * self.factor
+            within = _clock() - self.start <= self.seconds * self.factor
         else:
             within = now <= self.strict_end
         if not within:

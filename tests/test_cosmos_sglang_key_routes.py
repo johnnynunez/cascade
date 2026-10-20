@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 import os
+import pwd
 import socket
 import subprocess
 import sys
@@ -120,6 +121,7 @@ def _keyed_env(h, keys: str) -> tuple[dict, Path | None]:
         "default key file": lambda: _write_key(home / DEFAULT_KEY),
         "model key file": lambda: _write_key(tmp / "model.key"),
         "model key file under ~": lambda: _write_key(home / "model.key"),
+        "model key file under ~user": lambda: _write_key(tmp / "user" / "model.key"),
         "brain key file": lambda: _write_key(tmp / "brain.key"),
         "both": lambda: _write_key(tmp / "brain.key"),
         "no key file": lambda: None,
@@ -128,6 +130,12 @@ def _keyed_env(h, keys: str) -> tuple[dict, Path | None]:
         env["CASCADE_MODEL_API_KEY_FILE"] = str(key_file)
     if keys == "model key file under ~":
         env["CASCADE_MODEL_API_KEY_FILE"] = "~/model.key"   # a quoted value: the shell never expanded it
+    if keys == "model key file under ~user":
+        # ~<this user>: that user's home from the password database (not HOME, private here), as expanduser reads it
+        user = pwd.getpwuid(os.getuid())
+        env["CASCADE_MODEL_API_KEY_FILE"] = f"~{user.pw_name}/" + os.path.relpath(key_file, user.pw_dir)
+        assert Path(os.path.expanduser(env["CASCADE_MODEL_API_KEY_FILE"])).resolve() == key_file.resolve(), \
+            "test setup: ~user/... names the key file"
     if keys in ("brain key file", "both"):
         env["CASCADE_BRAIN_KEY_FILE"] = str(key_file)
     return env, key_file
@@ -308,11 +316,14 @@ def test_the_host_route_onboards_the_provider_with_the_key_in_its_environment(la
     assert KEY not in _argv_logs(h).replace(f'"CUSTOM_API_KEY": "{KEY}"', ""), "the key is on no argv"
 
 
-def test_a_model_key_file_named_with_a_literal_tilde_reaches_onboarding(launcher_boundary):
+@pytest.mark.parametrize("tilde", ["~", "~user"])
+def test_a_model_key_file_named_with_a_literal_tilde_reaches_onboarding(launcher_boundary, tilde):
     """#421 review Minor 4: CASCADE_MODEL_API_KEY_FILE='~/model.key' (quoted, so the shell never expanded it). The brain
-    checks read it (demo_proof expands ~); onboarding read it literally, so the launch died after the checks passed."""
+    checks read it (demo_proof expands ~); onboarding read it literally, so the launch died after the checks passed.
+    #423 review Minor 3: onboarding expanded only `~/`, so `~<user>/...` (which the checks expand to that user's home)
+    still died there; it expands both as the checks do now."""
     h = launcher_boundary
-    env, _ = _keyed_env(h, "model key file under ~")
+    env, _ = _keyed_env(h, f"model key file under {tilde}")
     _host_openclaw(h, env)
     p = _launch(h, env)
     assert p.returncode == 0, p.stdout + p.stderr
@@ -552,15 +563,17 @@ def test_check_brain_vllm_cosmos_still_sends_no_key(model_http_boundary, monkeyp
     assert [a[2] for a in model_http_boundary["auth"]] == [None]
 
 
-def _probe_native(model_http_boundary, tmp_path, *, endpoint="cosmos-sglang", **named) -> subprocess.CompletedProcess:
+def _probe_native(model_http_boundary, tmp_path, *, endpoint="cosmos-sglang", endpoint_url=None, probe_url=None,
+                  **named) -> subprocess.CompletedProcess:
     """`demo_proof.py --probe-native <the fake brain> --model cosmos3-edge`, standalone: a private HOME, no key
-    variable but `named`, and `endpoint`'s base URL variable pointing at the fake brain."""
+    variable but `named`, and `endpoint`'s base URL variable pointing at the fake brain (`endpoint_url` / `probe_url`:
+    other spellings of the brain's base URL for the variable / the probe's argument)."""
     env = {k: v for k, v in os.environ.items() if k not in KEY_VARS}
     env.update(HOME=str(tmp_path), **named)
     variable = {"cosmos-sglang": "CASCADE_COSMOS_SGLANG_BASE_URL", "cosmos": "CASCADE_COSMOS_BASE_URL"}[endpoint]
-    env[variable] = model_http_boundary["base_url"]
+    env[variable] = endpoint_url or model_http_boundary["base_url"]
     return subprocess.run([sys.executable, str(REPO / "scripts" / "demo_proof.py"), "--probe-native",
-                           model_http_boundary["base_url"], "--model", "cosmos3-edge"],
+                           probe_url or model_http_boundary["base_url"], "--model", "cosmos3-edge"],
                           env=env, capture_output=True, text=True, timeout=60, check=False)
 
 
@@ -600,6 +613,36 @@ def test_a_native_probe_falls_back_only_for_the_keyed_brain_and_only_without_a_n
     named = _probe_native(model_http_boundary, tmp_path, CASCADE_MODEL_API_KEY_FILE=str(wrong))
     assert named.returncode == 3 and "HTTP 401" in named.stderr, named.stderr
     assert [a[2] for a in model_http_boundary["auth"]] == [None, "Bearer wrong-key"]
+
+
+#: (the keyed brain's base URL variable, the probe's argument) as spelled; the fake brain listens on 127.0.0.1:<port>
+_SPELLINGS = {
+    "localhost_and_a_trailing_slash": ("http://localhost:{port}/v1", "http://127.0.0.1:{port}/v1/", True),
+    "upper_case_host_and_scheme": ("HTTP://LOCALHOST:{port}/v1/", "http://127.0.0.1:{port}/v1", True),
+    "another_port": ("http://localhost:{other}/v1", "http://127.0.0.1:{port}/v1", False),
+    "another_path": ("http://localhost:{port}/v2", "http://127.0.0.1:{port}/v1", False),
+}
+
+
+@pytest.mark.parametrize("spelling", list(_SPELLINGS))
+def test_the_native_probe_knows_the_keyed_brain_by_its_server_not_its_spelling(model_http_boundary, tmp_path,
+                                                                               spelling):
+    """#423 review Minor 4: the fallback compared base URLs as strings, so the keyed brain named
+    `http://localhost:<port>/v1` and probed at `http://127.0.0.1:<port>/v1/` got no key file and failed on its 401.
+    Both name one server now (scheme, host with loopback aliases as one, port, path without its trailing slash); another
+    port or path is still another brain's (no key file sent)."""
+    _write_key(tmp_path / DEFAULT_KEY)
+    port = int(model_http_boundary["base_url"].rsplit(":", 1)[1].split("/")[0])
+    endpoint_url, probe_url, same = _SPELLINGS[spelling]
+    p = _probe_native(model_http_boundary, tmp_path, endpoint_url=endpoint_url.format(port=port, other=port + 1),
+                      probe_url=probe_url.format(port=port))
+    sent = [a[2] for a in model_http_boundary["auth"]]
+    if same:
+        assert p.returncode == 0, p.stdout + p.stderr
+        assert sent[0] is None and sent[1:] == [f"Bearer {KEY}"] * 2, sent
+    else:
+        assert p.returncode == 3 and "HTTP 401" in p.stderr, p.stderr
+        assert sent == [None], "the key file goes to the keyed brain's server only"
 
 
 # ── end to end: the real serve script, then the launcher, with only the brain key file ──

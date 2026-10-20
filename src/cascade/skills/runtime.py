@@ -4834,11 +4834,20 @@ class SkillRuntime:
             if self._grounder is None:
                 from ..perception.vlm_ground import VLMGrounder
 
+                # A profile that names its key FILE (local_cosmos_sglang: its
+                # brain serves only with a key) sends that key; the others build
+                # the grounder exactly as before.
+                keyed = {}
+                if gcfg.get("api_key_file"):
+                    from ..agent.llm import read_api_key_file
+
+                    keyed["api_key"] = read_api_key_file(gcfg.get("api_key_file"), who="grounder")
                 self._grounder = VLMGrounder(
                     base_url=str(gcfg.get("base_url")),
                     model=str(gcfg.get("model", "")),
                     timeout_s=float(gcfg.get("timeout_s", 45.0)),
                     enable_thinking=gcfg.get("enable_thinking"),
+                    **keyed,
                 )
             # Views to try: (frame, cam->base T). Primary first, then the
             # other fusing cameras with their own extrinsics.

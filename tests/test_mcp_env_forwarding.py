@@ -190,7 +190,8 @@ def test_premise_the_scan_sees_the_brain_endpoint_the_detector_profile_reads():
     # The complete current set is pinned: a new placeholder is a new read.
     assert {"cameras", "arms", "llm", "bases", "robots"} <= _loader_kinds()
     assert _config_placeholders() == {**{name: {"demo.yaml"} for name in PERCEPTION},
-                                      "CASCADE_ASPIRE_LIBRARY": {"arms/isaac_kitchen.yaml"}}
+                                      "CASCADE_ASPIRE_LIBRARY": {"arms/isaac_kitchen.yaml"},
+                                      "CASCADE_MODEL_API_KEY_FILE": {"llm/local_cosmos_sglang.yaml"}}
     assert set(PERCEPTION) <= _runtime_reads()
 
 

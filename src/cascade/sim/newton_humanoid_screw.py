@@ -674,16 +674,15 @@ class HumanoidThreadingScene:
                 'open_clearance_m': round(float(clearance), 6), 'contact_link_distance_mm': contact}
 
     def _initial_fingers(self):
-        if not self.grip:
-            return dict(self.grasp['open'])
+        # Same initial condition with or without ``grip``: the fingers-open negative
+        # control differs only in what its command does (it never closes the hand).
         return {n: self.grasp['contact'][n] - CLOSING_SIGN[n] * INITIAL_BACKOFF_RAD for n in RIGHT_FINGERS}
 
     def _initial_targets(self):
         targets = self._initial_positions()
-        if self.grip:
-            for name in RIGHT_FINGERS:
-                index = self.joint_names.index(name)
-                targets[index] = self.grasp['contact'][name] + CLOSING_SIGN[name] * INITIAL_SQUEEZE_RAD
+        for name in RIGHT_FINGERS:
+            index = self.joint_names.index(name)
+            targets[index] = self.grasp['contact'][name] + CLOSING_SIGN[name] * INITIAL_SQUEEZE_RAD
         return targets
 
     def _initial_positions(self):

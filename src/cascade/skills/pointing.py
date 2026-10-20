@@ -231,6 +231,14 @@ _CLASSES: dict = {}
 #: measures the classes still missing: a search takes up to ~1.2 s, never on
 #: every call (#406 review Minor 1)
 SEARCH_AGAIN_S = 60.0
+#: one class search at a time: a call that finds another thread's search in
+#: flight waits for its answer (two arms' first point_at at once: the second
+#: one found the first one's helper running and planned with no factor at
+#: all, #429 review Minor 3), at most this long (s, wall): longer than one
+#: search runs (`core_speed.SEARCH_S` to start helpers, then one helper's
+#: `PER_CORE_S`); past it, that call plans with what is measured so far
+SEARCH_WAIT_S = 1.5
+_SEARCH = threading.Lock()
 
 
 def _speed_probe_s() -> float:
@@ -265,18 +273,28 @@ def class_factors() -> dict:
     once per process, at the first call; a search that left a class out
     (#399 review Minor 1: never kept as measured) serves every call for
     SEARCH_AGAIN_S, then a call measures the classes still missing (never a
-    search on every call). A core of no measured class is not in the map
-    (`Budget` counts it as the fastest's: no stretch)."""
+    search on every call). One search at a time: a call that finds another
+    thread's search in flight waits for its answer, at most SEARCH_WAIT_S. A
+    core of no measured class is not in the map (`Budget` counts it as the
+    fastest's: no stretch)."""
     known = _CLASSES.setdefault("s", {})
-    searched = _CLASSES.get("searched")
-    if not _CLASSES.get("complete") and (searched is None or not _wall() - searched < SEARCH_AGAIN_S):
+
+    def due():
+        searched = _CLASSES.get("searched")
         # (a NaN clock searches again)
-        found = core_speed.class_times(lambda: _speed_probe_s(), skip=frozenset(known))
-        known.update(found.seconds)
-        if found.complete:
-            _CLASSES["complete"] = True
-        else:
-            _CLASSES["searched"] = _wall()
+        return not _CLASSES.get("complete") and (searched is None or not _wall() - searched < SEARCH_AGAIN_S)
+
+    if due() and _SEARCH.acquire(timeout=SEARCH_WAIT_S):
+        try:
+            if due():                       # the search this call waited for may have answered it
+                found = core_speed.class_times(lambda: _speed_probe_s(), skip=frozenset(known))
+                known.update(found.seconds)
+                if found.complete:
+                    _CLASSES["complete"] = True
+                else:
+                    _CLASSES["searched"] = _wall()
+        finally:
+            _SEARCH.release()
     measured = list(known.items())          # (another thread's search may add to it)
     if not measured:
         return {}

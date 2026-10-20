@@ -32,7 +32,8 @@ from .thread_join import join_thread
 _LOG = logging.getLogger(__name__)
 
 #: a stream remembers the first receipts on at most this many producer clocks
-#: (one per sim it was served from), the least recently updated dropped first
+#: (one per sim run it was served from), the one served least recently (any
+#: delivery, a re-send too) dropped first
 FIRST_RECEIPT_CLOCKS = 8
 
 
@@ -219,19 +220,28 @@ class CameraStream:
         (`Frame.observed_t`, read by `freshness.observed_at`), so a frozen
         render never makes the perception watchdog fresher. Producer stamps are
         only compared with each other on one producer clock
-        (`freshness.producer_clock`: one Isaac sim's physics loop, one OVRTX
-        source's snapshot clock), never with the client's clock: a capture no
-        newer on it than the newest one recorded keeps that record's first
-        receipt, whatever bridge port delivered it (#423 review follow-up 1: a
-        bridge back on another port restarted the record, so its frozen render
-        read as first received now). Local frames (one Frame per capture) are
-        left untouched, and so is the remembered first receipt: an invalid or
-        a local frame in between never makes the next re-send of that capture
-        count as new (#414 review Minor 3; an invalid capture itself carries no
-        stamp, `observed_at`), nor does another clock's capture in between.
-        A producer clock that went BACK (a remote sim host rebooted while this
-        stream ran) reads as re-sends until it passes the record: fail closed
-        (the perception watchdog refuses motion); a new stream starts clean."""
+        (`freshness.producer_clock`: one run of an Isaac sim's physics loop,
+        one OVRTX source's snapshot clock), never with the client's clock: a
+        capture no newer on it than the newest one recorded keeps that record's
+        first receipt, whatever bridge port delivered it (#423 review follow-up
+        1: a bridge back on another port restarted the record, so its frozen
+        render read as first received now). Local frames (one Frame per
+        capture) are left untouched, and so is the remembered first receipt:
+        an invalid or a local frame in between never makes the next re-send of
+        that capture count as new (#414 review Minor 3; an invalid capture
+        itself carries no stamp, `observed_at`), nor does another clock's
+        capture in between.
+        A remote sim host that rebooted while this stream ran starts its clock
+        again under a new bridge run (`producer_epoch`, part of the producer
+        clock): its captures are first received when they arrive (#425 review
+        Minor 1). A clock that goes BACK within one run (no real bridge does;
+        a bridge that sends no run) reads as re-sends until it passes the
+        record: fail closed (the perception watchdog refuses motion); a new
+        stream starts clean. Any delivery, a re-send too, keeps its clock
+        among the FIRST_RECEIPT_CLOCKS kept (#425 review Minor 2: a frozen
+        sim's clock, only re-sent, was dropped first). A capture this stream
+        never saw before (a clock dropped from the record, another sim first
+        served now) can only be dated at its first receipt here."""
         try:
             clock = producer_clock(frame)
             received = float(frame.t)
@@ -240,11 +250,11 @@ class CameraStream:
         if clock is None:
             return
         key, stamp = clock
-        previous = self._first_receipts.get(key)
+        previous = self._first_receipts.pop(key, None)
         if previous is not None and stamp <= previous[0]:
             frame.observed_t = min(previous[1], received)
+            self._first_receipts[key] = previous           # served again: the most recent
             return
-        self._first_receipts.pop(key, None)
         self._first_receipts[key] = (stamp, received)
         while len(self._first_receipts) > FIRST_RECEIPT_CLOCKS:
             self._first_receipts.pop(next(iter(self._first_receipts)))

@@ -6,8 +6,9 @@ import numpy as np
 import pytest
 
 from cascade.config import load_demo_config
+from cascade.skills.carry_attachment import AttachmentInvalid
 from cascade.skills.runtime import SkillRuntime
-from cascade.types import SkillError
+from cascade.types import SafetyViolation, SkillError
 
 
 class _Arm:
@@ -19,6 +20,7 @@ class _Arm:
         from cascade.safety.harness import SafetyHarness, SafetyLimits
         self.harness = SafetyHarness(SafetyLimits(
             workspace_min=np.array([.2, -.6, -.01]), workspace_max=np.ones(3), table_z=0.0))
+        self.harness.heartbeat()  # a fresh observation: the harness is built stale
         self.raw = self
         self.n_joints = 7
 
@@ -31,6 +33,8 @@ class _Arm:
     def move_joints(self, q, **kw):
         self.moves.append(np.array(q))
         if len(self.moves) == 1:
+            if callable(self.home_result):
+                return self.home_result(self.harness)
             if isinstance(self.home_result, Exception):
                 raise self.home_result
             return self.home_result
@@ -75,6 +79,66 @@ def test_home_failure_stops_and_never_sends_pregrasp_or_closing_command(
     assert len(runtime.arm.moves) == 1
     np.testing.assert_array_equal(runtime.arm.moves[0], runtime.cfg.arm.home_q)
     assert runtime.arm.gripper == [.04]
+    assert runtime.arm.stops == 1
+
+
+def _refused_before_any_command(exc):
+    def move(harness):
+        raise exc
+    return move
+
+
+def _failed_after_its_first_command(exc):
+    def move(harness):
+        harness.motions_begun += 1  # the move's first command was approved
+        raise exc
+    return move
+
+
+@pytest.mark.parametrize("exc", [
+    SafetyViolation("perception watchdog: last observation 6.0s old"),
+    SkillError("no safe joint route found; direct route: TCP outside workspace"),
+])
+def test_a_home_move_refused_before_its_first_command_stops_nothing(monkeypatch, exc):
+    """#414 review Important 1: the arm did not move, so no stop (`SafeArm.stop()` latches the
+    e-stop): the refusal is raised as itself."""
+    runtime, fix, _ = _runtime(monkeypatch, _refused_before_any_command(exc))
+    with pytest.raises(type(exc)) as raised:
+        runtime.skill_grasp_object("rubber duck", _fix=fix, _frame=object())
+    assert raised.value is exc
+    assert len(runtime.arm.moves) == 1 and runtime.arm.gripper == [.04]
+    assert runtime.arm.stops == 0
+
+
+@pytest.mark.parametrize("make, exc", [
+    (_failed_after_its_first_command, SafetyViolation("joint 3 tracking fault")),
+    (_failed_after_its_first_command, SkillError("planned route became unsafe")),
+    (_refused_before_any_command, RuntimeError("CAN bus fault")),
+    (_refused_before_any_command, SafetyViolation("motion safety callback failed")),
+    (_refused_before_any_command, AttachmentInvalid("retained attachment arm, map, or producer identity changed")),
+])
+def test_a_home_move_that_started_or_hit_a_backend_fault_still_stops(monkeypatch, make, exc):
+    """A move that started (it may have stopped anywhere), a non-refusal fault (the backend's), a
+    refusal raised FROM one (`raise SafetyViolation(...) from TypeError`), or an attachment loss
+    (its own terminal rule) keeps the stop."""
+    if str(exc) == "motion safety callback failed":
+        try:
+            raise exc from TypeError("unexpected keyword 'before_stream'")
+        except SafetyViolation:
+            pass
+    runtime, fix, _ = _runtime(monkeypatch, make(exc))
+    with pytest.raises(SkillError, match=f"^home move failed before pregrasp: {exc}$"):
+        runtime.skill_grasp_object("rubber duck", _fix=fix, _frame=object())
+    assert runtime.arm.stops == 1
+
+
+def test_a_harness_that_counts_no_motion_starts_keeps_the_stop(monkeypatch):
+    """Without a motion count nothing proves the move never started: stop, as before."""
+    runtime, fix, _ = _runtime(monkeypatch, _refused_before_any_command(
+        SafetyViolation("perception watchdog: last observation 6.0s old")))
+    runtime.arm.harness.motions_begun = None
+    with pytest.raises(SkillError, match="^home move failed before pregrasp: perception watchdog"):
+        runtime.skill_grasp_object("rubber duck", _fix=fix, _frame=object())
     assert runtime.arm.stops == 1
 
 

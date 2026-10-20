@@ -11,6 +11,7 @@ from cascade.perception.occupancy import OccupancyError
 from cascade.safety.harness import SafeArm, SafetyHarness, SafetyLimits
 from cascade.skills import contact_episode
 from cascade.types import SafetyViolation, SkillError
+from conftest import observed
 from test_occupancy_payload import PROP, frame, mapping
 
 
@@ -173,8 +174,8 @@ def episode_case():
             return np.array([[0., 0., .3]])
     events = []
     kin = Kin()
-    harness = SafetyHarness(SafetyLimits(workspace_min=np.full(3, -1.),
-                           workspace_max=np.ones(3), watchdog_s=10.), kin)
+    harness = observed(SafetyHarness(SafetyLimits(workspace_min=np.full(3, -1.),
+                           workspace_max=np.ones(3), watchdog_s=10.), kin))
     class Raw:
         q = np.array([.2, .1, .02])
         def get_state(self):

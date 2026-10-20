@@ -21,6 +21,7 @@ import pytest
 
 from cascade.safety.harness import SafetyHarness, SafetyLimits
 from cascade.types import SafetyViolation
+from conftest import observed
 
 
 def _rx(a):
@@ -64,14 +65,14 @@ def pose(roll=0.0, pitch=0.0):
 
 
 def test_camera_up_is_approved():
-    h = SafetyHarness(limits(), kinematics=RollKin())
+    h = observed(SafetyHarness(limits(), kinematics=RollKin()))
     h.approve(pose(), pose(0.3), dt=1.0)
     assert h.vet_pose(pose(0.3)) is None
 
 
 @pytest.mark.parametrize("roll", [np.radians(100), np.pi - 0.05, -np.radians(100), -(np.pi - 0.05)])
 def test_camera_below_horizontal_is_refused_everywhere(roll):
-    h = SafetyHarness(limits(), kinematics=RollKin())
+    h = observed(SafetyHarness(limits(), kinematics=RollKin()))
     with pytest.raises(SafetyViolation, match="wrist camera"):
         h.approve(pose(), pose(roll), dt=1.0)
     assert "wrist camera" in (h.vet_step(pose(), pose(roll), 1.0) or "")
@@ -79,7 +80,7 @@ def test_camera_below_horizontal_is_refused_everywhere(roll):
 
 
 def test_a_side_roll_at_the_tolerance_is_allowed_and_just_past_it_is_not():
-    h = SafetyHarness(limits(min_tool_up_z=-0.1), kinematics=RollKin())
+    h = observed(SafetyHarness(limits(min_tool_up_z=-0.1), kinematics=RollKin()))
     edge = np.arccos(-0.1)                      # up-axis z component == -0.1
     assert h.vet_pose(pose(edge - 1e-3)) is None
     assert "wrist camera" in (h.vet_pose(pose(edge + 0.02)) or "")
@@ -88,14 +89,14 @@ def test_a_side_roll_at_the_tolerance_is_allowed_and_just_past_it_is_not():
 def test_a_vertical_dive_is_camera_sideways_and_allowed():
     """Pitching straight down turns the camera-up axis horizontal (outward):
     the camera is behind the jaws, nowhere near the table."""
-    h = SafetyHarness(limits(), kinematics=RollKin())
+    h = observed(SafetyHarness(limits(), kinematics=RollKin()))
     assert h.vet_pose(pose(pitch=np.pi / 2)) is None
 
 
 def test_an_arm_already_camera_down_may_only_roll_back_up_or_hold():
     """Escape rule, like the joint-limit and table rules: an arm turned over
     by hand or by an older build must be able to recover, never get worse."""
-    h = SafetyHarness(limits(), kinematics=RollKin())
+    h = observed(SafetyHarness(limits(), kinematics=RollKin()))
     down = pose(np.pi - 0.2)
     h.approve(down, down, dt=1.0)                   # hold: no motion, allowed
     h.approve(down, pose(np.pi - 0.4), dt=1.0)      # rolling back toward up
@@ -110,7 +111,7 @@ def test_a_camera_down_hold_is_an_absolute_tolerance_only(step):
     """A camera-down "hold" is q_next == q_prev within an ABSOLUTE 1e-9 rad
     (pre-PR M2). numpy's default rtol (1e-5 x |q|) would call a 1e-5 rad
     turn further down at q ~ 2.9 rad a hold: 0.5 mrad/s of creep at 50 Hz."""
-    h = SafetyHarness(limits(), kinematics=RollKin())
+    h = observed(SafetyHarness(limits(), kinematics=RollKin()))
     down = pose(np.pi - 0.2)
     h.approve(down, pose(np.pi - 0.2 + 0.5e-9), dt=1.0)          # inside atol: still a hold
     further = pose(np.pi - 0.2 + step)                            # turning further down
@@ -120,7 +121,7 @@ def test_a_camera_down_hold_is_an_absolute_tolerance_only(step):
 
 
 def test_arms_without_a_wrist_camera_are_unaffected():
-    h = SafetyHarness(limits(tool_up_axis=None), kinematics=RollKin())
+    h = observed(SafetyHarness(limits(tool_up_axis=None), kinematics=RollKin()))
     h.approve(pose(), pose(np.pi - 0.05), dt=1.0)
     assert h.vet_pose(pose(np.pi - 0.05)) is None
 
@@ -149,7 +150,7 @@ def rebot():
     arm = cfg.arm
     kin = Kinematics(arm.model, arm.get("ee_frame", "gripper_end"), 6, joint_signs=arm.get("joint_signs"))
     return SimpleNamespace(cfg=cfg, kin=kin, home=np.asarray(arm.home_q, float),
-                           harness=SafetyHarness(SafetyLimits.from_config(cfg.safety), kinematics=kin))
+                           harness=observed(SafetyHarness(SafetyLimits.from_config(cfg.safety), kinematics=kin)))
 
 
 def test_the_rebot_profile_keeps_its_camera_up(rebot):

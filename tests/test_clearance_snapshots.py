@@ -18,7 +18,7 @@ import time
 
 import numpy as np
 import pytest
-from conftest import needs_pin, needs_pin_so101
+from conftest import needs_pin, needs_pin_so101, observed
 from occupancy_grid_bridge import GridBridge, centred_box, depth_frame, make_map
 from test_harness_tool_volume import T_CAM, side_grasp_geometry
 from test_home_routes import case
@@ -86,7 +86,7 @@ def _rebot_harness(rebot, box, payload=None):
     if payload is not None:
         occ._payload_samples["scene"] = payload
     limits = SafetyLimits.from_config(rebot.cfg.safety)
-    return SafetyHarness(limits, kinematics=rebot.kin, occupancy=occ, tool_volume=rebot.volume), occ
+    return observed(SafetyHarness(limits, kinematics=rebot.kin, occupancy=occ, tool_volume=rebot.volume)), occ
 
 
 @needs_pin
@@ -406,8 +406,8 @@ def test_a_tool_volume_without_an_answer_names_its_set(rebot):
 
     occupancy = SimpleNamespace(clearance=lambda p: np.full(len(p), 1.), clearance_excluding=lambda p, **_k: None,
                                 required=True, unknown_blocks=True)
-    h = SafetyHarness(SafetyLimits.from_config(rebot.cfg.safety), kinematics=rebot.kin, occupancy=occupancy,
-                      tool_volume=rebot.volume)
+    h = observed(SafetyHarness(SafetyLimits.from_config(rebot.cfg.safety), kinematics=rebot.kin, occupancy=occupancy,
+                      tool_volume=rebot.volume))
     reason = h.vet_pose(rebot.home)
     assert reason.startswith("tool volume clearance unavailable")
     (r,) = h.drain_clearance_reports()
@@ -881,8 +881,8 @@ def test_reports_carry_the_base_pose_and_every_gate_reads_the_map_frame():
     T = h0.kin.fk(q)
     tcp_map = (base @ T)[:3, 3]
     # the TCP gate: a box 2 cm under the TCP where it physically is
-    h = SafetyHarness(h0.limits, h0.kin, occupancy=live_map(centred_box(tcp_map - [0., 0., .04], [.04, .04, .04])),
-                      base_pose=base)
+    h = observed(SafetyHarness(h0.limits, h0.kin, occupancy=live_map(centred_box(tcp_map - [0., 0., .04], [.04, .04, .04])),
+                      base_pose=base))
     assert h.vet_pose(q).startswith("point 0 clearance")
     (r,) = h.drain_clearance_reports()
     assert r["base_pose"] == np.round(base, 6).tolist() and r["base_pose"] != np.eye(4).tolist()
@@ -892,13 +892,13 @@ def test_reports_carry_the_base_pose_and_every_gate_reads_the_map_frame():
     assert r["snapshot"]["centre"] == r["sample"] and r["voxels"]
     assert r["voxels"][0][3] == pytest.approx(.02, abs=.006)      # the box top, measured from the lifted TCP
     # the same box at the TCP's raw base-frame numbers: 22 cm from the arm
-    h = SafetyHarness(h0.limits, h0.kin, occupancy=live_map(UNDER), base_pose=base)
+    h = observed(SafetyHarness(h0.limits, h0.kin, occupancy=live_map(UNDER), base_pose=base))
     assert h.vet_pose(q) is None and h.drain_clearance_reports() == []
     # a held sample 10 cm under the TCP: queried in the table frame
     held = (base @ T @ [0., 0., -.1, 1.])[:3]
     occ = live_map(centred_box(held - [0., 0., .03], [.04, .04, .02]))     # its top 2 cm under it
     occ._payload_samples["scene"] = np.array([[0., 0., -.1]])
-    h = SafetyHarness(h0.limits, h0.kin, occupancy=occ, base_pose=base)
+    h = observed(SafetyHarness(h0.limits, h0.kin, occupancy=occ, base_pose=base))
     assert h.vet_pose(q).startswith("attached object point")
     (r,) = h.drain_clearance_reports()
     assert r["gate"] == "attached" and r["base_pose"] == np.round(base, 6).tolist()

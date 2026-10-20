@@ -22,7 +22,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-from conftest import needs_pin
+from conftest import needs_pin, observed
 from occupancy_grid_bridge import TABLE, GridBridge, depth_frame, make_map
 
 from cascade.control.mock_arm import MockArm
@@ -66,8 +66,8 @@ def rig():
         occ.refresh(depth_frame(), T_CAM)
         assert occ.usable()
         arm = PacedArm(a, kin, period_s=period_s, on_step=on_step)
-        harness = SafetyHarness(SafetyLimits.from_config(cfg.safety), kinematics=kin, occupancy=occ,
-                                tool_volume=build_tool_volume(cfg, a))
+        harness = observed(SafetyHarness(SafetyLimits.from_config(cfg.safety), kinematics=kin, occupancy=occ,
+                                tool_volume=build_tool_volume(cfg, a)))
         return SimpleNamespace(bridge=bridge, occ=occ, arm=arm, harness=harness,
                                safe=SafeArm(arm, harness))
 

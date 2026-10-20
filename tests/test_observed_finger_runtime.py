@@ -5,6 +5,7 @@ import pytest
 
 from cascade.types import SafetyViolation, SkillError, MotionHalted
 from cascade.safety.harness import SafetyHarness, SafetyLimits
+from conftest import observed
 from test_grasp_evidence import runtime as basic_runtime
 from test_isaac_simulation_motion import Sim, stream
 
@@ -99,8 +100,8 @@ def test_feedback_guard_failure_after_ack_prevents_next_target(monkeypatch):
 
 
 def real_harness(rt):
-    rt.arm.harness = SafetyHarness(SafetyLimits(np.array([-2., -2., -2.]), np.ones(3)*2,
-                                               table_z=0., max_joint_vel=10., watchdog_s=10000.))
+    rt.arm.harness = observed(SafetyHarness(SafetyLimits(np.array([-2., -2., -2.]), np.ones(3)*2,
+                                               table_z=0., max_joint_vel=10., watchdog_s=10000.)))
     return rt.arm.harness
 
 

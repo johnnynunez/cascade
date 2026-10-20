@@ -16,7 +16,7 @@ import time
 
 import numpy as np
 import pytest
-from conftest import needs_pin
+from conftest import needs_pin, observed
 from occupancy_grid_bridge import TABLE, GridBridge, depth_frame, make_map
 
 from cascade.control.lazy_arm import LazyArm
@@ -75,6 +75,7 @@ def _mock_build(occ, *, lazy=True):
 
     cfg = load_demo_config(arm="mock", camera="mock", llm="mock")
     raw, safe, kin = demo._build_arm(cfg.arm, lazy, occ, cfg)
+    observed(safe.harness)          # the watcher's camera half: a frame came in
     return raw, safe, kin, cfg
 
 

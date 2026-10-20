@@ -30,6 +30,7 @@ escape vertically.
 
 from __future__ import annotations
 
+import math
 import sys
 import time
 import threading
@@ -344,7 +345,13 @@ class SafetyHarness:
         self._model_withdrawal_scope = threading.local()
         #: (center_xy, radius, z_min) or, with a ceiling, (..., z_max)
         self._grasp_exempt: tuple | None = None
-        self._last_heartbeat = time.monotonic()
+        # Stale until the first observation (#414 review Minor 4): an arm
+        # never moves on perception it has not had. Every motion starts after
+        # a real frame's beat (the runtime's build feeds the warm-up's frames,
+        # the watcher every new one, calibration and home_rebot_rs their own
+        # grabs); counting the build as an observation let an arm whose
+        # camera never delivered move for `watchdog_s`.
+        self._last_heartbeat = -math.inf
         self._motion_active = False
         self.violations: list[str] = []
         #: per-motion contact monitor summaries, drained into the run trace
@@ -399,7 +406,14 @@ class SafetyHarness:
                 self._last_heartbeat = at
 
     def _watchdog_refusal(self, age: float) -> str:
+        if not math.isfinite(age):
+            return f"perception watchdog: no observation yet{self.watchdog_note}"
         return f"perception watchdog: last observation {age:.1f}s old{self.watchdog_note}"
+
+    def _check_watchdog(self) -> None:
+        age = time.monotonic() - self._last_heartbeat
+        if age > self.limits.watchdog_s:
+            self._reject(self._watchdog_refusal(age))
 
     def estop(self, reason: str = "manual") -> None:
         with self._observation_lock:
@@ -1096,11 +1110,23 @@ class SafetyHarness:
         with self._observation_lock:
             self._check_halt_generation(halt_generation)
             self._halt = None
-        age = time.monotonic() - self._last_heartbeat
-        if age > self.limits.watchdog_s:
-            self._reject(self._watchdog_refusal(age))
+        self._check_watchdog()
         self._motion_active = True
         self._motion_uncounted = True
+
+    def check_before_motion(self, *, halt_generation: int | None = None) -> None:
+        """begin_motion's refusals, in its order -- the e-stop, a halt since
+        `halt_generation` or since the running skill started, the perception
+        watchdog -- for a command that PRECEDES a motion and goes out only for
+        it (the grasp's pre-grasp jaw opening): a dead camera then refuses
+        that command too, instead of the motion right after it. Starts no
+        motion and leaves a pending halt from before the caller started for
+        that motion's begin_motion to clear, as begin_motion would.
+        """
+        if self._estopped:
+            raise SafetyViolation("e-stop latched")
+        self._check_halt_generation(halt_generation)
+        self._check_watchdog()
 
     def end_motion(self) -> None:
         self._motion_active = False
@@ -1120,9 +1146,7 @@ class SafetyHarness:
         self._check_halt_generation(halt_generation)
         if self._halt is not None:
             raise MotionHalted(f"halted: {self._halt}")
-        age = time.monotonic() - self._last_heartbeat
-        if age > self.limits.watchdog_s:
-            self._reject(self._watchdog_refusal(age))
+        self._check_watchdog()
 
     # ── the gate ─────────────────────────────────────────────────────────
 

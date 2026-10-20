@@ -273,9 +273,12 @@ def _camera_watchdog_feed(arm_rig, ccfg, extrinsics):
 
 
 def _unfed_arm_note(name) -> str:
-    """The watchdog-refusal note of an arm no camera feeds (`_warn_unfed_arms`)."""
-    return (f"; no camera on this rig feeds arm {name!r} (a `role: wrist` view feeds no arm, an "
-            "eye-in-hand camera only the primary): it needs a fixed scene camera")
+    """The watchdog-refusal note of an arm no camera feeds (`_warn_unfed_arms`).
+    The deciding words first and the whole note short: behind the longest
+    refusal prefix it must fit the 240 characters of the agent's FAILED line
+    with the longest arm name (#414 review Minor 5)."""
+    return (f"; no camera on this rig feeds arm {name!r}: it needs a fixed scene camera "
+            "(a wrist view feeds at most the primary arm)")
 
 
 def _warn_unfed_arms(arm_rig, watched) -> list[str]:
@@ -1087,6 +1090,14 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
     # Whose watchdogs each camera's frames feed, for the runtime's own frame
     # grabs (`SkillRuntime._mark_perception_fresh`), the rule the watcher uses.
     runtime._watchdog_feeds = tuple((cam.stream, cam.watchdog_feed) for cam in watched)
+    # Every harness is built stale (no observation yet): the warm-up's frames
+    # are the first real observations, fed by that same rule, so a live
+    # camera moves on the first call, before the watcher's first tick (or with
+    # no watcher). A camera with no frame yet feeds nothing.
+    for cam in watched:
+        latest = cam.stream.latest()
+        if latest is not None:
+            runtime._mark_perception_fresh(latest, cam.stream)
     # Each other arm's own Kinematics (the one its harness uses) and resolved
     # profile, bound by execute(arm=<name>) for that call (spec Q4 a, D3). The
     # primary keeps the runtime's own `kin` / `cfg`.

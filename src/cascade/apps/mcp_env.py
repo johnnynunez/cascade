@@ -168,6 +168,10 @@ NOT_FORWARDED: dict[str, tuple[str, str]] = {
                                     "it lets a teardown cut torque on an arm its park did not bring to rest "
                                     "(apps.demo); inherited from a shell or a saved registration it would drop "
                                     "a raised arm, so it is never copied"),
+    "CASCADE_ARM_HOLD_DIR": ("internal", "where held arms are remembered (cascade.control.arm_hold; default "
+                             "~/.cascade/arm_holds): every process on the host must read the same one, so the "
+                             "server derives it from its HOME and a registration never pins a copy; tests point "
+                             "it at a private directory"),
 }
 
 

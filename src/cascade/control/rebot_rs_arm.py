@@ -15,7 +15,10 @@ SocketCAN can0 @ 1 Mbps), but with the rig-verified fixes this SDK lacks:
   Opt-in `gripper.max_contact_squeeze_rad` (B38) caps the squeeze past the
   first contact (robstride.close_two_stage_capped, mechPos-only stall).
 - Latched motor faults are cleared on connect, before enable (the SDK's
-  enable does not; see robstride.clear_motor_faults).
+  enable does not; see robstride.clear_motor_faults). That clear is a STOP
+  frame (no torque), so a connect to an arm an earlier session's teardown
+  left powered and holding is refused before the bus is opened, until an
+  operator confirms they support it (control/arm_hold.py).
 - This driver streams MIT commands itself at the harness's 50 Hz. It never
   starts the SDK's RebotArmEndPose 500 Hz loop, whose _loop_cb re-sends its
   own _q_target every 2 ms and so overwrites any direct send_mit (WRC rig
@@ -40,6 +43,7 @@ import numpy as np
 
 from ..config import Cfg
 from ..types import RobotState
+from . import arm_hold
 from .arm_base import ArmBase
 from .robstride import (
     UnsafeReading,
@@ -128,7 +132,17 @@ class RebotRSArm(ArmBase):
 
     # ── lifecycle ────────────────────────────────────────────────────────
 
+    @property
+    def hold_key(self) -> str | None:
+        """This arm's CAN channel (the SDK hardware YAML's `can0` unless the
+        profile names one): the bus its hold marker names."""
+        return arm_hold.hold_key("rebot_rs", getattr(self, "_cfg", None))
+
     def connect(self) -> None:
+        # Everything below starts with clear_motor_faults, a STOP frame that
+        # cuts torque: an arm an earlier session left holding is refused
+        # first, before the SDK opens the bus (#424 review Important 1).
+        arm_hold.check_connect(self.hold_key, driver="rebot_rs")
         try:
             from reBotArm_control_py.actuator import RebotArm
         except ImportError as e:

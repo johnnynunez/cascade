@@ -340,6 +340,9 @@ class SafetyHarness:
         self._estopped = False
         self._halt: str | None = None
         self._halt_generation = 0
+        #: (reason, thread id) once a teardown closed this arm to every other
+        #: thread's motion (`close_for_teardown`); None while it runs
+        self._teardown: tuple[str, int] | None = None
         #: per thread: the halt generation taken when the running motion
         #: skill started (`skill_halt_baseline`), None outside a skill
         self._skill_halt = threading.local()
@@ -492,6 +495,28 @@ class SafetyHarness:
     def clear_halt(self) -> None:
         with self._observation_lock:
             self._halt = None
+
+    def close_for_teardown(self, reason: str) -> bool:
+        """Teardown: from now on only the CALLING thread (the one that parks
+        the arm) may begin a motion or command the jaws on this arm. Every
+        other thread's motion -- a dashboard task, a chat step that starts
+        after this -- is refused before its first command (MotionHalted), so
+        a later begin_motion can no longer clear the teardown's halt and
+        stream beside the park (#424 review, Important 2 and Minor 2). A
+        motion streaming now is halted at its next waypoint. Returns whether
+        one was streaming. Never reopened: the runtime is going away."""
+        with self._observation_lock:
+            self._teardown = (str(reason), threading.get_ident())
+            streaming = bool(self._motion_active)
+        if streaming:
+            self.halt(reason)
+        return streaming
+
+    def _check_teardown(self) -> None:
+        # getattr: harness doubles built without __init__
+        closed = getattr(self, "_teardown", None)
+        if closed is not None and closed[1] != threading.get_ident():
+            raise MotionHalted(f"halted: {closed[0]}")
 
     @property
     def halted(self) -> str | None:
@@ -1113,6 +1138,7 @@ class SafetyHarness:
         self.check_contact_episode()
         if self._estopped:
             raise SafetyViolation("e-stop latched")
+        self._check_teardown()
         # A halt before the caller started is recoverable; a new halt during
         # route planning or between its segments must cancel that same route,
         # and a halt since the running motion skill started cancels every
@@ -1139,6 +1165,7 @@ class SafetyHarness:
         """
         if self._estopped:
             raise SafetyViolation("e-stop latched")
+        self._check_teardown()
         self._check_halt_generation(halt_generation)
         self._check_watchdog()
 
@@ -1157,6 +1184,7 @@ class SafetyHarness:
         self.check_contact_episode()
         if self._estopped:
             raise SafetyViolation("e-stop latched")
+        self._check_teardown()
         self._check_halt_generation(halt_generation)
         if self._halt is not None:
             raise MotionHalted(f"halted: {self._halt}")
@@ -2141,7 +2169,11 @@ class SafeArm:
         route costs no command at all (#422 review Minor 5). Authorizes
         nothing: move_planned plans and vets its own route again from the
         joints measured when it starts, and every step is approved live. A
-        planner-bound arm plans inside move_joints: nothing to check here."""
+        planner-bound arm plans inside move_joints: nothing to check here.
+        It runs only the route's geometry (plan_route), not move_planned's
+        model-withdrawal and release-episode checks. That is harmless: the
+        jaw opening it precedes runs both itself (SafeArm.set_gripper), and
+        move_planned runs them before its first command (#424 review Minor 7)."""
         if self.motion_planner is not None:
             return
         from .trajectory import plan_route
@@ -2281,6 +2313,9 @@ class SafeArm:
         # the refusal is the e-stop's (a loss), never the halt's.
         if self.harness.estopped:
             raise SafetyViolation("e-stop latched")
+        check_teardown = getattr(self.harness, "_check_teardown", None)
+        if callable(check_teardown):
+            check_teardown()
         self.harness._check_halt_generation(_halt_generation)
         self._arm.set_gripper(pos, effort)
 

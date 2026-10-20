@@ -22,6 +22,7 @@ import os
 import sys
 import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from typing import NamedTuple
 import numpy as np
@@ -464,10 +465,13 @@ def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg, safety=None):
         # n_joints must come from the profile: until the arm materializes,
         # LazyArm's hint is the only DOF answer anything can get, and the
         # class default (6) is wrong for a 5-DoF SO-101 or a 7-DoF Panda.
+        from ..control import arm_hold
+
         arm = LazyArm(lambda: make_arm(acfg, kinematics=kin), n_joints=n_joints,
                       profile_type=str(acfg.get("type", "")),
                       on_materialize=(None if occupancy is None
-                                      else lambda: _await_occupancy_after_wake(occupancy, acfg)))
+                                      else lambda: _await_occupancy_after_wake(occupancy, acfg)),
+                      hold_key=arm_hold.hold_key(acfg.get("type"), acfg))
     else:
         arm = make_arm(acfg, kinematics=kin)
         arm.connect()
@@ -1472,7 +1476,31 @@ def _runtime_state(runtime) -> dict:
     if monitors:
         # per camera: ok / drift, fusing, last check, passive candidate
         out["extrinsics_drift"] = {m.name: m.status() for m in monitors}
+    held = _held_arm_markers(runtime)
+    if held:
+        # An earlier session's teardown left an arm POWERED and HOLDING
+        # (control/arm_hold.py): it is powered, never "standby", and its first
+        # connect is refused until an operator confirms (#424 review I1).
+        from ..control.arm_hold import CONFIRM_TTL_S, confirm_command
+
+        out["arm_connected"] = True
+        out["arm_held"] = [{"key": m.get("key"), "arm": m.get("arm"), "reason": m.get("reason"),
+                            "since": m.get("at_text"), "pid": m.get("pid"),
+                            "next": (f"support the arm, then confirm within {CONFIRM_TTL_S:.0f} s: "
+                                     f"{confirm_command()}; the next motion then connects it (its "
+                                     "torque drops while you hold it)")} for m in held]
     return out
+
+
+def _held_arm_markers(runtime) -> list:
+    """The hold markers of this runtime's arms (control/arm_hold.py); reads
+    each arm's bus key from its class or profile, never materializes one."""
+    keys = [_hold_key(getattr(safe, "raw", None)) for _stage, _name, safe in _park_stages(runtime)]
+    if not any(keys):
+        return []
+    from ..control import arm_hold
+
+    return arm_hold.held(keys)
 
 
 def _park_pose(arm) -> list[float]:
@@ -1546,14 +1574,27 @@ def _park_move(arm, duration_s: float, stage: dict) -> bool:
 
 #: The operator's explicit confirmation that a teardown may cut torque on an
 #: arm its park did not bring to rest (refused by the watchdog or any other
-#: gate, skipped under a latched e-stop, not settled): this variable set to
-#: exactly TORQUE_OFF_CONFIRMATION -- they are holding the arm. Without it such
-#: an arm stays powered and holding its pose (#422 review follow-up 2: a dead
-#: camera refused the park and the disconnect then dropped a raised arm).
-#: Never forwarded to an MCP registration (`apps.mcp_env`): no value inherited
-#: from a shell may make a teardown drop an arm.
+#: gate, skipped under a latched e-stop, not settled): they are holding the
+#: arm. Read at the moment of the cut: a fresh `control.arm_hold` confirmation
+#: (`scripts/arm_hold.py confirm 'holding the arm'`, any shell, valid 120 s,
+#: used once: what an MCP operator runs right before stopping the server), or
+#: for a demo CLI this variable set to exactly TORQUE_OFF_CONFIRMATION when it
+#: started. Without either such an arm stays powered and holding its pose
+#: (#422 review follow-up 2: a dead camera refused the park and the disconnect
+#: then dropped a raised arm). Never forwarded to an MCP registration
+#: (`apps.mcp_env`): no value inherited from a shell may make a teardown drop
+#: an arm.
 TORQUE_OFF_CONFIRM_ENV = "CASCADE_TORQUE_OFF_UNPARKED"
 TORQUE_OFF_CONFIRMATION = "holding the arm"
+#: How long a teardown waits for a motion still running on another thread (a
+#: dashboard task, a chat step, a stuck call holding the MCP exec lock) to end
+#: after its halt. Past it the e-stop latches: motion stops, the arm keeps its
+#: torque and holds, the park is skipped and the teardown still finishes with
+#: its receipt (#424 review follow-up 3, Minor 1).
+TEARDOWN_WAIT_S = 10.0
+#: The demo CLI's StopSignals while its teardown runs (`main`): a stop signal
+#: deferred during the teardown's wait ends that wait at once.
+_TEARDOWN_SIGNALS = None
 
 #: `_park_arm` skips after which the disconnect drops nothing: no arm, an arm
 #: never powered, a controller that keeps the hold, a simulator whose
@@ -1586,14 +1627,23 @@ def _unparked_reason(stage) -> str | None:
     return f"the shutdown park was refused ({error.get('type', 'Error')}: {error.get('message', '')})"
 
 
+def _hold_key(raw) -> str | None:
+    """The bus a hold marker names for `raw` (control/arm_hold.py): the
+    backend's own (`ArmBase.hold_key`), a standby LazyArm's from its profile.
+    Never materializes; None for anything that does not say (doubles)."""
+    key = getattr(raw, "hold_key", None) if raw is not None else None
+    return key if isinstance(key, str) and key else None
+
+
 def _hold_reason(raw, stage, name) -> str | None:
     """Why `raw` (arm `name`) must stay connected, powered and holding
     instead of being disconnected, or None. Only a backend whose disconnect
     may cut torque (`ArmBase.disconnect_cuts_torque`; a double that does not
     say is not one) and only when its park did not bring it to rest: cutting
     torque there drops a raised arm. Never waives a gate: the park stays
-    refused, the arm simply keeps its torque. The operator's confirmation
-    (TORQUE_OFF_CONFIRM_ENV) lets the disconnect run anyway, said loudly."""
+    refused, the arm simply keeps its torque. The operator's confirmation,
+    read now (a fresh `arm_hold.confirm`, or TORQUE_OFF_CONFIRM_ENV), lets
+    the disconnect run anyway, said loudly."""
     if getattr(raw, "disconnect_cuts_torque", False) is not True:
         return None
     reason = _unparked_reason(stage)
@@ -1603,37 +1653,182 @@ def _hold_reason(raw, stage, name) -> str | None:
         print(f"[cascade] arm {name}: {reason}; cutting its torque anyway: the operator confirmed "
               f"{TORQUE_OFF_CONFIRM_ENV}={TORQUE_OFF_CONFIRMATION!r}", file=sys.stderr, flush=True)
         return None
+    from ..control import arm_hold
+
+    taken = arm_hold.take_confirmation(_hold_key(raw))
+    if taken is not None:
+        print(f"[cascade] arm {name}: {reason}; cutting its torque anyway: the operator confirmed "
+              f"{arm_hold.CONFIRMATION!r} {taken['age_s']:.0f} s ago", file=sys.stderr, flush=True)
+        return None
     return reason
 
 
 def _announce_held(held: dict) -> None:
     """Say loudly, per arm, that it is still powered and why (stderr: the
-    MCP server's server.log, the CLI's console)."""
+    MCP server's server.log, the CLI's console), and what the operator runs:
+    a command that works from any shell (the MCP server's env is fixed when
+    it starts and no registration forwards the variable)."""
+    from ..control.arm_hold import CONFIRM_TTL_S, confirm_command
+
     for name, reason in held.items():
         print(f"[cascade] WARNING: arm {name} is POWERED and HOLDING its pose: {reason}. Teardown did not "
-              "cut its torque (a raised arm would drop). Support the arm, then switch its power off. To let "
-              f"a teardown cut torque on an unparked arm, start it with {TORQUE_OFF_CONFIRM_ENV}="
-              f"{TORQUE_OFF_CONFIRMATION!r} and hold the arm.", file=sys.stderr, flush=True)
+              "cut its torque (a raised arm would drop). Support the arm, then switch its power off. The next "
+              "start refuses to connect it until an operator supports it and confirms, then retries within "
+              f"{CONFIRM_TTL_S:.0f} s: {confirm_command()}. To let a teardown cut torque on an unparked arm, "
+              "hold the arm and run that command right before stopping the server (a demo CLI may instead "
+              f"start with {TORQUE_OFF_CONFIRM_ENV}={TORQUE_OFF_CONFIRMATION!r}).", file=sys.stderr, flush=True)
+
+
+def _park_stages(runtime) -> list:
+    """(stage, rig arm name or None, SafeArm) for every arm, in the order
+    `_park_arm` parks them; its stages are named by position in this list.
+    `_arms_to_hold` reads the same list, so the two cannot drift (#424
+    review Minor 5)."""
+    rig = getattr(runtime, "arm_rig", None)
+    if rig is not None and len(rig) > 1:
+        return [(str(index), name, rig.arms[name]) for index, name in enumerate(rig.names)]
+    name = list(rig.names)[0] if rig is not None and len(rig) else None
+    return [("0", name, getattr(runtime, "arm", None))]
 
 
 def _arms_to_hold(runtime, arm, park_receipt) -> dict:
     """name -> reason for every arm the teardown must leave powered
-    (`_hold_reason`), from `_park_arm`'s receipt (None: it did not run).
-    `_park_arm` names its stages by position in its own arm list."""
+    (`_hold_reason`), from `_park_arm`'s receipt (None: it did not run). A
+    rig arm by its rig name and backend; a lone arm (no rig) as "arm", by
+    the primary raw backend `arm`."""
     stages = {stage.get("stage"): stage for stage in (park_receipt or {}).get("stages", ())
               if isinstance(stage, dict)}
     rig = getattr(runtime, "arm_rig", None)
     held = {}
-    if rig is not None:
-        names = list(rig.names)
-        for index, name in enumerate(names):
-            stage = stages.get(str(index)) if len(names) > 1 else stages.get("0")
-            reason = _hold_reason(getattr(rig.arms[name], "raw", None), stage, name)
-            if reason is not None:
-                held[name] = reason
-        return held
-    reason = _hold_reason(arm, stages.get("0"), "arm")
-    return {} if reason is None else {"arm": reason}
+    for stage, name, _safe in _park_stages(runtime):
+        raw = getattr(rig.arms[name], "raw", None) if name is not None else arm
+        reason = _hold_reason(raw, stages.get(stage), name if name is not None else "arm")
+        if reason is not None:
+            held[name if name is not None else "arm"] = reason
+    return held
+
+
+def _arm_raws(runtime, arm) -> dict:
+    """name (as `_arms_to_hold` names it) -> raw backend, for every arm."""
+    rig = getattr(runtime, "arm_rig", None)
+    return {(name if name is not None else "arm"):
+            (getattr(rig.arms[name], "raw", None) if name is not None else arm)
+            for _stage, name, _safe in _park_stages(runtime)}
+
+
+def _record_holds(raws: dict, held: dict) -> dict:
+    """Write a hold marker for every held arm (control/arm_hold.py): every
+    later process reads it, and a reBot's next connect refuses over it.
+    name -> the marker, or the error that kept it from being written (said
+    loudly: the next start cannot see that hold)."""
+    from ..control import arm_hold
+
+    out = {}
+    for name, reason in held.items():
+        key = _hold_key(raws.get(name))
+        if key is None:
+            continue
+        try:
+            arm_hold.record(key, arm=name, reason=reason)
+            out[name] = {"key": key, "marker": str(arm_hold.marker_path(key))}
+        except Exception as exc:  # noqa: BLE001 -- the teardown goes on; the warning says what is lost
+            out[name] = {"key": key, "error": f"{type(exc).__name__}: {exc}"}
+            print(f"[cascade] WARNING: arm {name}: its hold marker could not be written ({exc}): the next "
+                  "start cannot see that it is held. Support it before any restart.", file=sys.stderr, flush=True)
+    return out
+
+
+def _clear_released_holds(released: dict) -> None:
+    """`released`: name -> bus key of every torque-cutting arm whose
+    disconnect ran after a park to rest (or the operator's confirmation):
+    nothing is held there any more."""
+    from ..control import arm_hold
+
+    for name, key in released.items():
+        try:
+            arm_hold.clear(key, why=f"arm {name} disconnected after its park (or on confirmation)")
+        except OSError as exc:
+            print(f"[cascade] WARNING: arm {name}: its old hold marker could not be removed ({exc})",
+                  file=sys.stderr, flush=True)
+
+
+def wait_for_teardown(done, *, bound_s: float, signals=None, poll_s: float = 0.05) -> str | None:
+    """Poll `done(poll_s)` (it may block up to poll_s) until it returns True
+    or `bound_s` passes. A stop signal during the wait ends it at once: one
+    the teardown's `signals.defer()` deferred (StopSignals.signum changes),
+    or a second one raising KeyboardInterrupt out of the wait. Returns None
+    when done, else why the wait ended."""
+    start_signum = getattr(signals, "signum", None)
+    deadline = time.monotonic() + float(bound_s)
+    try:
+        while True:
+            if done(poll_s):
+                return None
+            if signals is not None and getattr(signals, "signum", None) != start_signum:
+                return "a stop signal arrived during the wait"
+            if time.monotonic() >= deadline:
+                return f"it did not end within {float(bound_s):g} s"
+    except KeyboardInterrupt:
+        return "a second stop signal arrived during the wait"
+
+
+def _latch_teardown_estop(runtime, why: str, *, log_prefix: str = "[cascade]") -> None:
+    """Latch the e-stop on every arm (SafeArm.stop: the latch plus the
+    backend's soft stop, which holds the pose with torque ON): the motion
+    still running stops at its next waypoint and the park is skipped, so the
+    arm stays powered and holding."""
+    for _stage, _name, safe in _park_stages(runtime):
+        if safe is None or getattr(getattr(safe, "__dict__", {}).get("harness"), "estopped", False) is True:
+            continue
+        try:
+            safe.stop()
+        except Exception as exc:  # noqa: BLE001 -- every arm gets the latch
+            print(f"{log_prefix} teardown: e-stop on an arm failed ({exc})", file=sys.stderr, flush=True)
+    print(f"{log_prefix} WARNING: teardown: the motion still running did not end ({why}); e-stop latched: "
+          "motion stopped, the arm keeps its torque and holds, the park is skipped", file=sys.stderr, flush=True)
+
+
+def _quiesce_for_teardown(runtime, *, reason: str = "shutting down") -> str | None:
+    """Before the exit park: from now on no other thread may begin a motion
+    on any arm (a dashboard task, a chat step: refused before its first
+    command, `SafetyHarness.close_for_teardown`), and a motion streaming now
+    is halted at its next waypoint and waited for, at most TEARDOWN_WAIT_S.
+    Then the park runs alone: before, its own begin_motion cleared the halt
+    and both streamed, interleaved (#424 review Important 2). Past the bound,
+    or on a stop signal during the wait, the e-stop latches instead. Returns
+    why it latched, or None."""
+    harnesses = []
+    for _stage, _name, safe in _park_stages(runtime):
+        harness = getattr(safe, "__dict__", {}).get("harness") if safe is not None else None
+        if callable(getattr(harness, "close_for_teardown", None)):
+            harnesses.append(harness)
+    streaming = [h for h in harnesses if h.close_for_teardown(reason)]
+    if not streaming or any(h.estopped for h in harnesses):
+        return None
+    print(f"[cascade] teardown: halted the motion still running on another thread; waiting up to "
+          f"{TEARDOWN_WAIT_S:g} s for it to end before the park", file=sys.stderr, flush=True)
+
+    def ended(poll_s):
+        if not any(h.motion_active for h in streaming) or any(h.estopped for h in harnesses):
+            return True
+        time.sleep(poll_s)
+        return False
+
+    why = wait_for_teardown(ended, bound_s=TEARDOWN_WAIT_S, signals=_TEARDOWN_SIGNALS)
+    if why is not None:
+        _latch_teardown_estop(runtime, why)
+    return why
+
+
+@contextmanager
+def _teardown_signals(signals):
+    """While the demo CLI's teardown runs, its wait sees the CLI's signals."""
+    global _TEARDOWN_SIGNALS
+    previous, _TEARDOWN_SIGNALS = _TEARDOWN_SIGNALS, signals
+    try:
+        yield
+    finally:
+        _TEARDOWN_SIGNALS = previous
 
 
 def _shutdown_park_required(raw) -> bool:
@@ -1672,10 +1867,8 @@ def _park_arm(runtime, duration_s: float = 2.0) -> dict:
     retained = ("held_object", "_held_provisional", "_contact_episode",
                 "_carry_attachment", "_release_episode")
     possible_load = any(getattr(runtime, name, None) is not None for name in retained)
-    rig = getattr(runtime, "arm_rig", None)
-    arms = list(rig) if rig is not None and len(rig) > 1 else [runtime.arm]
-    for index, arm in enumerate(arms):
-        stage = {"stage": str(index), "ok": True, "complete": True}
+    for stage_name, _name, arm in _park_stages(runtime):
+        stage = {"stage": stage_name, "ok": True, "complete": True}
         stages.append(stage)
         if arm is None:
             stage["skipped"] = "absent"
@@ -1806,25 +1999,40 @@ def shutdown_runtime(runtime, arm) -> dict:
         n = runtime.memory.save_visual(path)
         print(f"[cascade] remembered {n} appearance(s) -> {path}")
 
-    park, held = {}, {}
+    park, held, markers = {}, {}, {}
 
     def _park():
+        # No other thread moves an arm from here on; one still streaming is
+        # halted and waited for (bounded), so the park runs alone.
+        _quiesce_for_teardown(runtime)
         park["receipt"] = _park_arm(runtime)
         return park["receipt"]
 
     def _disconnect_arms():
         # An arm whose park did not bring it to rest and whose disconnect
-        # cuts torque stays powered and holding (#422 review follow-up 2).
+        # cuts torque stays powered and holding (#422 review follow-up 2),
+        # and a marker tells every later process so (#424 review I1).
         held.update(_arms_to_hold(runtime, arm, park.get("receipt")))
         _announce_held(held)
+        raws = _arm_raws(runtime, arm)
+        markers.update(_record_holds(raws, held))
+        # read BEFORE the disconnect: a LazyArm drops its backend there
+        cutting = {name: _hold_key(raw) for name, raw in raws.items()
+                   if name not in held and getattr(raw, "disconnect_cuts_torque", False) is True
+                   and _hold_key(raw) is not None}
         rig = getattr(runtime, "arm_rig", None)
         if rig is not None:
             # includes the primary and per-arm results
-            return rig.disconnect(hold=held) if held else rig.disconnect()
+            result = rig.disconnect(hold=held) if held else rig.disconnect()
+            done = {s.get("stage") for s in result.get("stages", ()) if s.get("ok") is True}
+            _clear_released_holds({name: key for name, key in cutting.items() if name in done})
+            return result
         if held:
             return teardown_receipt([{"stage": "arm", "ok": False, "complete": False, "holding": True,
                                       "errors": [{"type": "TorqueHeld", "message": held["arm"]}]}])
-        return arm.disconnect()
+        result = arm.disconnect()
+        _clear_released_holds(cutting)
+        return result
 
     stages = []
     for name, step in (
@@ -1842,6 +2050,9 @@ def shutdown_runtime(runtime, arm) -> dict:
     if held:
         # the arms left powered, by name, and why: the receipt's status line
         receipt["torque_held"] = dict(held)
+        if markers:
+            # where each hold is remembered for the next process (control/arm_hold.py)
+            receipt["hold_markers"] = dict(markers)
     runtime._shutdown_receipt = copy.deepcopy(receipt)
     return receipt
 
@@ -2542,7 +2753,7 @@ def main(argv: list[str] | None = None) -> int:
                         except Exception:
                             pass
         finally:
-            with signals.defer():
+            with signals.defer(), _teardown_signals(signals):
                 if runtime is not None:
                     shutdown_runtime(runtime, arm)
         if signals.signum is not None:

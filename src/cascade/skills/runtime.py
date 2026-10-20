@@ -5989,6 +5989,21 @@ class SkillRuntime:
                 raise
             except Exception as exc:
                 SkillRuntime._raise_home_move_failure(self, exc, begun)
+        elif _home is not None and not preserve_view_home and scene_gate is not None:
+            # Gate on (the Isaac reBot sim): the home move's own preflight --
+            # the harness's segment vet and the observed-finger profile --
+            # from the joints measured now, BEFORE the jaw opens, so a refused
+            # home segment costs no jaw command either (#424 review Minor 3).
+            # Authorizes nothing: the move runs it again from its own start.
+            begun = SkillRuntime._approved_commands(self)
+            home_q = np.asarray(_home, dtype=float)
+            try:
+                now_q = np.asarray(self.arm.get_state().q, dtype=float)
+                _scene_motion(home_q)["preflight"](now_q, _scene_duration(now_q, home_q, 1.5))
+            except MotionHalted:
+                raise
+            except Exception as exc:
+                SkillRuntime._raise_home_move_failure(self, exc, begun)
         self._set_gripper(open_pos, effort=0.8,
                              **({"_halt_generation": scene_halt_generation} if scene_enabled else {}))
         if _home is not None and not preserve_view_home:

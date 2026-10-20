@@ -1,8 +1,9 @@
 """A refused shutdown park never cuts torque on a raised arm (#422 review follow-up 2).
 
 Teardown parks every arm, then disconnects it, and on a torque-cutting backend (so101's serial
-torque-off, the reBot SDK's `disable_all`, motorbridge's bus shutdown that leaves the RobStride
-motors limp) the disconnect drops an arm that is not at rest. A dead camera refuses the park (the
+torque-off, the reBot SDK's `disable_all`, and motorbridge's `close_bus`, which sends no disable frame
+but leaves the motors to their firmware's CAN timeout, unverified: treated as a possible drop) the
+disconnect drops an arm that is not at rest. A dead camera refuses the park (the
 perception watchdog), and so does any other gate; a latched e-stop skips it (every MCP SIGTERM:
 `launch.sh --down`, `openshell_rig.py teardown`, `systemctl stop` latch the e-stop first). Main then
 disconnected anyway and the raised arm fell.
@@ -185,7 +186,8 @@ def _backend(kind, events):
         raw._arm = SimpleNamespace(disconnect=rec("sdk disconnect: disable_all"))
     elif kind == "rebot_rs_mb":
         raw = object.__new__(RebotRSMotorBridgeArm)
-        raw._ctrl, raw._motors = SimpleNamespace(close_bus=rec("bus shutdown: motors limp"), close=rec("close")), {}
+        raw._ctrl, raw._motors = SimpleNamespace(close_bus=rec("close_bus: no disable frame, motors to the "
+                                                             "firmware's CAN timeout"), close=rec("close")), {}
     elif kind == "mujoco":
         raw = object.__new__(MujocoArm)
         raw._engine, raw._connected = SimpleNamespace(close=rec("engine closed")), True

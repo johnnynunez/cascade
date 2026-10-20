@@ -8,8 +8,22 @@
 # whichever engine you brought up -- they are interchangeable brains.
 #
 # Usage:
-#   ./serve_cosmos_sglang.sh              # create venv (first run), export, serve
-#   PORT=8083 CTX=32768 ./serve_cosmos_sglang.sh
+#   API_KEY_FILE=~/.cascade/nemoclaw/llama.key ./serve_cosmos_sglang.sh   # create venv (first run), export, serve
+#   PORT=8083 CTX=32768 API_KEY_FILE=... ./serve_cosmos_sglang.sh
+#
+# Keyed, scrubbed, loopback (#409 made it the OpenShell Cosmos agent's brain,
+# `launch.sh --brain cosmos-sglang`): it serves only with API_KEY_FILE, a 0600
+# file holding one bearer key (the same file the agent's brain provider sends,
+# CASCADE_BRAIN_KEY_FILE); the key never reaches argv. It binds 127.0.0.1 only,
+# drops the inherited variables that make SGLang add a listener, move a route
+# or swap its HTTP server, and runs the SGLang pinned below (SGLANG_VERSION: the
+# version that list and docs/OPENSHELL.md's route audit were read from). No
+# --trust-remote-code: Cosmos3-Edge is native in SGLang (srt/models/
+# cosmos3_edge.py) and in transformers (models/cosmos3_edge, 5.19.0 too), and
+# nvidia/Cosmos3-Edge ships no code (no .py, no auto_map at a9d944e2), so
+# nothing remote would run; without the flag a repo that started shipping code
+# fails to load instead of executing it. The vLLM route serves the same export
+# with trust_remote_code=False (docs/evidence/cosmos-vllm-032-nvfp4-2026-10-19).
 #
 # UNVERIFIED on this rig -- unlike serve_cosmos_vllm.sh (verified on GB10
 # 2026-07-21), this script has not had a booth rehearsal against it yet.
@@ -45,15 +59,53 @@ SERVED_NAME="${SERVED_NAME:-cosmos3-edge}"   # KEEP IN SYNC with configs/llm/loc
 PORT="${PORT:-8083}"                          # deliberately != vLLM's 8082, see the yaml note
 CTX="${CTX:-32768}"
 GPU_FRAC="${GPU_FRAC:-0.20}"   # unified memory on Spark is shared with Isaac + Qwen/vLLM
+# The audited release: KEEP IN SYNC with the scrub below and docs/OPENSHELL.md.
+SGLANG_VERSION=0.5.22
+
+die() { printf 'serve_cosmos_sglang: %s\n' "$1" >&2; exit "${2:-1}"; }
+
+# No inherited variable opens anything on the server. SGLang 0.5.22 takes these
+# from the environment (sglang/srt/environ.py, entrypoints/http_server.py,
+# debug_utils/dumper.py): SGLANG_GRPC_PORT starts a native gRPC listener beside
+# HTTP that the HTTP key does not cover (SGLang refuses it with --api-key; the
+# caller must not decide whether the brain starts); SGLANG_RUST_SERVER swaps in
+# the embedded Rust HTTP server; SGLANG_OLLAMA_*_ROUTE and AIP_PREDICT_ROUTE
+# move the Ollama routes and /vertex_generate (raw /generate parameters)
+# anywhere, /v1/** included; DUMPER_SERVER_PORT starts a keyless control server
+# on 0.0.0.0 (=reuse adds /dumper/{method}), the other DUMPER_* dump tensors or
+# load code; SGLANG_ENABLE_REQUEST_HEADER_OVERRIDES lets x-override-* headers
+# set request fields (priority, routing, the PD bootstrap host and port);
+# EXA_API_KEY adds a web search tool behind /v1/responses (the brain would
+# fetch the web for the caller). The host, the port and the key are flags
+# below. A bash without `compgen` refuses rather than serve unscrubbed.
+names="$(compgen -e)" || die "cannot list the environment (compgen failed); refusing to start SGLang unscrubbed"
+for name in $names; do
+    case "$name" in SGLANG_GRPC_PORT|SGLANG_RUST_SERVER|SGLANG_OLLAMA_*|AIP_*|DUMPER_*|SGLANG_ENABLE_REQUEST_HEADER_OVERRIDES|EXA_API_KEY) unset "$name" ;; esac
+done
+
+# The key: a private file holding one key, never argv (checked before anything
+# is installed or exported).
+[[ -n "${API_KEY_FILE:-}" ]] \
+    || die "API_KEY_FILE is required: a 0600 file holding the brain's bearer key (the OpenShell Cosmos route's CASCADE_BRAIN_KEY_FILE)"
+key_file="${API_KEY_FILE/#\~/$HOME}"
+[[ -f "$key_file" ]] || die "API_KEY_FILE $key_file is missing"
+key_mode="$(stat -c %a "$key_file" 2>/dev/null || stat -f %Lp "$key_file")"
+(( (8#$key_mode & 8#077) == 0 )) || die "API_KEY_FILE $key_file is mode $key_mode; chmod 600 it first"
+(( $(wc -w < "$key_file") == 1 )) || die "API_KEY_FILE $key_file must hold one key (SGLang takes exactly one)"
 
 # 1+2. venv with version-matched stack (sglang + transformers git main).
 if [ ! -x "$VENV/bin/python" ] || ! "$VENV/bin/python" -c "import sglang" 2>/dev/null; then
-    echo "[+] creating SGLang venv at $VENV"
+    echo "[+] creating SGLang $SGLANG_VERSION venv at $VENV"
     uv venv "$VENV" --python 3.12
-    uv pip install --python "$VENV/bin/python" "sglang[all]" ninja
+    # (0.5.22 has no `all` extra.)
+    uv pip install --python "$VENV/bin/python" "sglang==$SGLANG_VERSION" ninja
     uv pip install --python "$VENV/bin/python" \
         "git+https://github.com/huggingface/transformers.git"
 fi
+installed="$("$VENV/bin/python" -c 'import importlib.metadata as m; print(m.version("sglang"))')" \
+    || die "cannot read the SGLang version in $VENV"
+[[ "$installed" == "$SGLANG_VERSION" ]] \
+    || die "$VENV holds SGLang $installed; this script's environment scrub and route audit are for SGLang $SGLANG_VERSION: choose another VENV"
 "$VENV/bin/python" - <<'PY'
 from transformers import AutoConfig
 c = AutoConfig.from_pretrained("nvidia/Cosmos3-Edge")
@@ -100,12 +152,23 @@ echo "[+] model: $EXPORT_DIR"
 
 # 4+6. Serve. Thinking mode is ON by default (the chat template exposes
 # enable_thinking) -- expect ~1-2 min agent turns; plan booth pacing around it.
+# SGLang 0.5.22 takes its key only as `--api-key KEY` (no key file, no
+# variable), and argv is readable by every local user (/proc/<pid>/cmdline): the
+# launcher reads the file inside the server process and runs
+# sglang.launch_server as `python -m` does (the same sys.argv and __main__ for
+# its spawned workers). SGLang still logs its resolved arguments, the key
+# included, at start (entrypoints/engine.py), and /get_server_info returns them
+# to key holders.
 export PATH="$VENV/bin:$PATH"
-exec "$VENV/bin/python" -m sglang.launch_server \
+launch='import runpy, sys
+with open(sys.argv[1]) as key_file:
+    key = key_file.read().strip()
+sys.argv[1:] = [*sys.argv[2:], "--api-key", key]
+runpy.run_module("sglang.launch_server", run_name="__main__", alter_sys=True)'
+exec "$VENV/bin/python" -c "$launch" "$key_file" \
     --model-path "$EXPORT_DIR" \
     --served-model-name "$SERVED_NAME" \
     --host 127.0.0.1 --port "$PORT" \
     --context-length "$CTX" \
     --mem-fraction-static "$GPU_FRAC" \
-    --trust-remote-code \
     --disable-cuda-graph

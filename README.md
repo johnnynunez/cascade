@@ -46,7 +46,11 @@ agent and the CASCADE safety harness checks every motion sample.
 Dark versions: [simplified](docs/assets/paai_demo_simple_dark.png) ·
 [in depth](docs/assets/paai_demo_pipeline_dark.png). The
 [modular architecture](docs/ROBOT_MODULARITY.md#architecture-and-the-implemented-boundary)
-(robot runtimes, fleet coordination and backend adapters) lives in its own doc.
+(robot runtimes, fleet coordination and backend adapters) lives in its own doc. The MicroDuck
+agentic demos have their own pipeline diagram
+([light](docs/assets/microduck_pipeline_light.png) · [dark](docs/assets/microduck_pipeline_dark.png)):
+the agent in NVIDIA OpenShell, onboard sensors, cuVSLAM, YOLOE, the learned walking policy, BAM servos
+and Newton (the onboard-only loop of #329, not yet on `main`).
 
 ## Pick your path
 

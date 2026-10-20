@@ -22,6 +22,16 @@ and trace. The recorded physics is replayed through `OvrtxRenderer` into 1080p r
 show what the agent saw and decided and label what is illustrative. CPU tests:
 `uv run --extra dev pytest tests/test_microduck_agentic.py -q` (no Isaac Lab).
 
+[![Inside the MicroDuck agentic demo: one request through the LLM agent, onboard sensors, cuVSLAM, YOLOE, the learned walking policy, BAM servos and Newton physics, then verification](assets/microduck_pipeline_light.png)](assets/microduck_pipeline_light.png)
+
+[Dark version](assets/microduck_pipeline_dark.png) · [source](assets/src/microduck_pipeline.html). The
+diagram shows the onboard-only loop (own camera, ToF, IMU and encoders; cuVSLAM localization; YOLOE
+detection) from `feat/microduck-agentic-skating` (#329). That branch is not on `main`: the demos below
+still take the pose from the simulator and use the detector stand-in. The agent box is the Linux
+[OpenShell route](OPENSHELL.md) (OpenClaw in a sandbox, Cascade's MCP server on the host, which serves
+MicroDuck with `CASCADE_BASE`); the recorded Isaac Lab episodes below ran `AgentOrchestrator`
+in-process.
+
 ## What runs where
 
 ```

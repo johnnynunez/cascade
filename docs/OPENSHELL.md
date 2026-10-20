@@ -89,7 +89,8 @@ The limits:
 5. Still trusted with the key: host processes that read `llama.key` (the robot server's
    perception, the helper). `WARM_START=0` closes all of the above.
 
-No inherited variable configures a brain server. The llama.cpp scripts drop every inherited
+No inherited variable configures a brain server; the one exception is the explicit
+`CASCADE_LLAMA_CONFIG_INI=1` (below). The llama.cpp scripts drop every inherited
 `LLAMA_ARG_*` (llama-server reads one per flag), `LLAMA_API_KEY` (an extra accepted key), `AIP_*`
 (`AIP_MODE=PREDICTION` moves the port and adds a route to every endpoint) and
 `LLAMA_SERVER_SLOTS_DEBUG` (Bolt sets it itself, for the warm start only); a bash without `compgen`,
@@ -98,22 +99,53 @@ names. The native vLLM brains (Qwen, Cosmos) drop `VLLM_SERVER_DEV_MODE`,
 `VLLM_ALLOW_RUNTIME_LORA_UPDATING`, `VLLM_ENABLE_COHERE_API`, `VLLM_USE_RUST_FRONTEND` and
 `VLLM_RUST_FRONTEND_PATH` (each adds routes or swaps the HTTP server), and
 `VLLM_ENABLE_RESPONSES_API_STORE` (memory that grows with every stored `/v1/responses` call); Bolt's
-vLLM container gets only the variables its script names.
+vLLM container gets only the variables its script names. The SGLang Cosmos brain: [below](#cosmos-on-sglang).
 
-llama.cpp's config files act like those variables. Before the environment and argv, llama-server
+llama.cpp's config files act like those variables. On every run, `--help` included, llama-server
 v0.7.0 applies `/etc/llama.cpp/config.ini`, then `${XDG_CONFIG_HOME:-~/.config}/llama.cpp/config.ini`,
-and either can set any option: `tools = all` serves a shell at `/tools`, `api-prefix = /v1` puts every
-route inside the sandbox's `/v1/**`. So the llama.cpp scripts:
+before the environment and argv. Either can set any option: `tools = all` serves a shell at `/tools`,
+`api-prefix = /v1` puts every route inside the sandbox's `/v1/**`, `log-file = <path>` truncates that
+file. So:
 
-1. start the server with `XDG_CONFIG_HOME` set to an empty private directory,
-   `${XDG_STATE_HOME:-~/.local/state}/cascade/llama-server-config` (mode 0700, this user's, never a
-   symlink; anything inside it refuses the start), so the caller's `XDG_CONFIG_HOME` and `~/.config`
-   are never read;
-2. refuse to start, and fail `--check`, while `/etc/llama.cpp/config.ini` exists (llama-server has no
-   flag that skips it).
+1. both llama.cpp scripts and `brain.py` run every llama-server, the `--help` capability probe too,
+   with `XDG_CONFIG_HOME=/dev/null`. No `llama.cpp/config.ini` can exist under it, so the caller's
+   `XDG_CONFIG_HOME`, `~/.config` and the deployment's `$PAAI_DATA_DIR/config` are never read, and no
+   state directory is needed;
+2. the scripts refuse to start, in `--check` and `--setup-only` too, while `/etc/llama.cpp/config.ini`
+   exists, before any llama-server run (llama-server has no flag that skips it). `brain.py` runs in an
+   image whose `/etc` is the image's.
 
-`CASCADE_LLAMA_CONFIG_INI=1` serves with both files anyway and says so on stderr. `brain.py` runs its
-server with the deployment's own `XDG_CONFIG_HOME` (`$PAAI_DATA_DIR/config`) and the image's `/etc`.
+`CASCADE_LLAMA_CONFIG_INI=1` runs with both files anyway and says so on stderr.
+
+### Cosmos on SGLang
+
+`--brain cosmos-sglang` reaches `scripts/serve_cosmos_sglang.sh` (SGLang 0.5.22, pinned; port 8083):
+
+```bash
+PORT=8083 API_KEY_FILE="$HOME/.cascade/nemoclaw/llama.key" scripts/serve_cosmos_sglang.sh
+# then your usual launch; its brain checks and the agent's brain provider send the same key:
+#   K="$HOME/.cascade/nemoclaw/llama.key"
+#   CASCADE_MODEL_API_KEY_FILE="$K" CASCADE_BRAIN_KEY_FILE="$K" scripts/launch.sh <flags> --brain cosmos-sglang
+```
+
+1. **Keyed.** It refuses without `API_KEY_FILE` (0600, one key). SGLang takes a key only as
+   `--api-key KEY`, so the script reads the file inside the server process: `ps` shows the path,
+   never the key. SGLang still logs its arguments, key included, at start, and `/get_server_info`
+   returns them to key holders.
+2. **Loopback, no remote code.** It binds `127.0.0.1`. There is no `--trust-remote-code`:
+   Cosmos3-Edge is native in SGLang and transformers, and `nvidia/Cosmos3-Edge` ships no code.
+3. **Scrubbed.** It drops `SGLANG_GRPC_PORT` (a gRPC listener the key does not cover),
+   `SGLANG_RUST_SERVER` (another HTTP server), `SGLANG_OLLAMA_*` and `AIP_*` (routes moved anywhere,
+   `/v1/**` too), `DUMPER_*` (a keyless control server on `0.0.0.0`),
+   `SGLANG_ENABLE_REQUEST_HEADER_OVERRIDES` and `EXA_API_KEY` (a web search tool behind `/v1/responses`).
+4. **Inside `/v1/**`** (what the sandbox reaches): chat/completions, completions, models, responses
+   (the store is off), messages, embeddings, classify, rerank, score, decisions, systemone, tokenize,
+   detokenize, loads, audio/transcriptions, all keyed. The WebSocket `/v1/realtime` skips the key
+   (SGLang checks HTTP only); Cosmos has no streaming ASR, so it answers `not_supported` and closes.
+   None returns another caller's text or changes the server.
+5. **Outside `/v1`** (the profile denies them; key holders on loopback only): `/generate`,
+   `/get_server_info`, `/flush_cache`, `/update_weights_*`, `/load_lora_adapter`, profiling, Ollama
+   `/api/*` and more. `/health*`, `/ready*` and `/metrics*` answer without a key (metrics are off).
 
 ## Live check of the brain profile
 
@@ -128,7 +160,9 @@ sends read-only requests from inside the sandbox with raw `http.request` (`fetch
    scripts/serve_qwen_vllm.sh`; llama.cpp: `PORT=8081 ALIAS=qwen3.8-27b API_KEY_FILE=...
    scripts/serve_qwen_llamacpp.sh`), run `scripts/openshell_rig.py up --model qwen3.8-27b` (exits
    0), then the same `exec` with `qwen3.8-27b`.
-3. Send one chat turn in the web UI: it answers, with no `policy_denied` in the sandbox log.
+3. **Cosmos on SGLang.** Serve it as in [Cosmos on SGLang](#cosmos-on-sglang), launch with
+   `--brain cosmos-sglang`, then the same `exec` with `cosmos3-edge`.
+4. Send one chat turn in the web UI: it answers, with no `policy_denied` in the sandbox log.
 
 | Row | Expected |
 |---|---|
@@ -142,7 +176,7 @@ Reading a FAIL:
 1. 401 on a `/v1` row: the key placeholder was not swapped (brain provider or profile not in force).
 2. 200, 401, 404 or 400 on a non-`/v1` row: the request reached the brain, so the profile is not in
    force. On vLLM the `/metrics` row decides: vLLM answers it without a key.
-3. Any FAIL in steps 1-3: [roll back](#rollback-of-the-brain-profile).
+3. Any FAIL in steps 1-4: [roll back](#rollback-of-the-brain-profile).
 
 ## Rollback of the brain profile
 

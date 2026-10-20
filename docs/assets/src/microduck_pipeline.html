@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Inside the MicroDuck agentic demo</title>
+<style>
+  :root {
+    --bg: #f6f7f8; --card: #ffffff; --border: #d9dde1; --ink: #1f2328; --body: #3b4148; --muted: #6b737c;
+    --green: #76b900; --green-dark: #4f7f00; --green-soft: #eef6dc; --code-bg: #f1f3f5; --code-ink: #2f6b00;
+    --bubble: #e9ecef; --chip-ink: #ffffff;
+  }
+  body.dark {
+    --bg: #111417; --card: #1a1f24; --border: #343b43; --ink: #f2f4f6; --body: #c9cfd5; --muted: #8b949e;
+    --green: #76b900; --green-dark: #a6e22e; --green-soft: #22301a; --code-bg: #232a31; --code-ink: #b5e655;
+    --bubble: #2a3138; --chip-ink: #0f1204;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--body); font-family: "Noto Sans", "DejaVu Sans", sans-serif; }
+  .page { width: 1200px; padding: 30px 40px 28px; position: relative; }
+  h1 { font-size: 31px; color: var(--ink); margin: 0 0 4px; font-weight: 800; letter-spacing: -0.3px; }
+  h1::after { content: ""; display: block; width: 88px; height: 4px; background: var(--green); margin-top: 4px; }
+  .sub { font-size: 14.5px; color: var(--muted); margin: 10px 0 18px; }
+  .section { display: flex; align-items: center; gap: 9px; margin: 18px 0 10px; font-weight: 800; font-size: 12.5px;
+             letter-spacing: 0.3px; color: var(--ink); text-transform: uppercase; }
+  .section .ring { width: 19px; height: 19px; border: 2px solid var(--green); border-radius: 50%; display: grid;
+                   place-items: center; font-size: 10.5px; color: var(--ink); }
+  .tag { text-transform: none; font-weight: 600; font-size: 10.5px; border: 1.5px solid var(--green); color: var(--green-dark);
+         border-radius: 12px; padding: 1px 8px; letter-spacing: 0; }
+  .row { display: flex; align-items: stretch; gap: 0; }
+  .arrow { width: 22px; flex: 0 0 22px; display: grid; place-items: center; color: var(--green); font-size: 15px; font-weight: 800; }
+  .card { flex: 1 1 0; background: var(--card); border: 1.5px solid var(--border); border-radius: 9px; padding: 11px 12px 12px;
+          min-width: 0; font-size: 11.2px; line-height: 1.42; position: relative; }
+  .card h3 { margin: 0 0 7px; display: flex; align-items: center; gap: 7px; font-size: 14.5px; color: var(--ink); font-weight: 800; }
+  .num { width: 19px; height: 19px; border-radius: 50%; background: var(--green); color: var(--chip-ink); font-size: 10.5px;
+         display: grid; place-items: center; font-weight: 800; flex: 0 0 19px; }
+  .card p { margin: 0 0 6px; }
+  .lead { color: var(--ink); font-weight: 600; }
+  ul { margin: 4px 0 0; padding: 0; list-style: none; }
+  li { position: relative; padding-left: 12px; margin: 2px 0; }
+  li::before { content: ""; position: absolute; left: 1px; top: 6px; width: 5.5px; height: 5.5px; border-radius: 50%; background: var(--green); }
+  code, .code { font-family: "DejaVu Sans Mono", monospace; font-size: 10.4px; color: var(--code-ink); }
+  .code { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; white-space: pre; margin: 6px 0; display: block; }
+  .caption { color: var(--muted); font-size: 10.6px; text-align: center; }
+  .bubble { background: var(--bubble); color: var(--ink); border-radius: 9px; padding: 9px 10px; text-align: center; font-size: 12.3px;
+            font-weight: 600; margin: 10px 6px 9px; position: relative; }
+  .bubble::before { content: ""; position: absolute; left: 22px; top: -7px; border: 7px solid transparent; border-top: 0;
+                    border-bottom-color: var(--bubble); }
+  .gate { border: 2.5px solid var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
+  .gate-label { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--green); color: var(--chip-ink);
+                font-weight: 800; font-size: 10.2px; padding: 2px 9px; border-radius: 9px; white-space: nowrap; }
+  .fig { display: block; margin: 2px auto 6px; }
+  .out { color: var(--green-dark); font-weight: 700; }
+  .loop { margin: 9px auto 0; width: fit-content; border: 1.5px solid var(--green); border-radius: 14px; padding: 3px 12px;
+          font-size: 10.6px; color: var(--body); background: var(--card); }
+  .loop b { color: var(--green-dark); }
+  .checks { display: flex; gap: 12px; flex-wrap: wrap; margin: 4px 0 5px; color: var(--ink); font-weight: 600; }
+  .checks span::before { content: "✔ "; color: var(--green); font-weight: 900; }
+  .footer { border-top: 1px solid var(--border); margin-top: 18px; padding-top: 12px; text-align: center; }
+  .footer .big { color: var(--ink); font-size: 15.4px; font-weight: 800; }
+  .footer .green { color: var(--green-dark); font-size: 12.6px; font-weight: 600; margin-top: 5px; }
+  .footer .small { color: var(--muted); font-size: 9.8px; margin-top: 5px; }
+  .shell { flex: 2.15 1 0; border: 2.5px solid var(--green); border-radius: 13px; padding: 16px 10px 9px; position: relative;
+           background: var(--green-soft); }
+  .shell > .row .card { background: var(--card); }
+  .shell-label { position: absolute; top: -12px; left: 14px; background: var(--green); color: var(--chip-ink); font-weight: 800;
+                 font-size: 10.6px; padding: 2px 10px; border-radius: 9px; white-space: nowrap; }
+  .shell-rules { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 8px; justify-content: center; }
+  .shell-rules span { font-size: 9.6px; color: var(--ink); background: var(--card); border: 1px solid var(--green); border-radius: 10px;
+                      padding: 1px 7px; }
+  .shell-rules span::before { content: "🔒 "; font-size: 8.5px; }
+  .arrow.mcp { display: flex; flex-direction: column; justify-content: center; align-items: center; width: 34px; flex: 0 0 34px; }
+  .arrow.mcp small { font-size: 8.6px; font-weight: 800; color: var(--green-dark); letter-spacing: 0.2px; }
+  svg text { font-family: "Noto Sans", sans-serif; }
+  .stroke { stroke: var(--body); }
+  .gstroke { stroke: var(--green); }
+  .gfill { fill: var(--green); }
+  .mfill { fill: var(--muted); }
+  .bfill { fill: var(--bubble); }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Inside the MicroDuck agentic demo</h1>
+  <div class="sub">What happens between one sentence and one learned step, for the request “Cross the backstage to the green marker without touching the equipment.”</div>
+
+  <!-- ===================================================== 1 -->
+  <div class="section"><span class="ring">1</span>From words to a tool call <span class="tag">the agent runs inside NVIDIA OpenShell</span></div>
+  <div class="row">
+    <div class="card" style="flex:0.9">
+      <h3><span class="num">1</span>Operator</h3>
+      <div class="bubble">“Cross the backstage to the green marker without touching the equipment.”</div>
+      <div class="caption">one request per duck; several ducks can share an explicit fleet board</div>
+    </div>
+    <div class="arrow">➜</div>
+    <div class="shell">
+      <span class="shell-label">NVIDIA OpenShell sandbox: the agent's boundary</span>
+      <div class="row">
+        <div class="card">
+          <h3><span class="num">2</span>LLM agent</h3>
+          <p class="lead">One agent per duck, each with its own episodic memory and trace.</p>
+          <ul>
+            <li>reads the request, the last tool receipts and a short list of robot tools</li>
+            <li>answers with a tool call, never with joint targets</li>
+          </ul>
+        </div>
+        <div class="arrow">➜</div>
+        <div class="card">
+          <h3><span class="num">3</span>Tool call</h3>
+          <span class="code">follow_route(
+  waypoints=[[1.2, 0.4],
+             [2.6, 0.2]])</span>
+          <div class="caption" style="text-align:left">All the LLM decides: which skill, which arguments. Other tools: observe, scan, my_map, plan_route, walk, turn, get_up…</div>
+        </div>
+      </div>
+      <div class="shell-rules">
+        <span>credentials never enter the sandbox</span>
+        <span>no internet: deny-by-default egress</span>
+        <span>only the brain and the Cascade MCP endpoint</span>
+        <span>per-tool rules: reset_stop is staff-only</span>
+        <span>motion tools locked until a timed unlock</span>
+      </div>
+    </div>
+    <div class="arrow mcp">➜<small>MCP</small></div>
+    <div class="card" style="flex:0.95">
+      <h3><span class="num">4</span>Skill runtime</h3>
+      <p class="lead">Cascade's MCP server and per-robot MicroDuck runtime, on the host. Every tool:</p>
+      <ul>
+        <li>runs a learned policy, never a scripted gait</li>
+        <li>returns a receipt with a fresh ToF frame, the pose estimate and what the duck saw</li>
+        <li>keeps a lockstep clock: physics advances only while a motion tool runs</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ===================================================== 2 -->
+  <div class="section"><span class="ring">2</span>Sense with its own sensors only <span class="tag">nothing from the simulator reaches the agent</span></div>
+  <div class="row">
+    <div class="card">
+      <h3><span class="num">5</span>Onboard sensors</h3>
+      <svg class="fig" width="236" height="84" viewBox="0 0 236 84">
+        <ellipse cx="46" cy="46" rx="28" ry="21" class="bfill" />
+        <path d="M72 42 l17 -4 l0 11 z" class="gfill"/>
+        <circle cx="58" cy="39" r="3.6" class="mfill"/>
+        <path d="M90 43 L176 18 M90 43 L176 68" class="gstroke" stroke-width="1.5" stroke-dasharray="4 3" fill="none"/>
+        <text x="104" y="16" font-size="8.6" class="mfill">RGB 640×360 · 15 Hz</text>
+        <g transform="translate(184,30)">
+          <rect x="0" y="0" width="26" height="26" fill="none" class="gstroke" stroke-width="1.2"/>
+          <path d="M3.25 0v26M6.5 0v26M9.75 0v26M13 0v26M16.25 0v26M19.5 0v26M22.75 0v26M0 3.25h26M0 6.5h26M0 9.75h26M0 13h26M0 16.25h26M0 19.5h26M0 22.75h26" class="gstroke" stroke-width="0.5"/>
+        </g>
+        <text x="181" y="72" font-size="8.6" class="mfill">ToF 8×8</text>
+        <g transform="translate(14,78)"><path d="M0 0 h14 M0 0 v-12 M0 0 l-7 5" class="stroke" stroke-width="1.3" fill="none"/></g>
+        <text x="32" y="80" font-size="8.6" class="mfill">IMU · encoders</text>
+      </svg>
+      <ul>
+        <li>head RGB camera, 640×360 at 15 Hz (82° wide-angle lens), rendered by OVRTX from the live Newton poses</li>
+        <li>ToF 8×8 (VL53L8CX model, 45°×45°, up to 4 m) at 15 Hz</li>
+        <li>IMU in the trunk: gyro + accelerometer, with noise and residual bias</li>
+        <li>joint encoders: kinematics place the camera and ToF on the body</li>
+      </ul>
+    </div>
+    <div class="arrow">➜</div>
+    <div class="card">
+      <h3><span class="num">6</span>Where am I? cuVSLAM</h3>
+      <p class="lead">Its own pose estimate, in its start frame:</p>
+      <ul>
+        <li>heading: gyro integrated on SO(3), tilt corrected by the accelerometer (Mahony)</li>
+        <li>position: leg odometry from the encoders</li>
+        <li>NVIDIA cuVSLAM RGBD odometry on the head image, depth from its own ToF zones, gated against the gyro and the legs</li>
+        <li>tracking loss is reported, never fixed from simulator truth</li>
+      </ul>
+      <span class="code">measured error:
+0.24–0.55 m over 5–15 m</span>
+    </div>
+    <div class="arrow">➜</div>
+    <div class="card">
+      <h3><span class="num">7</span>What is around me?</h3>
+      <svg class="fig" width="200" height="56" viewBox="0 0 200 56">
+        <rect x="8" y="6" width="184" height="46" rx="5" class="bfill"/>
+        <rect x="118" y="17" width="34" height="27" fill="none" class="gstroke" stroke-width="1.8"/>
+        <rect x="124" y="24" width="22" height="18" class="gfill" opacity="0.85"/>
+        <rect x="108" y="6" width="54" height="11" rx="2" class="gfill"/>
+        <text x="112" y="14.5" font-size="7.5" fill="#fff" font-weight="700">marker 0.91</text>
+        <rect x="34" y="24" width="38" height="22" class="mfill" opacity="0.55"/>
+      </svg>
+      <p class="lead">YOLOE-11s, an open-vocabulary detector, runs prompt-free on the head image.</p>
+      <ul>
+        <li>range from its own ToF zone, or where the box bottom meets the floor at the estimated pose</li>
+        <li>detections go into the duck's own memory</li>
+      </ul>
+    </div>
+    <div class="arrow">➜</div>
+    <div class="card">
+      <h3><span class="num">8</span>Own map, own plan</h3>
+      <svg class="fig" width="200" height="56" viewBox="0 0 200 56">
+        <g transform="translate(20,4)">
+          <rect x="0" y="0" width="160" height="48" rx="3" class="bfill"/>
+          <rect x="44" y="0" width="16" height="22" class="mfill"/>
+          <rect x="96" y="26" width="18" height="22" class="mfill"/>
+          <path d="M8 38 C 34 40, 50 34, 70 30 S 92 14, 120 12 S 146 18, 150 22" class="gstroke" stroke-width="2" fill="none" stroke-dasharray="5 3"/>
+          <circle cx="8" cy="38" r="4" class="gfill"/>
+          <rect x="144" y="16" width="12" height="12" class="gfill"/>
+        </g>
+      </svg>
+      <p class="lead">A log-odds grid built only from its own ToF frames.</p>
+      <ul>
+        <li>cells: floor, obstacle (above floor + 4 cm), free, drop-off</li>
+        <li>A* on that map proposes waypoints, obstacles inflated 0.14 m</li>
+        <li>the agent decides whether to follow them</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ===================================================== 3 -->
+  <div class="section"><span class="ring">3</span>Turn a command into steps <span class="tag">the part most people never see</span></div>
+  <div class="row">
+    <div class="card">
+      <h3><span class="num">9</span>Velocity command</h3>
+      <p class="lead">follow_route steers toward each waypoint on the estimated pose: a small heading/speed loop, disclosed in every receipt.</p>
+      <span class="code">cmd = (vx, vy, ωz)</span>
+      <ul><li>walk / turn: the agent picks the twist and duration itself</li></ul>
+    </div>
+    <div class="arrow">➜</div>
+    <div class="card">
+      <h3><span class="num">10</span>Learned walking</h3>
+      <svg class="fig" width="150" height="40" viewBox="0 0 150 40">
+        <g class="gstroke" stroke-width="0.7">
+          <path d="M14 8 L60 6 M14 8 L60 20 M14 8 L60 34 M14 20 L60 6 M14 20 L60 20 M14 20 L60 34 M14 32 L60 6 M14 32 L60 20 M14 32 L60 34 M60 6 L106 12 M60 6 L106 28 M60 20 L106 12 M60 20 L106 28 M60 34 L106 12 M60 34 L106 28"/>
+        </g>
+        <g class="gfill"><circle cx="14" cy="8" r="3.5"/><circle cx="14" cy="20" r="3.5"/><circle cx="14" cy="32" r="3.5"/><circle cx="60" cy="6" r="3.5"/><circle cx="60" cy="20" r="3.5"/><circle cx="60" cy="34" r="3.5"/><circle cx="106" cy="12" r="3.5"/><circle cx="106" cy="28" r="3.5"/></g>
+        <text x="114" y="24" font-size="9" class="mfill">ONNX</text>
+      </svg>
+      <p class="lead">An RL policy trained in Isaac Lab, used unchanged:</p>
+      <ul>
+        <li>61 inputs: IMU, joint angles and speeds, previous actions, the command</li>
+        <li>14 outputs: joint targets for 10 leg and 4 neck/head joints</li>
+        <li>50 Hz; at zero twist it keeps balancing</li>
+        <li>also learned: get up, onboard-sensor walking, skating</li>
+      </ul>
+    </div>
+    <div class="arrow">➜</div>
+    <div class="card gate">
+      <span class="gate-label">Cascade guards</span>
+      <h3><span class="num">11</span>Safety guards</h3>
+      <svg class="fig" width="120" height="38" viewBox="0 0 120 38">
+        <circle cx="16" cy="19" r="4" class="gfill"/><circle cx="30" cy="19" r="4" class="gfill"/>
+        <path d="M60 4 l14 5 v10 c0 8 -7 13 -14 15 c-7 -2 -14 -7 -14 -15 v-10 z" fill="none" class="gstroke" stroke-width="2.2"/>
+        <path d="M53 19 l5 5 l9 -10" fill="none" class="gstroke" stroke-width="2.4"/>
+        <circle cx="94" cy="19" r="4" class="mfill"/><circle cx="108" cy="19" r="4" fill="#e5484d"/>
+      </svg>
+      <ul>
+        <li>ToF guard: forward travel stops with an obstacle under 0.22 m ahead or a drop-off under ~0.45 m</li>
+        <li>map guard: stops when its own map shows equipment within 0.13 m and closing</li>
+        <li>turning in place stays allowed</li>
+        <li>after a fall: the get-up policy</li>
+      </ul>
+    </div>
+    <div class="arrow">➜</div>
+    <div class="card">
+      <h3><span class="num">12</span>Servo model</h3>
+      <p class="lead">Each of the 14 servos follows the pinned BAM actuator model (Rhoban fit of the MicroDuck servo).</p>
+      <span class="code">target q* → motor torque τ</span>
+      <ul><li>friction and supply voltage included, so the sim legs behave like the real servos</li></ul>
+    </div>
+    <div class="arrow">➜</div>
+    <div class="card">
+      <h3><span class="num">13</span>Newton physics</h3>
+      <svg class="fig" width="150" height="40" viewBox="0 0 150 40">
+        <path d="M10 32 h130" class="stroke" stroke-width="1.5"/>
+        <path d="M58 30 q8 -22 22 -14 q10 6 4 14" fill="none" class="gstroke" stroke-width="2.2"/>
+        <rect x="104" y="6" width="38" height="14" rx="7" class="gfill"/>
+        <text x="110" y="16" font-size="8.5" fill="#fff" font-weight="700">200 Hz</text>
+      </svg>
+      <p class="lead">Isaac Lab 3.0 on NVIDIA Newton (MuJoCo Warp solver):</p>
+      <ul>
+        <li>5 ms physics step; the policy runs every 4 steps</li>
+        <li>real sole–floor contacts: the duck can trip and fall</li>
+        <li>one Newton world per walking duck</li>
+      </ul>
+    </div>
+  </div>
+  <div class="loop"><b>Feedback loop:</b> the sensors are rendered again from the new poses at 15 Hz, the estimate and the map update, then the next command follows.</div>
+
+  <!-- ===================================================== 4 -->
+  <div class="section"><span class="ring">4</span>Where the walking comes from <span class="tag">offline, before the demo</span></div>
+  <div class="row">
+    <div class="card">
+      <h3><span class="num">14</span>Train in simulation</h3>
+      <p class="lead">PPO (rsl_rl) in Isaac Lab 3.0 on Newton, thousands of ducks in parallel, with the same BAM servo model in the loop.</p>
+      <ul>
+        <li>flat and rough floors, ramps, steps; the canonical MicroDuck.usd from Pollen Robotics</li>
+        <li>separate policies for walking, getting up, the onboard-sensor walker and skating</li>
+      </ul>
+    </div>
+    <div class="arrow">➜</div>
+    <div class="card">
+      <h3><span class="num">15</span>Export and pin</h3>
+      <p class="lead">Each policy is exported to ONNX and pinned by SHA-256.</p>
+      <ul>
+        <li>the demo loads it unchanged: no gait or pose is scripted or repaired</li>
+        <li>a changed checkpoint is a new identity and needs a new evaluation</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ===================================================== 5 -->
+  <div class="section"><span class="ring">5</span>Check, then answer</div>
+  <div class="row">
+    <div class="card" style="flex:1.5">
+      <h3><span class="num">16</span>Verify on the recorded physics</h3>
+      <p class="lead">Did the duck really reach the marker without touching anything? Simulator truth is used here only, after the run:</p>
+      <div class="checks"><span>pose within 0.35 m of the marker</span><span>upright</span><span>clearance to every obstacle box</span></div>
+      <div class="caption" style="text-align:left">The agent's own claim (task_done) is shown next to the verdict; a claim the check refutes is reported as a failure.</div>
+    </div>
+    <div class="arrow">➜</div>
+    <div class="card" style="flex:1.2">
+      <h3><span class="num">17</span>Replay to video</h3>
+      <p class="lead">Recorded at 50 Hz (16 body poses per duck), replayed through OVRTX (RTX) into a 1080p review video.</p>
+      <ul><li>panels show the exact policy inputs (ToF 8×8, head RGB) and label what is illustrative</li></ul>
+    </div>
+    <div class="arrow">➜</div>
+    <div class="card">
+      <h3><span class="num">18</span>Agent answers</h3>
+      <div class="bubble">“I reached the green marker.”</div>
+      <div class="caption">If the check disagrees, the video shows FAILED next to the claim.</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="big">Honest agentic robotics: the agent sees only the duck's own sensors and its own pose estimate, every joint target comes from a learned policy, and every result is checked against the physics.</div>
+    <div class="green">NVIDIA OpenShell · Isaac Lab 3.0 · NVIDIA Newton · NVIDIA cuVSLAM · YOLOE · OVRTX · Cascade agents</div>
+    <div class="small">OpenShell: the Linux agent route (OpenClaw in an OpenShell sandbox, the Cascade MCP server on the host, scripts/openshell_rig.py); the MCP server serves MicroDuck with CASCADE_BASE. The recorded Isaac Lab episodes ran Cascade's AgentOrchestrator in-process.<br>The onboard-only loop (own sensors, cuVSLAM, YOLOE) is on the feat/microduck-agentic-skating branch (#329); on main, the MicroDuck agentic demos still use the simulator pose in place of SLAM.</div>
+  </div>
+</div>
+<script>
+  if (location.hash === "#dark") document.body.classList.add("dark");
+</script>
+</body>
+</html>

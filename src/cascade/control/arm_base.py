@@ -141,7 +141,7 @@ class ArmBase(abc.ABC):
         arm drops: a serial bus's torque-off (so101), an SDK's disable
         (rebot_rs). Teardown then disconnects such an arm only after its park
         brought it to rest, or on the operator's explicit confirmation
-        (`control.arm_hold.confirm`, `apps.demo.TORQUE_OFF_CONFIRM_ENV`);
+        (`control.arm_hold.confirm`, given at the moment of the cut);
         otherwise it stays powered and holding, and a marker (`hold_key`)
         keeps the next connect from cutting its torque. True unless the
         backend states otherwise: one whose
@@ -156,6 +156,12 @@ class ArmBase(abc.ABC):
         powered and holding (`control.arm_hold`: the reBot's CAN channel, the
         SO-101's serial port), or None: this backend is never held."""
         return None
+
+    #: Whether this backend's connect() cuts the torque of an arm an earlier
+    #: session left holding (the reBot drivers' fault clear, a STOP frame):
+    #: such a connect refuses over the hold (`control.arm_hold`). False for an
+    #: SO-101, whose connect writes no torque-off, and every other backend.
+    connect_cuts_torque = False
 
     @abc.abstractmethod
     def connect(self) -> None: ...

@@ -79,6 +79,17 @@ class LazyArm(ArmBase):
         return key if isinstance(key, str) else getattr(self, "_hold_key", None)
 
     @property
+    def connect_cuts_torque(self) -> bool:  # type: ignore[override]
+        """The materialized backend's, else the profile type's
+        (`arm_hold.CONNECT_CUTS_TORQUE`); never materializes."""
+        arm = self._arm
+        if arm is not None:
+            return getattr(arm, "connect_cuts_torque", False) is True
+        from .arm_hold import CONNECT_CUTS_TORQUE
+
+        return getattr(self, "_profile_type", None) in CONNECT_CUTS_TORQUE
+
+    @property
     def n_joints(self) -> int:  # type: ignore[override]
         return self._arm.n_joints if self._arm is not None else self._n_joints_default
 

@@ -1,14 +1,18 @@
 """Held arms: list them, or confirm you are supporting one (cascade.control.arm_hold).
 
-A teardown whose park did not bring a reBot or SO-101 to rest keeps it POWERED and HOLDING, and the
-next connect of that arm refuses until an operator confirms, at that moment, that they support it:
+A teardown (or an arm-check, a calibration, a bring-up script) that leaves a reBot or SO-101
+POWERED and HOLDING remembers it, and the next connect of that arm refuses until an operator
+confirms, at that moment, at a terminal on the robot host, that they support it:
 
-    python scripts/arm_hold.py list
-    python scripts/arm_hold.py confirm 'holding the arm'          # any held arm, once, within 120 s
-    python scripts/arm_hold.py confirm 'holding the arm' --arm can0
+    python scripts/arm_hold.py list      # exit 0: nothing held; 3: an arm is held, or it cannot tell
+    python scripts/arm_hold.py confirm   # you type the phrase at the prompt; valid 120 s, once
+    python scripts/arm_hold.py confirm --arm can0
+    python scripts/arm_hold.py revoke    # drop every pending confirmation
 
-Then retry the motion (or the arm-check / calibrate): its connect cuts the torque while you hold the
-arm. The same confirmation, written right before a robot-server stop, lets that teardown cut the
+`confirm` reads the phrase from the controlling terminal and refuses without one, or in an agent's
+or the robot server's environment: only the operator confirms. Then retry the motion (or the
+arm-check / calibrate): its connect cuts the torque while you hold the arm. The same
+confirmation, given right before a robot-server or demo CLI stop, lets that teardown cut the
 torque of an arm its park left raised.
 """
 

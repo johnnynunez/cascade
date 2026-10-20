@@ -688,8 +688,10 @@ class _SideCamera:
     sim, one physics loop) or, with another `robot_id`, another sim's own.
     `stalled`: the sim rendered once and the bridge re-sends that render, in a
     new Frame per request; `reconnect()`: the bridge comes back on another
-    port and goes on re-sending it (the stream's first-receipt record of that
-    capture restarts)."""
+    port and goes on re-sending it (another capture `source`, the same
+    producer clock: the stream keeps that capture's first receipt since #423
+    review follow-up 1; main restarted it, so the re-send read as first
+    received now)."""
 
     has_depth = True
 
@@ -727,17 +729,16 @@ class _SideCamera:
         return self._render
 
 
-def _first_receipt_restarted(stream, since, timeout_s=3.0):
-    """Wait until the stream's first-receipt record restarted after monotonic
-    time `since` (a published frame with no `observed_t` lasts one delivery:
-    a poll misses it)."""
+def _delivered_through(stream, port, timeout_s=3.0):
+    """Wait until the stream published a delivery that came through bridge
+    port `port` (the reconnect took effect)."""
     end = time.monotonic() + timeout_s
     while time.monotonic() < end:
-        record = stream._first_receipt
-        if record is not None and record[2] >= since:
+        latest = stream.latest()
+        if latest is not None and (getattr(latest, "capture", None) or {}).get("source", [None, None])[1] == port:
             return
         time.sleep(0.005)
-    raise AssertionError("test setup: the side stream never restarted its first-receipt record")
+    raise AssertionError(f"test setup: the side stream delivered nothing through port {port}")
 
 
 _OLDER_ON_THE_SHARED_CLOCK = ("it was not seen again after a long plan (4.0 s): another camera's capture on the same "
@@ -746,7 +747,8 @@ _OLDER_ON_THE_SHARED_CLOCK = ("it was not seen again after a long plan (4.0 s): 
 
 @needs_pin
 @pytest.mark.parametrize("side", ["fresh", "stalled", "stalled_then_reconnected", "fresh_then_the_primary",
-                                  "fresh_on_another_clock", "stalled_on_another_clock"])
+                                  "fresh_on_another_clock", "stalled_on_another_clock",
+                                  "stalled_then_reconnected_on_another_clock"])
 def test_a_look_again_found_on_another_camera_is_judged_by_its_clock_and_receipts(rig, monkeypatch, side):  # noqa: F811
     """#413 review Minor 1: the plan was made from the primary camera's
     capture; on the look again the primary misses and the side camera finds
@@ -755,14 +757,17 @@ def test_a_look_again_found_on_another_camera_is_judged_by_its_clock_and_receipt
     since the #418 review (Minors 1-2), on the producer clock it shares with
     the primary: both cameras of one Isaac sim stamp their renders on its
     physics loop. A fresh render points; a render the side bridge has re-sent
-    since before the call is refused, also once the stream's first-receipt
-    record restarted (`stalled_then_reconnected`: the bridge came back on
-    another port right before the look; main moved, 136 commands and a jaw
-    close, on that pre-call capture). `fresh_then_the_primary`: the side
-    camera's fix moved 3 cm, so it is planned once more from that image, and
-    the next look finds it on the primary again, on a newer render: it points.
-    On another sim's clock (`..._on_another_clock`) nothing is compared: a
-    fresh render points, a re-sent one is refused by its first receipt."""
+    since before the call is refused, also through a new bridge port
+    (`stalled_then_reconnected`: the bridge came back on another port right
+    before the look; #418's main moved, 136 commands and a jaw close, on that
+    pre-call capture). `fresh_then_the_primary`: the side camera's fix moved
+    3 cm, so it is planned once more from that image, and the next look finds
+    it on the primary again, on a newer render: it points. On another sim's
+    clock (`..._on_another_clock`) nothing is compared: a fresh render points,
+    a re-sent one is refused by its first receipt, also after a reconnect
+    (#423 review follow-up 1: the stream restarted that capture's first
+    receipt at the new port, and main moved, 136 commands and a jaw close;
+    its record is keyed on the producer clock now)."""
     from cascade.perception.freshness import observed_at
     from cascade.skills import runtime as rmod
     from cascade.types import SkillError
@@ -786,10 +791,9 @@ def test_a_look_again_found_on_another_camera_is_judged_by_its_clock_and_receipt
             return real(frame, *a, **k)
 
         def before(i):
-            if i == 1 and side == "stalled_then_reconnected":
-                since = time.monotonic()
+            if i == 1 and side.startswith("stalled_then_reconnected"):
                 camera.reconnect()
-                _first_receipt_restarted(camera.stream, since)
+                _delivered_through(camera.stream, 5563)
             if i == 2 and replan:
                 # the primary renders on after the side camera's image (one physics loop)
                 end = time.monotonic() + 3.0
@@ -816,8 +820,9 @@ def test_a_look_again_found_on_another_camera_is_judged_by_its_clock_and_receipt
     if stalled:
         assert (looks[1].capture["t"] < looks[0].capture["t"]) == shared, "test setup: a render from before the call"
         assert out["ok"] is False and _commands(r) == [] and r.jaws == [], out
-        if side == "stalled_then_reconnected":
-            assert observed_at(looks[1]) > looks[0].t, "test setup: first received again after the plan's image"
+        if "reconnected" in side:
+            assert looks[1].capture["source"] == ["bridge", 5563], "test setup: found through the new bridge port"
+            assert observed_at(looks[1]) < looks[0].t, "the reconnect kept the capture's first receipt"
         if shared:
             assert _OLDER_ON_THE_SHARED_CLOCK in out["error"], out
         else:
@@ -902,7 +907,9 @@ def _look_again_on(rig, monkeypatch, frame_of, *, found="side"):  # noqa: F811
     its camera is the primary; the look again
     returns `frame_of(planned_on, looking)` (`looking`: the look's start, a
     pinned runtime instant 1 s ago) as found by `found` (\"side\": another
-    camera). Returns the call (raises its SkillError)."""
+    camera), and point_at sees it again at that image's receipt (`Frame.t`,
+    pinned too: no runner time between them, #423 review Minor 2). Returns
+    the call (raises its SkillError); `call.clock`: the pinned clock."""
     from cascade.skills import pointing
 
     r = rig("mock")
@@ -918,7 +925,9 @@ def _look_again_on(rig, monkeypatch, frame_of, *, found="side"):  # noqa: F811
 
     def localize(label, *a, **k):
         rt._note_localized_on(cameras[found])
-        return frame_of(planned_on, looking), fix
+        frame = frame_of(planned_on, looking)
+        clock.pin(float(frame.t))      # point_at's `seen_again`: the next runtime instant on this thread
+        return frame, fix
 
     monkeypatch.setattr(rt, "_localize", localize)
     harness = rt.arm.harness
@@ -928,6 +937,7 @@ def _look_again_on(rig, monkeypatch, frame_of, *, found="side"):  # noqa: F811
         return rt._point_at_still_there("red cube", fix, localized, harness,
                                         getattr(harness, "_halt_generation", None), False)
 
+    call.clock = clock
     return call
 
 
@@ -999,18 +1009,22 @@ def test_the_first_receipt_must_be_a_time_the_heartbeat_would_take(rig, monkeypa
     from cascade.types import SkillError
 
     stamp, refused = _FIRST_RECEIPTS[first]
+    instants = []
 
     def frame_of(planned_on, looking):
         received = time.monotonic()   # after the look started
+        instants.extend([looking, received])
         return replace(planned_on, t=received, observed_t=stamp(looking, received), capture=_isaac_capture(5000.1))
 
     call = _look_again_on(rig, monkeypatch, frame_of, found="primary")
     if refused is None:
         assert call() is None
     else:
-        # the frame is stamped a few microseconds before the look receives it
-        with pytest.raises(SkillError, match=re.escape(refused).replace(r"5\.00", r"(5\.00|4\.99)")):
+        with pytest.raises(SkillError, match=re.escape(refused)):
             call()
+    # the look started and saw the image again at the instants the test chose (#423 review Minor 2: a runner
+    # stall between the image's receipt and `seen_again` read \"4.97 s in the future\")
+    assert call.clock.pinned == instants, "test setup: point_at's own instants were pinned"
 
 
 # ── 2. the freshness clock starts at the localization ──────────────────────

@@ -588,12 +588,13 @@ def test_the_two_phase_fresh_frame_beats_at_its_arrival_time(tp):  # noqa: F811
 # ── a producer that re-delivers its capture ───────────────────────────────
 
 
-def _isaac_frame(stamp, epoch="e1"):
+def _isaac_frame(stamp, epoch="e1", robot_id="r"):
+    """An Isaac bridge frame: `epoch` names the bridge (its `source`), `robot_id` the sim (its physics clock)."""
     from cascade.types import Frame
 
     return Frame(rgb=np.zeros((2, 2, 3), np.uint8), depth_m=None, K=np.eye(3),
                  capture={"backend": "isaac", "source": [epoch, 1], "camera": "front",
-                          "t": stamp, "proprioception": {"robot_id": "r", "backend": "isaac",
+                          "t": stamp, "proprioception": {"robot_id": robot_id, "backend": "isaac",
                                                          "time_source": "physics_loop_monotonic", "t": stamp}})
 
 
@@ -613,13 +614,45 @@ def test_a_re_delivered_producer_capture_keeps_its_first_arrival_time():
     newer = _isaac_frame(10.5)
     stream._note_first_receipt(newer)
     assert newer.observed_t is None and observed_at(newer) == newer.t
-    other = _isaac_frame(10.5, epoch="e2")  # another producer identity: its own first receipt
+    other = _isaac_frame(10.5, robot_id="r2")  # another sim's clock: its own first receipt
     stream._note_first_receipt(other)
     assert other.observed_t is None
     h = _harness()
     h._last_heartbeat = first.t - 1.0
     h.heartbeat(at=observed_at(copy))
     assert h._last_heartbeat == first.t
+
+
+@pytest.mark.parametrize("through", ["the_same_bridge", "a_new_bridge_port"])
+def test_a_reconnect_never_makes_an_older_capture_first_received_again(through):
+    """#423 review follow-up 1: the stream's first-receipt record was keyed on
+    the capture's whole identity, bridge port included, so a bridge that came
+    back on another port re-sending a frozen render (or an older one) restarted
+    it: first received now, a fresh heartbeat and a fresh look again. It is
+    keyed on the producer clock (one sim's physics loop, whatever port served
+    it): a capture no newer than the newest one recorded on that clock keeps
+    that record's first receipt, through any port, also after another sim's
+    capture in between; a newer one is its own."""
+    from cascade.perception.freshness import observed_at
+
+    port = "e1" if through == "the_same_bridge" else "e2"
+    stream = CameraStream(camera=None, name="isaac")
+    first = _isaac_frame(10.0)
+    first.t -= 8.0
+    stream._note_first_receipt(first)
+    another_sim = _isaac_frame(3.0, robot_id="r2")
+    stream._note_first_receipt(another_sim)
+    assert another_sim.observed_t is None, "another sim's capture: its own first receipt"
+    for stamp in (10.0, 9.5):                       # the frozen render, an older one
+        again = _isaac_frame(stamp, epoch=port)
+        stream._note_first_receipt(again)
+        assert again.observed_t == first.t and observed_at(again) == first.t, stamp
+    newer = _isaac_frame(10.5, epoch=port)
+    stream._note_first_receipt(newer)
+    assert newer.observed_t is None and observed_at(newer) == newer.t
+    resent = _isaac_frame(10.5, epoch="e3")
+    stream._note_first_receipt(resent)
+    assert resent.observed_t == newer.t
 
 
 def test_local_frames_are_never_restamped():

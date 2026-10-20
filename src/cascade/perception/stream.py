@@ -26,10 +26,14 @@ from typing import Callable
 import numpy as np
 
 from ..types import Frame
-from .freshness import capture_marker
+from .freshness import capture_marker, producer_clock
 from .thread_join import join_thread
 
 _LOG = logging.getLogger(__name__)
+
+#: a stream remembers the first receipts on at most this many producer clocks
+#: (one per sim it was served from), the least recently updated dropped first
+FIRST_RECEIPT_CLOCKS = 8
 
 
 class CameraStream:
@@ -66,9 +70,10 @@ class CameraStream:
         self._fps_capture: tuple[dict, float] | None = None
         self._fps_capture_received: float | None = None
         self._last_error: str | None = None
-        #: (identity, newest stamp, client receipt of its first delivery) of
-        #: the last producer capture (`_note_first_receipt`); None otherwise.
-        self._first_receipt: tuple[dict, float, float] | None = None
+        #: per producer clock (`freshness.producer_clock`): (its newest
+        #: capture stamp, client receipt of that capture's first delivery)
+        #: (`_note_first_receipt`); the FIRST_RECEIPT_CLOCKS latest clocks.
+        self._first_receipts: dict[tuple, tuple[float, float]] = {}
 
     # ── CameraBase-compatible surface ────────────────────────────────────
 
@@ -213,25 +218,36 @@ class CameraStream:
         it with the client receipt of that capture's FIRST delivery
         (`Frame.observed_t`, read by `freshness.observed_at`), so a frozen
         render never makes the perception watchdog fresher. Producer stamps are
-        only compared with each other (same identity), never with the client's
-        clock. Local frames (one Frame per capture) are left untouched, and so
-        is the remembered first receipt: an invalid or a local frame in
-        between never makes the next re-send of that capture count as new
-        (#414 review Minor 3; an invalid capture itself carries no stamp,
-        `observed_at`)."""
+        only compared with each other on one producer clock
+        (`freshness.producer_clock`: one Isaac sim's physics loop, one OVRTX
+        source's snapshot clock), never with the client's clock: a capture no
+        newer on it than the newest one recorded keeps that record's first
+        receipt, whatever bridge port delivered it (#423 review follow-up 1: a
+        bridge back on another port restarted the record, so its frozen render
+        read as first received now). Local frames (one Frame per capture) are
+        left untouched, and so is the remembered first receipt: an invalid or
+        a local frame in between never makes the next re-send of that capture
+        count as new (#414 review Minor 3; an invalid capture itself carries no
+        stamp, `observed_at`), nor does another clock's capture in between.
+        A producer clock that went BACK (a remote sim host rebooted while this
+        stream ran) reads as re-sends until it passes the record: fail closed
+        (the perception watchdog refuses motion); a new stream starts clean."""
         try:
-            marker = capture_marker(frame)
+            clock = producer_clock(frame)
             received = float(frame.t)
         except (AttributeError, TypeError, ValueError):
             return
-        if marker["channel"] != "producer_capture":
+        if clock is None:
             return
-        stamp = marker.pop("t")
-        previous = self._first_receipt
-        if previous is not None and marker == previous[0] and stamp <= previous[1]:
-            frame.observed_t = min(previous[2], received)
+        key, stamp = clock
+        previous = self._first_receipts.get(key)
+        if previous is not None and stamp <= previous[0]:
+            frame.observed_t = min(previous[1], received)
             return
-        self._first_receipt = (marker, stamp, received)
+        self._first_receipts.pop(key, None)
+        self._first_receipts[key] = (stamp, received)
+        while len(self._first_receipts) > FIRST_RECEIPT_CLOCKS:
+            self._first_receipts.pop(next(iter(self._first_receipts)))
 
     def _stamp_transform(self, frame: Frame) -> None:
         if ((self._capture_transform is None and self._capture_geometry is None)

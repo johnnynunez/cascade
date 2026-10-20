@@ -82,8 +82,8 @@ included), point_at looks at the target again before the first command, on a
 detection newer than the plan only (never the remembered belief, never an
 image received before that look started (FRESH_IN_FLIGHT_S aside) or whose
 capture was first received more than FRESH_OBSERVED_S before it, never a
-camera's producer capture no newer than the one the plan was made from on that
-camera: not seen again, it refuses); moved
+producer capture no newer than the one the plan was made from on that camera or
+on a producer clock both share: not seen again, it refuses); moved
 more than FRESH_MOVE_M (`fix_moved_m`), it is planned once more from where it
 is now, on what is left of the same budget, and refused if it moved again;
 never a move toward a stale pose.

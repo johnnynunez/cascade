@@ -53,6 +53,7 @@ stream's pump grabs from):
 from __future__ import annotations
 
 import functools
+import math
 import re
 import threading
 import time
@@ -203,11 +204,12 @@ def test_a_live_camera_still_points_after_a_long_real_plan(rig, monkeypatch):  #
 # ── the camera's device: a stalled driver, an Isaac-style bridge ─────────────
 
 
-def _isaac_capture(t, source=("bridge", 5560), camera="cam0") -> dict:
+def _isaac_capture(t, source=("bridge", 5560), camera="cam0", robot_id="mock") -> dict:
     """An Isaac bridge frame's producer capture (`sim/bridge_client.py`): its
-    identity and the physics loop's clock, never this host's."""
+    identity and the physics loop's clock (one per sim: `robot_id`), never
+    this host's."""
     return {"backend": "isaac", "source": list(source), "camera": camera, "renderer": "isaac", "t": float(t),
-            "proprioception": {"robot_id": "mock", "backend": "isaac", "time_source": "physics_loop_monotonic",
+            "proprioception": {"robot_id": robot_id, "backend": "isaac", "time_source": "physics_loop_monotonic",
                                "t": float(t)}}
 
 
@@ -216,7 +218,8 @@ class _Device:
     stream's pump grabs): the real mock render, until a test says otherwise.
 
     - `stamp`: every render carries an Isaac-style producer capture whose clock
-      advances one tick per render (`source` names the bridge);
+      advances one tick per render (`source` names the bridge); `tick()`: a
+      render of another camera of the same sim (one physics loop clock);
     - `freeze(at)`: the driver keeps handing back its last buffer, the same
       Frame: from now on (`at` None; a render in flight then is lost, so the
       buffer is `last` as it was at the call), else from its first render at
@@ -300,6 +303,13 @@ class _Device:
 
     def resume(self):
         self._resumed.set()
+
+    def tick(self) -> float:
+        """Another camera of this sim rendered: the physics loop clock's
+        stamp of that render (every camera of a sim shares that clock)."""
+        with self._lock:
+            self.clock += 1.0 / 30.0
+            return self.clock
 
     def freeze(self, at=None):
         with self._lock:
@@ -446,7 +456,7 @@ def _stamped_delivered(rt, timeout_s=3.0):
 
 
 _RESENT_STALL = (r"it was not seen again after a long plan \(\d+\.\d s\): its camera re-sent a capture it first "
-                 r"received \d+\.\d s before this look started \(more than 0\.5 s: its renders stalled\)")
+                 r"received \d+\.\d\d s before this look started \(more than 0\.5 s: its renders stalled\)")
 
 
 @needs_pin
@@ -673,16 +683,21 @@ class _SideCamera:
     """A second Isaac camera on its own bridge (an `_other_cams` entry): a real
     CameraStream (it records each capture's first receipt) on a device serving
     the mock scene's latest render under its own producer identity (\"cam1\",
-    port 5562) and clock, one capture per request. `stalled`: the sim rendered
-    once and the bridge re-sends that render, in a new Frame per request."""
+    port 5562), one capture per request. Its captures are stamped on the
+    clock of the sim that renders them: the primary's (`device.tick()`, one
+    sim, one physics loop) or, with another `robot_id`, another sim's own.
+    `stalled`: the sim rendered once and the bridge re-sends that render, in a
+    new Frame per request; `reconnect()`: the bridge comes back on another
+    port and goes on re-sending it (the stream's first-receipt record of that
+    capture restarts)."""
 
     has_depth = True
 
-    def __init__(self, rt, *, stalled=False):
+    def __init__(self, rt, device, *, stalled=False, robot_id="mock"):
         from cascade.perception.stream import CameraStream
 
-        self._rt, self._stalled = rt, stalled
-        self._clock, self._render = 9000.0, None
+        self._rt, self._device, self._stalled, self._robot = rt, device, stalled, robot_id
+        self._clock, self._render, self.port = 9000.0, None, 5562
         self.depth, self.extrinsics, self.fuse = rt.depth, rt.extrinsics, True
         self.stream = CameraStream(self, name="side", rate_hz=30.0)
         self.stream.open()
@@ -693,51 +708,98 @@ class _SideCamera:
     def close(self):
         pass
 
+    def reconnect(self):
+        self.port = 5563
+
+    def _capture(self, t):
+        return _isaac_capture(t, ("bridge", self.port), camera="cam1", robot_id=self._robot)
+
     def get_frame(self):
         time.sleep(1.0 / 30.0)
         if self._stalled and self._render is not None:
-            return replace(self._render, t=time.monotonic())
-        self._clock += 1.0 / 30.0
-        self._render = replace(self._rt.camera.latest(), t=time.monotonic(), observed_t=None,
-                               capture=_isaac_capture(self._clock, ("bridge", 5562), camera="cam1"))
+            return replace(self._render, t=time.monotonic(), capture=self._capture(self._render.capture["t"]))
+        if self._robot == "mock":
+            t = self._device.tick()
+        else:
+            self._clock += 1.0 / 30.0
+            t = self._clock
+        self._render = replace(self._rt.camera.latest(), t=time.monotonic(), observed_t=None, capture=self._capture(t))
         return self._render
 
 
+def _first_receipt_restarted(stream, since, timeout_s=3.0):
+    """Wait until the stream's first-receipt record restarted after monotonic
+    time `since` (a published frame with no `observed_t` lasts one delivery:
+    a poll misses it)."""
+    end = time.monotonic() + timeout_s
+    while time.monotonic() < end:
+        record = stream._first_receipt
+        if record is not None and record[2] >= since:
+            return
+        time.sleep(0.005)
+    raise AssertionError("test setup: the side stream never restarted its first-receipt record")
+
+
+_OLDER_ON_THE_SHARED_CLOCK = ("it was not seen again after a long plan (4.0 s): another camera's capture on the same "
+                              "producer clock is no newer than the one the plan was made from")
+
+
 @needs_pin
-@pytest.mark.parametrize("side", ["fresh", "stalled", "fresh_then_the_primary"])
-def test_a_look_again_found_on_another_camera_is_judged_by_that_cameras_receipts(rig, monkeypatch, side):  # noqa: F811
+@pytest.mark.parametrize("side", ["fresh", "stalled", "stalled_then_reconnected", "fresh_then_the_primary",
+                                  "fresh_on_another_clock", "stalled_on_another_clock"])
+def test_a_look_again_found_on_another_camera_is_judged_by_its_clock_and_receipts(rig, monkeypatch, side):  # noqa: F811
     """#413 review Minor 1: the plan was made from the primary camera's
     capture; on the look again the primary misses and the side camera finds
-    the target. Two cameras' captures cannot be compared (main refused a
-    FRESH side render: \"capture identity changed\"), so the side image is
-    judged by its own receipts: a fresh render points; a render the side
-    camera's bridge has re-sent for ~1 s is refused. `fresh_then_the_primary`:
-    the side camera's fix moved 3 cm, so it is planned once more from that
-    image, and the next look finds it on the primary again: that is another
-    camera than the replan's (the side camera), so it points too."""
+    the target. Its capture identity differs (main refused a FRESH side render:
+    \"capture identity changed\"), so it is judged by its own receipts, and,
+    since the #418 review (Minors 1-2), on the producer clock it shares with
+    the primary: both cameras of one Isaac sim stamp their renders on its
+    physics loop. A fresh render points; a render the side bridge has re-sent
+    since before the call is refused, also once the stream's first-receipt
+    record restarted (`stalled_then_reconnected`: the bridge came back on
+    another port right before the look; main moved, 136 commands and a jaw
+    close, on that pre-call capture). `fresh_then_the_primary`: the side
+    camera's fix moved 3 cm, so it is planned once more from that image, and
+    the next look finds it on the primary again, on a newer render: it points.
+    On another sim's clock (`..._on_another_clock`) nothing is compared: a
+    fresh render points, a re-sent one is refused by its first receipt."""
+    from cascade.perception.freshness import observed_at
     from cascade.skills import runtime as rmod
     from cascade.types import SkillError
 
     r = rig("mock")
     rt = r.runtime
     _long_plans(monkeypatch)
-    _Device(monkeypatch, rt, stamp=True)
+    device = _Device(monkeypatch, rt, stamp=True)
     _stamped_delivered(rt)
-    camera = _SideCamera(rt, stalled=side == "stalled")
+    stalled = side.startswith("stalled")
+    camera = _SideCamera(rt, device, stalled=stalled, robot_id="other-sim" if "another_clock" in side else "mock")
+    replan = side == "fresh_then_the_primary"
     try:
         monkeypatch.setattr(rt, "_other_cams", lambda: [camera])
         real = rmod.localize_object
 
         def localize_object(frame, *a, **k):
             primary = (getattr(frame, "capture", None) or {}).get("camera") == "cam0"
-            if primary and (len(looks) == 1 if side == "fresh_then_the_primary" else looks):
+            if primary and (len(looks) == 1 if replan else looks):
                 raise SkillError("No current visual match for 'red cube' (the primary camera lost it)")
             return real(frame, *a, **k)
 
+        def before(i):
+            if i == 1 and side == "stalled_then_reconnected":
+                since = time.monotonic()
+                camera.reconnect()
+                _first_receipt_restarted(camera.stream, since)
+            if i == 2 and replan:
+                # the primary renders on after the side camera's image (one physics loop)
+                end = time.monotonic() + 3.0
+                while rt.camera.latest().capture["t"] <= looks[1].capture["t"] and time.monotonic() < end:
+                    time.sleep(0.005)
+
         monkeypatch.setattr(rmod, "localize_object", localize_object)
-        replan = side == "fresh_then_the_primary"
-        looks = _looks(monkeypatch, rt, shifts=[(0.0, 0.0, 0.0), (0.0, 0.03, 0.0)] if replan else None)
-        if side == "stalled":
+        looks = _looks(monkeypatch, rt, before=before,
+                       shifts=[(0.0, 0.0, 0.0), (0.0, 0.03, 0.0)] if replan else None)
+        if stalled:
             time.sleep(0.8)  # the side camera's bridge re-sends its one render meanwhile
 
         out = rt.execute("point_at", {"label": "red cube"})
@@ -746,12 +808,21 @@ def test_a_look_again_found_on_another_camera_is_judged_by_that_cameras_receipts
 
     assert len(looks) == (3 if replan else 2) and looks[0].capture["camera"] == "cam0", "test setup: planned on cam0"
     assert looks[1].capture["camera"] == "cam1", "test setup: found again by the side camera"
+    shared = "another_clock" not in side
+    assert (looks[1].capture["proprioception"]["robot_id"] == "mock") == shared, "test setup: the side camera's sim"
     if replan:
         assert looks[2].capture["camera"] == "cam0", "test setup: the replan's look found it on the primary"
-    if side == "stalled":
-        assert looks[1].observed_t is not None, "test setup: a re-sent side render"
+        assert looks[2].capture["t"] > looks[1].capture["t"], "test setup: a newer primary render"
+    if stalled:
+        assert (looks[1].capture["t"] < looks[0].capture["t"]) == shared, "test setup: a render from before the call"
         assert out["ok"] is False and _commands(r) == [] and r.jaws == [], out
-        assert re.search(_RESENT_STALL, out["error"]), out
+        if side == "stalled_then_reconnected":
+            assert observed_at(looks[1]) > looks[0].t, "test setup: first received again after the plan's image"
+        if shared:
+            assert _OLDER_ON_THE_SHARED_CLOCK in out["error"], out
+        else:
+            assert looks[1].observed_t is not None, "test setup: a re-sent side render"
+            assert re.search(_RESENT_STALL, out["error"]), out
     else:
         assert out["ok"] is True and _commands(r) and r.jaws, out
 
@@ -792,8 +863,9 @@ def test_captures_are_compared_unless_the_look_again_is_known_to_be_another_came
     plan's image and the look again's carry producer captures of different
     identities. Compared (refused: \"cannot be compared\") when both are one
     camera's, or when either camera is unknown (a belief's or the VLM's
-    answer: as main); skipped only when the look again is known to come from
-    ANOTHER camera than the plan's (then the receipts decide: fresh here)."""
+    answer: as main); when the look again is known to come from ANOTHER
+    camera than the plan's, only their producer clock is (one sim here, and
+    the look's capture is newer on it): the receipts decide (fresh here)."""
     from cascade.skills import pointing
     from cascade.types import SkillError
 
@@ -822,6 +894,123 @@ def test_captures_are_compared_unless_the_look_again_is_known_to_be_another_came
         with pytest.raises(SkillError, match=r"its capture cannot be compared with the one the plan was made from"):
             still()
     assert looked == ["red cube"], "test setup: one look again"
+
+
+def _look_again_on(rig, monkeypatch, frame_of, *, found="side"):  # noqa: F811
+    """`_point_at_still_there` itself, after a (fake) 4 s plan, on the mock
+    rig: the plan's image carries an Isaac cam0 capture at physics time 5000,
+    its camera is the primary; the look again
+    returns `frame_of(planned_on, looking)` (`looking`: the look's start, a
+    pinned runtime instant 1 s ago) as found by `found` (\"side\": another
+    camera). Returns the call (raises its SkillError)."""
+    from cascade.skills import pointing
+
+    r = rig("mock")
+    rt = r.runtime
+    clock = _RuntimeClock(monkeypatch)
+    planned_on, fix = rt._localize("red cube")
+    planned_on = replace(planned_on, capture=_isaac_capture(5000.0))
+    monkeypatch.setattr(pointing, "FRESH_PLAN_S", 3.0)
+    monkeypatch.setattr(pointing, "_wall", lambda: 1004.0)
+    looking = time.monotonic() - 1.0
+    localized = (1000.0, looking - 0.2, planned_on, rt.camera)
+    cameras = {"side": object(), "primary": rt.camera}
+
+    def localize(label, *a, **k):
+        rt._note_localized_on(cameras[found])
+        return frame_of(planned_on, looking), fix
+
+    monkeypatch.setattr(rt, "_localize", localize)
+    harness = rt.arm.harness
+
+    def call():
+        clock.pin(looking)
+        return rt._point_at_still_there("red cube", fix, localized, harness,
+                                        getattr(harness, "_halt_generation", None), False)
+
+    return call
+
+
+#: the look again's capture, against the plan's (an Isaac cam0 capture at physics time 5000): None = points
+_SHARED_CLOCK_ROWS = {
+    "newer_on_the_shared_clock": (lambda: _isaac_capture(5000.1, ("bridge", 5562), "cam1"), None),
+    "older_on_the_shared_clock": (lambda: _isaac_capture(4999.9, ("bridge", 5562), "cam1"),
+                                  "another camera's capture on the same producer clock is no newer"),
+    "the_plans_own_capture_via_another_stream": (lambda: _isaac_capture(5000.0),
+                                                 "another camera's capture on the same producer clock is no newer"),
+    "another_bridge_port_same_sim": (lambda: _isaac_capture(4999.9, ("bridge", 5563), "cam0"),
+                                     "another camera's capture on the same producer clock is no newer"),
+    "older_on_another_sims_clock": (lambda: _isaac_capture(10.0, ("bridge", 5562), "cam1", robot_id="other"), None),
+    "an_invalid_capture": (lambda: {**_isaac_capture(5000.1, ("bridge", 5562), "cam1"), "proprioception": {}},
+                           "its capture cannot be compared with the one the plan was made from"),
+    "no_capture": (lambda: None, None),
+}
+
+
+@needs_pin
+@pytest.mark.parametrize("row", list(_SHARED_CLOCK_ROWS))
+def test_another_cameras_capture_is_ordered_on_the_producer_clock_it_shares(rig, monkeypatch, row):  # noqa: F811
+    """#418 review Minors 1-2: a look again attributed to ANOTHER stream than
+    the plan's skipped the capture comparison, so the plan's own capture (two
+    streams on one Isaac camera, or a wrong attribution), or an older one on
+    the same sim's physics clock, passed on its receipts alone. Captures on
+    one producer clock (same robot_id and time source, whatever camera or
+    bridge port) are compared now; another sim's clock is not, a local frame
+    has none, and a capture that cannot be read refuses."""
+    from cascade.types import SkillError
+
+    capture, refused = _SHARED_CLOCK_ROWS[row]
+    call = _look_again_on(rig, monkeypatch, lambda planned_on, looking: replace(
+        planned_on, t=time.monotonic(), observed_t=None, capture=capture()))
+    if refused is None:
+        assert call() is None
+    else:
+        with pytest.raises(SkillError, match=re.escape(refused)):
+            call()
+
+
+#: (first receipt relative to the look's start, or a value; the refusal or None = points)
+_FIRST_RECEIPTS = {
+    "0.3_s_before": (lambda looking, now: looking - 0.3, None),
+    "0.51_s_before": (lambda looking, now: looking - 0.51, "first received 0.51 s before this look started (more "
+                                                           "than 0.5 s: its renders stalled)"),
+    "0.503_s_before": (lambda looking, now: looking - 0.503, "first received 0.51 s before this look started"),
+    "0.7_s_before": (lambda looking, now: looking - 0.7, "first received 0.70 s before this look started"),
+    "nan": (lambda looking, now: math.nan, "its camera gave no usable first receipt of that capture (nan)"),
+    "-inf": (lambda looking, now: -math.inf, "its camera gave no usable first receipt of that capture (-inf)"),
+    "+inf": (lambda looking, now: math.inf, "its camera gave no usable first receipt of that capture (inf)"),
+    "in_the_future": (lambda looking, now: now + 5.0, "its camera gave no usable first receipt of that capture "
+                                                       "(stamped 5.00 s in the future)"),
+}
+
+
+@needs_pin
+@pytest.mark.parametrize("first", list(_FIRST_RECEIPTS))
+def test_the_first_receipt_must_be_a_time_the_heartbeat_would_take(rig, monkeypatch, first):  # noqa: F811
+    """#418 review Minors 3-5: the look again's capture was re-sent (its
+    `Frame.observed_t`, the first receipt, is set) by the plan's camera,
+    received after the look started. A first receipt the perception
+    heartbeat ignores (NaN, +-inf, the future) proves no receipt: refused
+    (main moved on +inf and the future, and named NaN/-inf as \"first
+    received nan s before\"); a future one is named by how far ahead it is,
+    rounded up (never a raw clock reading). A finite one more than 0.5 s before the look is
+    refused with its age rounded UP (0.51 s read \"0.5 s ... (more than 0.5
+    s\" on main; 0.503 s reads 0.51 s, never 0.50 s); 0.3 s points."""
+    from cascade.types import SkillError
+
+    stamp, refused = _FIRST_RECEIPTS[first]
+
+    def frame_of(planned_on, looking):
+        received = time.monotonic()   # after the look started
+        return replace(planned_on, t=received, observed_t=stamp(looking, received), capture=_isaac_capture(5000.1))
+
+    call = _look_again_on(rig, monkeypatch, frame_of, found="primary")
+    if refused is None:
+        assert call() is None
+    else:
+        # the frame is stamped a few microseconds before the look receives it
+        with pytest.raises(SkillError, match=re.escape(refused).replace(r"5\.00", r"(5\.00|4\.99)")):
+            call()
 
 
 # ── 2. the freshness clock starts at the localization ──────────────────────

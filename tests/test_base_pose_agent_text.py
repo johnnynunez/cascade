@@ -82,10 +82,11 @@ def _texts_equivariant(a, b, T):
 
 #: A box a refusal quotes: the workspace with the TCP it refused, or a
 #: keep-out zone; on a mount that rotates it, in the arm's base frame first
-#: (#412 review Minor 4).
+#: (#412 review Minor 4), the table frame's numbers in the note after it
+#: (#413 review Minor 4).
 _BOX_QUOTE = re.compile(
-    r"TCP (\[[^\]]*\]) outside workspace (?:\[(\[[^\]]*\]) \.\. (\[[^\]]*\])\]"
-    r"|(\(its base_pose rotates it: in the arm's base frame [^)]*\)))"
+    r"TCP (\[[^\]]*\]) outside workspace \[(\[[^\]]*\]) \.\. (\[[^\]]*\])\]"
+    r"( in the arm's base frame \(its base_pose rotates it; [^)]*\))?"
     r"|keep-out (zone (\[[^\]]*\])\.\.(\[[^\]]*\])"
     r"( in the arm's base frame \(its base_pose rotates it; [^)]*\))?)")
 

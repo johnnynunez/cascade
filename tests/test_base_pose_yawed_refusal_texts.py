@@ -14,7 +14,12 @@ refused TCP lay INSIDE the quoted range. Now:
   quotes it in the arm's base frame FIRST, together with the TCP there (a
   workspace refusal: outside that box), then the table-frame bounds: the
   agent's FAILED line keeps only the first 240 characters of the error, and
-  the base-frame numbers decide (#412 review Minor 4);
+  the base-frame numbers decide (#412 review Minor 4). A workspace refusal
+  OPENS with them (\"TCP <base> outside workspace [<lo> .. <hi>] in the arm's
+  base frame (...; table frame: TCP <table>, bounds [...])\"): they end within
+  101 characters, so the longest prefix the code puts before the text keeps
+  them too (#413 review Minor 4: the table-frame TCP and a long phrase came
+  first, and a handover's 58-character prefix cut the box);
 - a quarter turn written with rounded numbers (yaw 1.5708) is a quarter turn
   (#412 review Minor 3);
 - an arm without base_pose reads exactly as before, and a mount that only
@@ -80,8 +85,8 @@ def box_text(kind, T, lo, hi, tcp=None) -> str:
     if kind == "workspace":
         if _turns_axes_onto_axes(T):
             return f"TCP {_q(lift(T, tcp))} outside workspace [{_q(lo_w)} .. {_q(hi_w)}]"
-        return (f"TCP {_q(lift(T, tcp))} outside workspace (its base_pose rotates it: in the arm's base frame the TCP "
-                f"{_q(tcp)} is outside [{_q(lo)} .. {_q(hi)}]; table-frame bounds [{_q(lo_w)} .. {_q(hi_w)}])")
+        return (f"TCP {_q(tcp)} outside workspace [{_q(lo)} .. {_q(hi)}] in the arm's base frame (its base_pose "
+                f"rotates it; table frame: TCP {_q(lift(T, tcp))}, bounds [{_q(lo_w)} .. {_q(hi_w)}])")
     return f"TCP inside keep-out {zone_text(T, lo, hi)}"
 
 
@@ -160,7 +165,7 @@ def test_a_yawed_raised_workspace_refusal_says_why_the_tcp_is_inside_its_bounds(
     assert np.all(tcp_w >= lo_w) and np.all(tcp_w <= hi_w), "the case: the TCP is inside the table-frame bounds"
     text = h._workspace_refusal(tcp)
     assert text == box_text("workspace", T, WS_LO, WS_HI, tcp)
-    q_tcp_w, q_tcp, q_lo, q_hi, q_lo_w, q_hi_w = _quoted(text)
+    q_tcp, q_lo, q_hi, q_tcp_w, q_lo_w, q_hi_w = _quoted(text)
     assert np.all(q_lo_w <= q_hi_w) and np.all(q_lo <= q_hi), text
     assert np.allclose(q_tcp_w, tcp_w, atol=5e-4) and np.allclose(q_tcp, tcp, atol=5e-4)
     assert np.any(q_tcp < q_lo) or np.any(q_tcp > q_hi), "the base-frame TCP is outside the base-frame box"
@@ -313,13 +318,87 @@ def test_the_failed_line_keeps_a_rotated_mounts_base_frame_numbers(mount):
         assert ws == box_text("workspace", T, ws_lo, ws_hi, tcp)
         for site in ("move_relative", "execute"):
             before, after = _SITES[site]
-            _assert_keeps_the_base_frame(before + ws + after, [tcp, ws_lo, ws_hi],
-                                         "outside workspace (its base_pose rotates it: in the arm's base frame the TCP")
-            _assert_keeps_the_base_frame(before + h._keep_out_refusal(lo, hi) + after, [lo, hi],
-                                         "in the arm's base frame (its base_pose rotates it")
+            _assert_keeps_the_base_frame(before + ws + after, [tcp, ws_lo, ws_hi], _ROTATED_WORDS)
+            _assert_keeps_the_base_frame(before + h._keep_out_refusal(lo, hi) + after, [lo, hi], _ROTATED_WORDS)
         before, after = _SITES["wrist_camera"]
-        _assert_keeps_the_base_frame(before + table_frame_zone_text(T, lo, hi) + after, [lo, hi],
-                                     "in the arm's base frame (its base_pose rotates it")
+        _assert_keeps_the_base_frame(before + table_frame_zone_text(T, lo, hi) + after, [lo, hi], _ROTATED_WORDS)
+
+
+#: what a rotated mount's texts say right after the base-frame numbers
+_ROTATED_WORDS = "in the arm's base frame (its base_pose rotates it"
+#: a label longer than the FAILED line keeps (`_fit_label` cuts it to its
+#: least, _MIN_LABEL_ROOM characters, when the reason after it is long)
+_LONG_LABEL = "the small red cube behind the blue bowl, next to the left arm"
+
+
+def _handover(why: str) -> str:
+    """skill_handover's error when its grasp failed for `why` (its own words)."""
+    from cascade.skills.runtime import _fit_label
+
+    return _fit_label("could not grasp {} for handover: ", repr(_LONG_LABEL), keep=len(why)) + why
+
+
+#: the longest texts the code puts before a harness refusal (#413 review
+#: Minor 4; the 3 `_SITES` aside): a handover whose grasp the harness refused
+#: (the review's 58-character prefix, here with a long label cut to its least),
+#: the same grasp run by a VLA chunk the harness refused before it moved
+#: (`vla_executor`, the longest found: 137 characters), and a pick-and-place
+#: carry lift (`place_geometry`)
+_LONG_PREFIXES = {
+    "handover": lambda text: _handover("SafetyViolation: " + text),
+    "handover_vla": lambda text: _handover("SafetyViolation: harness refused VLA chunk 12 at waypoint 16 before any "
+                                           "of it moved: " + text),
+    "carry_lift": lambda text: "_PreCarryLiftError: pre-carry lift is unsafe: " + text,
+}
+
+
+@pytest.mark.parametrize("prefix", list(_LONG_PREFIXES))
+@pytest.mark.parametrize("mount", list(_ROTATED))
+def test_the_failed_line_keeps_the_deciding_numbers_after_the_longest_prefixes(mount, prefix):
+    """#413 review Minor 4: with worst-case numbers the rotated workspace
+    text ended its base-frame box at character 194, so a prefix over 46
+    characters (the review's handover one: 58) cut it on the FAILED line. It
+    opens with the base-frame TCP and box now: they end within 101
+    characters, and the FAILED line keeps them whole after each of the
+    longest prefixes in the code, with random boxes and with the longest
+    numbers a text quotes (every one a 3-decimal negative), and the words
+    naming their frame after every prefix but the longest."""
+    from cascade.safety.harness import SafetyHarness, SafetyLimits
+
+    rng = np.random.default_rng(413)
+    T = transform(_ROTATED[mount])
+    worst = (np.array([-0.789, -0.788, -0.787]), np.array([-0.123, -0.122, -0.121]), np.array([-0.999, -0.998, -0.997]))
+    for i in range(41):
+        if i == 0:
+            ws_lo, ws_hi, tcp = worst
+            lo, hi = ws_lo, ws_hi
+        else:
+            lo = np.round(rng.uniform(-0.6, 0.2, 3), 3)
+            hi = np.round(lo + rng.uniform(0.05, 0.7, 3), 3)
+            ws_lo, ws_hi = np.round(rng.uniform(-0.6, 0.0, 3), 3), np.round(rng.uniform(0.3, 0.9, 3), 3)
+            tcp = ws_lo
+            while np.all(tcp >= ws_lo) and np.all(tcp <= ws_hi):
+                tcp = np.round(rng.uniform(ws_lo - 0.2, ws_hi + 0.2), 3)
+        h = SafetyHarness(SafetyLimits(ws_lo, ws_hi, table_z=0.0, table_clearance=0.02, keep_out=[(lo, hi)]),
+                          None, base_pose=T)
+        ws = h._workspace_refusal(tcp)
+        assert ws == box_text("workspace", T, ws_lo, ws_hi, tcp)
+        deciding = ws.index(f"{_q(ws_hi)}]") + len(f"{_q(ws_hi)}]")
+        assert deciding <= 101, (deciding, ws)
+        # after the longest prefix (137) the words naming the frame can fall
+        # past the 240th character with the longest numbers; `error` keeps them
+        words = "" if prefix == "handover_vla" else _ROTATED_WORDS
+        _assert_keeps_the_base_frame(_LONG_PREFIXES[prefix](ws), [tcp, ws_lo, ws_hi], words)
+        _assert_keeps_the_base_frame(_LONG_PREFIXES[prefix](h._keep_out_refusal(lo, hi)), [lo, hi], words)
+
+
+def test_the_longest_prefix_is_the_one_the_test_names():
+    """Before a reason too long for the FAILED line the handover-through-VLA
+    prefix is 137 characters (the label cut to its least): with the 101 the
+    deciding numbers take, 238 of the FAILED line's 240."""
+    long_reason = "TCP " + "x" * 236
+    assert _LONG_PREFIXES["handover_vla"](long_reason).index(long_reason) == 137
+    assert _LONG_PREFIXES["handover"](long_reason).index(long_reason) == 69
 
 
 _E2E = {k: _ROTATED[k] for k in ("yaw23", "yaw45_raised", "yaw-45_raised", "yaw135_raised")}
@@ -348,6 +427,5 @@ def test_a_rotated_mounts_move_relative_refusal_keeps_its_numbers_on_the_failed_
     quoted = _failed_quote(error)
     assert out["next_action"].startswith(f"This attempt FAILED: {quoted}"), out["next_action"]
     limits = rt.arm.harness.limits
-    tcp_table = np.array(_VEC.findall(error)[0], dtype=float)
-    _assert_keeps_the_base_frame(error, [tcp_table, limits.workspace_min, limits.workspace_max],
-                                 "outside workspace (its base_pose rotates it: in the arm's base frame the TCP")
+    tcp_base = np.array(_VEC.findall(error)[0], dtype=float)
+    _assert_keeps_the_base_frame(error, [tcp_base, limits.workspace_min, limits.workspace_max], _ROTATED_WORDS)

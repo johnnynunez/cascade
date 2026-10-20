@@ -13,11 +13,16 @@
 #
 # Keyed, scrubbed, loopback (#409 made it the OpenShell Cosmos agent's brain,
 # `launch.sh --brain cosmos-sglang`): it serves only with API_KEY_FILE, a 0600
-# file holding one bearer key (the same file the agent's brain provider sends,
-# CASCADE_BRAIN_KEY_FILE); the key never reaches argv. It binds 127.0.0.1 only,
-# drops the inherited variables that make SGLang add a listener, move a route
-# or swap its HTTP server, and runs the SGLang pinned below (SGLANG_VERSION: the
-# version that list and docs/OPENSHELL.md's route audit were read from). No
+# file holding one bearer key; the key never reaches argv, and SGLang logs at
+# warning (its INFO start line prints every argument, the key included). Use
+# the brain key file every local brain uses, ~/.cascade/nemoclaw/llama.key:
+# launch.sh's brain checks and the agent's brain provider, openclaw_demo.sh and
+# the local_cosmos_sglang profile send it with no variable set
+# (CASCADE_MODEL_API_KEY_FILE or CASCADE_BRAIN_KEY_FILE name another). It binds
+# 127.0.0.1 only, drops the inherited variables that make SGLang add a
+# listener, load code, move a route or swap its HTTP server, and runs the
+# SGLang pinned below (SGLANG_VERSION: the version that list and
+# docs/OPENSHELL.md's route audit were read from). No
 # --trust-remote-code: Cosmos3-Edge is native in SGLang (srt/models/
 # cosmos3_edge.py) and in transformers (models/cosmos3_edge, 5.19.0 too), and
 # nvidia/Cosmos3-Edge ships no code (no .py, no auto_map at a9d944e2), so
@@ -32,9 +37,10 @@
 # adds SGLang's own launch flags. Update this header once it has a verified
 # run; treat every "assume" below as the first thing to check if serving
 # fails.
-#   1. arch `cosmos3_edge` needs transformers GIT MAIN (>=5.15.0.dev0) --
-#      same requirement as vLLM, SGLang's HF fallback path uses the same
-#      `transformers` modeling code.
+#   1. arch `cosmos3_edge` is native in transformers 5.19.0 (SGLang 0.5.22's
+#      own pin, and the vLLM route's, scripts/cosmos_serving.py): the venv
+#      installs exactly that, never git main over the pin. SGLang's HF
+#      fallback path uses the same `transformers` modeling code.
 #   2. Do NOT install cosmos-framework in this venv: it pins transformers
 #      4.x, which recent SGLang releases also refuse. Not needed to serve.
 #   3. The HF repo ships a diffusers layout (weights under transformer/,
@@ -61,6 +67,11 @@ CTX="${CTX:-32768}"
 GPU_FRAC="${GPU_FRAC:-0.20}"   # unified memory on Spark is shared with Isaac + Qwen/vLLM
 # The audited release: KEEP IN SYNC with the scrub below and docs/OPENSHELL.md.
 SGLANG_VERSION=0.5.22
+# SGLang 0.5.22's transformers pin; KEEP IN SYNC with scripts/cosmos_serving.py
+# (TRANSFORMERS_VERSION, MODEL_REVISION): the checkpoint revision the vLLM
+# route exports, which ships no code (no .py file, no auto_map in config.json).
+TRANSFORMERS_VERSION=5.19.0
+MODEL_REVISION=a9d944e2c6a1bf9f48b92ad16348e70c5f1836ba
 
 die() { printf 'serve_cosmos_sglang: %s\n' "$1" >&2; exit "${2:-1}"; }
 
@@ -76,39 +87,50 @@ die() { printf 'serve_cosmos_sglang: %s\n' "$1" >&2; exit "${2:-1}"; }
 # load code; SGLANG_ENABLE_REQUEST_HEADER_OVERRIDES lets x-override-* headers
 # set request fields (priority, routing, the PD bootstrap host and port);
 # EXA_API_KEY adds a web search tool behind /v1/responses (the brain would
-# fetch the web for the caller). The host, the port and the key are flags
-# below. A bash without `compgen` refuses rather than serve unscrubbed.
+# fetch the web for the caller); SGLANG_EXTERNAL_MODEL_PACKAGE imports a
+# package that replaces the whole model registry (srt/models/registry.py),
+# SGLANG_EXTERNAL_MM_PROCESSOR_PACKAGE one of multimodal processors
+# (managers/tokenizer_manager.py) and SGLANG_EXTERNAL_MM_MODEL_ARCH names its
+# architecture; SGLANG_LOGGING_CONFIG_PATH swaps the logging setup for a
+# dictConfig file (utils/common.py): its `()` factories import code, and an
+# INFO handler would write the start line, the key included. The host, the
+# port, the key and the log level are flags below. A bash without `compgen`
+# refuses rather than serve unscrubbed.
 names="$(compgen -e)" || die "cannot list the environment (compgen failed); refusing to start SGLang unscrubbed"
 for name in $names; do
-    case "$name" in SGLANG_GRPC_PORT|SGLANG_RUST_SERVER|SGLANG_OLLAMA_*|AIP_*|DUMPER_*|SGLANG_ENABLE_REQUEST_HEADER_OVERRIDES|EXA_API_KEY) unset "$name" ;; esac
+    case "$name" in SGLANG_GRPC_PORT|SGLANG_RUST_SERVER|SGLANG_OLLAMA_*|AIP_*|DUMPER_*|SGLANG_ENABLE_REQUEST_HEADER_OVERRIDES|EXA_API_KEY|SGLANG_EXTERNAL_*|SGLANG_LOGGING_CONFIG_PATH) unset "$name" ;; esac
 done
 
 # The key: a private file holding one key, never argv (checked before anything
 # is installed or exported).
 [[ -n "${API_KEY_FILE:-}" ]] \
-    || die "API_KEY_FILE is required: a 0600 file holding the brain's bearer key (the OpenShell Cosmos route's CASCADE_BRAIN_KEY_FILE)"
+    || die "API_KEY_FILE is required: a 0600 file holding the brain's bearer key; launch.sh and openclaw_demo.sh send ~/.cascade/nemoclaw/llama.key unless CASCADE_MODEL_API_KEY_FILE or CASCADE_BRAIN_KEY_FILE name another"
 key_file="${API_KEY_FILE/#\~/$HOME}"
 [[ -f "$key_file" ]] || die "API_KEY_FILE $key_file is missing"
 key_mode="$(stat -c %a "$key_file" 2>/dev/null || stat -f %Lp "$key_file")"
 (( (8#$key_mode & 8#077) == 0 )) || die "API_KEY_FILE $key_file is mode $key_mode; chmod 600 it first"
 (( $(wc -w < "$key_file") == 1 )) || die "API_KEY_FILE $key_file must hold one key (SGLang takes exactly one)"
 
-# 1+2. venv with version-matched stack (sglang + transformers git main).
+# 1+2. venv with the pinned stack (sglang + its own transformers pin).
 if [ ! -x "$VENV/bin/python" ] || ! "$VENV/bin/python" -c "import sglang" 2>/dev/null; then
     echo "[+] creating SGLang $SGLANG_VERSION venv at $VENV"
     uv venv "$VENV" --python 3.12
-    # (0.5.22 has no `all` extra.)
-    uv pip install --python "$VENV/bin/python" "sglang==$SGLANG_VERSION" ninja
-    uv pip install --python "$VENV/bin/python" \
-        "git+https://github.com/huggingface/transformers.git"
+    # (0.5.22's `all` extra adds diffusion, fastokens, http2 and tracing: none
+    # serves this model.)
+    uv pip install --python "$VENV/bin/python" "sglang==$SGLANG_VERSION" "transformers==$TRANSFORMERS_VERSION" ninja
 fi
 installed="$("$VENV/bin/python" -c 'import importlib.metadata as m; print(m.version("sglang"))')" \
     || die "cannot read the SGLang version in $VENV"
 [[ "$installed" == "$SGLANG_VERSION" ]] \
     || die "$VENV holds SGLang $installed; this script's environment scrub and route audit are for SGLang $SGLANG_VERSION: choose another VENV"
-"$VENV/bin/python" - <<'PY'
+installed="$("$VENV/bin/python" -c 'import importlib.metadata as m; print(m.version("transformers"))')" \
+    || die "cannot read the transformers version in $VENV"
+[[ "$installed" == "$TRANSFORMERS_VERSION" ]] \
+    || die "$VENV holds transformers $installed; Cosmos3-Edge loads without remote code on transformers $TRANSFORMERS_VERSION (SGLang $SGLANG_VERSION's pin): choose another VENV"
+HF_REPO="$HF_REPO" MODEL_REVISION="$MODEL_REVISION" "$VENV/bin/python" - <<'PY'
+import os
 from transformers import AutoConfig
-c = AutoConfig.from_pretrained("nvidia/Cosmos3-Edge")
+c = AutoConfig.from_pretrained(os.environ["HF_REPO"], revision=os.environ["MODEL_REVISION"])
 assert c.architectures == ["Cosmos3EdgeForConditionalGeneration"], c.architectures
 print("[+] transformers knows cosmos3_edge")
 PY
@@ -137,15 +159,15 @@ PY
 #    ran serve_cosmos_vllm.sh once, this is a no-op.
 if [ ! -f "$EXPORT_DIR/config.json" ]; then
     echo "[+] exporting $HF_REPO Reasoner to $EXPORT_DIR (one-time)"
-    HF_REPO="$HF_REPO" EXPORT_DIR="$EXPORT_DIR" "$VENV/bin/python" - <<'PY'
+    HF_REPO="$HF_REPO" MODEL_REVISION="$MODEL_REVISION" EXPORT_DIR="$EXPORT_DIR" "$VENV/bin/python" - <<'PY'
 import os, torch
 from transformers import AutoProcessor
 from transformers.models.cosmos3_edge import Cosmos3EdgeForConditionalGeneration
-repo, out = os.environ["HF_REPO"], os.environ["EXPORT_DIR"]
-m = Cosmos3EdgeForConditionalGeneration.from_pretrained(repo, dtype=torch.bfloat16)
+repo, rev, out = os.environ["HF_REPO"], os.environ["MODEL_REVISION"], os.environ["EXPORT_DIR"]
+m = Cosmos3EdgeForConditionalGeneration.from_pretrained(repo, revision=rev, dtype=torch.bfloat16)
 print(f"[+] loaded {sum(p.numel() for p in m.parameters())/1e9:.2f}B params")
 m.save_pretrained(out)
-AutoProcessor.from_pretrained(repo).save_pretrained(out)
+AutoProcessor.from_pretrained(repo, revision=rev).save_pretrained(out)
 PY
 fi
 echo "[+] model: $EXPORT_DIR"
@@ -156,9 +178,11 @@ echo "[+] model: $EXPORT_DIR"
 # variable), and argv is readable by every local user (/proc/<pid>/cmdline): the
 # launcher reads the file inside the server process and runs
 # sglang.launch_server as `python -m` does (the same sys.argv and __main__ for
-# its spawned workers). SGLang still logs its resolved arguments, the key
-# included, at start (entrypoints/engine.py), and /get_server_info returns them
-# to key holders.
+# its spawned workers). SGLang logs its resolved arguments, the key included,
+# at INFO (entrypoints/engine.py `server_args=`), so it runs at
+# `--log-level warning` (the HTTP log follows it): a log kept by nohup or the
+# journal never holds the key. /get_server_info still returns the arguments to
+# key holders.
 export PATH="$VENV/bin:$PATH"
 launch='import runpy, sys
 with open(sys.argv[1]) as key_file:
@@ -171,4 +195,5 @@ exec "$VENV/bin/python" -c "$launch" "$key_file" \
     --host 127.0.0.1 --port "$PORT" \
     --context-length "$CTX" \
     --mem-fraction-static "$GPU_FRAC" \
-    --disable-cuda-graph
+    --disable-cuda-graph \
+    --log-level warning

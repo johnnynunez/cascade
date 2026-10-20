@@ -163,6 +163,22 @@ def test_up_syncs_the_v1_only_brain_profile_whatever_model_it_serves(host, model
     assert "access" not in synced["endpoints"][0]
 
 
+def test_up_refusing_the_brain_names_every_keyed_serve_script_and_its_key_file(host, monkeypatch):
+    """#416 review: the Cosmos SGLang brain serves only with a key, so a 401 at `up` names its script next to
+    Bolt's and Qwen's, and the API_KEY_FILE each of them takes (the provider's key file)."""
+    home = host.install(host.user / ".cascade" / "openshell-sim", "sim")
+    host.gateways_up.add(str(home / "0.1.3" / "bin" / "openshell"))
+    monkeypatch.setattr(host.rig, "_http_status", lambda url, *a, **k: 401 if url.endswith("/v1/models") else 200)
+    with pytest.raises(SystemExit) as refused:
+        host.rig.main(["--instance", "sim", "up", "--model", "cosmos3-edge"])
+    why = str(refused.value)
+    assert "answered 401" in why, why
+    for script in ("serve_nemotron_bolt_llamacpp.sh", "serve_qwen_vllm.sh", "serve_cosmos_sglang.sh"):
+        assert script in why, why
+    assert f"API_KEY_FILE={host.user / '.cascade' / 'nemoclaw' / 'llama.key'}" in why, why
+    assert not [a for a in host.argvs if a[1:3] == ["sandbox", "create"]], "nothing came up"
+
+
 def test_robot_profile_admits_mcp_and_refuses_reset_stop_at_l7():
     rig = _load()
     p = rig.robot_profile(port=18999)

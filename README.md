@@ -233,7 +233,7 @@ only and no hardware base exists. Code paths and evidence:
 | `anthropic` / `openai` | Claude / any OpenAI-compatible cloud endpoint | `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` |
 | `local_nemotron_bolt` | **default brain**: Nemotron 3.5 Bolt 74B-A9B 24GB via `scripts/serve_nemotron_bolt_llamacpp.sh` (llama.cpp v0.7.0, :8080; vLLM `serve_nemotron_bolt_vllm.sh` is opt-in, not beside Isaac) | served id `nemotron-3.5-bolt`; sends `enable_thinking: false` itself |
 | `local_qwen` | Qwen3.8-27B via `scripts/serve_qwen_llamacpp.sh` or `serve_qwen_vllm.sh` (:8080) | `model:` must be one of `serve_qwen_vllm.sh`'s served names |
-| `local_cosmos` / `local_cosmos_sglang` | Cosmos3-Edge via vLLM (:8082) / SGLang (:8083, **unverified**) | `type: cosmos3` (XML tool calls) |
+| `local_cosmos` / `local_cosmos_sglang` | Cosmos3-Edge via vLLM (:8082) / SGLang (:8083, **unverified**) | `type: cosmos3` (XML tool calls); SGLang serves only with a key: the profile sends `~/.cascade/nemoclaw/llama.key` (or `CASCADE_MODEL_API_KEY_FILE`) |
 | `mock` | scripted | tests and wiring checks |
 
 ## Run it under any MCP agent platform

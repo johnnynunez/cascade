@@ -20,6 +20,7 @@ patch and the export (`python -` heredocs) are skipped. Nothing is installed, ex
 from __future__ import annotations
 
 import fnmatch
+import importlib.util
 import json
 import subprocess
 import sys
@@ -32,6 +33,8 @@ from inherited_server_env import BENIGN_ENV, BENIGN_SGLANG_ENV, HOSTILE_SGLANG_E
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "serve_cosmos_sglang.sh"
 SGLANG_VERSION = "0.5.22"
+#: SGLang 0.5.22's own pin, and scripts/cosmos_serving.py's (the vLLM route): Cosmos3-Edge is native in it.
+TRANSFORMERS_VERSION = "5.19.0"
 KEY = "sglang-brain-key-7"
 
 #: The venv's python: `-` (a heredoc: the transformers preflight, the modeling patch, the export) is skipped;
@@ -59,8 +62,17 @@ if __name__ == "__main__":
         cmdline = f.read().decode().split("\\0")
     print(json.dumps({"sglang_args": sys.argv[1:], "env": dict(os.environ), "cmdline": cmdline}))
 """
-#: Installs the fake `sglang` (`launch_server` above, metadata of `version`) into a fake venv's fake-site.
+#: Installs the fake `sglang` (`launch_server` above, metadata of `version`) into a fake venv's fake-site, and the
+#: metadata of another distribution (`transformers`) the script checks.
 INSTALL_FAKE_SGLANG = """
+def install_fake_dist(venv, name, version):
+    import os
+    dist = os.path.join(venv, "fake-site", name + "-" + version + ".dist-info")
+    os.makedirs(dist)
+    with open(os.path.join(dist, "METADATA"), "w") as f:
+        f.write("Metadata-Version: 2.1\\nName: " + name + "\\nVersion: " + version + "\\n")
+
+
 def install_fake_sglang(venv, version):
     import os
     site = os.path.join(venv, "fake-site")
@@ -68,16 +80,15 @@ def install_fake_sglang(venv, version):
     open(os.path.join(site, "sglang", "__init__.py"), "w").close()
     with open(os.path.join(site, "sglang", "launch_server.py"), "w") as f:
         f.write(LAUNCH_SERVER)
-    dist = os.path.join(site, "sglang-" + version + ".dist-info")
-    os.makedirs(dist)
-    with open(os.path.join(dist, "METADATA"), "w") as f:
-        f.write("Metadata-Version: 2.1\\nName: sglang\\nVersion: " + version + "\\n")
+    install_fake_dist(venv, "sglang", version)
 """
 _namespace = {"LAUNCH_SERVER": LAUNCH_SERVER}
 exec(INSTALL_FAKE_SGLANG, _namespace)
 install_fake_sglang = _namespace["install_fake_sglang"]
+install_fake_dist = _namespace["install_fake_dist"]
 #: `uv` as the script calls it: `venv PATH` makes the fake venv, `pip install` of `sglang[==X]` installs the fake
-#: package (as X; unpinned: 9.9.9). Every call is logged.
+#: package (as X; unpinned: 9.9.9), `transformers==X` its metadata (a git URL: 5.20.0.dev0, git main). Every call
+#: is logged.
 FAKE_UV = f"LAUNCH_SERVER = {LAUNCH_SERVER!r}\n" + INSTALL_FAKE_SGLANG + """
 import json, os, re, shutil, sys
 a = sys.argv[1:]
@@ -92,6 +103,11 @@ elif a[:2] == ["pip", "install"]:
         m = re.fullmatch(r"sglang(?:\\[[a-z,]+\\])?(?:==(.+))?", spec)
         if m:
             install_fake_sglang(venv, m.group(1) or "9.9.9")
+        m = re.fullmatch(r"transformers==(.+)", spec)
+        if m:
+            install_fake_dist(venv, "transformers", m.group(1))
+        if spec.startswith("git+https://github.com/huggingface/transformers"):
+            install_fake_dist(venv, "transformers", "5.20.0.dev0")
 """
 
 
@@ -107,6 +123,7 @@ def venv(tmp_path) -> Path:
     v = tmp_path / "venv"
     _python(v / "bin" / "python")
     install_fake_sglang(str(v), SGLANG_VERSION)
+    install_fake_dist(str(v), "transformers", TRANSFORMERS_VERSION)
     return v
 
 
@@ -198,7 +215,8 @@ def _scrub_patterns() -> list[str]:
 def test_the_scrub_is_the_audited_list_and_every_entry_is_exercised():
     patterns = _scrub_patterns()
     assert patterns == ["SGLANG_GRPC_PORT", "SGLANG_RUST_SERVER", "SGLANG_OLLAMA_*", "AIP_*", "DUMPER_*",
-                        "SGLANG_ENABLE_REQUEST_HEADER_OVERRIDES", "EXA_API_KEY"]
+                        "SGLANG_ENABLE_REQUEST_HEADER_OVERRIDES", "EXA_API_KEY", "SGLANG_EXTERNAL_*",
+                        "SGLANG_LOGGING_CONFIG_PATH"]
     assert all(any(fnmatch.fnmatchcase(name, p) for name in HOSTILE_SGLANG_ENV) for p in patterns)
     assert not any(fnmatch.fnmatchcase(name, p) for name in {**BENIGN_ENV, **BENIGN_SGLANG_ENV} for p in patterns)
     assert f'SGLANG_VERSION={SGLANG_VERSION}' in SCRIPT.read_text().splitlines()
@@ -224,4 +242,44 @@ def test_a_missing_venv_is_built_on_the_pinned_sglang(tmp_path):
     calls = [json.loads(line) for line in log.read_text().splitlines()]
     installs = [c for c in calls if c[:2] == ["pip", "install"]]
     assert any(f"sglang=={SGLANG_VERSION}" in c for c in installs), calls
+    assert any(f"transformers=={TRANSFORMERS_VERSION}" in c for c in installs), calls
+    assert not any(spec.startswith("git+") for c in installs for spec in c), "no unpinned transformers over the pin"
     assert flag(out["sglang_args"], "--api-key") == KEY
+
+
+def test_a_venv_with_another_transformers_is_refused(tmp_path):
+    """Cosmos3-Edge loads without remote code on transformers 5.19.0 (SGLang 0.5.22's pin); a venv an earlier
+    version of this script built holds transformers git main."""
+    v = tmp_path / "venv"
+    _python(v / "bin" / "python")
+    install_fake_sglang(str(v), SGLANG_VERSION)
+    install_fake_dist(str(v), "transformers", "5.20.0.dev0")
+    why = refused(run(tmp_path, v, **_key(tmp_path)))
+    assert "transformers 5.20.0.dev0" in why and TRANSFORMERS_VERSION in why
+
+
+def test_sglang_logs_at_warning_so_its_start_line_never_prints_the_key(tmp_path, venv):
+    """SGLang 0.5.22 logs its resolved arguments, --api-key included, at INFO (entrypoints/engine.py)."""
+    out = served(run(tmp_path, venv, **_key(tmp_path)))
+    assert flag(out["sglang_args"], "--log-level") == "warning"
+    assert "--log-level-http" not in out["sglang_args"], "the HTTP log level follows --log-level"
+
+
+def _cosmos_serving():
+    spec = importlib.util.spec_from_file_location("cosmos_serving_pins", REPO / "scripts" / "cosmos_serving.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_model_and_transformers_are_pinned_as_on_the_vllm_route():
+    """The same checkpoint revision and transformers as scripts/cosmos_serving.py; every download names it."""
+    pins = _cosmos_serving()
+    lines = SCRIPT.read_text().splitlines()
+    assert f"MODEL_REVISION={pins.MODEL_REVISION}" in lines
+    assert f"TRANSFORMERS_VERSION={pins.TRANSFORMERS_VERSION}" in lines and pins.TRANSFORMERS_VERSION == TRANSFORMERS_VERSION
+    downloads = [x for x in lines if "from_pretrained(" in x and not x.lstrip().startswith("#")]
+    assert len(downloads) == 3, downloads    # the config preflight, the model, the processor
+    assert all("revision=" in x for x in downloads), downloads
+    assert "git+https://github.com/huggingface/transformers" not in SCRIPT.read_text()
+    assert "has no `all` extra" not in SCRIPT.read_text()

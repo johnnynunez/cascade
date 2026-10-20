@@ -10,6 +10,7 @@ instead of crashing the loop.
 from __future__ import annotations
 
 from ..control import motion_evidence
+from ..control.arm_hold import ArmHeldError
 from ..control.jaw_stages import closing_stages, opens_past
 
 import contextlib
@@ -3031,6 +3032,15 @@ class SkillRuntime:
             except TypeError as e:
                 refused_by = type(e).__name__
                 result = {"ok": False, "error": f"bad arguments for {name}: {e}"}
+            except ArmHeldError as e:
+                # The arm's connect refused before any frame that can cut its
+                # torque: an earlier session left it held (or it measures
+                # raised). Named as the hold, not an "unexpected" fault
+                # (#426 review Minor 8); the text asks for the operator.
+                refused_by = type(e).__name__
+                result = {"ok": False, "error": f"ArmHeldError: {e}", "refused": "arm_held",
+                          "hint": "nothing was sent to the arm; only the operator can release this hold"}
+                _with_retrace_result(result, e)
             except Exception as e:  # camera dropouts, CAN loss, ... : the agent
                 # loop must survive and report, not crash mid-task.
                 import traceback
@@ -6995,7 +7005,12 @@ class SkillRuntime:
             if not kept:
                 return len(stages)
             # The backend's own close bypasses SafeArm.set_gripper: a halt
-            # since the running skill started keeps the jaws open (A3 review).
+            # since the running skill started keeps the jaws open (A3 review),
+            # and so does a teardown that closed this arm to every other
+            # thread (#426 review Minor 9).
+            check_teardown = getattr(self.arm.harness, "_check_teardown", None)
+            if callable(check_teardown):
+                check_teardown()
             check_halt = getattr(self.arm.harness, "_check_halt_generation", None)
             if callable(check_halt):
                 check_halt(_halt_generation)

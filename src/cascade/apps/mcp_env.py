@@ -164,10 +164,11 @@ NOT_FORWARDED: dict[str, tuple[str, str]] = {
                                    "~/.cascade/nemoclaw/llama.key there. Not forwarded: launch.sh also exports it "
                                    "for its brain checks (Nemotron 3.5 Bolt's too), so a copy would change every "
                                    "such registration, and its name is a key variable's"),
-    "CASCADE_TORQUE_OFF_UNPARKED": ("operator", "set to 'holding the arm' only by an operator who holds the arm: "
-                                    "it lets a teardown cut torque on an arm its park did not bring to rest "
-                                    "(apps.demo); inherited from a shell or a saved registration it would drop "
-                                    "a raised arm, so it is never copied"),
+    "CASCADE_TORQUE_OFF_UNPARKED": ("operator", "no longer read (apps.demo only says so when it is set): it once let "
+                                    "a teardown cut torque on an arm its park did not bring to rest, but a value "
+                                    "set when a process started cannot say someone holds the arm at the cut "
+                                    "(the operator confirms then, cascade.control.arm_hold); inherited from a "
+                                    "shell or a saved registration it would mean nothing, so it is never copied"),
     "CASCADE_ARM_HOLD_DIR": ("internal", "where held arms are remembered (cascade.control.arm_hold; default "
                              "~/.cascade/arm_holds): every process on the host must read the same one, so the "
                              "server derives it from its HOME and a registration never pins a copy; tests point "

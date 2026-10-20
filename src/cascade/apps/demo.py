@@ -1480,15 +1480,16 @@ def _runtime_state(runtime) -> dict:
     if held:
         # An earlier session's teardown left an arm POWERED and HOLDING
         # (control/arm_hold.py): it is powered, never "standby", and its first
-        # connect is refused until an operator confirms (#424 review I1).
-        from ..control.arm_hold import CONFIRM_TTL_S, confirm_command
-
+        # connect is refused until an operator confirms (#424 review I1). The
+        # agent reads this too (world_state): it names no command, only the
+        # operator confirms (#426 review Important 4).
         out["arm_connected"] = True
         out["arm_held"] = [{"key": m.get("key"), "arm": m.get("arm"), "reason": m.get("reason"),
                             "since": m.get("at_text"), "pid": m.get("pid"),
-                            "next": (f"support the arm, then confirm within {CONFIRM_TTL_S:.0f} s: "
-                                     f"{confirm_command()}; the next motion then connects it (its "
-                                     "torque drops while you hold it)")} for m in held]
+                            "next": ("ask the operator: they support the arm and confirm at the robot's own "
+                                     "terminal; the next motion then connects it (its torque drops while "
+                                     "they hold it). An agent cannot confirm; it is not safe to power off.")}
+                           for m in held]
     return out
 
 
@@ -1575,15 +1576,16 @@ def _park_move(arm, duration_s: float, stage: dict) -> bool:
 #: The operator's explicit confirmation that a teardown may cut torque on an
 #: arm its park did not bring to rest (refused by the watchdog or any other
 #: gate, skipped under a latched e-stop, not settled): they are holding the
-#: arm. Read at the moment of the cut: a fresh `control.arm_hold` confirmation
-#: (`scripts/arm_hold.py confirm 'holding the arm'`, any shell, valid 120 s,
-#: used once: what an MCP operator runs right before stopping the server), or
-#: for a demo CLI this variable set to exactly TORQUE_OFF_CONFIRMATION when it
-#: started. Without either such an arm stays powered and holding its pose
-#: (#422 review follow-up 2: a dead camera refused the park and the disconnect
-#: then dropped a raised arm). Never forwarded to an MCP registration
-#: (`apps.mcp_env`): no value inherited from a shell may make a teardown drop
-#: an arm.
+#: arm. Read at the moment of the cut, and only there: a fresh
+#: `control.arm_hold` confirmation (`scripts/arm_hold.py confirm`, typed by
+#: the operator at the robot's terminal, valid 120 s, used once), what an
+#: operator runs right before stopping the server or the demo CLI. Without it
+#: such an arm stays powered and holding its pose (#422 review follow-up 2: a
+#: dead camera refused the park and the disconnect then dropped a raised
+#: arm). This variable is NO LONGER read (#426 review Minor 5): a value set
+#: when a process started cannot say that someone holds the arm at the cut. A
+#: teardown that finds it set says so; it is never forwarded to an MCP
+#: registration (`apps.mcp_env`).
 TORQUE_OFF_CONFIRM_ENV = "CASCADE_TORQUE_OFF_UNPARKED"
 TORQUE_OFF_CONFIRMATION = "holding the arm"
 #: How long a teardown waits for a motion still running on another thread (a
@@ -1602,10 +1604,6 @@ _TEARDOWN_SIGNALS = None
 #: it was.
 _PARK_SKIPS_THAT_DROP_NOTHING = frozenset({"absent", "not_connected", "external_controller_retains_hold",
                                            "retained_or_possible_load"})
-
-
-def _torque_off_confirmed() -> bool:
-    return os.environ.get(TORQUE_OFF_CONFIRM_ENV, "").strip().lower() == TORQUE_OFF_CONFIRMATION
 
 
 def _unparked_reason(stage) -> str | None:
@@ -1642,41 +1640,56 @@ def _hold_reason(raw, stage, name) -> str | None:
     say is not one) and only when its park did not bring it to rest: cutting
     torque there drops a raised arm. Never waives a gate: the park stays
     refused, the arm simply keeps its torque. The operator's confirmation,
-    read now (a fresh `arm_hold.confirm`, or TORQUE_OFF_CONFIRM_ENV), lets
-    the disconnect run anyway, said loudly."""
+    read now (a fresh `arm_hold` confirmation), lets the disconnect run
+    anyway, said loudly. Never raises over a malformed confirmation: a hold
+    that cannot be judged stays a hold, and its marker still gets written."""
     if getattr(raw, "disconnect_cuts_torque", False) is not True:
         return None
     reason = _unparked_reason(stage)
     if reason is None:
         return None
-    if _torque_off_confirmed():
-        print(f"[cascade] arm {name}: {reason}; cutting its torque anyway: the operator confirmed "
-              f"{TORQUE_OFF_CONFIRM_ENV}={TORQUE_OFF_CONFIRMATION!r}", file=sys.stderr, flush=True)
-        return None
     from ..control import arm_hold
 
-    taken = arm_hold.take_confirmation(_hold_key(raw))
+    try:
+        taken = arm_hold.take_confirmation(_hold_key(raw))
+    except Exception as exc:  # noqa: BLE001 -- fail closed: the arm stays held
+        print(f"[cascade] arm {name}: its confirmation could not be read ({exc}): it stays held",
+              file=sys.stderr, flush=True)
+        taken = None
     if taken is not None:
         print(f"[cascade] arm {name}: {reason}; cutting its torque anyway: the operator confirmed "
-              f"{arm_hold.CONFIRMATION!r} {taken['age_s']:.0f} s ago", file=sys.stderr, flush=True)
+              f"{arm_hold.CONFIRMATION!r} {float(taken.get('age_s', 0.0)):.0f} s ago", file=sys.stderr, flush=True)
         return None
+    if arm_hold.confirmed(os.environ.get(TORQUE_OFF_CONFIRM_ENV, "")):
+        print(f"[cascade] arm {name}: {TORQUE_OFF_CONFIRM_ENV} is set, but it is no longer read: a value set when "
+              "this process started cannot say that someone holds the arm now. The arm stays held; to cut its "
+              f"torque, hold it and confirm at that moment: {arm_hold.confirm_command()}",
+              file=sys.stderr, flush=True)
     return reason
 
 
-def _announce_held(held: dict) -> None:
+def _announce_held(held: dict, raws: dict | None = None) -> None:
     """Say loudly, per arm, that it is still powered and why (stderr: the
-    MCP server's server.log, the CLI's console), and what the operator runs:
-    a command that works from any shell (the MCP server's env is fixed when
-    it starts and no registration forwards the variable)."""
+    MCP server's server.log, the CLI's console; operator-facing), and what
+    the operator runs: a command that works from any shell on the robot
+    host, interactive (they type the phrase). `raws`: name -> raw backend,
+    to tell an arm whose next connect refuses (the reBot drivers') from one
+    whose connect cuts no torque (an SO-101: #426 review Minor 3)."""
     from ..control.arm_hold import CONFIRM_TTL_S, confirm_command
 
     for name, reason in held.items():
+        raw = (raws or {}).get(name)
+        if getattr(raw, "connect_cuts_torque", False) is True:
+            nxt = ("The next start, arm-check or calibrate refuses to connect it (its connect would cut the "
+                   "torque) until an operator supports it and confirms, then retries within "
+                   f"{CONFIRM_TTL_S:.0f} s: {confirm_command()}.")
+        else:
+            nxt = ("Its next connect writes no torque-off, so it is not refused; its hold is reported until a "
+                   "parked torque-off clears it.")
         print(f"[cascade] WARNING: arm {name} is POWERED and HOLDING its pose: {reason}. Teardown did not "
-              "cut its torque (a raised arm would drop). Support the arm, then switch its power off. The next "
-              "start refuses to connect it until an operator supports it and confirms, then retries within "
-              f"{CONFIRM_TTL_S:.0f} s: {confirm_command()}. To let a teardown cut torque on an unparked arm, "
-              "hold the arm and run that command right before stopping the server (a demo CLI may instead "
-              f"start with {TORQUE_OFF_CONFIRM_ENV}={TORQUE_OFF_CONFIRMATION!r}).", file=sys.stderr, flush=True)
+              f"cut its torque (a raised arm would drop). Support the arm, then switch its power off. {nxt} To "
+              "let a teardown cut torque on an unparked arm, hold the arm and confirm right before stopping "
+              f"the server or the CLI: {confirm_command()}.", file=sys.stderr, flush=True)
 
 
 def _park_stages(runtime) -> list:
@@ -1716,11 +1729,12 @@ def _arm_raws(runtime, arm) -> dict:
             for _stage, name, _safe in _park_stages(runtime)}
 
 
-def _record_holds(raws: dict, held: dict) -> dict:
+def _record_holds(raws: dict, held: dict, *, source: str = "teardown") -> dict:
     """Write a hold marker for every held arm (control/arm_hold.py): every
     later process reads it, and a reBot's next connect refuses over it.
     name -> the marker, or the error that kept it from being written (said
-    loudly: the next start cannot see that hold)."""
+    loudly: the next start cannot see that hold). `source`: who left it
+    held (the runtime teardown, the calibration CLI)."""
     from ..control import arm_hold
 
     out = {}
@@ -1729,7 +1743,7 @@ def _record_holds(raws: dict, held: dict) -> dict:
         if key is None:
             continue
         try:
-            arm_hold.record(key, arm=name, reason=reason)
+            arm_hold.record(key, arm=name, reason=reason, source=source)
             out[name] = {"key": key, "marker": str(arm_hold.marker_path(key))}
         except Exception as exc:  # noqa: BLE001 -- the teardown goes on; the warning says what is lost
             out[name] = {"key": key, "error": f"{type(exc).__name__}: {exc}"}
@@ -2013,8 +2027,8 @@ def shutdown_runtime(runtime, arm) -> dict:
         # cuts torque stays powered and holding (#422 review follow-up 2),
         # and a marker tells every later process so (#424 review I1).
         held.update(_arms_to_hold(runtime, arm, park.get("receipt")))
-        _announce_held(held)
         raws = _arm_raws(runtime, arm)
+        _announce_held(held, raws)
         markers.update(_record_holds(raws, held))
         # read BEFORE the disconnect: a LazyArm drops its backend there
         cutting = {name: _hold_key(raw) for name, raw in raws.items()

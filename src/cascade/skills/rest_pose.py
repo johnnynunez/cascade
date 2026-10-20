@@ -199,6 +199,18 @@ def _rate(raw) -> float:
 # ── results ─────────────────────────────────────────────────────────────────
 
 
+def _held_by_earlier_session(raw) -> dict | None:
+    """The hold marker of a standby arm an earlier session left powered and
+    holding (control/arm_hold.py), or None. Never materializes the arm; a
+    marker that cannot be read counts as held."""
+    from ..control import arm_hold
+
+    try:
+        return arm_hold.held_marker(raw)
+    except Exception as exc:  # noqa: BLE001 -- fail closed: unknown counts as held
+        return {"reason": f"its hold could not be read ({exc})"}
+
+
 def _refused(why: str, error: str, torque: str = "on") -> dict:
     return {"ok": False, "refused": why, "moved": False, "at": "unchanged",
             "torque": torque, "safe_to_power_off": False, "error": error}
@@ -232,7 +244,8 @@ def move_to_rest(rt, *, keep_torque=False) -> dict:
     arm = rt.arm
     harness, raw = arm.harness, arm.raw
     lazy = isinstance(raw, LazyArm)
-    torque_now = "released" if lazy and not raw.connected else "on"
+    held = _held_by_earlier_session(raw) if lazy and not raw.connected else None
+    torque_now = "released" if lazy and not raw.connected and held is None else "on"
 
     if harness.estopped:
         return _refused("estopped", (
@@ -240,6 +253,22 @@ def move_to_rest(rt, *, keep_torque=False) -> dict:
             "is safe, staff clear it (reset_stop) and ask again."), torque=torque_now)
 
     park = rest_target(harness, int(arm.n_joints))
+    if held is not None:
+        # Not standby: an earlier session's teardown left this arm POWERED
+        # and HOLDING (control/arm_hold.py), and its connect would cut the
+        # torque. Nothing is sent and nothing is promised (#426 review
+        # Important 2: this answered "safe to power off").
+        return {
+            "ok": False, "at": "held", "moved": False, "torque": "on", "safe_to_power_off": False,
+            "arm_state": "held", "refused": "arm_held", "rest_q": _rounded(park) if park is not None else None,
+            "error": (f"an earlier session left this arm POWERED and HOLDING ({held.get('reason')}): "
+                      "nothing was sent, the arm was not moved and its pose was not read. It is NOT safe "
+                      "to switch the robot off: without torque a raised arm falls. Do not tell the user it "
+                      "is safe to power off. Ask the operator to support the arm (they then switch its "
+                      "power off, or confirm at the robot's own terminal so the next motion connects it); "
+                      "an agent cannot confirm."),
+        }
+
     if park is None:
         # No folded pose is known for this arm, so the motors will not be
         # released either: "home" keeps its pre-move_to_rest meaning here

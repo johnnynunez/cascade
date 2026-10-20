@@ -96,8 +96,9 @@ host keepalives don't starve behind a motion. SIGINT latches the e-stop too
 the RS arms) only on an arm its park brought to rest: an e-stopped or
 refused park leaves the arm powered and holding, said in server.log, and a
 hold marker makes the next start refuse to connect it until an operator
-confirms (`cascade.control.arm_hold`, `scripts/arm_hold.py confirm`), so
-park it first. A SIGTERM keeps latching the e-stop and holding rather than
+confirms at the robot's terminal (`cascade.control.arm_hold`,
+`scripts/arm_hold.py confirm`, interactive; no tool and no agent-facing text
+offers it), so park it first. A SIGTERM keeps latching the e-stop and holding rather than
 halting and parking: no new motion after a stop signal (#424 review, the
 owner may revisit). SIGUSR1 clears the e-stop: that is the STAFF
 reset channel when reset_stop is hidden from attendees
@@ -185,8 +186,11 @@ _EXTRA_TOOLS = [
         "description": (
             "Read tracked objects, MCP session state and cached camera statistics. "
             "session_state.agent_status is last activity text, not a startup or "
-            "health check. arm_connected means this session opened its control "
-            "connection; false is normal before first control use. Perception "
+            "health check. arm_connected means the arm is powered: this session "
+            "opened its control connection, or an earlier session left it powered "
+            "and holding (then arm_held names it and its next motion is refused "
+            "until the operator confirms at the robot; never say it is safe to "
+            "power off). false is normal before first control use. Perception "
             "counters describe this session's detection and belief updates. This "
             "does not query simulator health, arm pose or gripper contents. "
             "tracked_holding is session history, not a current contact measurement. "

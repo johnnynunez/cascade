@@ -158,7 +158,12 @@ def main(argv=None) -> int:
 
     arm_hold.clear_if_at_rest(arm_hold.hold_key("rebot_rs", cfg.arm), q, park, REST_TOL)
     arm = rebot_rs_arm.RebotRSArm(cfg.arm)
-    arm.connect()
+    try:
+        arm.connect()
+    except arm_hold.ArmHeldError as e:
+        # refused before any frame that can cut torque: say so, no traceback
+        print(f"[!] the arm was NOT connected: {e}")
+        return 2
     code = 1
     try:
         code = run(arm, park, reference_only=args.reference_only)
@@ -170,6 +175,10 @@ def main(argv=None) -> int:
             print("[+] torque released (the arm is folded at rest)")
         else:
             arm.stop()
+            # exits with the arm powered and holding: remembered for every
+            # later process (#426 review Important 1)
+            arm_hold.remember(arm.hold_key, arm="arm", source="check_rebot_gripper.py", log=print,
+                              reason="the startup check measured it off its rest after connecting: torque stays ON")
     return code
 
 

@@ -211,6 +211,8 @@ def main() -> int:
     }
     q_hold: dict[int, float] = {}
     gains: dict[int, tuple[float, float]] = {}
+    #: set before the enable: from then on the motors may hold the arm
+    energized = {"on": False}
     try:
         for mid, m in motors.items():
             p = read_plausible(lambda m=m: _read(m, MECH_POS), *_joint_limits(limits, mid))
@@ -270,6 +272,7 @@ def main() -> int:
 
         clear_motor_faults(sorted(motors.items()))
         _hold(motors, q_hold, gains)
+        energized["on"] = True
         ctrl.enable_all()
         _hold(motors, q_hold, gains)
         time.sleep(0.3)
@@ -326,6 +329,14 @@ def main() -> int:
             ctrl.close_bus()
         finally:
             ctrl.close()
+            if energized["on"]:
+                # The motors stay enabled after this process: the next connect's
+                # fault clear (a STOP frame) would drop the arm. Remembered for
+                # every later process (cascade.control.arm_hold).
+                from cascade.control import arm_hold
+
+                arm_hold.remember(args.channel, arm="arm", source="sign_check_rebot_mb.py", log=print,
+                                  reason="sign_check_rebot_mb.py left the motors enabled, holding the arm")
 
 
 def _hold(motors, q_hold, gains) -> None:

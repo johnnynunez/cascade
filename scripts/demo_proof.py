@@ -285,13 +285,14 @@ def brain_endpoints() -> dict[str, tuple[str, str | None]]:
 def _server_of(base: str) -> tuple:
     """The server a base URL names, for comparing two spellings of it: scheme, host (a loopback alias as one),
     port (the scheme's default when absent) and path without its trailing slash (#423 review Minor 4: a string
-    comparison told `http://localhost:8083/v1` from `http://127.0.0.1:8083/v1`)."""
+    comparison told `http://localhost:8083/v1` from `http://127.0.0.1:8083/v1`). `urlsplit` lower-cases the scheme
+    and `hostname` itself."""
     try:
         parts = urlsplit(base.strip())
         port = parts.port
     except ValueError:
         return ("unparsed", base)
-    scheme, host = parts.scheme.lower(), (parts.hostname or "").lower()
+    scheme, host = parts.scheme, parts.hostname or ""
     if host in ("localhost", "127.0.0.1", "::1"):
         host = "loopback"
     return scheme, host, port if port is not None else {"http": 80, "https": 443}.get(scheme), parts.path.rstrip("/")

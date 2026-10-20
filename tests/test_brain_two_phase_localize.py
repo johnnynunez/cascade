@@ -269,6 +269,7 @@ def test_slow_refer_localizes_on_a_fresh_frame_and_grasps(tp):
     returned frame is a newer one whose analysis took a fraction of the limit."""
     tp.brain.refer_s = 0.65
     frame, fix = tp.rt._localize("red cube")
+    assert tp.rt._localized_camera() is tp.rt.camera, "the primary's answer (point_at's look again reads it)"
     semantic_frame = tp.sam.calls[0][0]  # SAM masks the brain's boxes on the brain's frame
     assert frame.frame_id > semantic_frame, "the geometry must come from a frame newer than the brain's"
     assert [c[0] for c in tp.sam.calls] == [semantic_frame, semantic_frame, frame.frame_id], (
@@ -496,6 +497,7 @@ def test_the_other_camera_pass_is_two_phase_too(tp):
 
     tp.detector.reanchor = spy  # instance attribute: the class still defines reanchor
     frame, fix = tp.rt._localize("red cube")
+    assert tp.rt._localized_camera() is tp.rt._other_cams()[0].stream, "the side camera's answer"
     assert len(seen) == 1 and seen[0][1] > seen[0][0]
     assert frame.frame_id == seen[0][1], "the side camera's fresh frame is the one returned"
     assert np.linalg.norm(np.asarray(fix.position)[:2] - _cube_xy(tp, HOME_BOX)) < 0.01

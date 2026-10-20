@@ -52,6 +52,7 @@ stream's pump grabs from):
 
 from __future__ import annotations
 
+import functools
 import re
 import threading
 import time
@@ -485,7 +486,7 @@ def test_a_render_that_stalled_during_the_plan_is_refused_however_often_it_is_re
 
 
 @needs_pin
-@pytest.mark.parametrize("image", ["in_flight", "stalled_0.3_s_before"])
+@pytest.mark.parametrize("image", ["in_flight", "stalled_0.3_s_before", "the_plans_own"])
 def test_an_image_in_flight_when_the_look_started_counts_but_an_older_one_does_not(rig, monkeypatch, image):  # noqa: F811
     """#413 review Minor 3 (the single-frame path): the stream's pump stamps
     `Frame.t` when it receives an image and publishes it after its own work
@@ -493,7 +494,9 @@ def test_an_image_in_flight_when_the_look_started_counts_but_an_older_one_does_n
     and published after it was refused on main (\"received during the plan,
     before this look started\"; the review: refused from 25 ms on). It counts
     now. One received 0.3 s before the look (the driver stalled then and keeps
-    handing it back) is still refused."""
+    handing it back) is still refused, and so is one from before the plan
+    started however recent (the driver stalled at the localization; the plan's
+    4 s are faked here, so that image is ~0.05 s old at the look)."""
     from cascade.skills import runtime as rmod
 
     r = rig("mock")
@@ -509,7 +512,7 @@ def test_an_image_in_flight_when_the_look_started_counts_but_an_older_one_does_n
             assert received.wait(5.0), "test setup: the camera never rendered"
             pending.append(release)
             time.sleep(0.03)
-        else:
+        elif image == "stalled_0.3_s_before":
             device.freeze()
             time.sleep(0.3)
         before_look.append(time.monotonic())
@@ -525,7 +528,14 @@ def test_an_image_in_flight_when_the_look_started_counts_but_an_older_one_does_n
         return real_get(*a, **k)
 
     monkeypatch.setattr(rt.camera, "get_frame", get_frame)
-    looks = _looks(monkeypatch, rt)
+    frozen = []
+
+    def first_look(frame):
+        if image == "the_plans_own":
+            device.freeze()
+            frozen.append(time.monotonic())  # before point_at stamps its localization
+
+    looks = _looks(monkeypatch, rt, after_first=first_look)
 
     out = rt.execute("point_at", {"label": "red cube"})
 
@@ -536,8 +546,13 @@ def test_an_image_in_flight_when_the_look_started_counts_but_an_older_one_does_n
         assert out["ok"] is True and _commands(r) and r.jaws, out
     else:
         assert out["ok"] is False and _commands(r) == [] and r.jaws == [], out
-        assert ("it was not seen again after a long plan (4.0 s): the image it was found on again was received "
-                "during the plan, before this look started") in out["error"], out
+        why = ("taken before the plan started" if image == "the_plans_own"
+               else "received during the plan, before this look started")
+        assert ("it was not seen again after a long plan (4.0 s): the image it was found on again was " + why
+                ) in out["error"], out
+    if image == "the_plans_own":
+        assert looks[1].t < frozen[0] and before_look[0] - looks[1].t < 0.1, \
+            "test setup: an image from before the plan, within the in-flight time of the look"
 
 
 class _SideCamera:
@@ -645,6 +660,47 @@ def test_the_camera_a_localization_came_from_is_the_calling_threads_and_the_last
     with pytest.raises(SkillError):
         rt._localize("red cube", memory=False)
     assert rt._localized_camera() is None
+
+
+@needs_pin
+@pytest.mark.parametrize("planned,found", [("primary", "primary"), (None, "primary"), ("primary", None),
+                                           ("primary", "side")])
+def test_captures_are_compared_unless_the_look_again_is_known_to_be_another_cameras(rig, monkeypatch,  # noqa: F811
+                                                                                   planned, found):
+    """The look again's rule matrix, on `_point_at_still_there` itself: the
+    plan's image and the look again's carry producer captures of different
+    identities. Compared (refused: \"cannot be compared\") when both are one
+    camera's, or when either camera is unknown (a belief's or the VLM's
+    answer: as main); skipped only when the look again is known to come from
+    ANOTHER camera than the plan's (then the receipts decide: fresh here)."""
+    from cascade.skills import pointing
+    from cascade.types import SkillError
+
+    r = rig("mock")
+    rt = r.runtime
+    cameras = {"primary": rt.camera, "side": object(), None: None}
+    planned_on, fix = rt._localize("red cube")
+    planned_on = replace(planned_on, capture=_isaac_capture(5000.0))
+    monkeypatch.setattr(pointing, "FRESH_PLAN_S", 3.0)
+    monkeypatch.setattr(pointing, "_wall", lambda: 1004.0)
+    localized = (1000.0, time.monotonic(), planned_on, cameras[planned])
+    looked = []
+
+    def localize(label, *a, **k):
+        looked.append(label)
+        rt._note_localized_on(cameras[found])
+        return replace(planned_on, t=time.monotonic(), capture=_isaac_capture(5001.0, ("bridge", 5562), "cam1")), fix
+
+    monkeypatch.setattr(rt, "_localize", localize)
+    harness = rt.arm.harness
+    still = functools.partial(rt._point_at_still_there, "red cube", fix, localized, harness,
+                              getattr(harness, "_halt_generation", None), False)
+    if found == "side":
+        assert still() is None
+    else:
+        with pytest.raises(SkillError, match=r"its capture cannot be compared with the one the plan was made from"):
+            still()
+    assert looked == ["red cube"], "test setup: one look again"
 
 
 # ── 2. the freshness clock starts at the localization ──────────────────────

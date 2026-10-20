@@ -182,7 +182,8 @@ FRESH_MOVE_M = AIM_TOLERANCE_M
 #: or at most this long before it (s, its `Frame.t`): an image the camera's
 #: pump had received but not yet published when the look started (its pose
 #: and depth work comes after the stamp; the #413 review refused from 25 ms of
-#: it on). A driver that stalled earlier hands back an older one: refused.
+#: it on). A driver that stalled earlier hands back an older one: refused, and
+#: an image from before the plan started is refused however recent.
 FRESH_IN_FLIGHT_S = 0.1
 #: ... and its capture FIRST received at most this long before that look
 #: started (s, `freshness.observed_at`): a bridge re-sends a render in a new

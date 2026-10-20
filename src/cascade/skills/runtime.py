@@ -8409,7 +8409,8 @@ class SkillRuntime:
         client's receipt time: a camera that stalled during the plan hands
         back an image received then, #411 review Minor 2), or at most
         `pointing.FRESH_IN_FLIGHT_S` before it (an image the camera's pump had
-        received but not yet published, #413 review Minor 3). When either
+        received but not yet published, #413 review Minor 3), and never before
+        the plan started. When either
         image carries a producer capture (an Isaac / OVRTX camera's own
         clock) and both come from one camera, the new one's must also be newer
         than the one `fix` came from (`freshness.newer_capture`): a bridge
@@ -8448,7 +8449,10 @@ class SkillRuntime:
         camera = self._localized_camera()
         seen_again = (pointing._wall(), time.monotonic(), frame, camera)
         received = float(getattr(frame, "t", math.nan))
-        if not received > looking - pointing.FRESH_IN_FLIGHT_S:   # NaN, or no image: not newer
+        # never an image from before the plan started, however close to this
+        # look: `took` reads `pointing._wall`, which need not be this clock;
+        # NaN, or no image: not newer
+        if not (received > since and received > looking - pointing.FRESH_IN_FLIGHT_S):
             raise not_seen("the image it was found on again was taken before the plan started" if not received > since
                            else "the image it was found on again was received during the plan, before this look "
                                 "started")

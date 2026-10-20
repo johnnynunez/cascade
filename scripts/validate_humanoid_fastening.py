@@ -93,7 +93,7 @@ def _stream_stats(directory, admissions):
     """Contact/torque statistics from the retained raw solves (no re-simulation)."""
     stats = {'solves': 0, 'max_abs_wrist_torque_nm': 0., 'max_thread_load_n': 0., 'max_tool_wall_load_n': 0.,
              'max_socket_floor_load_n': 0., 'max_nut_angular_speed_rad_s': 0., 'max_joint_speed_rad_s': 0.,
-             'max_observation_generation': 0, 'regrips': 0, 'strokes': 0, 'phases': {}}
+             'regrips': 0, 'strokes': 0, 'phases': {}}
     samples = []
     first = min(a['admission_step'] for a in admissions) if admissions else None
     for raw in _rows(directory):

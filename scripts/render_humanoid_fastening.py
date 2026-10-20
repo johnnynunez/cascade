@@ -168,6 +168,13 @@ def annotate_progress(rows):
         r['advance_mm'] = (z0 - r['nut_z']) * 1000
 
 
+def fit(draw, text, size, width, bold=False):
+    """Largest font <= size whose rendering of text fits width pixels."""
+    while size > 12 and draw.textlength(text, font=font(size, bold)) > width:
+        size -= 1
+    return font(size, bold)
+
+
 def compose(images, header, lines, footer, verdict=None, speed='1x (real time)', clip_turns=None, requested=1.):
     """One 1920x1080 frame: main view, close-up, live telemetry, episode footer, verdict box."""
     from PIL import Image, ImageDraw
@@ -175,29 +182,31 @@ def compose(images, header, lines, footer, verdict=None, speed='1x (real time)',
     frame.paste(Image.fromarray(images[0]), (0, 120))
     frame.paste(Image.fromarray(images[1]), (MAIN[0], 120))
     d = ImageDraw.Draw(frame)
-    d.text((24, 14), TITLE, font=font(31, True), fill=(118, 185, 0))
-    d.text((24, 64), SIMPLE, font=font(21), fill=(190, 190, 190))
+    d.text((24, 14), TITLE, font=fit(d, TITLE, 31, W - 48, True), fill=(118, 185, 0))
+    d.text((24, 66), SIMPLE, font=fit(d, SIMPLE, 21, W - 48), fill=(190, 190, 190))
+    d.rectangle((MAIN[0] + 4, 124, W - 4, 156), fill=(18, 20, 24))
     d.text((MAIN[0] + 14, 128), 'close-up: hex socket on the M20 nut', font=font(20), fill=(230, 230, 230))
-    d.rectangle((MAIN[0] - 150, 128, MAIN[0] - 10, 162), fill=(40, 44, 52))
-    d.text((MAIN[0] - 140, 133), speed, font=font(20, True), fill=(255, 210, 90))
+    d.rectangle((14, 132, 210, 166), fill=(40, 44, 52))
+    d.text((24, 137), speed, font=font(20, True), fill=(255, 210, 90))
     y = 608
     for text, color in lines:
-        d.text((MAIN[0] + 18, y), text, font=font(21), fill=color)
+        d.text((MAIN[0] + 18, y), text, font=fit(d, text, 21, W - MAIN[0] - 30), fill=color)
         y += 38
-    d.text((24, 856), header, font=font(28, True), fill=(255, 255, 255))
+    d.text((24, 856), header, font=fit(d, header, 28, 1240, True), fill=(255, 255, 255))
     for i, text in enumerate(footer):
-        d.text((24, 900 + 34 * i), text, font=font(22), fill=(200, 200, 200))
+        d.text((24, 900 + 34 * i), text, font=fit(d, text, 22, 1240), fill=(200, 200, 200))
     if clip_turns is not None:
-        x0, x1, yb = 24, 1240, 1040
+        x0, x1, yb = 24, 1000, 1040
         d.rectangle((x0, yb, x1, yb + 18), outline=(120, 120, 120))
         frac = max(0., min(1., clip_turns / requested))
         d.rectangle((x0, yb, x0 + (x1 - x0) * frac, yb + 18), fill=(118, 185, 0))
-        d.text((x1 + 12, yb - 6), f'{clip_turns:.3f} / {requested:g} turn', font=font(22), fill=(230, 230, 230))
+        d.text((x1 + 14, yb - 6), f'nut {clip_turns:.3f} / {requested:g} turn', font=font(22), fill=(230, 230, 230))
     if verdict is not None:
         text, color = verdict
         d.rectangle((1290, 860, 1906, 1066), fill=(30, 34, 40), outline=color, width=4)
         for i, line in enumerate(text):
-            d.text((1306, 872 + 38 * i), line, font=font(24 if i else 28, i == 0), fill=color if i == 0 else (235, 235, 235))
+            d.text((1306, 872 + 38 * i), line, font=fit(d, line, 26 if i == 0 else 22, 586, i == 0),
+                   fill=color if i == 0 else (235, 235, 235))
     return frame
 
 
@@ -231,19 +240,30 @@ class Encoder:
             raise RuntimeError('ffmpeg failed')
 
 
+def failure_reason(command):
+    """Human-readable cause of a non-verified command, from its recorded result."""
+    error = str(command.get('error') or command.get('reason') or '')
+    if 'observation_age' in error:
+        age = json.loads(error.split('observation_age=', 1)[1])
+        return [f"observation age {age['age_s']:.4f} s > {age['max_observation_age_s']} s at solve {age['step']}",
+                'host GC pause; the domain rejected the stale reading']
+    if command.get('rotation_before_stop_turns') is not None and command['rotation_before_stop_turns'] < .5:
+        return [f"nut rotation {command['rotation_before_stop_turns']:.4f} turn: pre-stop refuted",
+                'command lease expired; no turn, no advance']
+    return [error[:60]]
+
+
 def verdict_lines(command, label):
     ok = command.get('verified')
     color = (118, 185, 0) if ok else (235, 80, 70)
-    head = f'{label}: ' + ('CONFIRMED by the unchanged verifier' if ok else 'NOT VERIFIED')
-    lines = [head]
-    if command.get('rotation_before_stop_turns') is not None:
+    lines = [f'{label}: ' + ('CONFIRMED' if ok else 'NOT VERIFIED')]
+    if ok:
         lines.append(f"rotation before stop {command['rotation_before_stop_turns']:.3f} turn (>= 0.95)")
-    if command.get('final_rotation_turns') is not None:
         lines.append(f"final {command['final_rotation_turns']:.3f} turn, advance {command['axial_advance_m'] * 1000:.2f} mm")
         lines.append(f"contact-supported travel {command['contact_rotation_fraction'] * 100:.0f}%, rest "
                      f"{(command.get('rest') or {}).get('status')}")
-    elif command.get('error'):
-        lines.append(str(command['error'])[:52])
+    else:
+        lines += failure_reason(command)
     return lines, color
 
 
@@ -281,14 +301,14 @@ def main():
                       ('', 20, (0, 0, 0), False),
                       ('Asset: newton-assets unitree_g1 g1_29dof_with_hand_rev_1_0 (29 DoF + Dex3 hands). '
                        'Bolt/nut: Factory M20, 2.5 mm pitch.', 23, (170, 170, 170), False)])
-        encoder.write(intro, args.fps * 9)
+        encoder.write(intro, args.fps * 10)
         intro.save(args.stills / '00_intro.png')
         segments = []
         for index, episode in enumerate(episodes, 1):
             summary = json.loads((episode / 'summary.json').read_text())
             n = summary['commands_requested']
             label = f'Episode {index}/{len(episodes)}' + (' (two consecutive one-turn commands)' if n == 2 else '')
-            segments.append(('route', episode, summary, label, 1 if index == 1 else 3))
+            segments.append(('route', episode, summary, label, 1 if index == 1 else 2 if index == 2 else 3))
         if args.two_turn:
             segments.append(('two', args.two_turn, json.loads((args.two_turn / 'summary.json').read_text()),
                              'Standalone two-turn request (verify_threading, requested 2 turns)', 3))
@@ -342,11 +362,21 @@ def main():
                             and i > 0 and rows[i - 1]['phase'] == r['phase']:
                         frame.save(args.stills / name)
                         stills.append(name)
-            if frame is not None and shown is not None:
-                encoder.write(frame, args.fps * 2)
-                name = f'{directory.name if kind != "two" else "two_turn"}_verdict.png'
-                frame.save(args.stills / name)
-                stills.append(name)
+            if frame is not None:
+                # Hold the last frame with every verdict this segment has not shown yet.
+                pending = verdicts[stops - 1:] if stops and shown is not None else verdicts[stops:]
+                for index, verdict in enumerate(pending or [shown]):
+                    if verdict is None:
+                        continue
+                    r = rows[-1]
+                    held = compose(renderer.render(r['poses'], r['t']), label, lines, footer, verdict,
+                                   speed='1x (real time)' if speed == 1 else f'{speed}x speed',
+                                   clip_turns=r['turns'], requested=requested)
+                    encoder.write(held, args.fps * 3)
+                    tag = directory.name if kind == 'route' else ('two_turn' if kind == 'two' else 'no_drive')
+                    name = f'{tag}_verdict{"" if len(pending) < 2 else index + 1}.png'
+                    held.save(args.stills / name)
+                    stills.append(name)
             for c_index, (vlines, _) in enumerate(verdicts, 1):
                 table.append((label if len(verdicts) == 1 else f'{label} - command {c_index}', vlines))
         rows_text = [('Per-episode verifier outcome (this run)', 40, (118, 185, 0), True), ('', 14, (0, 0, 0), False)]
@@ -358,7 +388,7 @@ def main():
                       ('Not shown: standing balance, a physical finger grasp, tool pickup/engagement, seating/preload, hardware.',
                        23, (255, 210, 90), False)]
         outro = card(rows_text)
-        encoder.write(outro, args.fps * 10)
+        encoder.write(outro, args.fps * 12)
         outro.save(args.stills / '99_summary.png')
     finally:
         encoder.close()

@@ -29,7 +29,7 @@ source and scope; it does not certify a later checkout.
 
 - [Newton engine](NEWTON_ENGINE.md), [OVRTX renderer](OVRTX_RENDERER.md), [cuMotion](CUMOTION.md), [nvblox](NVBLOX.md)
 - [MicroDuck](MICRODUCK.md) and its [agentic demos](MICRODUCK_AGENTIC_DEMOS.md), [Unitree H2](HUMANOID_H2.md)
-- [Factory fastening](FACTORY_FASTENING_RUNTIME.md), [benchmarks](BENCHMARKS.md) (LIBERO layer attribution)
+- [Factory fastening](FACTORY_FASTENING_RUNTIME.md) and its [G1 humanoid variant](HUMANOID_FASTENING.md), [benchmarks](BENCHMARKS.md) (LIBERO layer attribution)
 
 ## Elsewhere in the repo
 

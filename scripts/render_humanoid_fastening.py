@@ -87,8 +87,9 @@ def display_scene(assets, robot_asset, cache):
 
 MAIN_CAMERA = ((1.05, -.75, .62), (.14, .08, .20))
 # Close-up in the HAND frame (x: thumb -> fingers, y: palm normal = down the driver), relative
-# to the top of the handle: from the index/middle side, above, slightly toward the index.
-CLOSE_OFFSET_HAND = (.20, -.11, .07)
+# to the top of the handle: level with the fingers, from the index/middle side, turned toward the
+# index so the thumb shows behind the handle (as in a photo of a person holding a screwdriver).
+CLOSE_OFFSET_HAND = (.19, .01, .17)
 
 
 class Renderer:
@@ -264,6 +265,8 @@ class Encoder:
 def failure_reason(command):
     """Human-readable cause of a non-verified command, from its recorded result."""
     error = str(command.get('error') or command.get('reason') or '')
+    if command.get('postcondition') == 'refuted':
+        return ['postcondition REFUTED by the verifier: ' + str(command.get('reason') or ''), error[:70]]
     if 'observation_age' in error:
         age = json.loads(error.split('observation_age=', 1)[1])
         return [f"observation age {age['age_s']:.4f} s > {age['max_observation_age_s']} s at solve {age['step']}",

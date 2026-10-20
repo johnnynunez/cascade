@@ -24,8 +24,8 @@ Status:
    [unverified](#ordinary-turn_screw-result).
 3. Shipped profiles stay inert: `device: null` and `model_identity_sha256: null` until a private
    profile pins them.
-4. **Humanoid variant (simulation):** a Unitree G1 turns the same nut with a hand-held driver by
-   rolling its wrist, through the same tool and unchanged verifier
+4. **Humanoid variant (simulation):** a Unitree G1 turns the same nut with a hand-held driver held by
+   a three-finger Dex3 contact grasp (no weld), through the same tool and unchanged verifier
    ([HUMANOID_FASTENING.md](HUMANOID_FASTENING.md), recipe `g1_wrist_driver_m20_v1`).
 
 ## Native mounted turn and rest, 2026-10-04

@@ -655,6 +655,27 @@ def test_a_reconnect_never_makes_an_older_capture_first_received_again(through):
     assert resent.observed_t == newer.t
 
 
+def test_the_stream_remembers_the_most_recently_served_producer_clocks():
+    """At most FIRST_RECEIPT_CLOCKS clocks (one per sim a stream was served
+    from), the least recently updated dropped first: a clock served again
+    stays."""
+    from cascade.perception import stream as stream_mod
+
+    stream = CameraStream(camera=None, name="isaac")
+    n = stream_mod.FIRST_RECEIPT_CLOCKS
+    for i in range(n):
+        stream._note_first_receipt(_isaac_frame(10.0, robot_id=f"sim{i}"))
+    stream._note_first_receipt(_isaac_frame(11.0, robot_id="sim0"))   # sim0 served again: the newest
+    stream._note_first_receipt(_isaac_frame(10.0, robot_id="one-more"))  # drops sim1, the least recent
+    assert len(stream._first_receipts) == n
+    kept = _isaac_frame(11.0, robot_id="sim0")
+    stream._note_first_receipt(kept)
+    assert kept.observed_t is not None, "sim0 was kept"
+    dropped = _isaac_frame(10.0, robot_id="sim1")
+    stream._note_first_receipt(dropped)
+    assert dropped.observed_t is None, "sim1 was dropped: its own first receipt again"
+
+
 def test_local_frames_are_never_restamped():
     from cascade.perception.freshness import observed_at
     from cascade.types import Frame

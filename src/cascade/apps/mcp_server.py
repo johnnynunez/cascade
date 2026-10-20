@@ -92,8 +92,10 @@ lost. Likewise, `notifications/cancelled` for an in-flight MOTION tool (Esc
 in Claude Code mid-pick) means "stop the robot", not "orphan the motion
 server-side and keep moving". `ping` is also answered from the reader so
 host keepalives don't starve behind a motion. SIGINT latches the e-stop too
-(freeze, no free-fall); a second SIGINT exits -- which disables torque on
-the RS arm, so park it first. SIGUSR1 clears the e-stop: that is the STAFF
+(freeze, no free-fall); a second SIGINT exits. Teardown cuts torque (so101,
+the RS arms) only on an arm its park brought to rest: an e-stopped or
+refused park leaves the arm powered and holding, said in server.log, so park
+it first (`apps.demo.TORQUE_OFF_CONFIRM_ENV`). SIGUSR1 clears the e-stop: that is the STAFF
 reset channel when reset_stop is hidden from attendees
 (`pkill -USR1 -f cascade.apps.mcp_server` requires shell access to the
 rig, which is exactly the staff/attendee boundary).
@@ -854,7 +856,7 @@ class McpSkillServer:
             if self._runtime is not None:
                 from ..apps.demo import shutdown_runtime
 
-                stages.append(teardown_step("runtime", lambda: shutdown_runtime(self._runtime, self._arm)))
+                stages.append(teardown_step("runtime", lambda: self._teardown_exclusive(shutdown_runtime)))
         receipt = teardown_receipt(stages)
         receipt.update(pid=os.getpid(), runtime_built=self._runtime is not None)
         receipt = retain_teardown_attempt(previous, receipt)
@@ -871,6 +873,30 @@ class McpSkillServer:
             print(f"[cascade-mcp] teardown receipt could not be saved: {receipt}", file=sys.stderr)
         self._shutdown_receipt = copy.deepcopy(receipt)
         return receipt
+
+    def _teardown_exclusive(self, shutdown_runtime) -> dict:
+        """`shutdown_runtime` under `_exec_lock`: its park is a motion, and two
+        motions must never share one arm's harness (#422 review follow-up 1:
+        a concurrent motion's end_motion() could hide this one's start). Every
+        other arm motion in this server runs under the lock (a tool call, the
+        dashboard's reflex chat and resume, a program). Admission is closed
+        already, so nothing new starts; a motion still running is halted
+        first (the operator's halt, not the e-stop: it ends at its next
+        waypoint and the park may still run) and its call waited for."""
+        if not self._exec_lock.acquire(blocking=False):
+            rt = self._runtime
+            rig = getattr(rt, "arm_rig", None)
+            for safe in (list(rig) if rig is not None else [getattr(rt, "arm", None)]):
+                harness = getattr(safe, "__dict__", {}).get("harness")  # never a backend probe
+                if callable(getattr(harness, "halt", None)):
+                    harness.halt("server shutting down")
+            print("[cascade-mcp] teardown: halted the motion still running; waiting for its call to end "
+                  "before the park", file=sys.stderr)
+            self._exec_lock.acquire()
+        try:
+            return shutdown_runtime(self._runtime, self._arm)
+        finally:
+            self._exec_lock.release()
 
     # ── out-of-band stop/reset (called from the stdin thread / signals) ──
 

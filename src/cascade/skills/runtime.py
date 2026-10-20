@@ -2314,23 +2314,26 @@ class SkillRuntime:
         harness = getattr(arm, "harness", None)
         return bool(getattr(harness, "estopped", False) or getattr(harness, "halted", None))
 
-    def _motions_begun(self) -> int | None:
-        """The running arm's counted motion starts (`SafetyHarness.motions_begun`:
-        a motion counts at its first APPROVED command), or None for a harness
-        double that does not count."""
-        n = getattr(getattr(self.arm, "harness", None), "motions_begun", None)
+    def _approved_commands(self) -> int | None:
+        """The running arm's approved commands so far
+        (`SafetyHarness.approved_commands`: one per command approve() cleared,
+        over every motion), or None for a harness double that does not count."""
+        n = getattr(getattr(self.arm, "harness", None), "approved_commands", None)
         return n if type(n) is int else None
 
     def _refused_before_motion(self, exc: BaseException, before: int | None) -> bool:
         """`exc` is the move's own refusal before its first approved command:
-        the running arm's harness counted no motion start since `before`, and
-        `exc` is a refusal -- a SafetyViolation (the e-stop, halt or watchdog
-        check at the motion's start, a preflight) or a SkillError (a route
-        preflight that found no safe route) -- not an attachment loss and not
-        raised from any other exception (a backend fault: `raise
+        the running arm's harness approved no command since `before` (taken
+        with `_approved_commands` right before the move), and `exc` is a
+        refusal -- a SafetyViolation (the e-stop, halt or watchdog check at
+        the motion's start, a preflight) or a SkillError (a route preflight
+        that found no safe route) -- not an attachment loss and not raised
+        from any other exception (a backend fault: `raise
         SafetyViolation(...) from TypeError`). The arm did not move, so the
         caller stops nothing: `arm.stop()` would latch an e-stop only the
-        operator can clear (#414 review Important 1). An unknown count (a
+        operator can clear (#414 review Important 1). The count is of
+        commands, never the `motions_begun` flag a concurrent motion's
+        end_motion() clears (#422 review Minor 1). An unknown count (a
         harness double) is never "before"."""
         if before is None or isinstance(exc, carry_attachment.AttachmentInvalid):
             return False
@@ -2342,7 +2345,7 @@ class SkillRuntime:
                 return False
             link = link.__cause__ if link.__cause__ is not None else (
                 None if link.__suppress_context__ else link.__context__)
-        return SkillRuntime._motions_begun(self) == before
+        return SkillRuntime._approved_commands(self) == before
 
     def _latched_note(self, error) -> str:
         """What a failed move's `error` text adds once its `arm.stop()` latched
@@ -2350,6 +2353,22 @@ class SkillRuntime:
         twice (an e-stop that ended the move already says so)."""
         latched = getattr(getattr(self.arm, "harness", None), "estopped", False) is True
         return "; e-stop latched" if latched and "e-stop latched" not in str(error) else ""
+
+    def _raise_home_move_failure(self, exc: BaseException, before: int | None):
+        """The grasp's pre-grasp home move (or its route check before the jaw
+        opening) raised `exc`; `before`: `_approved_commands` right before it.
+        Refused at its start (the watchdog, the e-stop, a route preflight):
+        the arm did not move, so no stop and no latch; the refusal raised as
+        itself, the e-stop's if one is latched (#414 review Important 1).
+        Started (it may have stopped anywhere) or a fault outside the safety
+        checks: stop, which latches, and say so. Always raises."""
+        if SkillRuntime._refused_before_motion(self, exc, before):
+            if getattr(getattr(self.arm, "harness", None), "estopped", False) is True:
+                raise SafetyViolation("e-stop latched") from exc
+            raise exc
+        self.arm.stop()
+        raise SkillError(f"home move failed before pregrasp: {exc}"
+                         f"{SkillRuntime._latched_note(self, exc)}") from exc
 
     def _halted_since_skill_start(self, baselines=None) -> bool:
         """An operator halt arrived since the running motion skill started,
@@ -2463,7 +2482,7 @@ class SkillRuntime:
             self._show_status("Returning to the saved camera-view home")
             carry_attachment.check(self)
             halt_kw = {} if halt_generation is None else {"_halt_generation": halt_generation}
-            before = SkillRuntime._motions_begun(self)
+            before = SkillRuntime._approved_commands(self)
             try:
                 settled = self._move_carry(home, duration_s=3.0, **halt_kw)
             except MotionHalted:
@@ -3770,7 +3789,7 @@ class SkillRuntime:
         if getattr(self, "_contact_episode", None) is not None:
             return "unfinished contact episode; explicit reset_scene recovery required"
         if self.arm.harness.estopped:
-            return "e-stop latched; not retrying"
+            return _ESTOP_STOP
         if getattr(self, "_held_provisional", None) is not None and not self.held_object:
             # The attempt ended after its close and the jaws cannot be read
             # (`_held_after_failed_attempt` kept the hold): every next grasp
@@ -3973,7 +3992,7 @@ class SkillRuntime:
                 break
             stop = self._grasp_retry_verdict(object, attempt, last_err)
             if stop:
-                last_err += f" ({stop})"
+                last_err = _with_stop_reason(last_err, stop)
                 break
         out = {"ok": False, "held": False, "error": last_err, "grasp_attempts": attempt}
         # Same contract as pick_and_place: budget spent or a reason no retry
@@ -5957,9 +5976,21 @@ class SkillRuntime:
         before_motion = getattr(harness, "check_before_motion", None)
         if callable(before_motion):
             before_motion(**({"halt_generation": scene_halt_generation} if scene_enabled else {}))
+        _home = self.cfg.arm.get("home_q")
+        preflight = getattr(self.arm, "preflight_planned", None)
+        if _home is not None and not preserve_view_home and scene_gate is None and callable(preflight):
+            # ... and the home move's route (no command): a route or workspace
+            # refusal then costs no jaw command either (#422 review Minor 5).
+            # The move plans its own route again; this check authorizes nothing.
+            begun = SkillRuntime._approved_commands(self)
+            try:
+                preflight(np.asarray(_home, dtype=float), duration_s=1.5)
+            except MotionHalted:
+                raise
+            except Exception as exc:
+                SkillRuntime._raise_home_move_failure(self, exc, begun)
         self._set_gripper(open_pos, effort=0.8,
                              **({"_halt_generation": scene_halt_generation} if scene_enabled else {}))
-        _home = self.cfg.arm.get("home_q")
         if _home is not None and not preserve_view_home:
             grasp_evidence.phase("home")
             grasp_evidence.event("move_target", q=_home, duration_s=1.5)
@@ -5968,7 +5999,7 @@ class SkillRuntime:
                                             **_scene_motion(np.asarray(_home, dtype=float))):
                     raise SkillError("did not settle at required observed-finger home pose")
             else:
-                begun = SkillRuntime._motions_begun(self)
+                begun = SkillRuntime._approved_commands(self)
                 try:
                     settled_home = self._move_planned(np.asarray(_home, dtype=float), duration_s=1.5)
                 except MotionHalted:
@@ -5976,19 +6007,7 @@ class SkillRuntime:
                     # ends the grasp as itself, without latching (A3 review).
                     raise
                 except Exception as exc:
-                    if SkillRuntime._refused_before_motion(self, exc, begun):
-                        # Refused at its start (the watchdog, the e-stop, a
-                        # route preflight): the arm did not move, so no stop
-                        # and no latch; the refusal as itself, the e-stop's
-                        # if one is latched (#414 review Important 1).
-                        if getattr(harness, "estopped", False) is True:
-                            raise SafetyViolation("e-stop latched") from exc
-                        raise
-                    # Started (it may have stopped anywhere) or a fault
-                    # outside the safety checks: stop, which latches.
-                    self.arm.stop()
-                    raise SkillError(f"home move failed before pregrasp: {exc}"
-                                     f"{SkillRuntime._latched_note(self, exc)}") from exc
+                    SkillRuntime._raise_home_move_failure(self, exc, begun)
                 if not settled_home:
                     self.arm.stop()
                     raise SkillError("did not settle at home pose before pregrasp"
@@ -7968,7 +7987,7 @@ class SkillRuntime:
                 # minutes on those reads as a hang at a live booth.
                 stop = self._grasp_retry_verdict(object, attempt, last_err)
                 if stop:
-                    last_err += f" ({stop})"
+                    last_err = _with_stop_reason(last_err, stop)
                     break
             if grasp is None:
                 # Never leave the arm hanging mid-pose over the table after a
@@ -8091,7 +8110,7 @@ class SkillRuntime:
                         # reason instead of spending minutes retrying.
                         break
                     if self.arm.harness.estopped:
-                        place_err += " (e-stop latched; not retrying)"
+                        place_err = _with_stop_reason(place_err, _ESTOP_STOP)
                         break
                     if _is_contact(place_err):
                         place_err += " (contact detected: something blocked the arm; not retrying into it)"
@@ -11635,6 +11654,18 @@ def _contact_result(arm) -> dict:
         "holds where it was blocked (torque on). Do not retry the same motion or re-plan to the "
         "same spot: tell the user, ask them to clear the obstacle, then call reset_scene "
         "(that also lifts the fence around the spot).")}
+
+
+_ESTOP_STOP = "e-stop latched; not retrying"
+
+
+def _with_stop_reason(error: str, stop: str) -> str:
+    """`error` plus the retry loop's reason to stop, in brackets. A latch the
+    error already names (a failed move's "; e-stop latched") is not named
+    twice: "...; e-stop latched (not retrying)" (#422 review Minor 2)."""
+    if stop == _ESTOP_STOP and "e-stop latched" in error:
+        stop = "not retrying"
+    return f"{error} ({stop})"
 
 
 def _is_human_curable(stop_reason: str | None) -> bool:

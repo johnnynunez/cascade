@@ -135,6 +135,19 @@ class ArmBase(abc.ABC):
         """
         return False
 
+    @property
+    def disconnect_cuts_torque(self) -> bool:
+        """Whether disconnect() may leave the arm without torque, so a raised
+        arm drops: a serial bus's torque-off (so101), an SDK's disable
+        (rebot_rs). Teardown then disconnects such an arm only after its park
+        brought it to rest, or on the operator's explicit confirmation
+        (`apps.demo.TORQUE_OFF_CONFIRM_ENV`); otherwise it stays powered and
+        holding. True unless the backend states otherwise: one whose
+        disconnect only releases transport (`disconnect_preserves_drive_state`),
+        leaves a controller holding the arm, or drives no hardware.
+        """
+        return not self.disconnect_preserves_drive_state
+
     @abc.abstractmethod
     def connect(self) -> None: ...
 

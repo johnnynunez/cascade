@@ -633,6 +633,9 @@ class MujocoArm(ArmBase):
             self._engine = None
         self._connected = False
 
+    #: A simulation: closing the engine drops no physical arm.
+    disconnect_cuts_torque = False
+
     @property
     def mjcf_path(self) -> str:
         """The scene this arm simulates (post scene generation), so a camera

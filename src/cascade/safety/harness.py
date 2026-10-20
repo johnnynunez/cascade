@@ -174,6 +174,10 @@ ESCAPE_MAX_INTERIOR_SAMPLES = 16
 #: Serializes `SafetyHarness.heartbeat`'s read-compare-write (the watcher
 #: thread and the skill runtime both beat; one module lock, held for a compare).
 _HEARTBEAT_LOCK = threading.Lock()
+#: Serializes `SafetyHarness.approved_commands`'s increment: two motions on
+#: one harness (a bug of its own) must never lose a count, or a started move
+#: could read as "refused before any command".
+_APPROVED_LOCK = threading.Lock()
 
 
 class GateCtx(NamedTuple):
@@ -289,6 +293,16 @@ class SafetyHarness:
     #: True from a successful begin_motion until that motion's first
     #: approved waypoint (or its end_motion).
     _motion_uncounted: bool = False
+    #: Every command approve() cleared to go, over every motion and thread:
+    #: one per approved waypoint, never for a refused approve, a vetted
+    #: (preflight) step or begin/end_motion. Monotonic. A handler compares it
+    #: before/after its move to tell "refused before any command" from "the
+    #: move started" (`SkillRuntime._refused_before_motion`): unlike
+    #: `motions_begun`, whose one shared flag ANY end_motion clears, no
+    #: concurrent motion can hide a start from it (#422 review Minor 1); a
+    #: concurrent motion's commands only ever make a refusal read as started,
+    #: the side that stops and latches.
+    approved_commands: int = 0
 
     def __init__(self, limits: SafetyLimits, kinematics=None, occupancy=None,
                  base_pose=None, tool_volume=None, arm_name: str | None = None):
@@ -1161,6 +1175,8 @@ class SafetyHarness:
         neighbours) still runs at full strength.
         """
         self._approve_step(q_prev, q_next, dt, joint_margin, self._reject, True)
+        with _APPROVED_LOCK:
+            self.approved_commands += 1
         if self._motion_uncounted:
             # The motion's first command is cleared to go: it has started.
             self._motion_uncounted = False
@@ -2116,6 +2132,23 @@ class SafeArm:
             if self.harness.estopped:
                 raise SafetyViolation("e-stop latched") from None
             raise
+
+    def preflight_planned(self, q_target: np.ndarray, duration_s: float = 3.0, *, rate_hz=None) -> None:
+        """move_planned's route check without a command: plan the route from
+        the measured joints and raise its refusal (SkillError: no safe route;
+        SafetyViolation) for a command that goes out only for that move (the
+        grasp's pre-grasp jaw opening before its home move), so a refused
+        route costs no command at all (#422 review Minor 5). Authorizes
+        nothing: move_planned plans and vets its own route again from the
+        joints measured when it starts, and every step is approved live. A
+        planner-bound arm plans inside move_joints: nothing to check here."""
+        if self.motion_planner is not None:
+            return
+        from .trajectory import plan_route
+        from ..control.motion_profile import resolve_motion_rate
+
+        start = self.get_state().q
+        plan_route(self.harness, start, q_target, duration_s, rate_hz=resolve_motion_rate(self._arm, rate_hz))
 
     def move_planned(self, q_target: np.ndarray, duration_s: float = 3.0, *,
                      _halt_generation=None, rate_hz=None) -> bool:

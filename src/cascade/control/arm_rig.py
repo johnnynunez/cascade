@@ -106,13 +106,22 @@ class ArmRig:
                     pass
             raise
 
-    def disconnect(self) -> dict:
-        """Disconnect every arm and retain each result; never short-circuit."""
+    def disconnect(self, *, hold: dict | None = None) -> dict:
+        """Disconnect every arm and retain each result; never short-circuit.
+
+        `hold`: arm name -> why it stays connected, powered and holding
+        instead (teardown's refused park, `apps.demo._arms_to_hold`): its
+        stage is incomplete (`holding`, `TorqueHeld`), never a disconnect.
+        """
         from ..lifecycle import teardown_receipt, teardown_step
 
         stages = []
         for name in self._order:
-            stage = teardown_step(name, self.arms[name].disconnect)
+            if hold and name in hold:
+                stage = {"stage": name, "ok": False, "complete": False, "holding": True,
+                         "errors": [{"type": "TorqueHeld", "message": hold[name]}]}
+            else:
+                stage = teardown_step(name, self.arms[name].disconnect)
             stages.append(stage)
             if not stage["ok"]:
                 print(f"[armrig] disconnect {name}: {stage}", file=sys.stderr)

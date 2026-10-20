@@ -229,16 +229,57 @@ def test_a_driver_repeating_its_last_buffer_never_re_arms_the_watchdog(make_runt
     assert out["ok"] is False and sent == {name: 0 for name in sent}, out
 
 
+def _jaw_counter(rt):
+    """name -> jaw commands each raw MockArm received from now on (a live dict)."""
+    counts = {}
+    for name, safe in rt.arm_rig.arms.items():
+        raw = raw_arm(safe)
+        counts[name] = 0
+        real = raw.set_gripper
+
+        def counted(*a, _real=real, _name=name, **k):
+            counts[_name] += 1
+            return _real(*a, **k)
+
+        raw.set_gripper = counted
+    return counts
+
+
+def _revive(rt):
+    """Undo `_kill`: the drivers deliver again; wait until the watcher processed new frames."""
+    for c in rt.watcher._cams:
+        for attr in ("get_frame", "_grab"):
+            vars(c.stream._camera).pop(attr, None)
+    t0, deadline = rt.watcher.ticks, time.monotonic() + 10.0
+    while rt.watcher.ticks < t0 + 3 and time.monotonic() < deadline:
+        time.sleep(0.02)
+    assert rt.watcher.ticks >= t0 + 3, "the camera did not come back"
+
+
+PIXEL = {"u": 320, "v": 230}
+
+
 def test_grasp_at_pixel_on_a_dead_camera_sends_nothing(make_runtime, monkeypatch):  # noqa: F811
-    """In-skill observe() (grasp_at_pixel): main grasped on the 8.7 s-old frame (411 commands)."""
+    """In-skill observe() (grasp_at_pixel): base grasped on the 8.7 s-old frame (411 commands); #414
+    refused at the pre-grasp home move, AFTER the jaws opened, and latched the e-stop (the home
+    move's handler stopped the arm), so every later call read "e-stop latched" until an operator
+    reset. Now the stale watchdog refuses before the jaw opening: no arm, no jaw command, no latch,
+    and the grasp goes ahead once the camera is back."""
     rt = _mock(make_runtime)
     _short_waits(rt, monkeypatch)
+    jaws = _jaw_counter(rt)
     rt.observe()
     _kill(rt)
-    out, sent = _call(rt, "grasp_at_pixel", {"u": 320, "v": 230})
+    out, sent = _call(rt, "grasp_at_pixel", PIXEL)
     assert out["ok"] is False, out
     assert sent == {name: 0 for name in sent}
-    assert "perception watchdog" in str(out.get("error")), out
+    assert jaws == {name: 0 for name in jaws}
+    assert not any(h.estopped for h in _harnesses(rt).values())
+    assert str(out.get("error")).startswith("SafetyViolation: perception watchdog: last observation "), out
+    _revive(rt)
+    out, sent = _call(rt, "grasp_at_pixel", PIXEL)
+    assert out["ok"] is True, out
+    assert all(n > 0 for n in sent.values()), sent
 
 
 def test_live_camera_control_still_moves(make_runtime, monkeypatch):  # noqa: F811
@@ -470,6 +511,20 @@ def test_a_grasp_retry_loop_ending_on_a_stale_frame_names_the_camera():
         "the camera stopped delivering frames; no automatic motion recovery")
     assert _perception_stop(SlowPerceptionError("Perception took 6.0s"), 1) == (
         "localization analysis expired; no automatic motion recovery")
+
+
+def test_a_grasp_retry_loop_ends_on_a_watchdog_refusal():
+    """The watchdog's refusal of a grasp no longer latches the e-stop, which is what ended a retry
+    loop before (`_grasp_retry_verdict`): it ends the loop itself, as a stale frame does. Another
+    refusal, or the operator's halt, keeps its own rule."""
+    from cascade.skills.runtime import _perception_stop
+    from cascade.types import MotionHalted, SafetyViolation
+
+    assert _perception_stop(SafetyViolation("perception watchdog: last observation 6.6s old"), 1) == (
+        "the perception watchdog refused the motion; no automatic motion recovery")
+    assert _perception_stop(SafetyViolation("perception watchdog: no observation yet"), 1) is not None
+    assert _perception_stop(SafetyViolation("TCP [0.9, 0.0, 0.1] outside workspace"), 1) is None
+    assert _perception_stop(MotionHalted("perception watchdog: halted"), 1) is None
 
 
 def test_slow_analysis_of_a_fresh_frame_keeps_its_own_text():

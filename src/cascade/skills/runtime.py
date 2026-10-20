@@ -1112,6 +1112,12 @@ def _perception_stop(exc: BaseException, attempt: int) -> str | None:
         what = "the scene changed while the object was localized"
     elif isinstance(exc, StaleFrameError):
         what = "the camera stopped delivering frames"
+    elif (isinstance(exc, SafetyViolation) and not isinstance(exc, MotionHalted)
+          and str(exc).startswith("perception watchdog:")):
+        # The arm's watchdog refused the attempt before any motion. It no
+        # longer latches the e-stop (#414 review Important 1), which ended
+        # the loop before; a re-home would be refused alike.
+        what = "the perception watchdog refused the motion"
     elif isinstance(exc, SlowPerceptionError):
         what = "localization analysis expired"
     elif isinstance(exc, ReanchorError) and attempt >= 2:
@@ -2308,6 +2314,43 @@ class SkillRuntime:
         harness = getattr(arm, "harness", None)
         return bool(getattr(harness, "estopped", False) or getattr(harness, "halted", None))
 
+    def _motions_begun(self) -> int | None:
+        """The running arm's counted motion starts (`SafetyHarness.motions_begun`:
+        a motion counts at its first APPROVED command), or None for a harness
+        double that does not count."""
+        n = getattr(getattr(self.arm, "harness", None), "motions_begun", None)
+        return n if type(n) is int else None
+
+    def _refused_before_motion(self, exc: BaseException, before: int | None) -> bool:
+        """`exc` is the move's own refusal before its first approved command:
+        the running arm's harness counted no motion start since `before`, and
+        `exc` is a refusal -- a SafetyViolation (the e-stop, halt or watchdog
+        check at the motion's start, a preflight) or a SkillError (a route
+        preflight that found no safe route) -- not an attachment loss and not
+        raised from any other exception (a backend fault: `raise
+        SafetyViolation(...) from TypeError`). The arm did not move, so the
+        caller stops nothing: `arm.stop()` would latch an e-stop only the
+        operator can clear (#414 review Important 1). An unknown count (a
+        harness double) is never "before"."""
+        if before is None or isinstance(exc, carry_attachment.AttachmentInvalid):
+            return False
+        seen = set()
+        link = exc
+        while link is not None and id(link) not in seen:
+            seen.add(id(link))
+            if not isinstance(link, (SafetyViolation, SkillError)):
+                return False
+            link = link.__cause__ if link.__cause__ is not None else (
+                None if link.__suppress_context__ else link.__context__)
+        return SkillRuntime._motions_begun(self) == before
+
+    def _latched_note(self, error) -> str:
+        """What a failed move's `error` text adds once its `arm.stop()` latched
+        the e-stop (`SafeArm.stop()`): a latch is never silent, and never said
+        twice (an e-stop that ended the move already says so)."""
+        latched = getattr(getattr(self.arm, "harness", None), "estopped", False) is True
+        return "; e-stop latched" if latched and "e-stop latched" not in str(error) else ""
+
     def _halted_since_skill_start(self, baselines=None) -> bool:
         """An operator halt arrived since the running motion skill started,
         even one withdrawn again (a Resume): the skill ended on it (A3).
@@ -2420,7 +2463,20 @@ class SkillRuntime:
             self._show_status("Returning to the saved camera-view home")
             carry_attachment.check(self)
             halt_kw = {} if halt_generation is None else {"_halt_generation": halt_generation}
-            if not self._move_carry(home, duration_s=3.0, **halt_kw):
+            before = SkillRuntime._motions_begun(self)
+            try:
+                settled = self._move_carry(home, duration_s=3.0, **halt_kw)
+            except MotionHalted:
+                raise
+            except Exception as exc:
+                if SkillRuntime._refused_before_motion(self, exc, before):
+                    # Refused at its start (the watchdog, the e-stop, a route
+                    # preflight): the arm did not move, so nothing is latched;
+                    # skipped like the freshness check above (#414 review I1).
+                    return {"ok": False, "status": "skipped",
+                            "reason": SkillRuntime._refused_return_reason(self, exc)}
+                raise
+            if not settled:
                 raise SkillError("did not settle at the saved home pose")
             reason = self._home_return_skip_reason()
             if reason:
@@ -2443,11 +2499,25 @@ class SkillRuntime:
             # (a halt is not the e-stop).
             return {"ok": False, "status": "halted", "reason": str(exc)}
         except Exception as exc:
+            # The move started (it may have stopped anywhere) or met a fault
+            # outside the safety checks: stop, which latches the e-stop.
             try:
                 self.arm.stop()
             except Exception as stop_error:
                 logger.error("Stopping after a failed home return failed: %s", stop_error)
-            return {"ok": False, "status": "failed", "error": f"{type(exc).__name__}: {exc}"}
+            return {"ok": False, "status": "failed",
+                    "error": f"{type(exc).__name__}: {exc}{SkillRuntime._latched_note(self, exc)}"}
+
+    def _refused_return_reason(self, exc: BaseException) -> str:
+        """The skip reason of a view-home return its move refused before its
+        first command: the e-stop as itself, the perception watchdog as the
+        missing home perception (as the freshness check says it), else the
+        refusal."""
+        if getattr(getattr(self.arm, "harness", None), "estopped", False) is True:
+            return "e-stop latched"
+        if isinstance(exc, SafetyViolation) and str(exc).startswith("perception watchdog:"):
+            return f"home perception unavailable: {exc}"
+        return f"refused before any motion: {type(exc).__name__}: {exc}"
 
     def execute(self, name: str, args: dict) -> dict:
         """Dispatch with task obligations covering all tiers and preparation faults.
@@ -5296,6 +5366,12 @@ class SkillRuntime:
         `_observed_selection_on_failure` wrapper.
         """
         scene_enabled = os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1"
+        # A latched e-stop refuses the grasp as itself, before any work: its
+        # candidates' vets all read "e-stop latched", and the agent was told
+        # "NoExecutableGrasp ... approach unsafe: e-stop latched" four times
+        # over, a planning failure it may retry (#414 review Important 1).
+        if getattr(getattr(self.arm, "harness", None), "estopped", False) is True:
+            raise SafetyViolation("e-stop latched")
         # R5: another arm's provisional hold keeps its slot: refused before
         # any work, the VLA route included.
         SkillRuntime._refuse_on_another_arms_provisional(self, "grasp_object")  # runtime doubles too
@@ -5864,6 +5940,14 @@ class SkillRuntime:
             from ..grasping.force import pregrasp_open_position
             open_pos = pregrasp_open_position(
                 grasp.width_m, margin, self._grip_open, self._grip_closed, self._max_width)
+        # The opening goes out only for the arm moves after it: their
+        # begin_motion refusals first (the e-stop, a halt since the skill
+        # started, the perception watchdog), so a dead camera sends no jaw
+        # command either (#414 review Minor 2). A harness double without the
+        # check keeps today's order.
+        before_motion = getattr(harness, "check_before_motion", None)
+        if callable(before_motion):
+            before_motion(**({"halt_generation": scene_halt_generation} if scene_enabled else {}))
         self._set_gripper(open_pos, effort=0.8,
                              **({"_halt_generation": scene_halt_generation} if scene_enabled else {}))
         _home = self.cfg.arm.get("home_q")
@@ -5875,6 +5959,7 @@ class SkillRuntime:
                                             **_scene_motion(np.asarray(_home, dtype=float))):
                     raise SkillError("did not settle at required observed-finger home pose")
             else:
+                begun = SkillRuntime._motions_begun(self)
                 try:
                     settled_home = self._move_planned(np.asarray(_home, dtype=float), duration_s=1.5)
                 except MotionHalted:
@@ -5882,11 +5967,23 @@ class SkillRuntime:
                     # ends the grasp as itself, without latching (A3 review).
                     raise
                 except Exception as exc:
+                    if SkillRuntime._refused_before_motion(self, exc, begun):
+                        # Refused at its start (the watchdog, the e-stop, a
+                        # route preflight): the arm did not move, so no stop
+                        # and no latch; the refusal as itself, the e-stop's
+                        # if one is latched (#414 review Important 1).
+                        if getattr(harness, "estopped", False) is True:
+                            raise SafetyViolation("e-stop latched") from exc
+                        raise
+                    # Started (it may have stopped anywhere) or a fault
+                    # outside the safety checks: stop, which latches.
                     self.arm.stop()
-                    raise SkillError(f"home move failed before pregrasp: {exc}") from exc
+                    raise SkillError(f"home move failed before pregrasp: {exc}"
+                                     f"{SkillRuntime._latched_note(self, exc)}") from exc
                 if not settled_home:
                     self.arm.stop()
-                    raise SkillError("did not settle at home pose before pregrasp")
+                    raise SkillError("did not settle at home pose before pregrasp"
+                                     f"{SkillRuntime._latched_note(self, '')}")
         grasp_evidence.phase("pregrasp")
         grasp_evidence.event("move_target", q=q_pre, duration_s=gcfg.get("move_duration_s", 2.5))
         # The observed gate vets the exact direct profile; the mapping-only

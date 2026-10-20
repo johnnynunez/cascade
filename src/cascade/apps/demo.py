@@ -1090,6 +1090,14 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
     # Whose watchdogs each camera's frames feed, for the runtime's own frame
     # grabs (`SkillRuntime._mark_perception_fresh`), the rule the watcher uses.
     runtime._watchdog_feeds = tuple((cam.stream, cam.watchdog_feed) for cam in watched)
+    # Every harness is built stale (no observation yet): the warm-up's frames
+    # are the first real observations, fed by that same rule, so a live
+    # camera moves on the first call, before the watcher's first tick (or with
+    # no watcher). A camera with no frame yet feeds nothing.
+    for cam in watched:
+        latest = cam.stream.latest()
+        if latest is not None:
+            runtime._mark_perception_fresh(latest, cam.stream)
     # Each other arm's own Kinematics (the one its harness uses) and resolved
     # profile, bound by execute(arm=<name>) for that call (spec Q4 a, D3). The
     # primary keeps the runtime's own `kin` / `cfg`.

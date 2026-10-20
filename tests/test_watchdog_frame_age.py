@@ -676,6 +676,106 @@ def test_the_stream_remembers_the_most_recently_served_producer_clocks():
     assert dropped.observed_t is None, "sim1 was dropped: its own first receipt again"
 
 
+def _bridge_frame(stamp, run, robot_id="r"):
+    """`_isaac_frame` as scripts/isaac_bridge.py sends it: `proprioception.producer_epoch` names the bridge's run of
+    its physics clock (a new uuid at every bridge start and frame-history invalidation)."""
+    frame = _isaac_frame(stamp, robot_id=robot_id)
+    frame.capture["proprioception"]["producer_epoch"] = run
+    return frame
+
+
+def test_a_remote_sim_restart_is_first_received_at_once_under_its_new_producer_epoch():
+    """#425 review Minor 1: a remote sim host rebooted while the stream ran, and its physics clock started again
+    from 10 s on the same bridge address. Keyed on the robot and the clock alone, every new render read as a re-send
+    of the old run's newest capture (dated at that capture's first receipt), until the new clock passed the old
+    one: on a remote host, until the robot server restarted. The bridge's run (`producer_epoch`) is part of the
+    clock: the new run's captures are first received when they arrive, its re-sends keep theirs, and the old run's
+    frozen capture keeps its own."""
+    from cascade.perception.freshness import observed_at
+
+    stream = CameraStream(camera=None, name="isaac")
+    old = _bridge_frame(5000.0, "run-1")
+    old.t -= 8.0
+    stream._note_first_receipt(old)
+    rebooted = _bridge_frame(10.0, "run-2")
+    stream._note_first_receipt(rebooted)
+    assert rebooted.observed_t is None and observed_at(rebooted) == rebooted.t
+    resent = _bridge_frame(10.0, "run-2")
+    stream._note_first_receipt(resent)
+    assert resent.observed_t == rebooted.t
+    newer = _bridge_frame(10.5, "run-2")
+    stream._note_first_receipt(newer)
+    assert newer.observed_t is None
+    frozen = _bridge_frame(5000.0, "run-1")
+    stream._note_first_receipt(frozen)
+    assert frozen.observed_t == old.t, "the old run's capture keeps its first receipt"
+
+
+@pytest.mark.parametrize("run", ["no_epoch", "the_same_epoch"])
+def test_a_producer_clock_that_goes_back_within_one_run_reads_as_re_sends(run):
+    """The documented fail-closed residual (#425 review Minor 1): a clock that steps back with no new run (a bridge
+    that sends no epoch, or a producer that reuses one: the real bridge never does) reads as re-sends of the newest
+    capture recorded, dated at its first receipt (the perception watchdog then refuses motion), until its stamps
+    pass that capture's."""
+    from cascade.perception.freshness import observed_at
+
+    def frame(stamp):
+        return _isaac_frame(stamp) if run == "no_epoch" else _bridge_frame(stamp, "run-1")
+
+    stream = CameraStream(camera=None, name="isaac")
+    newest = frame(5000.0)
+    newest.t -= 8.0
+    stream._note_first_receipt(newest)
+    for stamp in (10.0, 10.5, 5000.0):
+        back = frame(stamp)
+        stream._note_first_receipt(back)
+        assert back.observed_t == newest.t and observed_at(back) == newest.t, stamp
+    passed = frame(5000.5)
+    stream._note_first_receipt(passed)
+    assert passed.observed_t is None
+
+
+def test_a_clock_that_is_only_re_sent_is_never_dropped_before_live_ones():
+    """#425 review Minor 2: the record kept its clocks in the order of their last NEW capture, so a frozen sim whose
+    render was only being re-sent was the first one dropped once 8 other clocks had new captures, and its next
+    re-send read as first received now (0.93 s old instead of 50 s). Any receipt keeps a clock: the one dropped is
+    the one served least recently."""
+    from cascade.perception import stream as stream_mod
+
+    stream = CameraStream(camera=None, name="isaac")
+    frozen = _isaac_frame(100.0, robot_id="frozen")
+    frozen.t -= 50.0
+    stream._note_first_receipt(frozen)
+    for i in range(stream_mod.FIRST_RECEIPT_CLOCKS):
+        stream._note_first_receipt(_isaac_frame(10.0, robot_id=f"sim{i}"))
+        again = _isaac_frame(100.0, robot_id="frozen")       # its render, re-sent in between
+        stream._note_first_receipt(again)
+        assert again.observed_t == frozen.t, i
+    assert len(stream._first_receipts) == stream_mod.FIRST_RECEIPT_CLOCKS
+    kept = _isaac_frame(10.0, robot_id="sim1")
+    stream._note_first_receipt(kept)
+    assert kept.observed_t is not None, "sim1 was kept"
+    gone = _isaac_frame(10.0, robot_id="sim0")
+    stream._note_first_receipt(gone)
+    assert gone.observed_t is None, "sim0, the least recently served, was dropped"
+
+
+def test_the_producer_clock_names_the_bridge_run():
+    """`freshness.producer_clock`: one Isaac clock per (robot, time source, bridge run); a frame without a usable
+    run (an older bridge, a test double) keeps the clock it had, and a malformed one never raises (the stream's pump
+    would drop the frame)."""
+    from cascade.perception.freshness import producer_clock
+
+    one, two = producer_clock(_bridge_frame(10.0, "run-1")), producer_clock(_bridge_frame(10.0, "run-2"))
+    assert one[0] != two[0] and one[1] == two[1] == 10.0
+    plain = producer_clock(_isaac_frame(10.0))
+    stream = CameraStream(camera=None, name="isaac")
+    for bad in ("", 7, ["run"], {"run": 1}, None, True):
+        frame = _bridge_frame(10.0, bad)
+        assert producer_clock(frame) == plain, bad
+        stream._note_first_receipt(frame)
+
+
 def test_local_frames_are_never_restamped():
     from cascade.perception.freshness import observed_at
     from cascade.types import Frame

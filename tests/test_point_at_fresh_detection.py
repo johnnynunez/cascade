@@ -204,13 +204,15 @@ def test_a_live_camera_still_points_after_a_long_real_plan(rig, monkeypatch):  #
 # ── the camera's device: a stalled driver, an Isaac-style bridge ─────────────
 
 
-def _isaac_capture(t, source=("bridge", 5560), camera="cam0", robot_id="mock") -> dict:
+def _isaac_capture(t, source=("bridge", 5560), camera="cam0", robot_id="mock", epoch=None) -> dict:
     """An Isaac bridge frame's producer capture (`sim/bridge_client.py`): its
     identity and the physics loop's clock (one per sim: `robot_id`), never
-    this host's."""
+    this host's; `epoch`: the bridge run's `producer_epoch` (None: none sent)."""
+    state = {"robot_id": robot_id, "backend": "isaac", "time_source": "physics_loop_monotonic", "t": float(t)}
+    if epoch is not None:
+        state["producer_epoch"] = epoch
     return {"backend": "isaac", "source": list(source), "camera": camera, "renderer": "isaac", "t": float(t),
-            "proprioception": {"robot_id": robot_id, "backend": "isaac", "time_source": "physics_loop_monotonic",
-                               "t": float(t)}}
+            "proprioception": state}
 
 
 class _Device:
@@ -236,12 +238,14 @@ class _Device:
       in flight (`held`: the frames held so far); the next render waits for
       `resume()` (5 s at most), so a grab waiting for that delivery gets the
       held one however late it wakes;
-    - `stamp = False` later: the frames carry no capture any more."""
+    - `stamp = False` later: the frames carry no capture any more;
+    - `epoch`: the bridge run's `producer_epoch` on every render (None: none)."""
 
     def __init__(self, monkeypatch, rt, *, stamp=False):
         self._real = rt.camera._camera.get_frame
         self._lock = threading.Lock()
         self.stamp, self.source, self.clock = stamp, ("bridge", 5560), 5000.0
+        self.epoch: str | None = None
         self.last = None
         self.frozen = False
         self.freeze_at = None
@@ -277,7 +281,7 @@ class _Device:
             self._served += 1
             if self.stamp:
                 self.clock += 1.0 / 30.0
-                frame.capture = _isaac_capture(self.clock, self.source)
+                frame.capture = _isaac_capture(self.clock, self.source, epoch=self.epoch)
                 self.by_stamp[self.clock] = frame
             self.last = frame
             if self.freeze_at is not None and frame.t >= self.freeze_at:
@@ -540,6 +544,55 @@ def test_the_first_receipt_bound_sits_between_a_slow_render_and_a_stalled_one(ri
     assert len(looks) == 2 and looks[1].capture == device.resent.capture, "test setup: the re-sent render"
     assert looks[1].observed_t is not None and observed_at(looks[1]) == first[0], "test setup: its first receipt"
     if first_received_s < 0.5:
+        assert out["ok"] is True and _commands(r) and r.jaws, out
+    else:
+        assert out["ok"] is False and _commands(r) == [] and r.jaws == [], out
+        assert re.search(_RESENT_STALL, out["error"]), out
+
+
+def _restarted_delivered(rt, below, timeout_s=3.0):
+    """Wait until the stream delivers a render stamped below `below` (the
+    restarted sim's clock; a grab in flight delivers an old one first)."""
+    end = time.monotonic() + timeout_s
+    while time.monotonic() < end:
+        latest = rt.camera.latest()
+        if latest is not None and latest.capture is not None and latest.capture["t"] < below:
+            return latest
+        time.sleep(0.005)
+    raise AssertionError("test setup: the stream never delivered the restarted sim's render")
+
+
+@needs_pin
+@pytest.mark.parametrize("restart", ["a_new_epoch", "the_same_epoch"])
+def test_a_remote_sim_restart_points_on_its_new_runs_renders(rig, monkeypatch, restart):  # noqa: F811
+    """#425 review Minor 1: a remote sim host rebooted while the robot server
+    ran, and its physics clock started again from 10 s on the same bridge
+    address. Every new render read as a re-send of the old run's newest one,
+    dated at that render's first receipt, so a look again 0.8 s later refused
+    (and after 5 s the perception watchdog): until the new clock passed the
+    old one, i.e. until the robot server restarted. The real bridge names
+    each run (`producer_epoch`, a new uuid per start): the new run's renders
+    are first received when they arrive, and point_at points. The same clock
+    going back under the same run (no real bridge does it) still reads as
+    re-sends: refused, nothing sent (fail closed)."""
+    r = rig("mock")
+    rt = r.runtime
+    device = _Device(monkeypatch, rt, stamp=True)
+    device.epoch = "run-1"
+    _stamped_delivered(rt)
+    time.sleep(0.3)                                    # the old run renders
+    with device._lock:
+        device.clock = 10.0                            # the host rebooted: the clock starts again
+        device.epoch = "run-2" if restart == "a_new_epoch" else "run-1"
+    _restarted_delivered(rt, below=1000.0)
+    time.sleep(0.8)                                    # past FRESH_OBSERVED_S since the restart
+    _long_plans(monkeypatch)                           # a 4 s plan: point_at looks again
+    looks = _looks(monkeypatch, rt)
+
+    out = rt.execute("point_at", {"label": "red cube"})
+
+    assert len(looks) == 2 and all(f.capture["t"] < 1000.0 for f in looks), "test setup: the new run's renders"
+    if restart == "a_new_epoch":
         assert out["ok"] is True and _commands(r) and r.jaws, out
     else:
         assert out["ok"] is False and _commands(r) == [] and r.jaws == [], out

@@ -161,7 +161,15 @@ move on, win or lose (exit lines in §8). One `pick_and_place` per group, ever.
    camera, latched e-stop: every `launch.sh --down` / SIGTERM latches it), the server keeps the
    arm powered and holding and logs `POWERED and HOLDING`: support the arm, then switch its power
    off.
-5. Attendees never reach into the workspace while the arm is powered; the host stages.
+5. **After `POWERED and HOLDING` (or a `down`/`reset` with the arm powered), support the arm
+   before any restart, `arm-check` or `calibrate`.** The hold is remembered: /state shows
+   `arm_held`, and the next connect of the reBot sends nothing and fails with `left POWERED and
+   HOLDING`. To go on:
+   1. Hold the arm (or lower it to rest).
+   2. `python scripts/arm_hold.py confirm 'holding the arm'` (any shell; valid 2 min, once).
+   3. Retry: the connect drops its torque while you hold it.
+   Folded at rest, `~/cascade-demo.sh up`'s startup check clears the hold by itself.
+6. Attendees never reach into the workspace while the arm is powered; the host stages.
 
 ## 7. Reset between groups (target: 60 s of hands, run during Q&A)
 

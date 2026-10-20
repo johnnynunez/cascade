@@ -30,7 +30,8 @@ do not admit the current contract: a later
 [observation audit](evidence/voice-reply-recovery-20261004/guarded-continuation.json) finds
 heading drift after completion beyond the unchanged 0.08 rad bound. Capability status:
 [ROADMAP](ROADMAP.md). Single-robot control vs shared-scene ownership:
-[ROBOT_MODULARITY](ROBOT_MODULARITY.md).
+[ROBOT_MODULARITY](ROBOT_MODULARITY.md). Agentic demos, from one request to learned steps:
+[pipeline diagram](assets/microduck_pipeline_light.png) ([MICRODUCK_AGENTIC_DEMOS](MICRODUCK_AGENTIC_DEMOS.md)).
 
 ## Runtime and clocks
 

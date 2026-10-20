@@ -453,16 +453,24 @@ def refusal(marker: dict, key: str) -> str:
 
 def rest_problem(q, park, tol: float = REST_TOL_RAD) -> str | None:
     """Why the joints `q` (None: no answer) are not the folded rest `park`
-    within `tol`, or None when every joint is."""
+    within `tol`, or None when every joint is. A reading that cannot be a
+    position (rig 2026-10-10: a mechPos read of +2.3e18; NaN) is named
+    implausible, never measured against the rest."""
     import numpy as np
 
-    qv = np.asarray([np.nan if v is None else v for v in q], dtype=float).reshape(-1)
+    from .robstride import plausible_position
+
+    vals = list(q)
     pv = np.asarray(park, dtype=float).reshape(-1)
-    if qv.shape != pv.shape:
-        return f"{qv.size} joints read for a {pv.size}-joint rest pose"
-    bad = [i + 1 for i in range(qv.size) if not np.isfinite(qv[i])]
+    if len(vals) != pv.size:
+        return f"{len(vals)} joints read for a {pv.size}-joint rest pose"
+    silent = [i + 1 for i, v in enumerate(vals) if v is None]
+    if silent:
+        return f"joint(s) {silent} did not answer"
+    bad = [i + 1 for i, v in enumerate(vals) if not plausible_position(v)]
     if bad:
-        return f"joint(s) {bad} gave no usable reading"
+        return f"joint(s) {bad} gave an implausible reading (not a position)"
+    qv = np.asarray(vals, dtype=float).reshape(-1)
     off = float(np.max(np.abs(qv - pv))) if qv.size else 0.0
     if off > float(tol):
         return f"{off:.3f} rad from park_q (> {float(tol):g})"

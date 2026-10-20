@@ -165,8 +165,8 @@ venv.bak/
 # Rope project settings
 .ropeproject
 
-# mkdocs documentation
-/site
+# mkdocs documentation: not used here; site/ is the hand-written GitHub Pages site
+# (.github/workflows/pages.yml), so it stays tracked.
 
 # mypy
 .mypy_cache/

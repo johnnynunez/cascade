@@ -241,7 +241,7 @@ def test_no_registry_entry_is_stale():
 def test_every_entry_says_what_it_is():
     reg = _registry()
     assert set(reg.CATEGORIES) == {"registration", "selection", "internal", "cli", "launcher", "transport",
-                                   "secret"}
+                                   "secret", "operator"}
     for name, (category, reason) in reg.NOT_FORWARDED.items():
         assert category in reg.CATEGORIES, name
         assert isinstance(reason, str) and len(reason) >= 30, name

@@ -156,8 +156,11 @@ move on, win or lose (exit lines in §8). One `pick_and_place` per group, ever.
    assesses, restages, then clears from a rig terminal with `pkill -USR1 -f
    cascade.apps.mcp_server` (SIGUSR1 is the staff reset channel; a server restart also works
    but loses the warm state).
-4. **Never kill or disconnect with the arm loaded or raised**: exit disables torque and the arm
-   falls. Park first (*"go home"* = `move_to_rest`; wait for `safe_to_power_off: true`).
+4. **Never kill or disconnect with the arm loaded or raised.** Park first (*"go home"* =
+   `move_to_rest`; wait for `safe_to_power_off: true`). If the exit's own park is refused (dead
+   camera, latched e-stop: every `launch.sh --down` / SIGTERM latches it), the server keeps the
+   arm powered and holding and logs `POWERED and HOLDING`: support the arm, then switch its power
+   off.
 5. Attendees never reach into the workspace while the arm is powered; the host stages.
 
 ## 7. Reset between groups (target: 60 s of hands, run during Q&A)

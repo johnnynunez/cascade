@@ -225,6 +225,10 @@ class UnitreeArm(ArmBase):
         logger.info("unitree arm up: %s family=%s weight=%.1f q=%s", self._cmd_topic,
                     self._family, self._weight, np.round(q0, 3).tolist())
 
+    #: disconnect() ramps the arm-SDK weight to 0: the robot's own
+    #: locomotion controller takes the arm back (its command), no torque cut.
+    disconnect_cuts_torque = False
+
     def disconnect(self) -> None:
         if self.connected and self._pub is not None:
             try:

@@ -41,10 +41,11 @@ results go in the PR, not here.
    Harness² tool). The gate vets the measured start state (pre-motion admission).
 3. Per control step (50 Hz) the bridge sends the measured state and the policy's proposed action;
    the gate answers `pass` or `stop`. Gates: state finite, pelvis tilt <= 30 deg, pelvis height
-   above ankle level >= 0.45 m, measured joints within articulation limits + 0.05 rad, joint
-   velocity <= limit, pelvis inside the workspace box, policy joint targets within limits + 0.02
-   rad (legs belong to the whole-body controller), navigation and base-height commands within the
-   checkpoint's training envelope (`dataset_statistics.json`) + margin.
+   above ankle level >= 0.45 m, measured joints (fingers included) within articulation limits +
+   0.05 rad, joint velocity <= limit, pelvis inside the workspace box, arm and waist targets within
+   limits + 0.02 rad (legs belong to the whole-body controller), navigation and base-height
+   commands within the checkpoint's training envelope (`dataset_statistics.json`) + margin.
+   Finger targets are not a pass/stop criterion; they are clamped (see the finger rule below).
 4. The first STOP latches: the bridge switches to the hold command (zero navigation velocity,
    previous targets; the balance controller keeps running) and the result says `stopped`.
 5. Arena's own terminations end a segment WITHOUT resetting the scene (auto-reset is suspended
@@ -54,9 +55,26 @@ results go in the PR, not here.
    upright. Arena's success signal is written to `segments/NNN/segment.json` for comparison only;
    it never reaches the verdict or the agent.
 
-Records per segment: `segments/NNN/gate.jsonl` (every step's rows), `segment.json` (instruction,
+Records per segment: `segments/NNN/gate.jsonl` (every step's rows and finger clamps), `segment.json` (instruction,
 verdict, measurements, final state, gate summary, benchmark signal), and the bridge's frames
 (`--bridge_record_dir`: observer + head camera JPEGs with an index).
+
+## Finger rule
+
+The Dex3 finger joints (`finger_joint_pattern`) are position-limited by the articulation itself:
+a finger target beyond a joint stop cannot move the finger past that stop; its only effect is extra
+drive force pressing the finger into its own stop. The rule is therefore defined from the
+articulation, with no tunable tolerance:
+
+- finger targets are clamped onto the joint range; the `pass` reply carries the clamps
+  (`clamp: [[joint index, target], ...]`, protocol 2), the bridge applies them (and refuses a clamp
+  that is not a target inside that joint's own range), `gate.jsonl` records each one (joint,
+  commanded, applied) next to the unedited proposed action, and the tool result counts them
+  (`gate.finger_targets_clamped`);
+- fingers are judged on what they physically do: their measured positions and velocities go
+  through the same joint gates as every other joint, so a finger that leaves its range by more than
+  0.05 rad or exceeds its velocity limit still STOPs the segment;
+- arm and waist targets are never edited: beyond range + 0.02 rad is a STOP.
 
 ## Start order
 

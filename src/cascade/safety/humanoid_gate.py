@@ -4,7 +4,18 @@ A learned loco-manipulation policy (the GR00T executor of ``humanoid_locomanip``
 action per control step. The simulator owner (the Arena bridge) sends the MEASURED state the step
 starts from and the PROPOSED action; this gate answers PASS (the action may be applied) or STOP
 (it is not applied; the owner switches to its hold command and ends the segment). A STOP latches
-until an explicit ``reset()``; nothing here retries, clips or edits an action.
+until an explicit ``reset()``; nothing here retries.
+
+The only edit the gate makes to an action is the finger rule, defined from the articulation and
+not from observed policy output: finger joints (``finger_joint_pattern``) are position-limited by
+the articulation itself, so a finger target beyond a joint stop cannot move the finger past that
+stop; its only effect is extra drive force pressing the finger into its own stop. Finger targets
+are therefore CLAMPED to the joint range (each clamp is returned in ``GateDecision.clamps`` and the
+owner must apply the clamped values), and fingers are judged on what they physically do: their
+MEASURED positions and velocities go through the same ``joint_position_rad`` and
+``joint_velocity_frac`` gates as every other joint, so a finger that actually leaves its range or
+moves too fast still STOPs. Arm and waist targets are never edited: one beyond its range by more
+than ``command_joint_tolerance_rad`` (0.02 rad in the shipped profile) is a STOP.
 
 Checks, every one reported as ``value`` against ``limit``:
 
@@ -15,8 +26,9 @@ Checks, every one reported as ``value`` against ``limit``:
 4. ``joint_position_rad``: worst excursion of a measured joint beyond its articulation limit;
 5. ``joint_velocity_frac``: worst ``|qd| / velocity limit`` over measured joints;
 6. ``workspace_m``: distance of the pelvis outside the declared xy box (0 inside);
-7. ``command_joint_rad``: worst excursion of a policy-commanded joint target beyond its limit
-   (leg joints belong to the whole-body controller and are not policy targets);
+7. ``command_joint_rad``: worst excursion of a policy-commanded arm/waist target beyond its limit
+   (leg joints belong to the whole-body controller and are not policy targets; finger targets are
+   clamped, see above);
 8. ``command_nav``: worst ``|command| / limit`` over the navigation command (vx, vy, wz);
 9. ``command_base_height_m``: distance of the base-height command outside its range.
 
@@ -34,7 +46,8 @@ GATES = ("state_finite", "pelvis_tilt_deg", "pelvis_height_m", "joint_position_r
 
 _LIMIT_KEYS = {"max_pelvis_tilt_deg", "min_pelvis_height_m", "joint_position_tolerance_rad",
                "max_joint_velocity_fraction", "workspace_xy_m", "max_nav_command",
-               "base_height_command_m", "command_joint_tolerance_rad", "policy_joint_exclude"}
+               "base_height_command_m", "command_joint_tolerance_rad", "policy_joint_exclude",
+               "finger_joint_pattern"}
 
 
 def _finite(value, name, *, positive=False):
@@ -56,6 +69,7 @@ class HumanoidGateLimits:
     base_height_command_m: tuple[float, float]
     command_joint_tolerance_rad: float
     policy_joint_exclude: tuple[str, ...] = field(default_factory=tuple)
+    finger_joint_pattern: str = ".*_hand_.*"
 
     @classmethod
     def from_profile(cls, data) -> "HumanoidGateLimits":
@@ -83,13 +97,16 @@ class HumanoidGateLimits:
         exclude = data["policy_joint_exclude"]
         if not isinstance(exclude, list) or not all(isinstance(p, str) and p for p in exclude):
             raise ValueError("policy_joint_exclude must be a list of joint-name patterns")
-        for pattern in exclude:
+        for pattern in [*exclude, data["finger_joint_pattern"]]:
+            if not isinstance(pattern, str) or not pattern:
+                raise ValueError("joint-name patterns must be nonempty strings")
             re.compile(pattern)
         return cls(tilt, _finite(data["min_pelvis_height_m"], "min_pelvis_height_m", positive=True),
                    _finite(data["joint_position_tolerance_rad"], "joint_position_tolerance_rad"),
                    _finite(data["max_joint_velocity_fraction"], "max_joint_velocity_fraction", positive=True),
                    (lo, hi), tuple(_finite(v, "max_nav_command", positive=True) for v in nav), h,
-                   _finite(data["command_joint_tolerance_rad"], "command_joint_tolerance_rad"), tuple(exclude))
+                   _finite(data["command_joint_tolerance_rad"], "command_joint_tolerance_rad"), tuple(exclude),
+                   data["finger_joint_pattern"])
 
     def as_dict(self) -> dict:
         return {"max_pelvis_tilt_deg": self.max_pelvis_tilt_deg, "min_pelvis_height_m": self.min_pelvis_height_m,
@@ -99,7 +116,8 @@ class HumanoidGateLimits:
                 "max_nav_command": list(self.max_nav_command),
                 "base_height_command_m": list(self.base_height_command_m),
                 "command_joint_tolerance_rad": self.command_joint_tolerance_rad,
-                "policy_joint_exclude": list(self.policy_joint_exclude)}
+                "policy_joint_exclude": list(self.policy_joint_exclude),
+                "finger_joint_pattern": self.finger_joint_pattern}
 
 
 @dataclass(frozen=True)
@@ -141,19 +159,42 @@ class GateRow:
 
 
 @dataclass(frozen=True)
+class FingerClamp:
+    """One finger target moved onto its joint range: ``commanded`` -> ``applied`` (a stop)."""
+
+    joint: str
+    index: int
+    commanded: float
+    applied: float
+
+    @property
+    def excess_rad(self) -> float:
+        return abs(self.commanded - self.applied)
+
+    def as_dict(self) -> dict:
+        return {"joint": self.joint, "index": self.index, "commanded": round(self.commanded, 5),
+                "applied": round(self.applied, 5)}
+
+
+@dataclass(frozen=True)
 class GateDecision:
     step: int
     verdict: str  # "PASS" | "STOP"
     rows: tuple[GateRow, ...]
     reason: str = ""
+    #: finger targets the owner must replace before applying the action (empty: apply as proposed)
+    clamps: tuple[FingerClamp, ...] = ()
 
     @property
     def passed(self) -> bool:
         return self.verdict == "PASS"
 
     def as_dict(self) -> dict:
-        return {"step": self.step, "verdict": self.verdict, "reason": self.reason,
-                "rows": [r.as_dict() for r in self.rows]}
+        out = {"step": self.step, "verdict": self.verdict, "reason": self.reason,
+               "rows": [r.as_dict() for r in self.rows]}
+        if self.clamps:
+            out["clamps"] = [c.as_dict() for c in self.clamps]
+        return out
 
 
 def _vec(data, key, n):
@@ -184,14 +225,17 @@ class HumanoidSafetyGate:
         self._lock = threading.Lock()
         self._latched: str | None = None
         self._policy_mask: tuple[bool, ...] | None = None
+        self._finger_mask: tuple[bool, ...] | None = None
         if joints is not None:
             self.bind(joints)
 
     def bind(self, joints: JointModel) -> None:
         patterns = [re.compile(p) for p in self.limits.policy_joint_exclude]
+        finger = re.compile(self.limits.finger_joint_pattern)
         with self._lock:
             self.joints = joints
             self._policy_mask = tuple(not any(p.fullmatch(n) for p in patterns) for n in joints.names)
+            self._finger_mask = tuple(bool(finger.fullmatch(n)) for n in joints.names)
 
     # -- latch ---------------------------------------------------------------------------
     @property
@@ -240,15 +284,22 @@ class HumanoidSafetyGate:
         out = math.hypot(max(x0 - pos[0], 0.0, pos[0] - x1), max(y0 - pos[1], 0.0, pos[1] - y1))
         rows.append(GateRow("workspace_m", out, 0.0, out <= 0.0))
 
-    def _action_rows(self, action: dict, rows: list[GateRow]) -> None:
+    def _action_rows(self, action: dict, rows: list[GateRow], clamps: list[FingerClamp]) -> None:
         lim, jm = self.limits, self.joints
         targets = [float(v) for v in action["joint_targets"]]
         if jm is None or len(targets) != len(jm.names):
             raise ValueError("commanded joint targets do not match the bound joint model")
-        worst, worst_name = 0.0, ""
         mask = self._policy_mask or (True,) * len(jm.names)
-        for name, v, lo, hi, policy in zip(jm.names, targets, jm.lower, jm.upper, mask):
+        fingers = self._finger_mask or (False,) * len(jm.names)
+        worst, worst_name = 0.0, ""
+        for i, (name, v, lo, hi, policy, finger) in enumerate(zip(jm.names, targets, jm.lower, jm.upper, mask,
+                                                                  fingers)):
             if not policy:
+                continue
+            if finger:
+                applied = min(max(v, lo), hi)
+                if applied != v:
+                    clamps.append(FingerClamp(name, i, v, applied))
                 continue
             excess = max(lo - v, v - hi, 0.0)
             if excess > worst:
@@ -265,8 +316,11 @@ class HumanoidSafetyGate:
         rows.append(GateRow("command_base_height_m", out, 0.0, out <= 0.0, f"{h:.3f} m"))
 
     def check(self, step: int, state: dict, action: dict | None = None) -> GateDecision:
-        """Vet one control step: the measured ``state`` and (when acting) the proposed ``action``."""
+        """Vet one control step: the measured ``state`` and (when acting) the proposed ``action``.
+
+        On PASS, ``clamps`` lists the finger targets to replace before the action is applied."""
         rows: list[GateRow] = []
+        clamps: list[FingerClamp] = []
         try:
             values = [*_flat(state), *(_flat(action) if action is not None else [])]
             finite = all(math.isfinite(v) for v in values)
@@ -274,7 +328,7 @@ class HumanoidSafetyGate:
             if finite:
                 self._state_rows(state, rows)
                 if action is not None:
-                    self._action_rows(action, rows)
+                    self._action_rows(action, rows, clamps)
         except (KeyError, TypeError, ValueError) as exc:
             rows.append(GateRow("state_finite", None, 0.0, False, f"malformed step: {exc}"))
         failed = [r for r in rows if not r.ok]
@@ -286,7 +340,7 @@ class HumanoidSafetyGate:
             latched = self._latched
         if latched is not None:
             return GateDecision(int(step), "STOP", tuple(rows), latched)
-        return GateDecision(int(step), "PASS", tuple(rows))
+        return GateDecision(int(step), "PASS", tuple(rows), clamps=tuple(clamps))
 
 
 def _flat(data) -> list[float]:

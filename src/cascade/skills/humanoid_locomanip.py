@@ -7,8 +7,10 @@ see :mod:`cascade.skills.humanoid_bridge`). CASCADE stays the authority around t
 1. **pre-motion admission**: the humanoid gate (:mod:`cascade.safety.humanoid_gate`) vets the
    measured state before anything moves; a failure refuses the call;
 2. **per-step gate**: every control step's measured state and proposed action are vetted before
-   the bridge may apply the action. The first STOP latches; the bridge then holds (zero
-   navigation command, last targets) and ends the segment; the result says ``stopped``;
+   the bridge may apply the action; finger targets beyond a joint stop are clamped onto the joint
+   range (sent with the ``pass``, applied by the bridge, logged per step and counted in the
+   result). The first STOP latches; the bridge then holds (zero navigation command, last targets)
+   and ends the segment; the result says ``stopped``;
 3. **independent verifier** (:mod:`cascade.skills.humanoid_verifier`) on the measured state after
    the rest window: confirmed / refuted / unverified with measurements. The benchmark's own
    success signal is recorded to the segment file for comparison only; it never reaches the
@@ -231,6 +233,7 @@ class LocomanipDomain:
         wall = float(self.profile["segment_wall_s"])
         gate_log = (seg_dir / "gate.jsonl").open("w")
         summary = {g: None for g in GATES}
+        clamped = {"steps": 0, "targets": 0, "worst_excess_rad": 0.0, "worst_joint": ""}
         first_stop = None
         steps = 0
         end = None
@@ -257,8 +260,17 @@ class LocomanipDomain:
                     if time.monotonic() - t0 > wall:
                         self.gate.estop(f"segment wall budget {wall:.0f} s exceeded")
                     decision = self.gate.check(int(msg["i"]), msg["state"], msg.get("action"))
+                    # on pass the bridge applies the action with these finger targets replaced
                     self.client.send({"type": "gate", "i": msg["i"], "verdict": "pass" if decision.passed else "stop",
-                                      "reason": decision.reason})
+                                      "reason": decision.reason,
+                                      "clamp": [[c.index, c.applied] for c in decision.clamps]})
+                    if decision.clamps:
+                        clamped["steps"] += 1
+                        clamped["targets"] += len(decision.clamps)
+                        worst = max(decision.clamps, key=lambda c: c.excess_rad)
+                        if worst.excess_rad > clamped["worst_excess_rad"]:
+                            clamped["worst_excess_rad"] = round(worst.excess_rad, 4)
+                            clamped["worst_joint"] = worst.joint
                     steps += 1
                     phase = msg.get("phase", "policy")
                     gate_log.write(json.dumps({"phase": phase, "sim_time_s": msg["state"].get("sim_time_s"),
@@ -279,7 +291,8 @@ class LocomanipDomain:
         verdict = verify_carry(final, obj, dest, verifier=self.verifier, gate_limits=self.limits)
         stopped = first_stop is not None or end.get("reason") == "gate_stop"
         record = {"object": obj, "destination": dest, **base, "end": {k: end.get(k) for k in ("reason", "steps", "sim_time_s")},
-                  "benchmark_signal": end.get("arena"), "gate_summary": summary, "first_stop": first_stop,
+                  "benchmark_signal": end.get("arena"), "gate_summary": summary, "finger_clamps": clamped,
+                  "first_stop": first_stop,
                   "verdict": verdict, "final_state": final, "recording": end.get("recording"),
                   "wall_s": round(time.monotonic() - t0, 1)}
         self._write(f"segments/{self._segments:03d}/segment.json", record)
@@ -291,6 +304,7 @@ class LocomanipDomain:
                   "segment": {"ended_by": _agent_reason(end.get("reason")), "control_steps": end.get("steps"),
                               "sim_time_s": end.get("sim_time_s")},
                   "gate": {"verdict": "STOP" if stopped else "PASS", "steps_checked": steps, "first_stop": first_stop,
+                           "finger_targets_clamped": clamped,
                            "worst": {k: v for k, v in summary.items() if v is not None}},
                   "postcondition": {"status": status, "reason": verdict["reason"],
                                     "criteria": _compact(verdict.get("criteria"))}}

@@ -16,17 +16,19 @@ import pytest
 
 from cascade.safety.humanoid_gate import HumanoidGateLimits, HumanoidSafetyGate, JointModel, tilt_deg
 from cascade.skills import humanoid_locomanip as hl
-from cascade.skills.humanoid_bridge import BridgeBusy, BridgeClient
+from cascade.skills.humanoid_bridge import PROTOCOL, BridgeBusy, BridgeClient
 from cascade.skills.humanoid_verifier import verify_carry
 
-JOINTS = ["left_hip_pitch_joint", "left_knee_joint", "left_shoulder_pitch_joint", "right_shoulder_pitch_joint"]
+JOINTS = ["left_hip_pitch_joint", "left_knee_joint", "left_shoulder_pitch_joint", "right_shoulder_pitch_joint",
+          "left_hand_index_0_joint"]
 LIMITS = {"max_pelvis_tilt_deg": 30.0, "min_pelvis_height_m": 0.45, "joint_position_tolerance_rad": 0.05,
           "max_joint_velocity_fraction": 1.0, "workspace_xy_m": [[-1.5, -2.6], [1.5, 1.2]],
           "max_nav_command": [0.45, 0.2, 0.45], "base_height_command_m": [0.55, 0.8],
-          "command_joint_tolerance_rad": 0.02, "policy_joint_exclude": [".*_hip_.*", ".*_knee_.*", ".*_ankle_.*"]}
+          "command_joint_tolerance_rad": 0.02, "policy_joint_exclude": [".*_hip_.*", ".*_knee_.*", ".*_ankle_.*"],
+          "finger_joint_pattern": ".*_hand_.*"}
 VERIFIER = {"max_object_speed_m_s": 0.05, "min_hand_clearance_m": 0.03, "z_tolerance_m": 0.03}
-JOINT_MODEL = {"names": JOINTS, "lower": [-2.0, 0.0, -3.0, -3.0], "upper": [2.0, 2.5, 2.5, 2.5],
-               "velocity": [20.0, 20.0, 30.0, 30.0]}
+JOINT_MODEL = {"names": JOINTS, "lower": [-2.0, 0.0, -3.0, -3.0, -1.5708], "upper": [2.0, 2.5, 2.5, 2.5, 0.0],
+               "velocity": [20.0, 20.0, 30.0, 30.0, 12.0]}
 BIN = {"pos": [-0.245, -1.627, -0.264], "quat_wxyz": [0.0, 0.0, 0.0, 1.0],
        "aabb_local": [[-0.2, -0.15, 0.0], [0.2, 0.15, 0.12]], "lin_vel": [0, 0, 0]}
 BOX_HALF = 0.06
@@ -41,13 +43,13 @@ def state(step=0, *, pelvis=(0.0, 0.18, 0.74), quat=(1.0, 0.0, 0.0, 0.0), q=None
           box_vel=(0, 0, 0), hands=None):
     return {"step": step, "sim_time_s": step * 0.02, "floor_z": 0.0, "pelvis_pos": list(pelvis),
             "pelvis_quat_wxyz": list(quat), "pelvis_lin_vel": [0, 0, 0],
-            "joint_pos": list(q or [0.0, 0.3, 0.0, 0.0]), "joint_vel": list(qd or [0.0] * 4),
+            "joint_pos": list(q or [0.0, 0.3, 0.0, 0.0, 0.0]), "joint_vel": list(qd or [0.0] * 5),
             "hands": hands or {"left_hand_palm_link": [0.2, 0.4, 0.9], "right_hand_palm_link": [0.2, -0.1, 0.9]},
             "objects": {"brown_box": box(box_pos, box_vel)}, "destinations": {"blue_sorting_bin": copy.deepcopy(BIN)}}
 
 
 def action(nav=(0.2, 0.0, 0.0), height=0.75, targets=None):
-    return {"joint_targets": list(targets or [0.0, 0.3, 0.1, 0.1]), "nav": list(nav), "base_height": height,
+    return {"joint_targets": list(targets or [0.0, 0.3, 0.1, 0.1, 0.0]), "nav": list(nav), "base_height": height,
             "torso_rpy": [0.0, 0.0, 0.0]}
 
 
@@ -66,16 +68,18 @@ def test_gate_passes_nominal_step_and_reports_every_gate():
     assert d.passed and d.verdict == "PASS"
     names = [r.name for r in d.rows]
     assert names == ["state_finite", "pelvis_tilt_deg", "pelvis_height_m", "joint_position_rad",
-                     "joint_velocity_frac", "workspace_m", "command_joint_rad", "command_nav", "command_base_height_m"]
+                     "joint_velocity_frac", "workspace_m", "command_joint_rad", "command_nav",
+                     "command_base_height_m"]
+    assert d.clamps == () and "clamps" not in d.as_dict()
 
 
 @pytest.mark.parametrize("kwargs, act, gate", [
     ({"quat": tilted(35)}, None, "pelvis_tilt_deg"),
     ({"pelvis": (0.0, 0.18, 0.3)}, None, "pelvis_height_m"),
-    ({"q": [0.0, 2.6, 0.0, 0.0]}, None, "joint_position_rad"),
-    ({"qd": [0.0, 0.0, 31.0, 0.0]}, None, "joint_velocity_frac"),
+    ({"q": [0.0, 2.6, 0.0, 0.0, 0.0]}, None, "joint_position_rad"),
+    ({"qd": [0.0, 0.0, 31.0, 0.0, 0.0]}, None, "joint_velocity_frac"),
     ({"pelvis": (2.0, 0.0, 0.74)}, None, "workspace_m"),
-    ({}, action(targets=[0.0, 0.3, 2.6, 0.0]), "command_joint_rad"),
+    ({}, action(targets=[0.0, 0.3, 2.6, 0.0, 0.0]), "command_joint_rad"),
     ({}, action(nav=(0.6, 0.0, 0.0)), "command_nav"),
     ({}, action(height=0.4), "command_base_height_m"),
 ])
@@ -87,8 +91,48 @@ def test_gate_stops_on_each_limit(kwargs, act, gate):
 
 
 def test_gate_ignores_leg_targets_owned_by_the_whole_body_controller():
-    d = make_gate().check(1, state(1), action(targets=[5.0, -5.0, 0.0, 0.0]))
+    d = make_gate().check(1, state(1), action(targets=[5.0, -5.0, 0.0, 0.0, 0.0]))
     assert d.passed
+
+
+@pytest.mark.parametrize("target, applied", [(0.3, 0.0), (5.0, 0.0), (-2.0, -1.5708)])
+def test_finger_targets_beyond_a_stop_are_clamped_and_recorded(target, applied):
+    # left_hand_index_0_joint range [-1.5708, 0.0]: the articulation stops the finger there anyway
+    d = make_gate().check(1, state(1), action(targets=[0.0, 0.3, 0.0, 0.0, target]))
+    assert d.passed and [r.name for r in d.rows if not r.ok] == []
+    assert len(d.clamps) == 1
+    c = d.clamps[0]
+    assert (c.joint, c.index, c.commanded, c.applied) == ("left_hand_index_0_joint", 4, target, applied)
+    assert d.as_dict()["clamps"] == [{"joint": "left_hand_index_0_joint", "index": 4, "commanded": target,
+                                      "applied": applied}]
+
+
+def test_finger_targets_inside_the_range_are_not_touched():
+    d = make_gate().check(1, state(1), action(targets=[0.0, 0.3, 0.0, 0.0, -0.7]))
+    assert d.passed and d.clamps == ()
+
+
+def test_arm_targets_are_never_clamped_beyond_the_tolerance_they_stop():
+    arm = make_gate().check(1, state(1), action(targets=[0.0, 0.3, 2.5 + 0.03, 0.0, 0.0]))
+    assert arm.verdict == "STOP" and arm.reason.startswith("command_joint_rad") and arm.clamps == ()
+    ok = make_gate().check(1, state(1), action(targets=[0.0, 0.3, 2.5 + 0.015, 0.0, 0.0]))
+    assert ok.passed and ok.clamps == ()
+
+
+@pytest.mark.parametrize("kwargs, gate", [
+    ({"q": [0.0, 0.3, 0.0, 0.0, 0.06]}, "joint_position_rad"),      # finger measured past its stop
+    ({"q": [0.0, 0.3, 0.0, 0.0, -1.63]}, "joint_position_rad"),
+    ({"qd": [0.0, 0.0, 0.0, 0.0, 12.5]}, "joint_velocity_frac"),    # finger faster than its limit
+])
+def test_measured_finger_violation_still_stops_even_with_a_clamped_command(kwargs, gate):
+    d = make_gate().check(1, state(1, **kwargs), action(targets=[0.0, 0.3, 0.0, 0.0, 0.3]))
+    assert d.verdict == "STOP" and d.reason.startswith(gate) and "left_hand_index_0_joint" in d.reason
+    assert d.clamps == ()  # nothing is applied after a STOP
+
+
+def test_profile_has_no_finger_command_tolerance():
+    with pytest.raises(ValueError):
+        HumanoidGateLimits.from_profile(dict(LIMITS, command_finger_tolerance_rad=0.25))
 
 
 def test_gate_refuses_non_finite_and_malformed_steps():
@@ -179,6 +223,7 @@ class FakeBridge:
     def __init__(self, script, *, final=None, end_reason="benchmark_success_signal", rest=2, busy=False):
         self.script, self.final, self.end_reason, self.rest = script, final, end_reason, rest
         self.verdicts, self.segments, self.applied = [], [], 0
+        self.applied_targets = []  # joint targets as applied, after the gate's clamps
         self.sock = socket.socket()
         self.sock.bind(("127.0.0.1", 0))
         self.sock.listen(2)
@@ -188,7 +233,7 @@ class FakeBridge:
         threading.Thread(target=self._serve, daemon=True).start()
 
     def hello(self):
-        return {"type": "hello", "protocol": 1, "env": "fake", "scene": "fake scene", "physics": "newton",
+        return {"type": "hello", "protocol": PROTOCOL, "env": "fake", "scene": "fake scene", "physics": "newton",
                 "physics_device": "cpu", "policy": {"name": "Fake", "label": "fake GR00T"},
                 "objects": ["brown_box"], "destinations": ["blue_sorting_bin"], "control_hz": 50,
                 "joints": JOINT_MODEL}
@@ -227,6 +272,10 @@ class FakeBridge:
             if reply["verdict"] != "pass":
                 reason = "gate_stop"
                 break
+            targets = list(act["joint_targets"])
+            for index, value in reply.get("clamp", []):
+                targets[index] = value
+            self.applied_targets.append(targets)
             self.applied += 1
             self.current = st
         for k in range(self.rest):
@@ -269,6 +318,28 @@ def test_carry_object_confirmed_through_gate_and_verifier(tmp_path):
     assert seg["verdict"]["status"] == "confirmed" and seg["benchmark_signal"] == {"terms": {"success": True}}
     assert "benchmark" not in json.dumps(out)  # the benchmark's own signal never reaches the agent
     assert len((tmp_path / "segments" / "001" / "gate.jsonl").read_text().splitlines()) == 1 + 7
+    domain.close()
+
+
+def test_finger_clamps_reach_the_bridge_and_are_logged(tmp_path):
+    script = [(state(i, pelvis=(0.0, 0.18 - 0.3 * i, 0.74)), action(targets=[0.0, 0.3, 0.1, 0.1, 0.05 * i]))
+              for i in range(4)]
+    fake = FakeBridge(script, final=state(99, box_pos=IN_BIN))
+    domain = hl.build(profile(fake.port), tmp_path, domain_id="carry")
+    out = domain.execute("carry_object", {"object": "brown_box", "destination": "blue_sorting_bin"})
+    assert out["gate"]["verdict"] == "PASS" and out["outcome"] == "confirmed", out
+    # step 0 commands the stop itself (0.0): untouched; steps 1-3 press past it: applied at the stop
+    assert [t[4] for t in fake.applied_targets] == [0.0, 0.0, 0.0, 0.0]
+    assert [t[2] for t in fake.applied_targets] == [0.1] * 4  # arm targets are never edited
+    assert out["gate"]["finger_targets_clamped"] == {"steps": 3, "targets": 3, "worst_excess_rad": 0.15,
+                                                     "worst_joint": "left_hand_index_0_joint"}
+    lines = [json.loads(x) for x in (tmp_path / "segments" / "001" / "gate.jsonl").read_text().splitlines()]
+    policy = [x for x in lines if x["phase"] == "policy"]
+    assert "clamps" not in policy[0] and policy[2]["clamps"] == [
+        {"joint": "left_hand_index_0_joint", "index": 4, "commanded": 0.1, "applied": 0.0}]
+    assert policy[2]["action"]["joint_targets"][4] == 0.1  # the proposed action is logged unedited
+    seg = json.loads((tmp_path / "segments" / "001" / "segment.json").read_text())
+    assert seg["finger_clamps"]["targets"] == 3
     domain.close()
 
 

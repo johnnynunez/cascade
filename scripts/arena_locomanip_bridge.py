@@ -7,7 +7,8 @@ client); CASCADE never imports it and talks to it over loopback TCP, JSON lines
 one remote GR00T policy client, and it never decides anything on its own:
 
 - every control step it computes the policy's proposed action, sends the MEASURED state plus that
-  action to CASCADE, and applies the action only after CASCADE's gate answers ``pass``;
+  action to CASCADE, and applies the action only after CASCADE's gate answers ``pass``, with the
+  finger targets the gate clamped onto their joint range replaced (``apply_clamps``);
 - on ``stop`` it switches to the hold command (zero navigation velocity, previous joint/height
   targets; the whole-body balance controller keeps running) and ends the segment;
 - Arena's own terminations (success / failure / time-out) end a policy segment WITHOUT resetting
@@ -38,7 +39,7 @@ import threading
 import time
 import traceback
 
-PROTOCOL = 1
+PROTOCOL = 2  # cascade.skills.humanoid_bridge.PROTOCOL: gate replies carry finger-target clamps
 OBSERVER = "cascade_observer_cam"
 OBS_W, OBS_H = 1280, 720
 
@@ -251,6 +252,24 @@ class Bridge:
         return {"joint_targets": rnd(a[:n], 4), "nav": rnd(a[n:n + 3], 4), "base_height": round(a[n + 3], 4),
                 "torso_rpy": rnd(a[n + 4:n + 7], 4)}
 
+    def apply_clamps(self, action, reply):
+        """Replace the joint targets CASCADE's gate clamped (finger targets moved onto their joint
+        range). Each one must name a robot joint and lie inside that joint's own limits; anything
+        else is a protocol violation, not something to apply. Returns how many were applied."""
+        clamps = reply.get("clamp") or []
+        if not clamps:
+            return 0
+        lim = t(self.robot.data.joint_pos_limits)[0]
+        n = len(self.joint_names)
+        for item in clamps:
+            index, value = int(item[0]), float(item[1])
+            if not (0 <= index < n and math.isfinite(value)
+                    and float(lim[index, 0]) - 1e-4 <= value <= float(lim[index, 1]) + 1e-4):
+                raise RuntimeError(f"gate clamp {item!r} is not a target inside a joint range")
+            with self.torch.inference_mode():  # the policy's action is an inference-mode tensor
+                action[0, index] = value
+        return len(clamps)
+
     def hold_action(self):
         torch = self.torch
         n = len(self.joint_names)
@@ -363,9 +382,10 @@ class Bridge:
                 if reply["verdict"] != "pass":
                     reason, stopped = "gate_stop", True
                     break
+                clamped = self.apply_clamps(action, reply)
                 self.last_action = action.clone()
                 self.env_step(action)
-                index.append({"step": self.step_count, "i": i, "phase": "policy"})
+                index.append({"step": self.step_count, "i": i, "phase": "policy", "clamped": clamped})
                 self.record(seg_dir, i)
                 if self.terminal is not None:
                     terms = self.terminal["terms"]
@@ -385,8 +405,9 @@ class Bridge:
                 reply = conn.recv()  # the hold IS the stop command; it is applied either way
                 if reply.get("type") != "gate":
                     raise RuntimeError(f"expected gate during hold, got {reply}")
+                clamped = self.apply_clamps(hold, reply)
                 self.env_step(hold)
-                index.append({"step": self.step_count, "i": k, "phase": "hold"})
+                index.append({"step": self.step_count, "i": k, "phase": "hold", "clamped": clamped})
                 self.record(seg_dir, k)
         finally:
             self.in_segment = False

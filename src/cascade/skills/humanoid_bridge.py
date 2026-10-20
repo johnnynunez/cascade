@@ -14,9 +14,11 @@ client -> bridge            bridge -> client
 ``session`` {seed}          ``ready`` {state}: scene reset, measured state
 ``observe``                 ``state`` {state}: measured state, no physics step
 ``segment`` {id, object,    one ``step`` {i, state, action} per control step, each answered by
-destination, instruction,   ``gate`` {i, verdict: pass|stop}; the bridge applies the action only
-max_steps, rest_steps}      after ``pass``. Then ``segment_end`` {reason, steps, final, arena,
-                            recording}
+destination, instruction,   ``gate`` {i, verdict: pass|stop, clamp: [[joint index, target], ...]};
+max_steps, rest_steps}      the bridge applies the action only after ``pass``, with every listed
+                            joint target replaced by the clamped value (finger targets moved
+                            onto their joint range). Then ``segment_end`` {reason, steps, final,
+                            arena, recording}
 ``close``                   (closes)
 ==========================  =====================================================================
 
@@ -29,7 +31,7 @@ import json
 import socket
 import time
 
-PROTOCOL = 1
+PROTOCOL = 2  # 2: the gate reply carries finger-target clamps the bridge must apply
 
 
 class BridgeError(RuntimeError):

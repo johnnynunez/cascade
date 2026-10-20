@@ -31,6 +31,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 from base_pose_oracle import make_runtime, raw_arm  # noqa: F401
+from conftest import observed
 from test_agent_results_compose import _gate_on
 from test_rebot_clear_error import _install_fake_motorbridge, _install_fake_sdk, _Log, _mb_arm, _rs_arm, no_sleep  # noqa: F401
 from test_safety import limits
@@ -319,6 +320,21 @@ def test_the_startup_check_clears_a_hold_only_when_it_measures_the_arm_folded_at
         arm_hold.clear("can0", why="test")
 
 
+def test_clear_if_at_rest_holds_its_own_tolerance_whatever_the_caller_checked():
+    """The clear is its own gate (any caller, not only the startup check after rests_unpowered): a
+    joint just past the tolerance, an unread joint, or a pose of the wrong length keeps the hold."""
+    from cascade.control import arm_hold
+
+    park, tol = [0.0] * 6, 0.05
+    for q in ([0.0, 0.0, tol + 0.01, 0.0, 0.0, 0.0], [0.0, None, 0.0, 0.0, 0.0, 0.0], [0.0] * 5):
+        arm_hold.record("can0", arm="0", reason="held")
+        assert arm_hold.clear_if_at_rest("can0", q, park, tol, log=lambda *_: None) is False, q
+        assert arm_hold.read("can0") is not None, q
+    assert arm_hold.clear_if_at_rest("can0", [0.0, 0.0, tol - 0.01, 0.0, 0.0, 0.0], park, tol,
+                                     log=lambda *_: None) is True
+    assert arm_hold.read("can0") is None and arm_hold.clear_if_at_rest("can0", park, park, tol) is False
+
+
 # ── the teardown writes the marker, reads the confirmation at the cut, names its command ─
 
 
@@ -412,6 +428,73 @@ def test_the_cli_exit_park_never_streams_beside_a_dashboard_motion(make_runtime,
     out = result["out"]
     assert out.get("ok") is False and "halted" in str(out.get("error")), out
     assert receipt["ok"] is True and not rt.arm.harness.estopped
+
+
+def test_a_harness_closed_for_teardown_refuses_every_other_threads_motion_and_jaw():
+    """The gate itself: after close_for_teardown only the closing thread (the park) may begin a motion,
+    pass a pre-motion or stream-start check, or command the jaws; any other thread gets MotionHalted
+    before its first command, and the halt it raised is not cleared by that refusal."""
+    from cascade.control.mock_arm import MockArm
+    from cascade.types import MotionHalted
+
+    raw = MockArm(Cfg({"n_joints": 6}))
+    raw.connect()
+    jaws = []
+    raw.set_gripper = lambda *a, **k: jaws.append(a)
+    safe = SafeArm(raw, observed(SafetyHarness(limits())))
+    h = safe.harness
+    h.begin_motion()  # a motion streaming on this thread
+    assert h.close_for_teardown("shutting down") is True and h.halted == "shutting down"
+    h.end_motion()
+    seen = {}
+
+    def other():
+        for name, call in (("begin", h.begin_motion), ("before", h.check_before_motion),
+                           ("stream", h.check_stream_start), ("jaw", lambda: safe.set_gripper(0.0))):
+            try:
+                call()
+                seen[name] = "allowed"
+            except MotionHalted as exc:
+                seen[name] = str(exc)
+
+    thread = threading.Thread(target=other)
+    thread.start()
+    thread.join(5.0)
+    assert seen == dict.fromkeys(("begin", "before", "stream", "jaw"), "halted: shutting down"), seen
+    assert h.halted == "shutting down" and jaws == []
+    h.begin_motion()  # the closing thread (the park) still may
+    h.end_motion()
+    safe.set_gripper(0.0)
+    assert len(jaws) == 1
+    # Closed while nothing streams (no halt to rely on), or after the park's own begin_motion cleared the
+    # halt: the gate alone still refuses every other thread, the stream-start check included.
+    for closed_idle in (True, False):
+        h2 = observed(SafetyHarness(limits()))
+        if closed_idle:
+            assert h2.close_for_teardown("shutting down") is False and h2.halted is None
+        else:
+            h2.begin_motion()
+            h2.close_for_teardown("shutting down")
+            h2.end_motion()
+            h2.clear_halt()
+            assert h2.halted is None
+        seen.clear()
+        thread = threading.Thread(target=lambda: [seen.__setitem__(n, _refused(c)) for n, c in
+                                                  (("begin", h2.begin_motion), ("before", h2.check_before_motion),
+                                                   ("stream", h2.check_stream_start))])
+        thread.start()
+        thread.join(5.0)
+        assert seen == dict.fromkeys(("begin", "before", "stream"), "halted: shutting down"), (closed_idle, seen)
+
+
+def _refused(call):
+    from cascade.types import MotionHalted
+
+    try:
+        call()
+        return "allowed"
+    except MotionHalted as exc:
+        return str(exc)
 
 
 # ── Minor 2: a chat step that starts after the MCP teardown's halt sends nothing ─

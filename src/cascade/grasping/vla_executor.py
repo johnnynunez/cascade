@@ -334,12 +334,16 @@ class VLAExecutor:
 
     @staticmethod
     def _admit(harness, targets, chunk_no: int) -> None:
-        """The harness vets every target of the chunk before any of it moves."""
+        """The harness vets every target of the chunk before any of it moves.
+        The refusal's own words stay short: the agent's FAILED line quotes 240
+        characters, and a handover's prefix before them leaves the harness's
+        deciding numbers room with 4-digit chunk and waypoint numbers too
+        (#418 review Minor 6)."""
         for i, (q, _) in enumerate(targets):
             reason = harness.vet_pose(q)
             if reason:
-                raise SafetyViolation(f"harness refused VLA chunk {chunk_no} at waypoint {i + 1} "
-                                      f"before any of it moved: {reason}")
+                raise SafetyViolation(f"harness refused VLA chunk {chunk_no} (waypoint {i + 1}) before it moved: "
+                                      f"{reason}")
 
     def run(self, runtime, client, *, label: str, effort: float, halt_generation,
             provisional) -> dict:

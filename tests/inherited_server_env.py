@@ -34,6 +34,10 @@ registry (srt/models/registry.py), `SGLANG_EXTERNAL_MM_PROCESSOR_PACKAGE` one of
 (managers/tokenizer_manager.py) and `SGLANG_EXTERNAL_MM_MODEL_ARCH` names that package's architecture, and
 `SGLANG_LOGGING_CONFIG_PATH` replaces the logging setup with a dictConfig file (utils/common.py configure_logger): its
 `()` factories import code, and an INFO handler writes the start line, the key included, wherever it says.
+`SGLANG_DISTRIBUTED_INIT_METHOD_OVERRIDE` replaces the torch.distributed init method (distributed/bootstrap.py
+`_resolve_dist_init_method`): `env://` (MASTER_ADDR / MASTER_PORT) or `tcp://HOST:PORT` puts the rendezvous store on a
+port the caller picks, and HOST may be another machine. torch's TCPStore listens on every interface whatever host it is
+given (torch 2.14: `[::]`), and SGLang skips its own port checks under the override (server_args.py PortArgs).
 """
 from __future__ import annotations
 
@@ -86,6 +90,7 @@ HOSTILE_SGLANG_ENV = {
     "SGLANG_EXTERNAL_MM_MODEL_ARCH": "CallerArch",       # that package's multimodal architecture
     "SGLANG_EXTERNAL_MM_PROCESSOR_PACKAGE": "caller_mm",  # imported: multimodal processors
     "SGLANG_LOGGING_CONFIG_PATH": "/tmp/logging.json",   # a dictConfig: `()` factories, INFO (the key) to any file
+    "SGLANG_DISTRIBUTED_INIT_METHOD_OVERRIDE": "tcp://192.0.2.7:29500",  # the rendezvous store: any port, any host
 }
 
 #: Inherited SGLang-looking names the server keeps: tuning of features it never starts, and look-alikes.
@@ -96,6 +101,7 @@ BENIGN_SGLANG_ENV = {
     "SGLANG_TORCH_PROFILER_DIR": "/tmp/profiles",
     "SGLANG_EXTERNAL": "kept",           # not SGLANG_EXTERNAL_*
     "SGLANG_LOG_MS": "1",                # milliseconds in the log's timestamps
+    "MASTER_PORT": "29500",              # torch's env:// init reads it; only the scrubbed override selects env://
 }
 
 #: A llama.cpp config.ini as an attacker would write it: every tool (exec_shell_command, write_file) at /tools, and

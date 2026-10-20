@@ -93,12 +93,16 @@ die() { printf 'serve_cosmos_sglang: %s\n' "$1" >&2; exit "${2:-1}"; }
 # (managers/tokenizer_manager.py) and SGLANG_EXTERNAL_MM_MODEL_ARCH names its
 # architecture; SGLANG_LOGGING_CONFIG_PATH swaps the logging setup for a
 # dictConfig file (utils/common.py): its `()` factories import code, and an
-# INFO handler would write the start line, the key included. The host, the
+# INFO handler would write the start line, the key included;
+# SGLANG_DISTRIBUTED_INIT_METHOD_OVERRIDE replaces the torch.distributed init
+# method (distributed/bootstrap.py): `env://` or `tcp://HOST:PORT` puts the
+# rendezvous store (torch's TCPStore, which listens on every interface) on a
+# port the caller picks, and HOST may be another machine. The host, the
 # port, the key and the log level are flags below. A bash without `compgen`
 # refuses rather than serve unscrubbed.
 names="$(compgen -e)" || die "cannot list the environment (compgen failed); refusing to start SGLang unscrubbed"
 for name in $names; do
-    case "$name" in SGLANG_GRPC_PORT|SGLANG_RUST_SERVER|SGLANG_OLLAMA_*|AIP_*|DUMPER_*|SGLANG_ENABLE_REQUEST_HEADER_OVERRIDES|EXA_API_KEY|SGLANG_EXTERNAL_*|SGLANG_LOGGING_CONFIG_PATH) unset "$name" ;; esac
+    case "$name" in SGLANG_GRPC_PORT|SGLANG_RUST_SERVER|SGLANG_OLLAMA_*|AIP_*|DUMPER_*|SGLANG_ENABLE_REQUEST_HEADER_OVERRIDES|EXA_API_KEY|SGLANG_EXTERNAL_*|SGLANG_LOGGING_CONFIG_PATH|SGLANG_DISTRIBUTED_INIT_METHOD_OVERRIDE) unset "$name" ;; esac
 done
 
 # The key: a private file holding one key, never argv (checked before anything

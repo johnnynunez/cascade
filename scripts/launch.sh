@@ -552,6 +552,20 @@ else
     printf '[launch] NOTE: --brain %s: object identification uses the local Nemotron 3.5 Bolt brain at %s, which must be running\n' \
         "$BRAIN" "http://127.0.0.1:8080/v1 (configs/demo.yaml default)" >&2
 fi
+# --brain cosmos-sglang: scripts/serve_cosmos_sglang.sh serves only with a key
+# (its API_KEY_FILE). The brain checks read the bearer from
+# CASCADE_MODEL_API_KEY_FILE, and the OpenShell route's brain provider reuses
+# that file: both default to the brain key file every local brain uses, as for
+# Bolt above. Only the FILE is named here, never the key.
+if [[ "$BRAIN" == cosmos-sglang && -z "${CASCADE_MODEL_API_KEY:-}${CASCADE_MODEL_API_KEY_FILE:-}" ]]; then
+    COSMOS_SGLANG_KEY_FILE="${CASCADE_BRAIN_KEY_FILE:-$HOME/.cascade/nemoclaw/llama.key}"
+    if [[ -r "$COSMOS_SGLANG_KEY_FILE" ]]; then
+        export CASCADE_MODEL_API_KEY_FILE="$COSMOS_SGLANG_KEY_FILE"
+        log "brain key file: $CASCADE_MODEL_API_KEY_FILE (scripts/serve_cosmos_sglang.sh's API_KEY_FILE)"
+    else
+        warn "--brain cosmos-sglang: no key file at $COSMOS_SGLANG_KEY_FILE, and scripts/serve_cosmos_sglang.sh serves only with its API_KEY_FILE: set CASCADE_MODEL_API_KEY_FILE or CASCADE_BRAIN_KEY_FILE to that file"
+    fi
+fi
 # SAM masks the brain's boxes (configs/demo.yaml segmenter.model). Without the
 # weights Isaac detections carry no masks, and the observed-finger gate (the
 # Spark default) refuses every grasp. A warning: the brain still names objects.
@@ -1296,15 +1310,33 @@ run oc mcp set "$MCP_NAME" "$MCP_JSON"
 
 # brain
 brain_local() {  # brain_local <base_url> <model_id> <ctx>
-    local base=$1 mid=$2 ctx=$3 active_cfg providers
+    local base=$1 mid=$2 ctx=$3 active_cfg providers provider_models custom_key="" key_file keyed=0
     "$PY" "$REPO/scripts/demo_proof.py" --probe-native "$base" --model "$mid" \
         || die "requested model lacks working native tool calls; refusing to substitute another brain"
     log "onboarding local provider $base ($mid)"
-    run oc onboard --non-interactive --accept-risk --mode local \
-        --auth-choice custom-api-key --custom-base-url "$base" \
-        --custom-model-id "$mid" --custom-compatibility openai --custom-image-input --skip-health \
-        --skip-ui --suppress-gateway-token-output --skip-channels --skip-hooks \
-        --skip-daemon --skip-bootstrap --skip-skills
+    local -a onboard=(onboard --non-interactive --accept-risk --mode local
+        --auth-choice custom-api-key --custom-base-url "$base"
+        --custom-model-id "$mid" --custom-compatibility openai --custom-image-input --skip-health
+        --skip-ui --suppress-gateway-token-output --skip-channels --skip-hooks
+        --skip-daemon --skip-bootstrap --skip-skills)
+    if [[ "$RESOLVED_BRAIN" == cosmos-sglang && -n "${CASCADE_MODEL_API_KEY:-}${CASCADE_MODEL_API_KEY_FILE:-}" ]]; then
+        # scripts/serve_cosmos_sglang.sh serves only with a key, and OpenClaw
+        # 2026.9.3 reads a custom provider's key only from --custom-api-key or
+        # CUSTOM_API_KEY: the brain checks' key, in this one call's environment
+        # (a subshell), never on its argv.
+        custom_key="${CASCADE_MODEL_API_KEY:-}"
+        if [[ -z "$custom_key" ]]; then
+            # a literal ~ (a quoted value) names HOME, as demo_proof reads it
+            key_file="${CASCADE_MODEL_API_KEY_FILE/#\~/$HOME}"
+            custom_key="$(tr -d '[:space:]' < "$key_file")" \
+                || die "cannot read the brain key file $key_file"
+        fi
+        (export CUSTOM_API_KEY="$custom_key"; run oc "${onboard[@]}")
+        custom_key=""
+        keyed=1
+    else
+        run oc "${onboard[@]}"
+    fi
     active_cfg="$(oc config file)" || die "cannot resolve active OpenClaw config"
     providers="$("$PY" - "$active_cfg" "$mid" "$ctx" <<'PYEOF'
 import json, pathlib, sys
@@ -1322,7 +1354,26 @@ if not found:
 print(json.dumps(providers))
 PYEOF
 )" || die "local provider config is incomplete"
-    run oc config set models.providers "$providers" --strict-json >/dev/null
+    if [[ $keyed == 1 ]]; then
+        # Onboarding stored the brain's key in this provider: set only its
+        # models (the context window), so the key never reaches an argument.
+        # OpenClaw MERGES providers (custom-<host>-<port>) and the vLLM Cosmos
+        # brain serves the same id on :8082: the provider is the one onboarded
+        # at this brain's base URL, never the first that serves the id.
+        provider_models="$(printf '%s' "$providers" | "$PY" -c '
+import json, sys
+for name, provider in json.load(sys.stdin).items():
+    if (str(provider.get("baseUrl", "")).rstrip("/") == sys.argv[2].rstrip("/")
+            and any(model.get("id") == sys.argv[1] for model in provider.get("models", []))):
+        print(name, json.dumps(provider["models"]))
+        break
+else:
+    raise SystemExit("onboarding did not register the requested model at the brain base URL")' "$mid" "$base")" \
+            || die "local provider config is incomplete"
+        run oc config set "models.providers.${provider_models%% *}.models" "${provider_models#* }" --strict-json >/dev/null
+    else
+        run oc config set models.providers "$providers" --strict-json >/dev/null
+    fi
     log "contextWindow=$ctx for $mid (selected profile only)"
     [[ "$mid" == nemotron-3.5-bolt ]] || return 0
     # Nemotron 3.5 Bolt: its own display name, and thinking off on every

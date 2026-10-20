@@ -14,6 +14,7 @@ from cascade.skills import release_episode as release
 from cascade.skills.runtime import SkillRuntime
 from cascade.types import RobotState, SafetyViolation, SkillError
 from cascade.perception.occupancy import OccupancyError
+from conftest import observed
 from test_occupancy_payload import mapping, frame, PROP
 
 
@@ -70,7 +71,7 @@ def case():
             self._acknowledged_joint_targets+=1
             events.append(('move',target.copy(),duration_s,h._grasp_exempt))
             self.q=target.copy();return True
-    raw=Raw();h=SafetyHarness(SafetyLimits(np.full(3,-1.),np.ones(3),watchdog_s=100.),Kin())
+    raw=Raw();h=observed(SafetyHarness(SafetyLimits(np.full(3,-1.),np.ones(3),watchdog_s=100.),Kin()))
     h.occupancy=m=mapping();arm=SafeArm(raw,h)
     for name in ('cam0','side','proof'):m.refresh(capture(name,1.,attached=True),np.eye(4))
     h.allow_grasp_descent(raw.q[:2],radius_m=.07,z_min=.25)
@@ -460,7 +461,7 @@ def test_normal_pick_place_preserves_halt_between_successful_release_and_home():
 def test_recovery_cannot_rebind_harness_or_map_and_cleans_original_only(replace):
     rt,ep,events=retained();original=ep['harness']
     if replace=='harness':
-        other=SafetyHarness(original.limits,original.kin);other.occupancy=mapping()
+        other=observed(SafetyHarness(original.limits,original.kin));other.occupancy=mapping()
         other.allow_grasp_descent([.8,.8],radius_m=.01,z_min=.5)
         untouched=other._grasp_exempt;rt.arm.harness=other
     else:original.occupancy=mapping()

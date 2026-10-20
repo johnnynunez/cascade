@@ -229,16 +229,57 @@ def test_a_driver_repeating_its_last_buffer_never_re_arms_the_watchdog(make_runt
     assert out["ok"] is False and sent == {name: 0 for name in sent}, out
 
 
+def _jaw_counter(rt):
+    """name -> jaw commands each raw MockArm received from now on (a live dict)."""
+    counts = {}
+    for name, safe in rt.arm_rig.arms.items():
+        raw = raw_arm(safe)
+        counts[name] = 0
+        real = raw.set_gripper
+
+        def counted(*a, _real=real, _name=name, **k):
+            counts[_name] += 1
+            return _real(*a, **k)
+
+        raw.set_gripper = counted
+    return counts
+
+
+def _revive(rt):
+    """Undo `_kill`: the drivers deliver again; wait until the watcher processed new frames."""
+    for c in rt.watcher._cams:
+        for attr in ("get_frame", "_grab"):
+            vars(c.stream._camera).pop(attr, None)
+    t0, deadline = rt.watcher.ticks, time.monotonic() + 10.0
+    while rt.watcher.ticks < t0 + 3 and time.monotonic() < deadline:
+        time.sleep(0.02)
+    assert rt.watcher.ticks >= t0 + 3, "the camera did not come back"
+
+
+PIXEL = {"u": 320, "v": 230}
+
+
 def test_grasp_at_pixel_on_a_dead_camera_sends_nothing(make_runtime, monkeypatch):  # noqa: F811
-    """In-skill observe() (grasp_at_pixel): main grasped on the 8.7 s-old frame (411 commands)."""
+    """In-skill observe() (grasp_at_pixel): base grasped on the 8.7 s-old frame (411 commands); #414
+    refused at the pre-grasp home move, AFTER the jaws opened, and latched the e-stop (the home
+    move's handler stopped the arm), so every later call read "e-stop latched" until an operator
+    reset. Now the stale watchdog refuses before the jaw opening: no arm, no jaw command, no latch,
+    and the grasp goes ahead once the camera is back."""
     rt = _mock(make_runtime)
     _short_waits(rt, monkeypatch)
+    jaws = _jaw_counter(rt)
     rt.observe()
     _kill(rt)
-    out, sent = _call(rt, "grasp_at_pixel", {"u": 320, "v": 230})
+    out, sent = _call(rt, "grasp_at_pixel", PIXEL)
     assert out["ok"] is False, out
     assert sent == {name: 0 for name in sent}
-    assert "perception watchdog" in str(out.get("error")), out
+    assert jaws == {name: 0 for name in jaws}
+    assert not any(h.estopped for h in _harnesses(rt).values())
+    assert str(out.get("error")).startswith("SafetyViolation: perception watchdog: last observation "), out
+    _revive(rt)
+    out, sent = _call(rt, "grasp_at_pixel", PIXEL)
+    assert out["ok"] is True, out
+    assert all(n > 0 for n in sent.values()), sent
 
 
 def test_live_camera_control_still_moves(make_runtime, monkeypatch):  # noqa: F811
@@ -472,6 +513,20 @@ def test_a_grasp_retry_loop_ending_on_a_stale_frame_names_the_camera():
         "localization analysis expired; no automatic motion recovery")
 
 
+def test_a_grasp_retry_loop_ends_on_a_watchdog_refusal():
+    """The watchdog's refusal of a grasp no longer latches the e-stop, which is what ended a retry
+    loop before (`_grasp_retry_verdict`): it ends the loop itself, as a stale frame does. Another
+    refusal, or the operator's halt, keeps its own rule."""
+    from cascade.skills.runtime import _perception_stop
+    from cascade.types import MotionHalted, SafetyViolation
+
+    assert _perception_stop(SafetyViolation("perception watchdog: last observation 6.6s old"), 1) == (
+        "the perception watchdog refused the motion; no automatic motion recovery")
+    assert _perception_stop(SafetyViolation("perception watchdog: no observation yet"), 1) is not None
+    assert _perception_stop(SafetyViolation("TCP [0.9, 0.0, 0.1] outside workspace"), 1) is None
+    assert _perception_stop(MotionHalted("perception watchdog: halted"), 1) is None
+
+
 def test_slow_analysis_of_a_fresh_frame_keeps_its_own_text():
     """A frame fresh when it was grabbed (or one whose freshness the caller checked before the
     analysis: no `age_at_start`) keeps the slow-perception text (the camera is live)."""
@@ -606,6 +661,117 @@ def test_the_stream_restamps_a_re_delivered_producer_capture():
         stream.close()
     assert all(f is not first and f.t > first.t for f in later)
     assert {observed_at(f) for f in later} == {observed_at(first)}
+
+
+def _invalid_isaac_frame(stamp):
+    """An Isaac bridge frame whose capture data is invalid: the bridge sends `proprioception: None`
+    after a failed read."""
+    from cascade.types import Frame
+
+    return Frame(rgb=np.zeros((2, 2, 3), np.uint8), depth_m=None, K=np.eye(3),
+                 capture={"backend": "isaac", "source": ["e1", 1], "camera": "front", "t": stamp,
+                          "proprioception": None})
+
+
+@pytest.mark.parametrize("between", ["invalid", "local"])
+def test_a_re_delivered_capture_keeps_its_first_receipt_across_an_invalid_or_local_frame(between):
+    """#414 review Minor 3: the stream forgot the capture's first receipt at an invalid or a local
+    frame in between, so the next re-send of the OLD capture counted as new and refreshed the
+    watchdog."""
+    from cascade.perception.freshness import observed_at
+    from cascade.types import Frame
+
+    stream = CameraStream(camera=None, name="isaac")
+    first = _isaac_frame(10.0)
+    first.t -= 8.0
+    stream._note_first_receipt(first)
+    other = (_invalid_isaac_frame(11.0) if between == "invalid"
+             else Frame(rgb=np.zeros((2, 2, 3), np.uint8), depth_m=None, K=np.eye(3)))
+    stream._note_first_receipt(other)
+    copy = _isaac_frame(10.0)
+    stream._note_first_receipt(copy)
+    assert copy.observed_t == first.t and observed_at(copy) == first.t
+    newer = _isaac_frame(10.5)
+    stream._note_first_receipt(newer)
+    assert newer.observed_t is None and observed_at(newer) == newer.t
+
+
+def test_an_isaac_frame_with_invalid_capture_data_carries_no_stamp(make_runtime):  # noqa: F811
+    """... and is never stamped at its receipt like a local frame (#414 review Minor 3): nothing tells
+    when it was captured, so it beats no watchdog, through the stream or a runtime grab."""
+    from cascade.perception.freshness import observed_at
+
+    stream = CameraStream(camera=None, name="isaac")
+    bad = _invalid_isaac_frame(3.0)
+    stream._note_first_receipt(bad)
+    assert math.isnan(observed_at(bad))
+    rt = _mock(make_runtime)
+    rt.watcher.stop()
+    h = next(iter(_harnesses(rt).values()))
+    t = time.monotonic() - 30.0
+    h._last_heartbeat = t
+    rt._mark_perception_fresh(bad)
+    assert h._last_heartbeat == t
+    good = _isaac_frame(3.0)  # control: a valid capture beats at its receipt
+    rt._mark_perception_fresh(good)
+    assert h._last_heartbeat == good.t
+
+
+def test_the_unfed_arm_note_fits_the_agents_failed_line():
+    """#414 review Minor 5: with a long arm name behind the longest prefix the note ran past the 240
+    characters the agent's FAILED line quotes ("it needs a fixed scene camera" was cut). Worst case:
+    the longest arm profile name plus two digits (a profile used twice is named "<profile><i>"),
+    a watchdog age of 99999.9 s, or no observation yet."""
+    from cascade.apps.demo import _unfed_arm_note
+    from cascade.config import PACKAGE_ROOT
+    from cascade.skills.runtime import _with_failure_instruction
+    from cascade.types import SafetyViolation
+
+    longest = max(len(p.stem) for p in (PACKAGE_ROOT / "configs" / "arms").glob("*.yaml"))
+    name = "x" * (longest + 2)
+    h = _harness()
+    h.watchdog_note = _unfed_arm_note(name)
+    note = h.watchdog_note.removeprefix("; ")
+    assert f"no camera on this rig feeds arm {name!r}" in note and "it needs a fixed scene camera" in note
+    for last in (time.monotonic() - 99999.9, -math.inf):
+        h._last_heartbeat = last
+        with pytest.raises(SafetyViolation) as refused:
+            h.begin_motion()
+        for prefix, suffix in (("refused by the safety harness: ", ". The arm did not move."),
+                               ("SafetyViolation: ", "")):
+            line = _with_failure_instruction({"ok": False, "error": prefix + str(refused.value) + suffix})
+            assert note in line["next_action"], line["next_action"]
+
+
+def test_localize_measures_the_grab_age_from_the_first_receipt(make_runtime, monkeypatch):  # noqa: F811
+    """#414 review Minor 6: `_localize`'s grab age (`age_at_start`, which decides "the camera stopped"
+    over "the camera is live") came from `Frame.t`, so a re-sent Isaac capture (a new receipt of a
+    capture first received 30 s ago) read as fresh."""
+    from dataclasses import replace
+
+    from cascade.skills import runtime as runtime_mod
+
+    rt = _mock(make_runtime)
+    real = runtime_mod._analyzed_frame_age_s
+    seen = []
+
+    class _Seen(Exception):
+        pass
+
+    def spy(frame, analysis_s, max_age_s=5.0, **kw):
+        if "age_at_start" in kw:
+            seen.append(kw["age_at_start"])
+            raise _Seen
+        return real(frame, analysis_s, max_age_s, **kw)
+
+    monkeypatch.setattr(runtime_mod, "_analyzed_frame_age_s", spy)
+    now = time.monotonic()
+    resent = replace(rt.camera.latest(), t=now, observed_t=now - 30.0)
+    monkeypatch.setattr(rt, "observe", lambda **_k: resent)
+    rt.beliefs.clear()
+    with pytest.raises(_Seen):
+        rt._localize("purple unicorn")
+    assert seen[0] == pytest.approx(30.0, abs=2.0), seen
 
 
 # ── calibration grabs ──────────────────────────────────────────────────────

@@ -17,7 +17,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from conftest import needs_pin
+from conftest import needs_pin, observed
 
 from cascade.config import Cfg, load_demo_config
 from cascade.types import SafetyViolation, SkillError
@@ -128,7 +128,7 @@ def _safe_arm(q0, motion_planner=None):
     cfg = load_demo_config(arm="rebot_rs")
     raw = MockArm(Cfg({"home_q": list(q0), "n_joints": 6}), kin)
     raw.connect()
-    harness = SafetyHarness(SafetyLimits.from_config(cfg.safety), kinematics=kin)
+    harness = observed(SafetyHarness(SafetyLimits.from_config(cfg.safety), kinematics=kin))
     return kin, raw, harness, SafeArm(raw, harness, motion_planner=motion_planner)
 
 

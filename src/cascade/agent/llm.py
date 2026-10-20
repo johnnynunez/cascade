@@ -30,6 +30,23 @@ from ..config import Cfg
 log = logging.getLogger(__name__)
 
 
+def read_api_key_file(path: str | os.PathLike, *, who: str) -> str:
+    """The bearer key in a profile's `api_key_file`, read as the brain detector
+    reads its own (`BrainDetector._read_key`): `~` expanded, whitespace stripped;
+    an unreadable or empty file sends no key ("EMPTY") and says which file,
+    never the key. `who` names the reader in that warning."""
+    p = Path(path).expanduser()
+    try:
+        key = p.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeDecodeError) as e:
+        log.warning("%s: api key file %s is unreadable (%s); sending no key", who, p, type(e).__name__)
+        return "EMPTY"
+    if not key:
+        log.warning("%s: api key file %s is empty; sending no key", who, p)
+        return "EMPTY"
+    return key
+
+
 @dataclass
 class ToolCall:
     name: str

@@ -56,6 +56,9 @@ class MockArm(ArmBase):
     def disconnect(self) -> None:
         self._connected = False
 
+    #: No hardware: nothing can drop.
+    disconnect_cuts_torque = False
+
     def get_state(self) -> RobotState:
         return RobotState(
             q=self._q.copy(),

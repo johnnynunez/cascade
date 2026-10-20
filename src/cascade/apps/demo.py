@@ -227,16 +227,27 @@ class _RigHeartbeat:
             harness.heartbeat(at=at)
 
 
+def _rig_arms(arm_rig) -> list:
+    """The rig's arms (SafeArms or standby LazyArms), in rig order; none
+    without a rig."""
+    return list(getattr(arm_rig, "arms", {}).values()) if arm_rig is not None else []
+
+
+def _every_arm_feed(arms) -> _RigHeartbeat:
+    """A feed that keeps every one of `arms`' watchdogs alive. Harnesses are
+    read from the SafeArm's instance dict (never a LazyArm attribute probe)."""
+    return _RigHeartbeat([a.__dict__["harness"] for a in arms])
+
+
 def _watcher_heartbeat(arm_rig, primary_harness):
     """What the watcher heartbeats: the primary's harness itself on one arm
-    (unchanged), every arm's harness on a rig of two or more. Harnesses are
-    read from the SafeArm's instance dict (never a LazyArm attribute probe).
-    On a rig every camera also carries its own feed (`_camera_watchdog_feed`),
-    which the watcher uses instead."""
-    arms = list(getattr(arm_rig, "arms", {}).values()) if arm_rig is not None else []
+    (unchanged), every arm's harness on a rig of two or more
+    (`_every_arm_feed`). On a rig every camera also carries its own feed
+    (`_camera_watchdog_feed`), which the watcher uses instead."""
+    arms = _rig_arms(arm_rig)
     if len(arms) < 2:
         return primary_harness
-    return _RigHeartbeat([a.__dict__["harness"] for a in arms])
+    return _every_arm_feed(arms)
 
 
 def _camera_watchdog_feed(arm_rig, ccfg, extrinsics):
@@ -251,20 +262,23 @@ def _camera_watchdog_feed(arm_rig, ccfg, extrinsics):
     - a `role: wrist` view without hand-eye extrinsics does not say which arm
       it rides on: no arm (fail closed; the fixed cameras still feed them all).
     """
-    arms = list(getattr(arm_rig, "arms", {}).values()) if arm_rig is not None else []
+    arms = _rig_arms(arm_rig)
     if len(arms) < 2:
         return None
     if not is_wrist_view(ccfg):
-        return _RigHeartbeat([a.__dict__["harness"] for a in arms])
+        return _every_arm_feed(arms)
     if extrinsics.mode == "eye_in_hand":
         return _RigHeartbeat([arm_rig.primary.__dict__["harness"]])
     return _RigHeartbeat(())
 
 
 def _unfed_arm_note(name) -> str:
-    """The watchdog-refusal note of an arm no camera feeds (`_warn_unfed_arms`)."""
-    return (f"; no camera on this rig feeds arm {name!r} (a `role: wrist` view feeds no arm, an "
-            "eye-in-hand camera only the primary): it needs a fixed scene camera")
+    """The watchdog-refusal note of an arm no camera feeds (`_warn_unfed_arms`).
+    The deciding words first and the whole note short: behind the longest
+    refusal prefix it must fit the 240 characters of the agent's FAILED line
+    with the longest arm name (#414 review Minor 5)."""
+    return (f"; no camera on this rig feeds arm {name!r}: it needs a fixed scene camera "
+            "(a wrist view feeds at most the primary arm)")
 
 
 def _warn_unfed_arms(arm_rig, watched) -> list[str]:
@@ -1076,6 +1090,14 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
     # Whose watchdogs each camera's frames feed, for the runtime's own frame
     # grabs (`SkillRuntime._mark_perception_fresh`), the rule the watcher uses.
     runtime._watchdog_feeds = tuple((cam.stream, cam.watchdog_feed) for cam in watched)
+    # Every harness is built stale (no observation yet): the warm-up's frames
+    # are the first real observations, fed by that same rule, so a live
+    # camera moves on the first call, before the watcher's first tick (or with
+    # no watcher). A camera with no frame yet feeds nothing.
+    for cam in watched:
+        latest = cam.stream.latest()
+        if latest is not None:
+            runtime._mark_perception_fresh(latest, cam.stream)
     # Each other arm's own Kinematics (the one its harness uses) and resolved
     # profile, bound by execute(arm=<name>) for that call (spec Q4 a, D3). The
     # primary keeps the runtime's own `kin` / `cfg`.
@@ -1522,6 +1544,98 @@ def _park_move(arm, duration_s: float, stage: dict) -> bool:
             harness.occupancy = occupancy
 
 
+#: The operator's explicit confirmation that a teardown may cut torque on an
+#: arm its park did not bring to rest (refused by the watchdog or any other
+#: gate, skipped under a latched e-stop, not settled): this variable set to
+#: exactly TORQUE_OFF_CONFIRMATION -- they are holding the arm. Without it such
+#: an arm stays powered and holding its pose (#422 review follow-up 2: a dead
+#: camera refused the park and the disconnect then dropped a raised arm).
+#: Never forwarded to an MCP registration (`apps.mcp_env`): no value inherited
+#: from a shell may make a teardown drop an arm.
+TORQUE_OFF_CONFIRM_ENV = "CASCADE_TORQUE_OFF_UNPARKED"
+TORQUE_OFF_CONFIRMATION = "holding the arm"
+
+#: `_park_arm` skips after which the disconnect drops nothing: no arm, an arm
+#: never powered, a controller that keeps the hold, a simulator whose
+#: disconnect keeps its drives. Any other skip (the e-stop) left the arm where
+#: it was.
+_PARK_SKIPS_THAT_DROP_NOTHING = frozenset({"absent", "not_connected", "external_controller_retains_hold",
+                                           "retained_or_possible_load"})
+
+
+def _torque_off_confirmed() -> bool:
+    return os.environ.get(TORQUE_OFF_CONFIRM_ENV, "").strip().lower() == TORQUE_OFF_CONFIRMATION
+
+
+def _unparked_reason(stage) -> str | None:
+    """Why the shutdown park left this arm where it was (`stage`: its
+    `_park_arm` stage), or None: it parked, or nothing can drop (a skip in
+    `_PARK_SKIPS_THAT_DROP_NOTHING`)."""
+    if not isinstance(stage, dict):
+        return "the shutdown park did not run"
+    skipped = stage.get("skipped")
+    if skipped is not None:
+        if skipped in _PARK_SKIPS_THAT_DROP_NOTHING:
+            return None
+        if skipped == "estopped":
+            return "the e-stop is latched, so the shutdown park never moved it"
+        return f"the shutdown park was skipped ({skipped})"
+    if stage.get("ok") is True and stage.get("complete") is True:
+        return None
+    error = (stage.get("errors") or [{}])[0]
+    return f"the shutdown park was refused ({error.get('type', 'Error')}: {error.get('message', '')})"
+
+
+def _hold_reason(raw, stage, name) -> str | None:
+    """Why `raw` (arm `name`) must stay connected, powered and holding
+    instead of being disconnected, or None. Only a backend whose disconnect
+    may cut torque (`ArmBase.disconnect_cuts_torque`; a double that does not
+    say is not one) and only when its park did not bring it to rest: cutting
+    torque there drops a raised arm. Never waives a gate: the park stays
+    refused, the arm simply keeps its torque. The operator's confirmation
+    (TORQUE_OFF_CONFIRM_ENV) lets the disconnect run anyway, said loudly."""
+    if getattr(raw, "disconnect_cuts_torque", False) is not True:
+        return None
+    reason = _unparked_reason(stage)
+    if reason is None:
+        return None
+    if _torque_off_confirmed():
+        print(f"[cascade] arm {name}: {reason}; cutting its torque anyway: the operator confirmed "
+              f"{TORQUE_OFF_CONFIRM_ENV}={TORQUE_OFF_CONFIRMATION!r}", file=sys.stderr, flush=True)
+        return None
+    return reason
+
+
+def _announce_held(held: dict) -> None:
+    """Say loudly, per arm, that it is still powered and why (stderr: the
+    MCP server's server.log, the CLI's console)."""
+    for name, reason in held.items():
+        print(f"[cascade] WARNING: arm {name} is POWERED and HOLDING its pose: {reason}. Teardown did not "
+              "cut its torque (a raised arm would drop). Support the arm, then switch its power off. To let "
+              f"a teardown cut torque on an unparked arm, start it with {TORQUE_OFF_CONFIRM_ENV}="
+              f"{TORQUE_OFF_CONFIRMATION!r} and hold the arm.", file=sys.stderr, flush=True)
+
+
+def _arms_to_hold(runtime, arm, park_receipt) -> dict:
+    """name -> reason for every arm the teardown must leave powered
+    (`_hold_reason`), from `_park_arm`'s receipt (None: it did not run).
+    `_park_arm` names its stages by position in its own arm list."""
+    stages = {stage.get("stage"): stage for stage in (park_receipt or {}).get("stages", ())
+              if isinstance(stage, dict)}
+    rig = getattr(runtime, "arm_rig", None)
+    held = {}
+    if rig is not None:
+        names = list(rig.names)
+        for index, name in enumerate(names):
+            stage = stages.get(str(index)) if len(names) > 1 else stages.get("0")
+            reason = _hold_reason(getattr(rig.arms[name], "raw", None), stage, name)
+            if reason is not None:
+                held[name] = reason
+        return held
+    reason = _hold_reason(arm, stages.get("0"), "arm")
+    return {} if reason is None else {"arm": reason}
+
+
 def _shutdown_park_required(raw) -> bool:
     """Inspect only an existing backend; never connect an arm for teardown."""
     if isinstance(raw, LazyArm):
@@ -1692,15 +1806,29 @@ def shutdown_runtime(runtime, arm) -> dict:
         n = runtime.memory.save_visual(path)
         print(f"[cascade] remembered {n} appearance(s) -> {path}")
 
+    park, held = {}, {}
+
+    def _park():
+        park["receipt"] = _park_arm(runtime)
+        return park["receipt"]
+
     def _disconnect_arms():
+        # An arm whose park did not bring it to rest and whose disconnect
+        # cuts torque stays powered and holding (#422 review follow-up 2).
+        held.update(_arms_to_hold(runtime, arm, park.get("receipt")))
+        _announce_held(held)
         rig = getattr(runtime, "arm_rig", None)
         if rig is not None:
-            return rig.disconnect()  # includes the primary and per-arm results
+            # includes the primary and per-arm results
+            return rig.disconnect(hold=held) if held else rig.disconnect()
+        if held:
+            return teardown_receipt([{"stage": "arm", "ok": False, "complete": False, "holding": True,
+                                      "errors": [{"type": "TorqueHeld", "message": held["arm"]}]}])
         return arm.disconnect()
 
     stages = []
     for name, step in (
-        ("park", lambda: _park_arm(runtime)),
+        ("park", _park),
         ("beliefs", _save_beliefs),
         # present only when the visual index is persisted, so the default
         # receipt keeps exactly its stages
@@ -1711,6 +1839,9 @@ def shutdown_runtime(runtime, arm) -> dict:
         stages.append(teardown_step(name, step))
 
     receipt = teardown_receipt(stages, pending_threads=_pending_threads(threads, after="shutdown"))
+    if held:
+        # the arms left powered, by name, and why: the receipt's status line
+        receipt["torque_held"] = dict(held)
     runtime._shutdown_receipt = copy.deepcopy(receipt)
     return receipt
 

@@ -379,8 +379,8 @@ def _hold_on_another_arm(runtime) -> bool:
 class _PointTargetMoved(Exception):
     """point_at's target moved while it planned (`_point_at_still_there`):
     plan once more from `fix`, where it is now, localized at `localized`
-    ((`pointing._wall()`, `time.monotonic()`, the image it came from)). Never
-    leaves `skill_point_at`."""
+    ((`pointing._wall()`, `time.monotonic()`, the image it came from, that
+    image's camera)). Never leaves `skill_point_at`."""
 
     def __init__(self, fix, localized):
         super().__init__("the target moved while point_at planned")
@@ -1112,6 +1112,12 @@ def _perception_stop(exc: BaseException, attempt: int) -> str | None:
         what = "the scene changed while the object was localized"
     elif isinstance(exc, StaleFrameError):
         what = "the camera stopped delivering frames"
+    elif (isinstance(exc, SafetyViolation) and not isinstance(exc, MotionHalted)
+          and str(exc).startswith("perception watchdog:")):
+        # The arm's watchdog refused the attempt before any motion. It no
+        # longer latches the e-stop (#414 review Important 1), which ended
+        # the loop before; a re-home would be refused alike.
+        what = "the perception watchdog refused the motion"
     elif isinstance(exc, SlowPerceptionError):
         what = "localization analysis expired"
     elif isinstance(exc, ReanchorError) and attempt >= 2:
@@ -2308,6 +2314,62 @@ class SkillRuntime:
         harness = getattr(arm, "harness", None)
         return bool(getattr(harness, "estopped", False) or getattr(harness, "halted", None))
 
+    def _approved_commands(self) -> int | None:
+        """The running arm's approved commands so far
+        (`SafetyHarness.approved_commands`: one per command approve() cleared,
+        over every motion), or None for a harness double that does not count."""
+        n = getattr(getattr(self.arm, "harness", None), "approved_commands", None)
+        return n if type(n) is int else None
+
+    def _refused_before_motion(self, exc: BaseException, before: int | None) -> bool:
+        """`exc` is the move's own refusal before its first approved command:
+        the running arm's harness approved no command since `before` (taken
+        with `_approved_commands` right before the move), and `exc` is a
+        refusal -- a SafetyViolation (the e-stop, halt or watchdog check at
+        the motion's start, a preflight) or a SkillError (a route preflight
+        that found no safe route) -- not an attachment loss and not raised
+        from any other exception (a backend fault: `raise
+        SafetyViolation(...) from TypeError`). The arm did not move, so the
+        caller stops nothing: `arm.stop()` would latch an e-stop only the
+        operator can clear (#414 review Important 1). The count is of
+        commands, never the `motions_begun` flag a concurrent motion's
+        end_motion() clears (#422 review Minor 1). An unknown count (a
+        harness double) is never "before"."""
+        if before is None or isinstance(exc, carry_attachment.AttachmentInvalid):
+            return False
+        seen = set()
+        link = exc
+        while link is not None and id(link) not in seen:
+            seen.add(id(link))
+            if not isinstance(link, (SafetyViolation, SkillError)):
+                return False
+            link = link.__cause__ if link.__cause__ is not None else (
+                None if link.__suppress_context__ else link.__context__)
+        return SkillRuntime._approved_commands(self) == before
+
+    def _latched_note(self, error) -> str:
+        """What a failed move's `error` text adds once its `arm.stop()` latched
+        the e-stop (`SafeArm.stop()`): a latch is never silent, and never said
+        twice (an e-stop that ended the move already says so)."""
+        latched = getattr(getattr(self.arm, "harness", None), "estopped", False) is True
+        return "; e-stop latched" if latched and "e-stop latched" not in str(error) else ""
+
+    def _raise_home_move_failure(self, exc: BaseException, before: int | None):
+        """The grasp's pre-grasp home move (or its route check before the jaw
+        opening) raised `exc`; `before`: `_approved_commands` right before it.
+        Refused at its start (the watchdog, the e-stop, a route preflight):
+        the arm did not move, so no stop and no latch; the refusal raised as
+        itself, the e-stop's if one is latched (#414 review Important 1).
+        Started (it may have stopped anywhere) or a fault outside the safety
+        checks: stop, which latches, and say so. Always raises."""
+        if SkillRuntime._refused_before_motion(self, exc, before):
+            if getattr(getattr(self.arm, "harness", None), "estopped", False) is True:
+                raise SafetyViolation("e-stop latched") from exc
+            raise exc
+        self.arm.stop()
+        raise SkillError(f"home move failed before pregrasp: {exc}"
+                         f"{SkillRuntime._latched_note(self, exc)}") from exc
+
     def _halted_since_skill_start(self, baselines=None) -> bool:
         """An operator halt arrived since the running motion skill started,
         even one withdrawn again (a Resume): the skill ended on it (A3).
@@ -2420,7 +2482,20 @@ class SkillRuntime:
             self._show_status("Returning to the saved camera-view home")
             carry_attachment.check(self)
             halt_kw = {} if halt_generation is None else {"_halt_generation": halt_generation}
-            if not self._move_carry(home, duration_s=3.0, **halt_kw):
+            before = SkillRuntime._approved_commands(self)
+            try:
+                settled = self._move_carry(home, duration_s=3.0, **halt_kw)
+            except MotionHalted:
+                raise
+            except Exception as exc:
+                if SkillRuntime._refused_before_motion(self, exc, before):
+                    # Refused at its start (the watchdog, the e-stop, a route
+                    # preflight): the arm did not move, so nothing is latched;
+                    # skipped like the freshness check above (#414 review I1).
+                    return {"ok": False, "status": "skipped",
+                            "reason": SkillRuntime._refused_return_reason(self, exc)}
+                raise
+            if not settled:
                 raise SkillError("did not settle at the saved home pose")
             reason = self._home_return_skip_reason()
             if reason:
@@ -2443,11 +2518,25 @@ class SkillRuntime:
             # (a halt is not the e-stop).
             return {"ok": False, "status": "halted", "reason": str(exc)}
         except Exception as exc:
+            # The move started (it may have stopped anywhere) or met a fault
+            # outside the safety checks: stop, which latches the e-stop.
             try:
                 self.arm.stop()
             except Exception as stop_error:
                 logger.error("Stopping after a failed home return failed: %s", stop_error)
-            return {"ok": False, "status": "failed", "error": f"{type(exc).__name__}: {exc}"}
+            return {"ok": False, "status": "failed",
+                    "error": f"{type(exc).__name__}: {exc}{SkillRuntime._latched_note(self, exc)}"}
+
+    def _refused_return_reason(self, exc: BaseException) -> str:
+        """The skip reason of a view-home return its move refused before its
+        first command: the e-stop as itself, the perception watchdog as the
+        missing home perception (as the freshness check says it), else the
+        refusal."""
+        if getattr(getattr(self.arm, "harness", None), "estopped", False) is True:
+            return "e-stop latched"
+        if isinstance(exc, SafetyViolation) and str(exc).startswith("perception watchdog:"):
+            return f"home perception unavailable: {exc}"
+        return f"refused before any motion: {type(exc).__name__}: {exc}"
 
     def execute(self, name: str, args: dict) -> dict:
         """Dispatch with task obligations covering all tiers and preparation faults.
@@ -3700,7 +3789,7 @@ class SkillRuntime:
         if getattr(self, "_contact_episode", None) is not None:
             return "unfinished contact episode; explicit reset_scene recovery required"
         if self.arm.harness.estopped:
-            return "e-stop latched; not retrying"
+            return _ESTOP_STOP
         if getattr(self, "_held_provisional", None) is not None and not self.held_object:
             # The attempt ended after its close and the jaws cannot be read
             # (`_held_after_failed_attempt` kept the hold): every next grasp
@@ -3903,7 +3992,7 @@ class SkillRuntime:
                 break
             stop = self._grasp_retry_verdict(object, attempt, last_err)
             if stop:
-                last_err += f" ({stop})"
+                last_err = _with_stop_reason(last_err, stop)
                 break
         out = {"ok": False, "held": False, "error": last_err, "grasp_attempts": attempt}
         # Same contract as pick_and_place: budget spent or a reason no retry
@@ -4395,6 +4484,21 @@ class SkillRuntime:
         if timings is not None:
             timings.append(timing)
 
+    def _note_localized_on(self, camera) -> None:
+        """Record which camera stream `_localize`'s answer on this thread came
+        from (`_localized_camera`); None: none, or not a camera's detection."""
+        self._localized_on = (threading.get_ident(), camera)
+
+    def _localized_camera(self):
+        """The camera stream the calling thread's last `_localize` answer came
+        from: the primary (`self.camera`) or one of `_other_cams()`'s. None
+        when that answer was the belief's or the VLM's, when it found nothing,
+        or when this thread localized nothing yet. point_at's look again
+        compares producer captures only within one camera (#413 review Minor
+        1)."""
+        found = getattr(self, "_localized_on", None)
+        return found[1] if found is not None and found[0] == threading.get_ident() else None
+
     def _localize(self, query: str, spatial_hint: str | None = None, *, memory: bool = True):
         """Fresh frame + color/proximity-aware 3D fix for a user phrase.
 
@@ -4411,7 +4515,9 @@ class SkillRuntime:
         `memory` False: never that belief fallback (a detection on a fresh
         image, or the VLM's, else the miss is raised). point_at's look again
         after a long plan needs it: inside the skill the belief is what was
-        known before the plan, so it can only read as unmoved (#406 review)."""
+        known before the plan, so it can only read as unmoved (#406 review).
+        Which camera its answer came from: `_localized_camera()`."""
+        self._note_localized_on(None)
         localization_started = time.monotonic()
         r = self._resolve_query(query)
         workspace_bounds = self._localization_workspace_bounds()
@@ -4439,14 +4545,14 @@ class SkillRuntime:
         # The primary frame's age when it was grabbed: a dead camera's last
         # frame is already past the limit then, and the fallbacks below say so
         # (StaleFrameError) instead of "fresh at capture ... the camera is live".
+        # Measured from its first arrival (`observed_at`): a producer's re-sent
+        # capture is as old as its first delivery, not its new receipt.
         frame_age_at_grab = None
 
         def grabbed(f):
             nonlocal frame_age_at_grab
-            try:
-                frame_age_at_grab = time.monotonic() - float(f.t)
-            except (AttributeError, TypeError, ValueError):
-                frame_age_at_grab = None
+            age = time.monotonic() - observed_at(f)
+            frame_age_at_grab = age if math.isfinite(age) else None
             return f
 
         last_err: SkillError | None = None
@@ -4657,10 +4763,12 @@ class SkillRuntime:
                     if two_phase:
                         analyzed, fix = localize_two_phase(primary_frame0, primary_frame1,
                                                            lambda _frame: self.extrinsics)
+                        self._note_localized_on(self.camera)
                         return self._note_localized(query, analyzed, fix)
                     frame = grabbed(self.observe())
                     analyzed = self._frame_in_arm(frame)
                     fix = analyze(analyzed, self.extrinsics)
+                self._note_localized_on(self.camera)
                 return self._note_localized(query, analyzed, fix)
             except SlowPerceptionError:
                 raise  # Not detector flicker; do not fall back to memory.
@@ -4718,6 +4826,7 @@ class SkillRuntime:
                     f"localize {query!r}: primary camera missed it; found "
                     f"through {getattr(cam.stream, 'name', 'another camera')}",
                 )
+                self._note_localized_on(cam.stream)
                 return self._note_localized(query, cframe, fix)
             except _NoDepth:
                 continue
@@ -4814,11 +4923,20 @@ class SkillRuntime:
             if self._grounder is None:
                 from ..perception.vlm_ground import VLMGrounder
 
+                # A profile that names its key FILE (local_cosmos_sglang: its
+                # brain serves only with a key) sends that key; the others build
+                # the grounder exactly as before.
+                keyed = {}
+                if gcfg.get("api_key_file"):
+                    from ..agent.llm import read_api_key_file
+
+                    keyed["api_key"] = read_api_key_file(gcfg.get("api_key_file"), who="grounder")
                 self._grounder = VLMGrounder(
                     base_url=str(gcfg.get("base_url")),
                     model=str(gcfg.get("model", "")),
                     timeout_s=float(gcfg.get("timeout_s", 45.0)),
                     enable_thinking=gcfg.get("enable_thinking"),
+                    **keyed,
                 )
             # Views to try: (frame, cam->base T). Primary first, then the
             # other fusing cameras with their own extrinsics.
@@ -5276,6 +5394,12 @@ class SkillRuntime:
         `_observed_selection_on_failure` wrapper.
         """
         scene_enabled = os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1"
+        # A latched e-stop refuses the grasp as itself, before any work: its
+        # candidates' vets all read "e-stop latched", and the agent was told
+        # "NoExecutableGrasp ... approach unsafe: e-stop latched" four times
+        # over, a planning failure it may retry (#414 review Important 1).
+        if getattr(getattr(self.arm, "harness", None), "estopped", False) is True:
+            raise SafetyViolation("e-stop latched")
         # R5: another arm's provisional hold keeps its slot: refused before
         # any work, the VLA route included.
         SkillRuntime._refuse_on_another_arms_provisional(self, "grasp_object")  # runtime doubles too
@@ -5844,9 +5968,29 @@ class SkillRuntime:
             from ..grasping.force import pregrasp_open_position
             open_pos = pregrasp_open_position(
                 grasp.width_m, margin, self._grip_open, self._grip_closed, self._max_width)
+        # The opening goes out only for the arm moves after it: their
+        # begin_motion refusals first (the e-stop, a halt since the skill
+        # started, the perception watchdog), so a dead camera sends no jaw
+        # command either (#414 review Minor 2). A harness double without the
+        # check keeps today's order.
+        before_motion = getattr(harness, "check_before_motion", None)
+        if callable(before_motion):
+            before_motion(**({"halt_generation": scene_halt_generation} if scene_enabled else {}))
+        _home = self.cfg.arm.get("home_q")
+        preflight = getattr(self.arm, "preflight_planned", None)
+        if _home is not None and not preserve_view_home and scene_gate is None and callable(preflight):
+            # ... and the home move's route (no command): a route or workspace
+            # refusal then costs no jaw command either (#422 review Minor 5).
+            # The move plans its own route again; this check authorizes nothing.
+            begun = SkillRuntime._approved_commands(self)
+            try:
+                preflight(np.asarray(_home, dtype=float), duration_s=1.5)
+            except MotionHalted:
+                raise
+            except Exception as exc:
+                SkillRuntime._raise_home_move_failure(self, exc, begun)
         self._set_gripper(open_pos, effort=0.8,
                              **({"_halt_generation": scene_halt_generation} if scene_enabled else {}))
-        _home = self.cfg.arm.get("home_q")
         if _home is not None and not preserve_view_home:
             grasp_evidence.phase("home")
             grasp_evidence.event("move_target", q=_home, duration_s=1.5)
@@ -5855,6 +5999,7 @@ class SkillRuntime:
                                             **_scene_motion(np.asarray(_home, dtype=float))):
                     raise SkillError("did not settle at required observed-finger home pose")
             else:
+                begun = SkillRuntime._approved_commands(self)
                 try:
                     settled_home = self._move_planned(np.asarray(_home, dtype=float), duration_s=1.5)
                 except MotionHalted:
@@ -5862,11 +6007,11 @@ class SkillRuntime:
                     # ends the grasp as itself, without latching (A3 review).
                     raise
                 except Exception as exc:
-                    self.arm.stop()
-                    raise SkillError(f"home move failed before pregrasp: {exc}") from exc
+                    SkillRuntime._raise_home_move_failure(self, exc, begun)
                 if not settled_home:
                     self.arm.stop()
-                    raise SkillError("did not settle at home pose before pregrasp")
+                    raise SkillError("did not settle at home pose before pregrasp"
+                                     f"{SkillRuntime._latched_note(self, '')}")
         grasp_evidence.phase("pregrasp")
         grasp_evidence.event("move_target", q=q_pre, duration_s=gcfg.get("move_duration_s", 2.5))
         # The observed gate vets the exact direct profile; the mapping-only
@@ -7842,7 +7987,7 @@ class SkillRuntime:
                 # minutes on those reads as a hang at a live booth.
                 stop = self._grasp_retry_verdict(object, attempt, last_err)
                 if stop:
-                    last_err += f" ({stop})"
+                    last_err = _with_stop_reason(last_err, stop)
                     break
             if grasp is None:
                 # Never leave the arm hanging mid-pose over the table after a
@@ -7965,7 +8110,7 @@ class SkillRuntime:
                         # reason instead of spending minutes retrying.
                         break
                     if self.arm.harness.estopped:
-                        place_err += " (e-stop latched; not retrying)"
+                        place_err = _with_stop_reason(place_err, _ESTOP_STOP)
                         break
                     if _is_contact(place_err):
                         place_err += " (contact detected: something blocked the arm; not retrying into it)"
@@ -8142,8 +8287,10 @@ class SkillRuntime:
         localization and the end of planning, it looks at the object again
         before the first command, on a detection newer than the plan only
         (never the remembered belief, never an image received before that
-        look started, never a camera's producer capture no newer than the one
-        the plan was made from): not seen again, it refuses; moved more than
+        look started (an image in flight then aside: 0.1 s) or whose capture
+        was first received more than 0.5 s before it, never a producer
+        capture no newer than the one the plan was made from on that camera or
+        on a producer clock both share): not seen again, it refuses; moved more than
         1 cm (its centre or its top), it is planned once more from where it is
         now, on what is left of the same budget; moved again, refuses (nothing
         was moved). The object top is
@@ -8158,8 +8305,8 @@ class SkillRuntime:
 
         # the freshness clock starts here, at the localization, before the
         # budget's core-speed search (#406 review Minor 1): (wall, monotonic,
-        # the image the fix came from)
-        localized = (pointing._wall(), time.monotonic(), frame)
+        # the image the fix came from, that image's camera)
+        localized = (pointing._wall(), time.monotonic(), frame, self._localized_camera())
         budget = pointing.Budget()
         try:
             try:
@@ -8183,8 +8330,8 @@ class SkillRuntime:
         `generation`: the harness's halt generation when the call started;
         `replanned`: this is the plan from a fix taken again after a long
         first plan (`_point_at_still_there`); `localized`: (`pointing._wall()`,
-        `time.monotonic()`) when `fix` was localized, and the image it came
-        from."""
+        `time.monotonic()`) when `fix` was localized, the image it came
+        from and that image's camera (`_localized_camera`)."""
         from . import pointing
 
         gcfg = self.cfg.grasp
@@ -8378,27 +8525,41 @@ class SkillRuntime:
                               replanned: bool) -> None:
         """point_at, before its first command: when more than
         `pointing.FRESH_PLAN_S` of wall time passed since `fix` was localized
-        (`localized`: (`pointing._wall()`, `time.monotonic()`) then, and the
-        image `fix` came from), the plan acted on an old fix, so the target is
-        localized again, on a detection newer than the plan only (#406
-        review): `_localize(memory=False)`, never its belief fallback (inside
-        the skill that is what was known before the plan, read as unmoved), on
-        an image RECEIVED after this look started (`Frame.t`, the client's
-        receipt time: a camera that stalled during the plan hands back an
-        image received then, #411 review Minor 2). When either image carries a
-        producer capture (an Isaac / OVRTX camera's own clock), the new one's
-        must also be newer than the one `fix` came from
-        (`freshness.newer_capture`): a bridge re-sends an old capture in a new
-        Frame, with a new `Frame.t` (#411 review Minor 1); one that cannot be
-        compared with it (another identity, none any more) refuses too. Not
-        seen again: refuses. Moved more than `pointing.FRESH_MOVE_M`
-        (`fix_moved_m`): raises `_PointTargetMoved` with the fresh fix (planned
-        once more), or, when this already was that plan, refuses. Nothing was
-        commanded either way; a stop that came meanwhile is reported first."""
+        (`localized`: (`pointing._wall()`, `time.monotonic()`) then, the image
+        `fix` came from and its camera), the plan acted on an old fix, so the
+        target is localized again, on a detection newer than the plan only
+        (#406 review): `_localize(memory=False)`, never its belief fallback
+        (inside the skill that is what was known before the plan, read as
+        unmoved), on an image RECEIVED after this look started (`Frame.t`, the
+        client's receipt time: a camera that stalled during the plan hands
+        back an image received then, #411 review Minor 2), or at most
+        `pointing.FRESH_IN_FLIGHT_S` before it (an image the camera's pump had
+        received but not yet published, #413 review Minor 3), and never before
+        the plan started. When either
+        image carries a producer capture (an Isaac / OVRTX camera's own
+        clock) and both come from one camera, the new one's must also be newer
+        than the one `fix` came from (`freshness.newer_capture`): a bridge
+        re-sends an old capture in a new Frame, with a new `Frame.t` (#411
+        review Minor 1); one that cannot be compared with it (another
+        identity, none any more) refuses too. An image another camera found
+        (`_localized_camera`) is compared with it only on a producer clock
+        both captures share (`freshness.producer_clock`: one Isaac sim's
+        physics loop, #418 review Minors 1-2), else not: captures on two
+        clocks are not comparable (#413 review Minor 1). Either way the
+        capture must have been FIRST received (`freshness.observed_at`) at
+        most `pointing.FRESH_OBSERVED_S` before this look started: a sim that
+        froze during the plan while its bridge re-sends the last render looks
+        new otherwise (#413 review Minor 2); a first receipt that is not a
+        finite time up to now (one the perception heartbeat would ignore)
+        refuses too. Not seen again: refuses. Moved more
+        than `pointing.FRESH_MOVE_M` (`fix_moved_m`): raises
+        `_PointTargetMoved` with the fresh fix (planned once more), or, when
+        this already was that plan, refuses. Nothing was commanded either way;
+        a stop that came meanwhile is reported first."""
         from ..perception import freshness
         from . import pointing
 
-        planned_from, since, planned_on = localized
+        planned_from, since, planned_on, planned_camera = localized
         took = pointing._wall() - planned_from
         if took <= pointing.FRESH_PLAN_S:      # NaN looks again
             return
@@ -8414,19 +8575,55 @@ class SkillRuntime:
             frame, fresh = self._localize(label, memory=False)
         except SkillError as exc:
             raise not_seen(f"{type(exc).__name__}: {exc}") from None
-        seen_again = (pointing._wall(), time.monotonic(), frame)
+        camera = self._localized_camera()
+        seen_again = (pointing._wall(), time.monotonic(), frame, camera)
         received = float(getattr(frame, "t", math.nan))
-        if not received > looking:             # NaN, or no image: not newer
+        # never an image from before the plan started, however close to this
+        # look: `took` reads `pointing._wall`, which need not be this clock;
+        # NaN, or no image: not newer
+        if not (received > since and received > looking - pointing.FRESH_IN_FLIGHT_S):
             raise not_seen("the image it was found on again was taken before the plan started" if not received > since
                            else "the image it was found on again was received during the plan, before this look "
                                 "started")
-        if getattr(frame, "capture", None) is not None or getattr(planned_on, "capture", None) is not None:
+        # producer clocks compare within one camera; an unknown camera (the
+        # VLM's answer) compares as before
+        one_camera = camera is None or planned_camera is None or camera is planned_camera
+        captured = getattr(frame, "capture", None) is not None or getattr(planned_on, "capture", None) is not None
+        if one_camera and captured:
             try:
                 newer = freshness.newer_capture(frame, planned_on)
             except ValueError as exc:
                 raise not_seen(f"its capture cannot be compared with the one the plan was made from ({exc})") from None
             if not newer:
                 raise not_seen("its camera re-sent a capture no newer than the one the plan was made from")
+        elif captured:
+            # another camera's image: two cameras on one producer clock (one
+            # Isaac sim's physics loop, `freshness.producer_clock`) are ordered
+            # by it, whatever stream each came through. A stream's first-receipt
+            # record restarts on one bad or local frame or a reconnect, so a
+            # capture frozen since before the call can read as first received
+            # now (#418 review Minors 1-2); captures on different clocks are
+            # judged by their receipts alone
+            try:
+                found, planned = freshness.producer_clock(frame), freshness.producer_clock(planned_on)
+            except ValueError as exc:
+                raise not_seen(f"its capture cannot be compared with the one the plan was made from ({exc})") from None
+            if found is not None and planned is not None and found[0] == planned[0] and not found[1] > planned[1]:
+                raise not_seen("another camera's capture on the same producer clock is no newer than the one the "
+                               "plan was made from")
+        first_received = freshness.observed_at(frame)
+        # a stamp the perception heartbeat ignores (NaN, +-inf, the future)
+        # proves no receipt at all (#418 review Minors 3-5)
+        if not (math.isfinite(first_received) and first_received <= seen_again[1]):
+            ahead = first_received - seen_again[1]
+            stamp = (f"stamped {max(0.01, math.ceil(round(100 * ahead, 6)) / 100):.2f} s in the future"
+                     if math.isfinite(ahead) else str(first_received))
+            raise not_seen(f"its camera gave no usable first receipt of that capture ({stamp})")
+        if not first_received >= looking - pointing.FRESH_OBSERVED_S:
+            # rounded up: never printed at or below the bound it exceeds
+            stale = math.ceil(round(100 * (looking - first_received), 6)) / 100
+            raise not_seen(f"its camera re-sent a capture it first received {stale:.2f} s before this look "
+                           f"started (more than {pointing.FRESH_OBSERVED_S:g} s: its renders stalled)")
         fresh = _host_fix(fresh)
         moved = pointing.fix_moved_m(fix, fresh)
         if moved <= pointing.FRESH_MOVE_M:     # NaN counts as moved
@@ -11457,6 +11654,18 @@ def _contact_result(arm) -> dict:
         "holds where it was blocked (torque on). Do not retry the same motion or re-plan to the "
         "same spot: tell the user, ask them to clear the obstacle, then call reset_scene "
         "(that also lifts the fence around the spot).")}
+
+
+_ESTOP_STOP = "e-stop latched; not retrying"
+
+
+def _with_stop_reason(error: str, stop: str) -> str:
+    """`error` plus the retry loop's reason to stop, in brackets. A latch the
+    error already names (a failed move's "; e-stop latched") is not named
+    twice: "...; e-stop latched (not retrying)" (#422 review Minor 2)."""
+    if stop == _ESTOP_STOP and "e-stop latched" in error:
+        stop = "not retrying"
+    return f"{error} ({stop})"
 
 
 def _is_human_curable(stop_reason: str | None) -> bool:

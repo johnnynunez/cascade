@@ -116,6 +116,7 @@ CATEGORIES: dict[str, str] = {
     "launcher": "only launcher-side tools read it",
     "transport": "only the HTTP transport reads it; registrations start stdio",
     "secret": "a credential; a persisted MCP config must never hold one",
+    "operator": "an operator's explicit confirmation for one session; a persisted MCP config must never hold one",
 }
 
 #: name -> (category, reason)
@@ -157,6 +158,16 @@ NOT_FORWARDED: dict[str, tuple[str, str]] = {
                                     "start the stdio transport"),
     "CASCADE_MCP_TOKEN": ("secret", "bearer secret of `mcp_server --http` only; stdio servers never read it "
                           "and it must not be persisted (use --token-file)"),
+    "CASCADE_MODEL_API_KEY_FILE": ("secret", "path of the model's bearer key file, never the key; in the robot "
+                                   "server only configs/llm/local_cosmos_sglang.yaml reads it (api_key_file), as "
+                                   "the grounding profile no registration selects, so the server reads "
+                                   "~/.cascade/nemoclaw/llama.key there. Not forwarded: launch.sh also exports it "
+                                   "for its brain checks (Nemotron 3.5 Bolt's too), so a copy would change every "
+                                   "such registration, and its name is a key variable's"),
+    "CASCADE_TORQUE_OFF_UNPARKED": ("operator", "set to 'holding the arm' only by an operator who holds the arm: "
+                                    "it lets a teardown cut torque on an arm its park did not bring to rest "
+                                    "(apps.demo); inherited from a shell or a saved registration it would drop "
+                                    "a raised arm, so it is never copied"),
 }
 
 

@@ -1153,9 +1153,14 @@ def cmd_up(inst: Instance, home: Path, args) -> int:
     # Preflight on the host loopback: what the supervisor will reach.
     brain = _check_brain(cfg, read_secret(brain_key_file))
     if brain != 200:
+        # Cosmos3-Edge has two servers with one served id and two key sources
+        # (#421 review Minor 6): name both.
         raise SystemExit(f"brain on 127.0.0.1:{cfg.brain_port} answered {brain} with {brain_key_file}; "
-                         "start it (scripts/serve_nemotron_bolt_llamacpp.sh, or serve_qwen_vllm.sh for --model "
-                         "qwen3.8-27b) with that key")
+                         "start it with that key file: scripts/serve_nemotron_bolt_llamacpp.sh, serve_qwen_vllm.sh "
+                         "(--model qwen3.8-27b) or serve_cosmos_sglang.sh (--model cosmos3-edge on SGLang, which "
+                         f"serves only with a key), each with API_KEY_FILE={brain_key_file}; serve_cosmos_vllm.sh "
+                         "(--model cosmos3-edge on vLLM) takes its key only from VLLM_API_KEY: export the key in "
+                         f"{brain_key_file} there")
     mcp = _check_mcp(cfg, read_secret(token_file) if token_file.exists() else "")
     if mcp != 200:
         raise SystemExit(f"cascade MCP on 127.0.0.1:{cfg.mcp_port} answered {mcp}; start "

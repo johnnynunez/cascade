@@ -53,8 +53,13 @@ read -r RESOLVED_BRAIN BRAIN_BASE BRAIN_MODEL BRAIN_CTX BRAIN_PORT <<<"$BRAIN_FI
     || die "requested model lacks working native tool calls; refusing to substitute another brain"
 # The brain provider's bearer key. The supervisor sends it only to this
 # brain; a server without --api-key ignores it, so a fresh one is minted.
+# scripts/serve_cosmos_sglang.sh serves only with a key: that brain's provider
+# reuses the key file its brain checks just passed with (launch.sh defaults
+# CASCADE_MODEL_API_KEY_FILE to the brain key file), never a minted key.
 if [[ -n "${CASCADE_BRAIN_KEY_FILE:-}" ]]; then
     BRAIN_KEY_FILE="$CASCADE_BRAIN_KEY_FILE"
+elif [[ "$RESOLVED_BRAIN" == cosmos-sglang && -z "${CASCADE_MODEL_API_KEY:-}" && -n "${CASCADE_MODEL_API_KEY_FILE:-}" ]]; then
+    BRAIN_KEY_FILE="$CASCADE_MODEL_API_KEY_FILE"
 else
     BRAIN_KEY_FILE="$STATE_DIR/openshell-brain.key"
     (

@@ -11,6 +11,7 @@ from cascade.planning.runtime import RuntimeMotionPlanner
 from cascade.planning.trajectory import TrajectoryProfile
 from cascade.safety.harness import SafeArm, SafetyHarness
 from cascade.types import SafetyViolation
+from conftest import observed
 from test_isaac_simulation_motion import Sim
 from test_safety import limits
 
@@ -36,7 +37,7 @@ def safe_sim(monkeypatch):
     sim.stream_profile = lambda profile, planned_state, preflight, **kwargs: SimulationMotion(
         sim, **kwargs).stream_profile(profile, planned_state, .045, 1., preflight)
     sim.stream_to = lambda *a, **kw: pytest.fail('planner failure must never fall back')
-    harness = SafetyHarness(limits())
+    harness = observed(SafetyHarness(limits()))
     planner = CurvePlanner()
     return SafeArm(sim, harness, motion_planner=planner), sim, planner
 

@@ -61,6 +61,13 @@ class LazyArm(ArmBase):
         return getattr(arm, "disconnect_preserves_drive_state", False) if arm is not None else False
 
     @property
+    def disconnect_cuts_torque(self) -> bool:
+        """The materialized backend's answer; a standby arm was never powered
+        (never materializes to decide teardown)."""
+        arm = self._arm
+        return getattr(arm, "disconnect_cuts_torque", False) is True if arm is not None else False
+
+    @property
     def n_joints(self) -> int:  # type: ignore[override]
         return self._arm.n_joints if self._arm is not None else self._n_joints_default
 

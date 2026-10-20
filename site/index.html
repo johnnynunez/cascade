@@ -1,0 +1,1212 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CASCADE · agentic robot skills, safety-gated and verified</title>
+  <meta name="description" content="CASCADE is an open framework for agentic robotics: an LLM or any MCP chat host drives curated, safety-gated robot skills, and every motion reports a confirmed, refuted or unverified postcondition.">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f6f7f8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0d1012" media="(prefers-color-scheme: dark)">
+  <link rel="canonical" href="https://johnnynunez.github.io/cascade/">
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="CASCADE">
+  <meta property="og:title" content="CASCADE · agentic robots that never say “done” without proof">
+  <meta property="og:description" content="LLM agents call safety-gated robot skills over MCP; every motion passes a safety harness and is checked on an independent channel. Isaac Sim, Newton, MuJoCo and real arms.">
+  <meta property="og:url" content="https://johnnynunez.github.io/cascade/">
+  <meta property="og:image" content="https://johnnynunez.github.io/cascade/assets/img/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="CASCADE: agentic robots that never say done without proof, with three camera views of a simulated kitchen">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="CASCADE · agentic robots that never say “done” without proof">
+  <meta name="twitter:description" content="LLM agents call safety-gated robot skills over MCP; every motion is checked on an independent channel.">
+  <meta name="twitter:image" content="https://johnnynunez.github.io/cascade/assets/img/og.png">
+  <link rel="preload" href="assets/fonts/archivo-latin-var.woff2" as="font" type="font/woff2" crossorigin>
+  <script>
+    (function () {
+      var d = document.documentElement, t = null;
+      try { t = localStorage.getItem("cascade-theme"); } catch (e) {}
+      if (t !== "light" && t !== "dark") t = window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      d.setAttribute("data-theme", t);
+      d.classList.add("js");
+    })();
+  </script>
+  <link rel="stylesheet" href="assets/css/site.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-nav" id="top">
+    <nav class="wrap" aria-label="Primary">
+      <a class="brand" href="#main" aria-label="CASCADE home">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#0f1316"/><path d="M6 8h11v4.2H6zM10.5 14h11v4.2h-11zM15 20h11v4.2H15z" fill="#76b900"/></svg>
+        CASCADE
+      </a>
+      <ul class="nav-links" id="nav-links">
+        <li><a href="#pipeline">Pipeline</a></li>
+        <li><a href="#architecture">Architecture</a></li>
+        <li><a href="#safety">Safety</a></li>
+        <li><a href="#robots">Robots</a></li>
+        <li><a href="#brains">Brains</a></li>
+        <li><a href="#perception">Perception</a></li>
+        <li><a href="#simulation">Simulation</a></li>
+        <li><a href="#learning">Learning</a></li>
+        <li><a href="#stack">NVIDIA</a></li>
+        <li><a href="#status">Status</a></li>
+        <li><a href="#start">Start</a></li>
+      </ul>
+      <div class="nav-actions">
+        <a class="icon-btn" href="https://github.com/johnnynunez/cascade">
+          <svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          <span class="gh-label">GitHub</span>
+        </a>
+        <button class="icon-btn theme-toggle" type="button" aria-label="Switch to dark theme">
+          <svg class="moon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+          <svg class="sun" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        </button>
+        <button class="icon-btn menu-toggle" type="button" aria-expanded="false" aria-controls="nav-links">
+          <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+          <span class="visually-hidden">Menu</span>
+        </button>
+      </div>
+    </nav>
+  </header>
+
+  <main id="main">
+
+    <!-- ===================== HERO ===================== -->
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="wrap">
+        <div class="hero-grid">
+          <div>
+            <p class="hero-kicker"><b>CASCADE</b> Cascaded Agentic Skill Control with Adaptive Dispatch and Execution</p>
+            <h1 id="hero-title">Agentic robots that never say <em class="q">“done”</em> without proof.</h1>
+            <p class="lede">CASCADE puts curated, safety-gated robot skills between an LLM and the robot. A chat host such as OpenClaw, Hermes, Claude Code or Codex calls them over MCP; every motion passes the safety harness and reports a <strong>confirmed, refuted or unverified</strong> postcondition from physics, perception or jaw width.</p>
+            <div class="hero-ctas">
+              <a class="btn btn-primary" href="#start">Run it without a robot
+                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+              <a class="btn btn-ghost" href="#pipeline">Follow one request</a>
+              <a class="btn btn-ghost" href="https://github.com/johnnynunez/cascade">GitHub</a>
+            </div>
+            <p class="hero-spec">
+              <span><b>42</b> safety-gated skills</span>
+              <span><b>52</b> MCP tools</span>
+              <span><b>3</b> possible verdicts</span>
+              <span>MIT licensed</span>
+            </p>
+          </div>
+
+          <figure class="console" aria-labelledby="console-cap">
+            <div class="console-bar" aria-hidden="true"><i></i><i></i><i></i><span>one request · trace</span><span class="tag">illustrative</span></div>
+            <ol id="trace">
+              <li class="you"><span class="who">you</span><span class="msg">Please put the orange in the open box.</span></li>
+              <li><span class="who">agent</span><span class="msg">tools/call <span class="k">cascade__pick_and_place</span> {object: <span class="s">"orange"</span>, destination: <span class="s">"open box"</span>}</span></li>
+              <li><span class="who">mcp</span><span class="msg">SkillRuntime.execute() · BEFORE keyframe · watcher paused</span></li>
+              <li><span class="who">perceive</span><span class="msg">orange localized from depth, robot base frame, image age &lt; 5 s</span></li>
+              <li><span class="who">grasp</span><span class="msg">GraspGen-X: 400 samples → filtered → IK solved</span></li>
+              <li><span class="who">harness</span><span class="msg">limits <span class="ok">✓</span> workspace <span class="ok">✓</span> table clearance <span class="ok">✓</span> keep-out <span class="ok">✓</span> stop gen <span class="ok">✓</span></span></li>
+              <li><span class="who">motion</span><span class="msg">approach → close → lift → place → release</span></li>
+              <li class="verdict"><span class="who">verify</span><span class="msg">postcondition: confirmed · channel: physics</span></li>
+              <li class="you"><span class="who">agent</span><span class="msg">Done — the orange is in the box.</span></li>
+            </ol>
+            <figcaption class="console-foot" id="console-cap"><span>Abbreviated: a real trace row carries more fields.</span><button type="button" id="trace-replay">Replay</button></figcaption>
+          </figure>
+        </div>
+
+        <figure class="camstrip reveal">
+          <div class="frame">
+            <img src="assets/img/kitchen-spark-physx-20260930.webp" width="1280" height="298" alt="Three simulated camera views of the PAAI kitchen: from above the worktop the gripper lowers the orange into an open wooden box next to a green square, a green cube, a pink cube, a lemon and a tomato can; a side view and a wide kitchen view show the same arm.">
+            <div class="camstrip-labels" aria-hidden="true">
+              <span>Worktop · cam0 <em>live</em></span><span>Side · side <em>live</em></span><span>Kitchen · proof <em>live</em></span>
+            </div>
+          </div>
+          <figcaption><strong>The PAAI kitchen in NVIDIA Isaac Sim,</strong> as visitors see it: three camera views while the arm places the orange in the open box. Frame from the recorded native launcher READY run on a DGX Spark, 30 Sep 2026 (PhysX, real GraspGen-X; 4× replay of actual camera frames). That recording predates the Isaac Sim 6.2 pin; Spark acceptance on 6.2 is <a href="#status">pending</a>.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ===================== VERDICTS ===================== -->
+    <section class="section" style="padding-top:0" aria-labelledby="verdicts-title">
+      <div class="wrap">
+        <div class="verdicts reveal">
+          <div class="intro">
+            <h2 id="verdicts-title">Three verdicts, never two.</h2>
+            <p>A skill's own <code>ok</code> is a claim. CASCADE checks it on a channel the arm does not control.</p>
+          </div>
+          <div class="v-confirmed">
+            <p class="verdict-word"><i aria-hidden="true"></i>confirmed</p>
+            <p>An independent channel (simulator truth, perception or jaw width) measured the effect the skill claimed.</p>
+          </div>
+          <div class="v-refuted">
+            <p class="verdict-word"><i aria-hidden="true"></i>refuted</p>
+            <p>A measurement contradicts the claim: the skill's <code>ok</code> is downgraded and the claim is kept as <code>self_reported_ok</code>.</p>
+          </div>
+          <div class="v-unverified">
+            <p class="verdict-word"><i aria-hidden="true"></i>unverified</p>
+            <p>No usable evidence. It is never promoted to success, and an unknown effect blocks <code>task_done(success=true)</code>.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== 01 PIPELINE ===================== -->
+    <section class="section band" id="pipeline" aria-labelledby="pipeline-title">
+      <div class="wrap">
+        <header class="section-head reveal">
+          <p class="eyebrow"><span class="num">01</span>One request, end to end</p>
+          <h2 id="pipeline-title">You chat. The AI decides. The robot acts. The system double-checks.</h2>
+          <p class="lede">Follow the request <strong>“Put the orange in the box.”</strong> from the chat page to joint targets in Isaac Sim and back. Step through it, or let it play.</p>
+        </header>
+
+        <div class="stepper reveal" id="stepper">
+          <div class="rail" role="tablist" aria-label="Pipeline steps">
+            <div class="rail-progress" aria-hidden="true"></div>
+            <div class="rail-pulse" aria-hidden="true"></div>
+            <button class="step-tab" role="tab" id="st-1" aria-controls="sp-1" aria-selected="true"><span class="dot">1</span><span class="gate">&nbsp;</span>You</button>
+            <button class="step-tab" role="tab" id="st-2" aria-controls="sp-2" aria-selected="false" tabindex="-1"><span class="dot">2</span><span class="gate">OpenShell</span>AI agent</button>
+            <button class="step-tab" role="tab" id="st-3" aria-controls="sp-3" aria-selected="false" tabindex="-1"><span class="dot">3</span><span class="gate">OpenShell</span>MCP</button>
+            <button class="step-tab" role="tab" id="st-4" aria-controls="sp-4" aria-selected="false" tabindex="-1"><span class="dot">4</span><span class="gate">Safety harness</span>CASCADE</button>
+            <button class="step-tab" role="tab" id="st-5" aria-controls="sp-5" aria-selected="false" tabindex="-1"><span class="dot">5</span><span class="gate">&nbsp;</span>Robot</button>
+            <button class="step-tab" role="tab" id="st-6" aria-controls="sp-6" aria-selected="false" tabindex="-1"><span class="dot">6</span><span class="gate">Verifier</span>Double-check</button>
+            <button class="step-tab" role="tab" id="st-7" aria-controls="sp-7" aria-selected="false" tabindex="-1"><span class="dot">7</span><span class="gate">&nbsp;</span>Reply</button>
+          </div>
+
+          <div class="step-panels">
+            <div class="step-panel" id="sp-1" aria-labelledby="st-1" tabindex="0">
+              <div>
+                <h3>You type a sentence.</h3>
+                <p class="lead">“Put the orange in the box.” is typed in the demo chat page, which hands it to an OpenClaw agent.</p>
+                <ul>
+                  <li>On the Spark the PAAI page (<code>http://127.0.0.1:8092</code>) shows the chat plus three live cameras: Worktop, Side and Kitchen.</li>
+                  <li>Plain English with names from the scene: “What can you see on the table?”, “Please put the orange in the open box.”, “Let's start over.”</li>
+                  <li>Nothing goes to the robot from here: the chat only talks to the agent.</li>
+                </ul>
+              </div>
+              <aside>
+                <p class="where"><b>In the repo</b>docs/DGX_SPARK_SETUP.md · scripts/desktop.py · extensions/chrome/</p>
+              </aside>
+            </div>
+
+            <div class="step-panel" id="sp-2" aria-labelledby="st-2" tabindex="0">
+              <div>
+                <h3>A local LLM picks one tool.</h3>
+                <p class="lead">The brain reads the request plus a short list of robot tools and answers with a structured tool call, never with motor commands.</p>
+                <ul>
+                  <li>The default brain is Nemotron 3.5 Bolt on llama.cpp; the Spark kitchen installer pins Qwen3.8-27B Q4. No model API key is needed.</li>
+                  <li>All the LLM decides is which skill, with which arguments: <code>pick_and_place(object="orange", destination="box")</code>.</li>
+                  <li>The agent runs in an NVIDIA OpenShell sandbox: credentials stay outside, egress is denied by default, per-tool MCP rules apply.</li>
+                </ul>
+              </div>
+              <aside>
+                <p class="where"><b>In the repo</b>scripts/openshell_rig.py · deploy/openshell/ · configs/llm/</p>
+                <p class="honest"><b>Scope.</b> OpenShell runs the agent on every Linux launch (<code>scripts/launch.sh</code>) and on the real rig; the Spark kitchen installer still uses the host route.</p>
+              </aside>
+            </div>
+
+            <div class="step-panel" id="sp-3" aria-labelledby="st-3" tabindex="0">
+              <div>
+                <h3>MCP carries the call to the robot server.</h3>
+                <p class="lead">Model Context Protocol is the plug between AI agents and tools: the same robot works from OpenClaw, Hermes, Claude Code or Codex.</p>
+                <ul>
+                  <li>The full catalog has 52 tools: 42 safety-gated skills, 8 gateway extras and 2 opt-in program tools (50 with the programs tier off, its default).</li>
+                  <li>The capability matrix reads the built runtime and withholds what the rig cannot run, with reasons in <code>world_state.tools_withheld</code>.</li>
+                  <li>Every chat-host tool call is logged to <code>runs/mcp_&lt;pid&gt;/server.log</code>.</li>
+                </ul>
+              </div>
+              <aside>
+                <p class="where"><b>In the repo</b>src/cascade/apps/mcp_server.py · src/cascade/apps/capabilities.py</p>
+                <p class="honest"><b>Host vs brain.</b> As a host, the platform's LLM picks the tools and CASCADE's reflex and habit tiers are bypassed; with <code>--llm</code> CASCADE runs its own loop with all tiers.</p>
+              </aside>
+            </div>
+
+            <div class="step-panel" id="sp-4" aria-labelledby="st-4" tabindex="0">
+              <div>
+                <h3>CASCADE sees, plans and keeps it safe.</h3>
+                <p class="lead">Every skill goes through one entry point, <code>SkillRuntime.execute()</code>, which records before and after frames, applies safety limits and verifies the result.</p>
+                <ul>
+                  <li>The brain names and boxes the orange, SAM 2.1-L masks it, and depth places it in 3D in the robot's base frame.</li>
+                  <li>GraspGen-X proposes 400 gripper poses; score, approach angle, jaw width, reach at carry height and finger clearance filter them.</li>
+                  <li>Inverse kinematics (Pinocchio) and a minimum-jerk curve turn the grasp into joint targets.</li>
+                  <li>The safety harness checks every sample before it is sent: joint limits and speed, workspace box, table clearance, keep-out zones, e-stop.</li>
+                </ul>
+              </div>
+              <aside>
+                <p class="where"><b>In the repo</b>src/cascade/skills/runtime.py · src/cascade/safety/ · src/cascade/grasping/ · src/cascade/perception/</p>
+                <p class="honest"><b>Fail closed.</b> One failed check aborts the move. An absent or stale map is never treated as free space.</p>
+              </aside>
+            </div>
+
+            <div class="step-panel" id="sp-5" aria-labelledby="st-5" tabindex="0">
+              <div>
+                <h3>Physics moves the arm.</h3>
+                <p class="lead">One line of JSON per sample goes over TCP to the bridge inside Isaac Sim, which sets the angles as joint targets; each joint's PD motor turns the error into torque.</p>
+                <ul>
+                  <li>PhysX on the GPU by default (Newton optional) moves the arm, the gripper and the orange.</li>
+                  <li>Joint angles return with every frame: the next waypoint starts once the arm settles.</li>
+                  <li>The same skills drive MuJoCo on a laptop, or a real arm through its driver.</li>
+                </ul>
+              </div>
+              <aside>
+                <p class="where"><b>In the repo</b>scripts/isaac_bridge.py (:8611) · src/cascade/control/</p>
+                <p class="honest"><b>Honest status.</b> Isaac Sim 6.2 is the minimum. The real reBot's first motions are still on the onsite bring-up checklist.</p>
+              </aside>
+            </div>
+
+            <div class="step-panel" id="sp-6" aria-labelledby="st-6" tabindex="0">
+              <div>
+                <h3>Did the orange really end up in the box?</h3>
+                <p class="lead">CASCADE does not trust the arm's own <code>ok</code>. It checks channels the arm does not control: simulator ground-truth pose, cameras, gripper width.</p>
+                <ul>
+                  <li>A kitchen placement needs full footprint containment, measured support, actual jaw release and an advancing window of at least 0.5 simulated seconds.</li>
+                  <li>Receipts land in <code>&lt;run&gt;/placement/</code> with their SHA-256 in the result and the trace.</li>
+                  <li>A claimed success that fails the check is reported as a failure.</li>
+                </ul>
+              </div>
+              <aside>
+                <p class="where"><b>In the repo</b>src/cascade/agent/effects.py · src/cascade/sim/placement.py · demo/kitchen/physics/</p>
+                <p class="honest"><b>Unverified stays unverified.</b> Missing or inconsistent evidence is never promoted to success.</p>
+              </aside>
+            </div>
+
+            <div class="step-panel" id="sp-7" aria-labelledby="st-7" tabindex="0">
+              <div>
+                <h3>The answer cites the check.</h3>
+                <p class="lead">The result returns over MCP and the LLM replies in plain English: “Done — the orange is in the box.” If something failed, it says so.</p>
+                <div class="code"><pre><code>{"ok": true, "verified": true,
+ "postcondition": {"status": "confirmed",
+                   "channel": "physics", …}}</code></pre></div>
+                <ul>
+                  <li>A <code>stuck</code> outcome carries a concrete question for the human, relayed without retry.</li>
+                </ul>
+              </div>
+              <aside>
+                <p class="where"><b>In the repo</b>README.md (the 42 skills) · trace.jsonl per run</p>
+                <p class="honest"><b>Abridged.</b> The real tool result carries the evidence, timings and receipts.</p>
+              </aside>
+            </div>
+          </div>
+
+          <div class="stepper-controls">
+            <button type="button" id="step-prev" aria-label="Previous step">←</button>
+            <button type="button" id="step-play" aria-pressed="false">Play</button>
+            <button type="button" id="step-next" aria-label="Next step">→</button>
+            <span class="count" id="step-count" aria-live="polite">Step 1 of 7</span>
+          </div>
+        </div>
+
+        <figure class="reveal simple-fig">
+          <a class="zoom-link frame theme-img" href="https://github.com/johnnynunez/cascade/blob/main/docs/assets/paai_demo_simple_light.png">
+            <img class="img-light" src="assets/img/paai-simple-light.webp" width="2400" height="1350" loading="lazy" alt="How the CASCADE demo works, on one page: you chat, the AI agent in NVIDIA OpenShell picks an action, MCP carries it to CASCADE, which sees, plans and checks safety, the robot acts in a simulated kitchen in Isaac Sim, and the result is double-checked before the reply.">
+            <img class="img-dark" src="assets/img/paai-simple-dark.webp" width="2400" height="1350" loading="lazy" alt="How the CASCADE demo works, dark version: chat, AI agent in OpenShell, MCP, CASCADE, robot in Isaac Sim, double-check, reply.">
+          </a>
+          <figcaption>The same seven steps as one figure: the README's simplified architecture (<code>docs/assets/paai_demo_simple_*.png</code>).</figcaption>
+        </figure>
+
+        <div class="phase-split">
+          <div class="reveal">
+            <h3 class="h3" style="margin-bottom:8px">In depth: 18 blocks in four phases</h3>
+            <p class="note" style="margin-bottom:24px">The README's in-depth figure follows the same request block by block. What each phase does:</p>
+            <ol class="phases">
+              <li><div><h3>From words to a tool call</h3><p>Visitor, local LLM, tool call, MCP, CASCADE runtime. The agent side sits inside the OpenShell sandbox.</p></div></li>
+              <li><div><h3>See the table, decide how to grasp</h3><p>Three simulated RGB-D cameras (new frames about three times per second), the brain's box and a SAM 2.1 mask, a 3D point fused into a live world model, and GraspGen-X candidates filtered to one pose: score at least 0.25, within 18° of vertical, fits the 9 cm jaws, reachable also at carry height.</p></div></li>
+              <li><div><h3>Turn a grasp pose into robot motion</h3><p>Five waypoints, inverse kinematics, a minimum-jerk trajectory sampled 30 times per second, the safety gate, JSON over TCP to the bridge, PD control at 120 Hz physics steps.</p></div></li>
+              <li><div><h3>Check, then answer</h3><p>Verify on an independent channel, return the result over MCP, and let the LLM answer.</p></div></li>
+            </ol>
+          </div>
+          <figure class="sticky-fig reveal">
+            <a class="zoom-link frame theme-img" href="https://github.com/johnnynunez/cascade/blob/main/docs/assets/paai_demo_pipeline_light.png">
+              <img class="img-light" src="assets/img/paai-pipeline-light.webp" width="2400" height="2410" loading="lazy" alt="Inside the CASCADE demo: eighteen numbered blocks from the chat request through the local LLM, MCP, cameras, detection, 3D localization, grasp choice, waypoints, inverse kinematics, trajectory, safety gate, Isaac Sim bridge and physics, then verification and the answer.">
+              <img class="img-dark" src="assets/img/paai-pipeline-dark.webp" width="2400" height="2410" loading="lazy" alt="Inside the CASCADE demo, dark version: eighteen numbered blocks from the chat request to the verified answer.">
+            </a>
+            <figcaption>The README's in-depth pipeline (<code>docs/assets/paai_demo_pipeline_*.png</code>). Its brain card shows the Spark kitchen install, Qwen3.8-27B on llama.cpp.</figcaption>
+          </figure>
+        </div>
+
+        <p class="sources"><span>Sources</span><a href="https://github.com/johnnynunez/cascade/blob/main/README.md">README.md</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/ARCHITECTURE.md#the-execute-choke-point">ARCHITECTURE.md</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/DGX_SPARK_SETUP.md">DGX_SPARK_SETUP.md</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/OPENSHELL.md">OPENSHELL.md</a></p>
+      </div>
+    </section>
+
+    <!-- ===================== 02 ARCHITECTURE ===================== -->
+    <section class="section" id="architecture" aria-labelledby="arch-title">
+      <div class="wrap">
+        <header class="section-head reveal">
+          <p class="eyebrow"><span class="num">02</span>Architecture</p>
+          <h2 id="arch-title">Decide fast. Act through one door.</h2>
+          <p class="lede">Routine commands resolve through a reflex grammar or learned habits before any LLM call, so robot control never waits on model latency. Whatever decides, every skill runs through the same choke point, with the same safety, tracing and verification.</p>
+        </header>
+
+        <div class="tiers reveal" role="list" aria-label="Dispatch tiers">
+          <div class="tier" role="listitem">
+            <div class="name">Tier 1 · Reflex<small>agent/reflex.py</small></div>
+            <div class="what">A template grammar turns a routine command into a skill plan.</div>
+            <div class="lat"><span>~µs</span><div class="bar"><i style="--w:4%"></i></div></div>
+          </div>
+          <div class="tier" role="listitem">
+            <div class="name">Tier 2 · Habit<small>runs/experience.json</small></div>
+            <div class="what">Experience memory admits a habit at cosine ≥ 0.9 with more wins than losses, matched clause by clause; recipes replace coordinates with perception queries and are re-grounded before any motion.</div>
+            <div class="lat"><span>~ms</span><div class="bar"><i style="--w:16%"></i></div></div>
+          </div>
+          <div class="tier optin" role="listitem">
+            <div class="name">Tier 2.5 · Program<small>agent/programs.py</small></div>
+            <div class="what">One authoring turn writes a bounded program of registered tool calls; it runs step by step and the first unverified step stops it.</div>
+            <div class="lat"><span class="badge b-optin">opt-in</span></div>
+          </div>
+          <div class="tier" role="listitem">
+            <div class="name">Tier 3 · LLM<small>agent/orchestrator.py</small></div>
+            <div class="what">Decomposition, a tool loop and an advisor, with the agent's own past frames and verdicts shown as memory.</div>
+            <div class="lat"><span>2–15 s per turn</span><div class="bar"><i style="--w:100%"></i></div></div>
+          </div>
+          <div class="tier host" role="listitem">
+            <div class="name">MCP host<small>apps/mcp_server.py</small></div>
+            <div class="what">OpenClaw, Hermes, Claude Code or Codex: the host's LLM picks tools directly; CASCADE's own tiers are bypassed.</div>
+            <div class="lat"><span>host's own loop</span></div>
+          </div>
+        </div>
+        <p class="tiers-funnel" aria-hidden="true">every tier executes through</p>
+
+        <div class="choke reveal">
+          <div class="choke-head"><code>SkillRuntime.execute(name, args)</code><span>the only way a skill runs</span></div>
+          <ol>
+            <li><b>Bind the arm</b><code>arm=</code> is bound per thread; an unknown arm is an error.</li>
+            <li><b>BEFORE frame</b>Keyframe, wrist keyframes and a postcondition snapshot of the target.</li>
+            <li><b>Run</b>World-model fusion pauses for motion; any exception becomes <code>ok: false</code>; outcome <code>ok | failed | stuck</code>.</li>
+            <li><b>Verify</b>Strongest channel: physics, belief or gripper. A refuted claim downgrades <code>ok</code>.</li>
+            <li><b>Envelope + AFTER</b>Per-skill operating envelope, then a fresh AFTER frame once the arm stopped.</li>
+            <li><b>Trace + memory</b>A <code>trace.jsonl</code> row with its tier, and a ⟨frame, action, verdict⟩ memory tuple.</li>
+          </ol>
+        </div>
+
+        <div class="modules reveal" aria-label="Modules below the choke point">
+          <div><h3>perception/</h3><p>Camera streams → WorldWatcher (~3 Hz) → BeliefStore, plus the occupancy client.</p></div>
+          <div><h3>grasping/</h3><p>GraspGen-X over ZMQ, optional HUG, OBB on optional profiles, outcome-memory re-rank.</p></div>
+          <div><h3>control/</h3><p>Pinocchio FK/IK and min-jerk streaming to any arm driver.</p></div>
+          <div><h3>safety/</h3><p>SafetyHarness per arm: every profiled edge, occupancy and neighbours.</p></div>
+          <div><h3>memory/</h3><p>Beliefs, episodic frames (K = 4), operating envelope, habits, programs.</p></div>
+          <div><h3>sim/</h3><p>MuJoCo world registry, rendered RGB-D, the truth channel, the Isaac bridge client.</p></div>
+          <div><h3>eval/</h3><p>Progress judge (GRM or VLM), off the hot path.</p></div>
+        </div>
+
+        <div class="sub-head reveal"><h3 class="h3">The tool surface</h3><p>One schema source (<code>TOOL_SPECS</code>) feeds the orchestrator, the LLM backends and the MCP server.</p></div>
+        <div class="split split-wide">
+          <div class="catalog reveal" id="catalog">
+            <div class="catalog-head" role="group" aria-label="Filter tools">
+              <button class="filter-btn" type="button" data-filter="all" aria-pressed="true">All 52</button>
+              <button class="filter-btn" type="button" data-filter="motion" aria-pressed="false">Moves the arm · 24</button>
+              <button class="filter-btn" type="button" data-filter="read" aria-pressed="false">No motion · 18</button>
+              <button class="filter-btn" type="button" data-filter="extra" aria-pressed="false">MCP extras · 8</button>
+              <button class="filter-btn" type="button" data-filter="optin" aria-pressed="false">Programs · 2</button>
+              <span class="catalog-count" id="catalog-count" aria-live="polite">52 tools</span>
+            </div>
+            <ul class="tool-list">
+            <li data-kind="read"><span class="tn">analyze_scene </span><span class="td">Detector and depth diagnostics without opening a window.</span></li>
+            <li data-kind="read"><span class="tn">annotated_view </span><span class="td">Render the annotated camera view: tracked positions projected inside the image get numbered badges; entries outside the image are flagged in the key.</span></li>
+            <li data-kind="read"><span class="tn">close_live_view </span><span class="td">Close the browser dashboard and release its port.</span></li>
+            <li data-kind="read"><span class="tn">count_objects </span><span class="td">Count known objects, optionally filtered by a query like &#x27;red&#x27; or &#x27;cube&#x27; or &#x27;pink object&#x27;.</span></li>
+            <li data-kind="read"><span class="tn">describe_scene </span><span class="td">Inspect the current scene without moving.</span></li>
+            <li data-kind="read"><span class="tn">get_observation </span><span class="td">Capture a fresh camera frame and update object tracking.</span></li>
+            <li data-kind="read"><span class="tn">halt_motion </span><span class="td">Stop the motion currently in flight because it is no longer the right action (wrong object, subgoal already satisfied, the scene changed).</span></li>
+            <li data-kind="read"><span class="tn">list_arms </span><span class="td">List the robot arms available and which one motion commands use by default.</span></li>
+            <li data-kind="read"><span class="tn">list_objects </span><span class="td">List tracked objects, including remembered ones with last-known positions and age.</span></li>
+            <li data-kind="read"><span class="tn">live_view_status </span><span class="td">Whether the browser dashboard is currently open, its URL, and how long it has been idle.</span></li>
+            <li data-kind="read"><span class="tn">localize_object </span><span class="td">Localize an object from camera depth; returns base-frame position and size in meters.</span></li>
+            <li data-kind="read"><span class="tn">locate_pixel </span><span class="td">Inverse of probe_point: given an object the robot already tracks, return WHERE IT IS IN THE IMAGE (pixel + normalized coords) plus its distance…</span></li>
+            <li data-kind="read"><span class="tn">open_live_view </span><span class="td">Open the browser dashboard for the human (it is CLOSED by default -- chat is the interface).</span></li>
+            <li data-kind="read"><span class="tn">preview_grasp </span><span class="td">Plan a grasp on a named object and REPORT the proposed gripper waypoint (position, approach direction, confidence, learned-memory prior) WITHOUT…</span></li>
+            <li data-kind="read"><span class="tn">probe_point </span><span class="td">CURSOR: point at a pixel in the camera image and get hard numbers back -- distance in metres, the 3D position in the robot&#x27;s base frame, which…</span></li>
+            <li data-kind="read"><span class="tn">recall_memory </span><span class="td">Recall recent events (last ~15 s) and, optionally, where a named object was last seen.</span></li>
+            <li data-kind="read"><span class="tn">recall_step </span><span class="td">Look back at ONE executed step of this run: its skill, arguments, outcome (ok / failed / stuck with the human-facing ask), the independent…</span></li>
+            <li data-kind="read"><span class="tn">snapshot_scene </span><span class="td">Memorize the current layout under a name: the confirmed (currently visible) objects&#x27; labels, colours and positions, kept in the world model as…</span></li>
+            <li data-kind="motion"><span class="tn">close_gripper <span class="m">moves arm</span></span><span class="td">Close the gripper with the default profile.</span></li>
+            <li data-kind="motion"><span class="tn">grasp_at_pixel <span class="m">moves arm</span></span><span class="td">Grasp whatever is at this pixel, WITHOUT needing to name it.</span></li>
+            <li data-kind="motion"><span class="tn">grasp_object <span class="m">moves arm</span></span><span class="td">Full grasp pipeline on a named object: localize, plan a top-down grasp, approach, material-aware close, lift, verify.</span></li>
+            <li data-kind="motion"><span class="tn">handover <span class="m">moves arm</span></span><span class="td">Hand an object to the human: grasp it (if not already held), present it at the handover pose, and keep holding until open_gripper is called.</span></li>
+            <li data-kind="motion"><span class="tn">move_home <span class="m">moves arm</span></span><span class="td">Return the arm to its configured INITIAL (ready) pose.</span></li>
+            <li data-kind="motion"><span class="tn">move_near_object <span class="m">moves arm</span></span><span class="td">Move the gripper -- and anything it holds -- to a position RELATIVE TO A NAMED OBJECT or the table, without grasping or releasing anything.</span></li>
+            <li data-kind="motion"><span class="tn">move_relative <span class="m">moves arm</span></span><span class="td">Move the gripper -- and anything it holds -- a short straight distance, then report exactly how the request was interpreted.</span></li>
+            <li data-kind="motion"><span class="tn">move_to_rest <span class="m">moves arm</span></span><span class="td">Fold the arm onto its REST pose and switch the motors off, so the robot can be powered down.</span></li>
+            <li data-kind="motion"><span class="tn">open_gripper <span class="m">moves arm</span></span><span class="td">Open the gripper (drops the held object where it is; also how a handover finishes).</span></li>
+            <li data-kind="motion"><span class="tn">pick_and_place <span class="m">moves arm</span></span><span class="td">FAST PATH: complete pick-and-place in ONE call.</span></li>
+            <li data-kind="motion"><span class="tn">place_at <span class="m">moves arm</span></span><span class="td">Place the held object at base-frame coordinates (meters).</span></li>
+            <li data-kind="motion"><span class="tn">place_on_object <span class="m">moves arm</span></span><span class="td">Place the held object on/in another named object (e.g.</span></li>
+            <li data-kind="motion"><span class="tn">point_at <span class="m">moves arm</span></span><span class="td">Point at a named object (hover the gripper above it for a moment).</span></li>
+            <li data-kind="motion"><span class="tn">push_object <span class="m">moves arm</span></span><span class="td">Push a named object along the table (for objects too wide to grasp, or to reposition).</span></li>
+            <li data-kind="motion"><span class="tn">reset_scene <span class="m">moves arm</span></span><span class="td">Start over between demos: arm home, every simulated prop back on its spawn pose, the world model and the task memory cleared, one fresh observation.</span></li>
+            <li data-kind="motion"><span class="tn">restore_scene <span class="m">moves arm</span></span><span class="td">Put the table back the way snapshot_scene memorized it: only objects displaced beyond tolerance_m move, an object sitting on another&#x27;s remembered…</span></li>
+            <li data-kind="motion"><span class="tn">rotate_gripper <span class="m">moves arm</span></span><span class="td">Small orientation nudge of the gripper about its tip (and of anything it holds): ROLL the wrist (direction=clockwise / counterclockwise, as seen…</span></li>
+            <li data-kind="motion"><span class="tn">rotate_joint <span class="m">moves arm</span></span><span class="td">Rotate exactly one joint by a signed RELATIVE angle in degrees.</span></li>
+            <li data-kind="motion"><span class="tn">search_for_object <span class="m">moves arm</span></span><span class="td">Occlusion search for a named object that is not visible: lifts the largest hollow/large thing that could be hiding it, parks it ~0.2 m away on…</span></li>
+            <li data-kind="motion"><span class="tn">sort_by_color <span class="m">moves arm</span></span><span class="td">Sort every known object into per-color zones along the table edge (repeated pick-and-place; takes a while).</span></li>
+            <li data-kind="motion"><span class="tn">throw <span class="m">moves arm</span></span><span class="td">Grab an object (if not already held) and throw it by winding up and releasing at the top of a harness-vetted swing.</span></li>
+            <li data-kind="motion"><span class="tn">turn_screw <span class="m">moves arm</span></span><span class="td">Tighten or loosen a screw, bolt, nut or knob by ratcheting the wrist roll: the jaws engage the head, turn through the wrist&#x27;s free travel,…</span></li>
+            <li data-kind="motion"><span class="tn">undo_move <span class="m">moves arm</span></span><span class="td">Go back: return the gripper (and anything it holds) to where it was before the last move_relative / rotate_gripper / move_near_object, retracing…</span></li>
+            <li data-kind="motion"><span class="tn">wave <span class="m">moves arm</span></span><span class="td">Wave at the audience (a friendly greeting gesture around the home pose).</span></li>
+            <li data-kind="extra"><span class="tn">camera_snapshot <span class="x">MCP extra</span></span><span class="td">Capture a camera frame and return it as an image, with the depth source noted.</span></li>
+            <li data-kind="extra"><span class="tn">emergency_stop <span class="x">MCP extra</span></span><span class="td">Soft-stop the arm immediately: freeze in place and reject all further motion until reset_stop is called.</span></li>
+            <li data-kind="extra"><span class="tn">live_view_url <span class="x">MCP extra</span></span><span class="td">URL of the live dashboard (N camera MJPEG streams + robot narration feed).</span></li>
+            <li data-kind="extra"><span class="tn">reset_stop <span class="x">MCP extra</span></span><span class="td">Clear CASCADE&#x27;s application stop latch.</span></li>
+            <li data-kind="extra"><span class="tn">robot_knowledge <span class="x">MCP extra</span></span><span class="td">What this robot has LEARNED from past runs: the proven operating range of each primitive (where grasps/places actually succeed on this arm), how…</span></li>
+            <li data-kind="extra"><span class="tn">task_memory <span class="x">MCP extra</span></span><span class="td">Your visual memory of the current task: up to K captioned frames -- the scene BEFORE the first action, then what it looked like after each action,…</span></li>
+            <li data-kind="extra"><span class="tn">verify_last_action <span class="x">MCP extra</span></span><span class="td">Read saved postcondition verdicts for recent actions, including their evidence and channel.</span></li>
+            <li data-kind="extra"><span class="tn">world_state <span class="x">MCP extra</span></span><span class="td">Read tracked objects, MCP session state and cached camera statistics.</span></li>
+            <li data-kind="optin"><span class="tn">list_programs <span class="o">opt-in</span></span><span class="td">List the PROGRAMS this robot has learned: short sequences of registered tool calls with object-label parameters, each verified end to end (every…</span></li>
+            <li data-kind="optin"><span class="tn">run_program <span class="o">opt-in</span></span><span class="td">Run a PROGRAM step by step.</span></li>
+            </ul>
+          </div>
+          <div class="reveal">
+            <ul class="kv">
+              <li><b>OpenClaw</b><span><code>./scripts/launch.sh</code>; on Linux the agent runs in OpenShell. Also <code>bootstrap.sh</code> (fresh Spark) and <code>openclaw_demo.sh</code>.</span></li>
+              <li><b>Hermes</b><span><code>./scripts/install_hermes.sh --portal</code>, then <code>./scripts/hermes_demo.sh</code>.</span></li>
+              <li><b>Claude Code</b><span>A project <code>.mcp.json</code> from <code>scripts/setup_agents.py --host claude</code>.</span></li>
+              <li><b>Codex CLI</b><span><code>scripts/setup_agents.py --host codex</code>, then <code>codex mcp list</code>.</span></li>
+              <li><b>Read-only lane</b><span>Opt-in: <code>world_state</code>, <code>robot_knowledge</code>, <code>verify_last_action</code> and <code>camera_snapshot</code> answer during a motion (measured live: 0.001–0.003 s).</span></li>
+            </ul>
+            <p class="note" style="margin-top:14px"><code>task_done</code> is the 43rd spec and loop-internal, so MCP hosts never see it. Re-derive the counts with <code>openclaw mcp probe cascade --json</code>.</p>
+          </div>
+        </div>
+
+        <div class="sub-head reveal"><h3 class="h3">Beyond one arm</h3><p>Robot identity is not a class hierarchy of arm, duck and humanoid.</p></div>
+        <div class="split reveal">
+          <p>A profile declares domains and resources, and the coordinator registers the tools those domains implement: <strong>manipulation, locomotion, fastening, passive sensing and read-only spatial</strong> domains sit behind one <code>RobotRuntime.execute()</code> boundary, with the same MCP, traces and memory. <code>FleetRuntime</code> routes tasks to separate robot runtimes. Isaac Sim, MuJoCo and hardware drivers are backend adapters behind shared contracts.</p>
+          <p>The conversation gateway can run as its own process against <code>cascade-robot-service</code> (protocol <code>cascade.robot-runtime/1</code>, opt-in TLS off loopback); every check stays in the robot process. The opt-in <code>whole_body</code> contract composes an arm on a mobile base with disjoint command endpoints: <span class="badge b-software">mock only</span> software evidence that refuses every physical mounted composition.</p>
+        </div>
+
+        <p class="sources"><span>Sources</span><a href="https://github.com/johnnynunez/cascade/blob/main/docs/ARCHITECTURE.md">ARCHITECTURE.md</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/README.md#run-it-under-any-mcp-agent-platform">README (MCP)</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/ROBOT_MODULARITY.md">ROBOT_MODULARITY.md</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/CONVERSATION.md">CONVERSATION.md</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/src/cascade/skills/runtime.py">skills/runtime.py</a></p>
+      </div>
+    </section>
+
+    <!-- ===================== 03 SAFETY ===================== -->
+    <section class="section band" id="safety" aria-labelledby="safety-title">
+      <div class="wrap">
+        <header class="section-head reveal">
+          <p class="eyebrow"><span class="num">03</span>Safety</p>
+          <h2 id="safety-title">Two boundaries and an independent check.</h2>
+          <p class="lede">NVIDIA OpenShell bounds the agent. The CASCADE safety harness checks every motion sample. A verifier the arm does not control decides what happened. Each layer fails closed.</p>
+        </header>
+
+        <div class="boundary reveal">
+          <div class="bx bx-shell">
+            <span class="bx-tab">NVIDIA OpenShell sandbox · the agent's boundary</span>
+            <div class="bx-node"><b>OpenClaw agent</b><span>gateway and chat inside the sandbox <code>cascade-agent</code></span></div>
+            <div class="bx-node"><b>Brain calls</b><span>only <code>host.openshell.internal:8081/v1/*</code></span></div>
+            <div class="chips">
+              <span class="chip">credentials stay outside</span>
+              <span class="chip">deny-by-default egress</span>
+              <span class="chip">reset_stop → 403</span>
+              <span class="chip">motion locked until a timed unlock</span>
+              <span class="chip">only node may use the endpoints</span>
+            </div>
+          </div>
+          <div class="bx-wire" aria-hidden="true">MCP</div>
+          <div class="bx bx-host">
+            <span class="bx-tab">Host · CASCADE robot server (loopback)</span>
+            <div class="bx-flow">
+              <div class="bx-node"><b>MCP server</b><span>bearer token on loopback; the capability matrix withholds what the rig cannot run</span></div>
+              <div class="arrow" aria-hidden="true">↓</div>
+              <div class="bx-row">
+                <div class="bx-node"><b>SkillRuntime.execute()</b><span>frames, outcome, trace, memory</span></div>
+                <div class="bx-node gate"><b>SafetyHarness</b><span>every streamed sample; a violation ends the stream</span></div>
+              </div>
+              <div class="arrow" aria-hidden="true">↓</div>
+              <div class="bx-row">
+                <div class="bx-node"><b>Robot or simulator</b><span>Isaac Sim bridge, MuJoCo, arm drivers</span></div>
+                <div class="bx-node"><b>Verifier</b><span>physics · perception · jaw width → confirmed / refuted / unverified</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rules reveal">
+          <div>
+            <h3>What OpenShell enforces</h3>
+            <span class="when">verified live on the Spark, 2026-10-11</span>
+            <ol>
+              <li>Credentials never enter the sandbox: the proxy swaps placeholders for real secrets only on matching requests from <code>/usr/local/bin/node</code>.</li>
+              <li>Per-tool MCP rules: <code>tools/call reset_stop</code> gets <code>403 policy_denied</code> before CASCADE sees it.</li>
+              <li>Deny-by-default egress: no internet, no live view, no occupancy bridge.</li>
+              <li>Observe-only, live: <code>motion lock</code> denies every motion tool within 10 s; <code>emergency_stop</code> and <code>halt_motion</code> can never be denied.</li>
+              <li>Every unlock expires: 20 min by default, 12 h at most.</li>
+            </ol>
+          </div>
+          <div>
+            <h3>What the harness checks</h3>
+            <span class="when">SafeArm motion path, every profile</span>
+            <ul>
+              <li>Peak velocity, joint limits, workspace box, table clearance and keep-out zones.</li>
+              <li>Perception watchdog and stop generation.</li>
+              <li>Optional occupancy (nvblox, Warp) and inter-arm link capsules.</li>
+              <li>Camera on top for wrist cameras; contact stop where a profile enables it (enforced on <code>rebot_rs</code>, measured offline only).</li>
+              <li>The carry guard keeps the post-close attachment through lift and transport.</li>
+              <li><code>vet_pose()</code> rejects candidates statically; planned routes vet their sampled segments before execution.</li>
+            </ul>
+          </div>
+          <div>
+            <h3>Honesty rules in code</h3>
+            <span class="when">key decisions, still load-bearing</span>
+            <ul>
+              <li>Authority depends on evidence: limits, stop generation and required geometry fail closed.</li>
+              <li>An absent or stale optional map is not evidence of free space.</li>
+              <li>A self-reported <code>ok</code> is a claim; a refuted claim downgrades it.</li>
+              <li>An unavailable postcondition stays unverified, and results name the channel that answered.</li>
+              <li>The pre-motion plausibility critic is advisory; only the harness refuses motion.</li>
+              <li>The tool surface is derived from the built runtime, not declared.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="callout reveal">
+          <div class="stop" aria-hidden="true">STOP</div>
+          <p><strong>Stopping never queues.</strong> <code>emergency_stop</code> is handled out of band, a host cancel mid-motion freezes the arm, the first Ctrl+C latches the e-stop, and the dashboard STOP works from any browser on the LAN. <code>CASCADE_HIDE_TOOLS=reset_stop</code> makes clearing a stop staff-only.</p>
+        </div>
+        <p class="note" style="margin-top:16px">Scope: OpenShell runs the agent on every Linux launch of <code>scripts/launch.sh</code> and on the real rig; the Spark kitchen installer still uses the host route. A sandboxed OpenClaw agent ran a physics-confirmed pick and verified reset on 2 of 3 fresh Isaac stages (B35). On a live rig, hand-eye extrinsics in camera profiles are placeholders until calibrated on site.</p>
+
+        <p class="sources"><span>Sources</span><a href="https://github.com/johnnynunez/cascade/blob/main/docs/OPENSHELL.md">OPENSHELL.md</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/ARCHITECTURE.md#motion-safety-path">ARCHITECTURE.md (motion safety path)</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/CONTACT_STOP.md">CONTACT_STOP.md</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/README.md#safety-notes-for-a-live-rig">README (live-rig safety)</a></p>
+      </div>
+    </section>
+
+    <!-- ===================== 04 ROBOTS ===================== -->
+    <section class="section" id="robots" aria-labelledby="robots-title">
+      <div class="wrap">
+        <header class="section-head reveal">
+          <p class="eyebrow"><span class="num">04</span>Robots and embodiments</p>
+          <h2 id="robots-title">One stack, many bodies, honest status.</h2>
+          <p class="lede">An arm driver subclasses <code>ArmBase</code> and reads a YAML profile: joint count, home poses, tool frame, reach and gripper travel come from the profile, not the code. Legged bases and humanoids plug into the same runtime, traces and verifier. Nothing below is physically admitted unless it says so.</p>
+        </header>
+
+        <div class="ledger reveal">
+          <div class="ledger-row head" aria-hidden="true"><span>Robot</span><span>What runs today</span><span>Status</span></div>
+
+          <div class="ledger-row">
+            <div><h3>Seeed reBot DevArm B601, RobStride build</h3><p class="ids">6 DoF · rebot_rs · rebot_rs_mb · isaac · isaac_kitchen_gpu · *_reach</p></div>
+            <p>The reference rig: SocketCAN or MotorBridge on hardware, an Isaac ZMQ bridge in simulation; the PAAI kitchen runs it in Isaac Sim. Live Isaac picks are measured, e.g. the hold after contact took PhysX GraspGen-X picks from 9/16 to 15/16 confirmed (B36). On the real rig, L515 streaming and motor reads ran read-only.</p>
+            <div class="badges"><span class="badge b-default">reference rig</span><span class="badge b-measured">measured in sim</span><span class="badge b-pending">hardware motion pending</span></div>
+          </div>
+
+          <div class="ledger-row">
+            <div><h3>Franka Research 3 + D435i</h3><p class="ids">fr3 · fr3_mock · host: Jetson Thor</p></div>
+            <p>The same route as every real arm: <code>launch.sh</code>, the agent in OpenShell, Nemotron 3.5 Bolt, GraspGen-X; STOP latched at start, Resume &amp; Home on the operator page. Validated without the robot: the launcher path, the latched-STOP contract, the plugin routing commands to a mock FR3, FR3 picks in MuJoCo. The printed camera mount's collision envelope is not modeled.</p>
+            <div class="badges"><span class="badge b-optin">opt-in</span><span class="badge b-software">route without robot</span><span class="badge b-pending">physical motion pending</span></div>
+          </div>
+
+          <div class="ledger-row">
+            <div><h3>SO-101</h3><p class="ids">5 DoF · so101 · so101_mujoco · so101_mjwarp · so101_ros2</p></div>
+            <p>Hardware-free physics in MuJoCo (the laptop path, postcondition channel <code>physics</code>) and the same MJCF on MuJoCo Warp. The Feetech serial driver has never run on hardware; a read-only diagnostic and a one-joint jog come first.</p>
+            <div class="badges"><span class="badge b-measured">measured in sim</span><span class="badge b-pending">hardware untested</span></div>
+          </div>
+
+          <div class="ledger-row">
+            <div><h3>Multi-arm rigs</h3><p class="ids">--arms a,b · so101_left_mujoco · so101_right_mujoco</p></div>
+            <p>Each arm keeps its own SafetyHarness; with <code>base_pose</code> on both, link capsules are gated by a neighbour clearance. The inter-arm gate is measured against <code>mj_geomDistance</code> with two SO-101s in one MuJoCo world. Agent coordinates are table-frame for every arm.</p>
+            <div class="badges"><span class="badge b-measured">measured in sim</span><span class="badge b-pending">rig pending</span></div>
+          </div>
+
+          <div class="ledger-row">
+            <div><h3>Factory fastening</h3><p class="ids">SO-101 + hex socket · Newton · IsaacGymEnvs Factory assets</p></div>
+            <p>One native mounted turn-and-rest episode through the ordinary configuration and MCP route passed the unchanged verifier (4 Oct 2026), and two more on 5 Oct. Not shown: repeatability, pickup, engagement, seating, calibrated preload, hardware.</p>
+            <div class="badges"><span class="badge b-optin">opt-in</span><span class="badge b-measured">3 episodes in sim</span></div>
+          </div>
+
+          <div class="ledger-row">
+            <div><h3>MicroDuck</h3><p class="ids">legged base · microduck_mock · Newton bridge · Isaac Lab 3.0</p></div>
+            <p>A bounded velocity interface: the learned policy runs on completed Newton solves with no LLM in the control loop. Works in simulation: standing, an observed stop, ±30 mm episodes that track while commanded, twelve robots in one world. Agentic demos give each robot its own LLM agent, ToF map and trace.</p>
+            <div class="badges"><span class="badge b-candidate">candidate</span><span class="badge b-pending">simulation only</span></div>
+          </div>
+
+          <div class="ledger-row">
+            <div><h3>Unitree H2 (whole body)</h3><p class="ids">31 joints · h2_velocity_physx · scripts/isaac_h2_bridge.py</p></div>
+            <p>NVIDIA's public H2 USD and the <code>Velocity-H2-History-v0</code> policy, PhysX first. The reference loop walks 0.63 m in 2 s on the internal 6.2 build; in the first owner episodes the independent verifier confirmed 3 of 5 <code>walk_velocity</code> commands. Newton route tracked through newton-assets PR #53.</p>
+            <div class="badges"><span class="badge b-candidate">candidate · gate 1 in sim</span><span class="badge b-pending">no physical admission</span></div>
+          </div>
+
+          <div class="ledger-row">
+            <div><h3>Unitree H1 / H1-2 / G1 arms, AgileX PiPER</h3><p class="ids">h1 · h1_2 · g1 · piper (+ _mock / _mujoco / _sdk)</p></div>
+            <p>Arm profiles over ROS2 or the Unitree SDK: the arm of a standing humanoid, not whole-body control.</p>
+            <div class="badges"><span class="badge b-optin">opt-in</span><span class="badge b-pending">hardware untested</span></div>
+          </div>
+
+          <div class="ledger-row">
+            <div><h3>LEAP hand (fixed, right)</h3><p class="ids">16 finger joints · leap_hand_right_mujoco</p></div>
+            <p>Bounded free-finger motion in MuJoCo: four repetitions of one native motion/rest task; the two voice cases flex its index finger. No grasp, tactile calibration, moving wrist or hardware.</p>
+            <div class="badges"><span class="badge b-measured">measured in sim, narrow</span></div>
+          </div>
+
+          <div class="ledger-row">
+            <div><h3>Any <code>ros2_control</code> robot</h3><p class="ids">ros2_generic (template: true)</p></div>
+            <p><code>type: ros2</code> speaks <code>JointState</code> in and <code>FollowJointTrajectory</code> out, joints by name. Copy the template, fill it in, drop <code>template: true</code>.</p>
+            <div class="badges"><span class="badge b-software">template</span></div>
+          </div>
+        </div>
+
+        <div class="gallery">
+          <figure class="reveal">
+            <div class="frame"><img src="assets/img/factory-thread-contact-20261002.webp" width="1280" height="720" loading="lazy" alt="A yellow SO-101 arm on a grey table drives a hex socket onto a bolt in the Newton thread-contact fixture."></div>
+            <figcaption><strong>Factory thread-contact fixture:</strong> an SO-101 drives a hex socket in Newton (2 Oct 2026). Simulation; no preload or hardware claimed.</figcaption>
+          </figure>
+          <figure class="reveal">
+            <div class="frame"><img src="assets/img/microduck-12-worlds-20261005.webp" width="640" height="360" loading="lazy" alt="Twelve small tiles of MicroDuck robots after walking routes, each labelled with its route length and an independent verdict: most CONFIRMED, some REFUTED."></div>
+            <figcaption><strong>Twelve MicroDucks</strong> on independent 3.5–5.5 m routes, one Newton world each, Isaac Sim 6.2 (5 Oct 2026). Verdicts from the unchanged independent verifier, refutations included. Not physical admission.</figcaption>
+          </figure>
+          <figure class="reveal">
+            <a class="zoom-link frame theme-img" href="https://github.com/johnnynunez/cascade/blob/main/docs/assets/microduck_pipeline_light.png" style="aspect-ratio:16/9">
+              <img class="img-light" src="assets/img/microduck-pipeline-light.webp" width="2000" height="2814" loading="lazy" style="width:100%;height:100%;object-fit:cover;object-position:top" alt="Top of the MicroDuck agentic pipeline diagram: one request through the LLM agent in OpenShell, onboard sensors, localization, detection, the learned walking policy and Newton physics.">
+              <img class="img-dark" src="assets/img/microduck-pipeline-dark.webp" width="2000" height="2814" loading="lazy" style="width:100%;height:100%;object-fit:cover;object-position:top" alt="Top of the MicroDuck agentic pipeline diagram, dark version.">
+            </a>
+            <figcaption><strong>MicroDuck pipeline diagram.</strong> It shows the onboard-only loop of #329, which is not on <code>main</code>: the recorded demos take the pose from the simulator and use a detector stand-in.</figcaption>
+          </figure>
+          <figure class="full reveal">
+            <div class="frame"><img src="assets/img/h2-first-episodes-20261007.webp" width="1280" height="180" loading="lazy" alt="Four frames of the Unitree H2 humanoid walking on a grey floor in Isaac Sim, each with overlay text naming the policy, PhysX, the command and the verifier's verdict."></div>
+            <figcaption><strong>Unitree H2, first owner episodes</strong> on PhysX (internal Isaac Sim 6.2 build, 7 Oct 2026): each <code>walk_velocity</code> command is CONFIRMED or REFUTED by the independent verifier. Candidate profile, no physical admission.</figcaption>
+          </figure>
+        </div>
+
+        <p class="sources"><span>Sources</span><a href="https://github.com/johnnynunez/cascade/blob/main/README.md#what-it-runs-on">README (what it runs on)</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/FRANKA_OPENCLAW.md">FRANKA_OPENCLAW.md</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/MICRODUCK.md">MICRODUCK.md</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/MICRODUCK_AGENTIC_DEMOS.md">MICRODUCK_AGENTIC_DEMOS.md</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/HUMANOID_H2.md">HUMANOID_H2.md</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/FACTORY_FASTENING_RUNTIME.md">FACTORY_FASTENING_RUNTIME.md</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/ROBOT_MODULARITY.md">ROBOT_MODULARITY.md</a></p>
+      </div>
+    </section>
+
+    <!-- ===================== 05 BRAINS ===================== -->
+    <section class="section band" id="brains" aria-labelledby="brains-title">
+      <div class="wrap">
+        <header class="section-head reveal">
+          <p class="eyebrow"><span class="num">05</span>Brains</p>
+          <h2 id="brains-title">Local brains, measured trade-offs.</h2>
+          <p class="lede">The brain reads the request and the tool list and picks a tool; it never commands motors. The same brain names the objects the cameras see. Brains are served on the robot's own machine with llama.cpp or vLLM.</p>
+        </header>
+
+        <div class="brains reveal">
+          <article class="brain lead">
+            <div class="badges"><span class="badge b-default">default brain</span></div>
+            <h3>Nemotron 3.5 Bolt</h3>
+            <p class="size">74B-A9B · 24 GB GGUF · served as nemotron-3.5-bolt</p>
+            <dl>
+              <div><dt>Role</dt><dd>The agent's brain (OpenClaw) and CASCADE's perception: it names and boxes objects for SAM 2.1-L.</dd></div>
+              <div><dt>Serving</dt><dd>llama.cpp v0.7.0 with the LiLiCorr drafter, two slots of 64k tokens; 27.3 GiB of GPU memory. The vLLM route (NVFP4 KV cache) is opt-in and not for use beside Isaac Sim: it faulted the GPU (Xid 31) there.</dd></div>
+              <div><dt>Evidence</dt><dd>An end-to-end pick through the OpenClaw Control UI twice and a 30-minute soak beside Isaac Sim Newton, 0 Xid. A warm start makes the first chat after a brain restart as fast as a new chat.</dd></div>
+              <div><dt>Known gap</dt><dd>As CASCADE's built-in agent (not OpenClaw) it called no tool in 16 of 16 MuJoCo rollouts.</dd></div>
+            </dl>
+          </article>
+          <article class="brain">
+            <div class="badges"><span class="badge b-optin">--brain qwen</span><span class="badge b-default">Spark installer</span></div>
+            <h3>Qwen3.8-27B</h3>
+            <p class="size">27B · vision + language · DFlash2 drafter</p>
+            <dl>
+              <div><dt>Role</dt><dd>The pinned brain of the Spark kitchen installer (Q4 GGUF on llama.cpp); the Brev profile serves Q8_0.</dd></div>
+              <div><dt>Serving</dt><dd>llama.cpp, or vLLM 0.32.0 with NVFP4 weights, the DFlash2 drafter and an NVFP4 KV cache.</dd></div>
+              <div><dt>Evidence</dt><dd>The perception bake-off winner on 47 real reBot keyframes: it identified 83 % of objects and found 94 % of the referred ones.</dd></div>
+            </dl>
+          </article>
+          <article class="brain">
+            <div class="badges"><span class="badge b-optin">--brain cosmos</span><span class="badge b-candidate">awaits acceptance</span></div>
+            <h3>Cosmos3-Edge Reasoner</h3>
+            <p class="size">2.44B MoT · XML tool calls</p>
+            <dl>
+              <div><dt>Role</dt><dd>An alternative local brain on vLLM 0.32.0 (:8082, NVFP4 KV cache); the SGLang route (:8083) is unverified. It replaces Qwen on the kitchen only after the same acceptance gates.</dd></div>
+              <div><dt>OpenClaw route</dt><dd>OpenClaw's own captured requests got a native tool call 1 time in 55. The <code>cosmos</code> agent profile (thinking off, metadata envelopes stripped, 10 tools, one tool per request) got 18/18 first-turn replays after a server restart, with a warm and a cold cache.</dd></div>
+            </dl>
+          </article>
+        </div>
+        <p class="note" style="margin-top:14px">Hosted backends too: <code>codex_astra</code> (GPT-6-Astra through the Codex CLI, picked first by <code>--llm auto</code>), <code>hermes</code> (Nous Portal), <code>anthropic</code>, <code>openai</code>, and <code>mock</code> for tests.</p>
+
+        <div class="sub-head reveal"><h3 class="h3">vLLM's KV cache is NVFP4 by default</h3><p>The cost is measured and published, not hidden. <code>KV_DTYPE</code> restores the previous cache.</p></div>
+        <div class="table-wrap reveal">
+          <table class="rtable">
+            <thead><tr><th scope="col">vLLM 0.32.0 brain</th><th scope="col" class="num">KV tokens, NVFP4</th><th scope="col" class="num">before</th><th scope="col">Measured cost</th><th scope="col">Restore</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">Qwen3.8-27B + DFlash2</th><td data-label="KV tokens, NVFP4" class="num">178,658</td><td data-label="before" class="num">201,332 BF16</td><td data-label="Measured cost">Coarser prefix reuse (block lcm 5824 tokens): an agent follow-up at ~27k tokens 0.85 s instead of 0.37 s; a 54k-token prefill 32 % slower; GSM8K 191 vs 192 of 200.</td><td data-label="Restore"><code>KV_DTYPE=auto</code></td></tr>
+              <tr><th scope="row">Nemotron 3.5 Bolt (vLLM route)</th><td data-label="KV tokens, NVFP4" class="num"><span class="best">2,230,954</span></td><td data-label="before" class="num">1,737,761 FP8</td><td data-label="Measured cost">Long-prompt prefill 20 % slower, decode 1.4 % slower; GSM8K 193 for both.</td><td data-label="Restore"><code>KV_DTYPE=fp8</code></td></tr>
+              <tr><th scope="row">Cosmos3-Edge</th><td data-label="KV tokens, NVFP4" class="num"><span class="best">440,672</span></td><td data-label="before" class="num">123,936 BF16</td><td data-label="Measured cost">Built-in agent's long prompts (12.2k tokens): 4/14 correct tool calls instead of 9/14; OpenClaw-shaped requests stay 8/8; decode ~14 % slower.</td><td data-label="Restore"><code>KV_DTYPE=auto</code></td></tr>
+            </tbody>
+            <caption>x86 workstation, RTX PRO 6000 Blackwell (SM120), 19 Oct 2026. Not measured on the DGX Spark (GB10) or beside Isaac Sim.</caption>
+          </table>
+        </div>
+
+        <p class="sources"><span>Sources</span><a href="https://github.com/johnnynunez/cascade/blob/main/docs/evidence/brain-nemotron-bolt-2026-10-18/REPORT.md">Bolt as default brain</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/evidence/brain-kv-nvfp4-2026-10-19/REPORT.md">NVFP4 KV on the vLLM brains</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/evidence/cosmos-vllm-032-nvfp4-2026-10-19/REPORT.md">Cosmos3-Edge on vLLM 0.32.0</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/evidence/cosmos-vllm-032-nvfp4-2026-10-19/openclaw-route/REPORT.md">Cosmos3-Edge as the OpenClaw agent</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/README.md#llm-backends">README (LLM backends)</a></p>
+      </div>
+    </section>
+
+    <!-- ===================== 06 PERCEPTION ===================== -->
+    <section class="section" id="perception" aria-labelledby="perception-title">
+      <div class="wrap">
+        <header class="section-head reveal">
+          <p class="eyebrow"><span class="num">06</span>Perception and grasping</p>
+          <h2 id="perception-title">See, localize, grasp, then check.</h2>
+          <p class="lede">Perception runs on its own threads and never waits for the brain; motion skills pause fusion. Grasps are planned in the robot's base frame, so camera pose affects visibility, not grasp geometry.</p>
+        </header>
+
+        <ol class="chain reveal" aria-label="Grasp pipeline">
+          <li><div><b>Cameras</b><span>N RGB-D streams, latest frame only, stale frames dropped.</span></div></li>
+          <li><div><b>Brain + SAM 2.1-L</b><span>The brain names and boxes objects; SAM masks them and tracks while the brain refreshes.</span></div></li>
+          <li><div><b>BeliefStore</b><span>Label, colour, 3D and freshness; the robot's own body is masked out.</span></div></li>
+          <li><div><b>Localize</b><span>A base-frame box; an image older than 5 s cannot authorize a grasp.</span></div></li>
+          <li><div><b>GraspGen-X</b><span>400 diffusion samples in the kitchen; required on the Spark, never replaced by analytic grasps there.</span></div></li>
+          <li><div class="gate"><b>select_grasp</b><span>width ▸ IK ▸ harness and observed-scene vetoes.</span></div></li>
+          <li><div><b>Verify</b><span>Lift, jaw check, independent postcondition.</span></div></li>
+        </ol>
+
+        <div class="split" style="margin-top:40px">
+          <div class="reveal">
+            <h3 class="h3" style="margin-bottom:12px">Why a brain and SAM, not a detector</h3>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th scope="col">157 objects, 47 keyframes</th><th scope="col" class="num">YOLOE-11s</th><th scope="col" class="num">Qwen + SAM</th></tr></thead>
+                <tbody>
+                  <tr><th scope="row">Objects correctly identified</th><td class="num">0.25</td><td class="num"><span class="best">0.83</span></td></tr>
+                  <tr><th scope="row">Precision</th><td class="num">0.12</td><td class="num"><span class="best">0.81</span></td></tr>
+                  <tr><th scope="row">Wrong label on found objects</th><td class="num">0.67</td><td class="num"><span class="best">0.06</span></td></tr>
+                  <tr><th scope="row">Refer: named object found</th><td class="num">0.40</td><td class="num"><span class="best">0.94</span></td></tr>
+                  <tr><th scope="row">Median latency, inventory</th><td class="num"><span class="best">0.01 s</span></td><td class="num">5.37 s</td></tr>
+                  <tr><th scope="row">Median latency, refer</th><td class="num"><span class="best">0.77 s</span></td><td class="num">1.87 s</td></tr>
+                </tbody>
+                <caption>Perception bake-off: Qwen3.8-27B boxes + SAM 2.1-L masks vs YOLOE-11s prompt-free, one DGX Spark (GB10), 15 Oct 2026. Nemotron 3.5 Bolt became the default brain afterwards (18 Oct).</caption>
+              </table>
+            </div>
+          </div>
+          <div class="reveal">
+            <h3 class="h3" style="margin-bottom:12px">GraspGen-X on the DGX Spark</h3>
+            <ul class="kv">
+              <li><b>Model</b><span>NVlabs GraspGen-X, a diffusion model proposing 6-DoF gripper poses, served locally on <code>:5556</code> in its own environment.</span></li>
+              <li><b>GB10 inference</b><span>First 100-sample request 2.36 s, warm 0.89 s (single measurements).</span></li>
+              <li><b>Campaign</b><span>Five objects on PhysX, 5/5 on the first physical attempt with passing reset audits: one round, not a reliability guarantee (30 Sep 2026, before the 6.2 pin).</span></li>
+              <li><b>Required</b><span>An absent server, a protocol stub or an inference failure is an error on the Spark profile; analytic grasps run only when explicitly selected.</span></li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="sub-head reveal"><h3 class="h3">Opt-in modules, each with its own scope</h3></div>
+        <ul class="optlist reveal">
+          <li><div class="top"><b>cuMotion 1.1.0</b><span class="badge b-optin">opt-in</span><span class="badge b-measured">one sim task</span></div><p>NVIDIA's trajectory optimizer for every arm motion, still approved by <code>SafeArm</code>. One complete Isaac tabletop <code>pick_and_place</code>; no success rate.</p></li>
+          <li><div class="top"><b>nvblox</b><span class="badge b-optin">opt-in</span><span class="badge b-measured">measured</span></div><p>GPU TSDF + ESDF clearance map behind the occupancy bridge (<code>:5557</code>); a 5 cm cube's clearances within 10 mm at 10 mm voxels. Off in the Spark presenter profile; Warp is the fallback.</p></li>
+          <li><div class="top"><b>OVRTX 0.5</b><span class="badge b-optin">opt-in</span><span class="badge b-measured">measured</span></div><p>RTX RGB-D without Kit. One <code>pick_and_place</code> with live OVRTX cameras, cuMotion and GPU PhysX; MicroDuck 1080p replays.</p></li>
+          <li><div class="top"><b>cuVSLAM 17.0.0</b><span class="badge b-optin">opt-in</span><span class="badge b-candidate">uncalibrated</span></div><p>RGB-D SLAM in the spatial domain: 0.01178 m error on a 12-frame synthetic replay, twelve live simulated captures tracked; pose uncertainty uncalibrated.</p></li>
+          <li><div class="top"><b>HUG</b><span class="badge b-optin">opt-in</span><span class="badge b-software">stub only</span></div><p>Human Universal Grasping: a human right hand's grasp under one query pixel, mapped to parallel-jaw pinches. Never run here with real weights.</p></li>
+          <li><div class="top"><b>VLA executor</b><span class="badge b-optin">opt-in</span><span class="badge b-software">stub only</span></div><p><code>grasp.executor: vla</code>: a language-conditioned policy serves <code>grasp_object</code>'s motion as action chunks, each vetted by the harness. No real weights have run.</p></li>
+        </ul>
+
+        <figure class="reveal" style="margin-top:28px">
+          <div class="frame"><img src="assets/img/ovrtx-cumotion-pick-20261002.webp" width="1800" height="480" loading="lazy" alt="Start, middle and end frames of a simulated arm picking a green block and placing it in a yellow box on a beige table, rendered with OVRTX."></div>
+          <figcaption><strong>OVRTX + cuMotion + PhysX CUDA:</strong> <code>pick_and_place("green object", "drop zone")</code> on an RTX PRO 6000, 2 Oct 2026; released 23.5 mm from the drop point. Failed attempts are kept in the receipts.</figcaption>
+        </figure>
+
+        <p class="sources"><span>Sources</span><a href="https://github.com/johnnynunez/cascade/blob/main/docs/ARCHITECTURE.md#grasp-pipeline">ARCHITECTURE.md (grasp pipeline)</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/evidence/perception-bakeoff-20261015/REPORT.md">perception bake-off</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/GRASPGENX_SPARK.md">GRASPGENX_SPARK.md</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/CUMOTION.md">CUMOTION.md</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/NVBLOX.md">NVBLOX.md</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/OVRTX_RENDERER.md">OVRTX_RENDERER.md</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/SPATIAL_PROVIDERS.md">SPATIAL_PROVIDERS.md</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/HUG.md">HUG.md</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/VLA_EXECUTOR.md">VLA_EXECUTOR.md</a></p>
+      </div>
+    </section>
+
+    <!-- ===================== 07 SIMULATION ===================== -->
+    <section class="section band" id="simulation" aria-labelledby="sim-title">
+      <div class="wrap">
+        <header class="section-head reveal">
+          <p class="eyebrow"><span class="num">07</span>Simulation</p>
+          <h2 id="sim-title">Simulation as an instrument, not a stand-in.</h2>
+          <p class="lede">The simulator steps the arm, renders the cameras and answers the truth channel, so <code>postcondition: confirmed (channel: physics)</code> is a measurement. Results for one engine, asset or architecture do not certify another.</p>
+        </header>
+
+        <div class="split split-wide">
+          <div class="table-wrap reveal">
+            <table class="rtable">
+              <thead><tr><th scope="col">Engine</th><th scope="col">Role in CASCADE</th><th scope="col">Status</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">Isaac Sim 6.2 + PhysX (CUDA)</th><td data-label="Role in CASCADE">The kitchen and tabletop behind the ZMQ bridge (<code>:8611</code>); RTX cameras through Replicator; default on the Spark and Brev.</td><td data-label="Status"><div class="badges"><span class="badge b-default">default</span></div>6.2 is the minimum; older releases are refused.</td></tr>
+                <tr><th scope="row">Newton</th><td data-label="Role in CASCADE"><code>--engine newton</code> in the Isaac bridge; MicroDuck actuators; the Factory thread-contact fixture.</td><td data-label="Status"><div class="badges"><span class="badge b-optin">opt-in</span></div>Launcher READY with GraspGen-X on x86_64 (centre errors 2.3 and 5.6 mm); physics probe 8/8 on x86; GB10 run pending.</td></tr>
+                <tr><th scope="row">MuJoCo / MuJoCo Warp</th><td data-label="Role in CASCADE">Laptop and CI physics: one shared model per scene for the arm, the rendered cameras and the truth reader.</td><td data-label="Status"><div class="badges"><span class="badge b-measured">measured</span></div>C engine ~4.9 µs/step; Warp on CPU ~3.2 ms/step.</td></tr>
+                <tr><th scope="row">Isaac Lab 3.0</th><td data-label="Role in CASCADE">Agentic MicroDuck demos: one environment, one Newton world per robot.</td><td data-label="Status"><div class="badges"><span class="badge b-candidate">candidate</span></div>Walking and turning not physically admitted.</td></tr>
+                <tr><th scope="row">OVRTX + ovstage</th><td data-label="Role in CASCADE">RTX RGB-D without Kit; replays of recorded physics.</td><td data-label="Status"><div class="badges"><span class="badge b-optin">opt-in</span></div>Needs an automatic physics producer and safety masks.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="reveal">
+            <figure>
+              <div class="frame"><img src="assets/img/kitchen-newton-x86-20260930.webp" width="1280" height="298" loading="lazy" alt="Three camera views of the kitchen under the Newton engine: the gripper closes around the orange next to a green cube and a pink cube."></div>
+              <figcaption><strong>Newton launcher READY</strong> on the local x86_64 workstation, 30 Sep 2026: the gripper reaching the orange (4× replay of actual camera frames). Separate from GB10 validation.</figcaption>
+            </figure>
+            <p style="margin-top:22px">Isaac resets restore backend state and require fresh camera frames before the next motion. Each frame carries a render reference bound to the completed physics snapshot, so an old render cannot become current. Nominal joint targets run at 30 Hz paced by simulated time, while the legacy 50 Hz safety edges are still checked.</p>
+          </div>
+        </div>
+
+        <p class="sources"><span>Sources</span><a href="https://github.com/johnnynunez/cascade/blob/main/docs/ARCHITECTURE.md#sim-as-an-instrument-not-a-stand-in">ARCHITECTURE.md (sim as an instrument)</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/NEWTON_ENGINE.md">NEWTON_ENGINE.md</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/OVRTX_RENDERER.md">OVRTX_RENDERER.md</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/evidence/nvidia-stack-20261018/REPORT.md">NVIDIA inventory</a></p>
+      </div>
+    </section>
+
+    <!-- ===================== 08 LEARNING ===================== -->
+    <section class="section" id="learning" aria-labelledby="learning-title">
+      <div class="wrap">
+        <header class="section-head reveal">
+          <p class="eyebrow"><span class="num">08</span>Learning loops</p>
+          <h2 id="learning-title">It learns from evidence, never by loosening a guard.</h2>
+          <p class="lede">CASCADE improves the advice around the model, not the safety values. A lesson is admitted only from measured, confirmed outcomes, and offered only after it recurs across tasks.</p>
+        </header>
+
+        <div class="loops">
+          <article class="loop reveal">
+            <div><h3>ASPIRE skill notes</h3><span class="kicker">agent/aspire.py · scripts/learn_from_runs.py</span><div class="badges" style="margin-top:10px"><span class="badge b-default">kitchen route</span></div></div>
+            <div><p>Re-implements the API surface and the trace → diagnosis → skill-note loop of NVIDIA GEAR's ASPIRE; no ASPIRE package is imported. Between sessions, a failed-then-confirmed retry becomes a guidance note only with matching skill, goal, arm and held-object context, from live kitchen-sim runs with the retry ledger on.</p></div>
+            <div class="rule"><b>Admission</b>Promoted only after it recurs in ≥ 2 distinct tasks. Each Spark launch freezes the note library and serves a hashed <code>LEARNED.md</code> block (top 2 notes, ≤ 2000 bytes).</div>
+          </article>
+          <article class="loop reveal">
+            <div><h3>Harness²</h3><span class="kicker">cascade.harnessing · scripts/harness2_improve.py</span><div class="badges" style="margin-top:10px"><span class="badge b-optin">opt-in</span><span class="badge b-software">CPU tests</span></div></div>
+            <div><p>Recursive agent harnessing (arXiv:2610.14224) for the built-in agent. A Propose–Probe–Compose step edits the advice text around the model (rules, tool guidance, triggered skills), runs every candidate on the same task on a real CASCADE stack, selects blind and records lessons in a per-family library.</p></div>
+            <div class="rule"><b>Gate</b>Adoption is gated on CASCADE's own verifier. No weights, safety values or configuration change; guidance for six locked tools cannot be edited, and a lint refuses text that would weaken a guard or claim an unverified success. No measured gain is recorded in the repo yet.</div>
+          </article>
+          <article class="loop reveal">
+            <div><h3>Programs tier</h3><span class="kicker">agent/programs.py · memory/programs.py</span><div class="badges" style="margin-top:10px"><span class="badge b-optin">opt-in</span><span class="badge b-software">mock stack</span></div></div>
+            <div><p>A program is a bounded list (≤ 12 steps) of registered tool calls with labels as parameters and positions only as perception queries, re-grounded before the first motion. Each step is its own <code>execute()</code> call with its own verdict; MCP hosts get <code>list_programs</code> and <code>run_program</code>.</p></div>
+            <div class="rule"><b>Admission</b>Authored or distilled, one rule: authorship is never evidence. Stored only from a fully confirmed execution, offered only once promoted across ≥ 2 tasks. No Isaac run of <code>run_program</code> yet.</div>
+          </article>
+          <article class="loop reveal">
+            <div><h3>Memory harness</h3><span class="kicker">memory/episodic.py · task_memory</span><div class="badges" style="margin-top:10px"><span class="badge b-default">on</span></div></div>
+            <div><p>A planner shown its own history as images plans multi-step tasks better (Vesta). The brain sees up to K = 4 frames of its earlier actions with their physics verdicts beside the current view, so its answer can cite them.</p></div>
+            <div class="rule"><b>Limit</b>Remembered beliefs can inform the agent but never aim the jaws.</div>
+          </article>
+          <article class="loop reveal">
+            <div><h3>Advisory judge</h3><span class="kicker">eval/progress_judge.py · launch.sh --judge</span><div class="badges" style="margin-top:10px"><span class="badge b-optin">opt-in</span></div></div>
+            <div><p>A progress judge scores BEFORE/AFTER keyframes off the hot path and is calibrated against the physics postcondition. Offline, the local Qwen judged 72 recorded Isaac picks: no false negatives, but 15 to 19 false positives.</p></div>
+            <div class="rule"><b>Never a gate</b>READY, the exit status and <code>proof.json</code> never depend on it; a positive score is not a success detector.</div>
+          </article>
+        </div>
+
+        <p class="sources"><span>Sources</span><a href="https://github.com/johnnynunez/cascade/blob/main/docs/DREAM_RSI_ADAPTATION.md">DREAM_RSI_ADAPTATION.md (ASPIRE admission)</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/src/cascade/harnessing/__init__.py">harnessing/</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/scripts/harness2_improve.py">harness2_improve.py</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/PROGRAMS_TIER.md">PROGRAMS_TIER.md</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/ARCHITECTURE.md#memory">ARCHITECTURE.md (memory, evaluation)</a></p>
+      </div>
+    </section>
+
+    <!-- ===================== 09 NVIDIA STACK ===================== -->
+    <section class="section band" id="stack" aria-labelledby="stack-title">
+      <div class="wrap">
+        <header class="section-head reveal">
+          <p class="eyebrow"><span class="num">09</span>NVIDIA stack</p>
+          <h2 id="stack-title">33 NVIDIA technologies, each with its own scope.</h2>
+          <p class="lede">From the dated inventory of <code>main</code> at <code>4d32eeb5</code> (18 Oct 2026). Six are on by default in the shipped Linux/Spark launch; the rest are opt-in, assets or tooling, and a result on one does not certify another. Since that inventory, Nemotron 3.5 Bolt became the default brain and the vLLM brains moved to an NVFP4 KV cache.</p>
+        </header>
+
+        <div class="stack-filters reveal" role="group" aria-label="Filter by tier">
+          <button class="filter-btn" type="button" data-tier="all" aria-pressed="true">All</button>
+          <button class="filter-btn" type="button" data-tier="core" aria-pressed="false">Core · 6</button>
+          <button class="filter-btn" type="button" data-tier="default" aria-pressed="false">Default backend · 1</button>
+          <button class="filter-btn" type="button" data-tier="optin" aria-pressed="false">Opt-in · 18</button>
+          <button class="filter-btn" type="button" data-tier="assets" aria-pressed="false">Assets · 5</button>
+          <button class="filter-btn" type="button" data-tier="tooling" aria-pressed="false">Tooling · 3</button>
+          <button class="filter-btn" type="button" data-tier="other" aria-pressed="false">Not counted · 10</button>
+        </div>
+
+        <div class="stack-groups">
+          <section class="stack-group reveal" data-tier="core" aria-labelledby="sg-core">
+            <header><h3 id="sg-core">Core</h3><span class="n">6</span><p>started by <code>./run.sh</code> / <code>launch.sh</code> on Linux or the Spark installer with no extra flag</p></header>
+            <ul class="stack-items">
+              <li><b>Isaac Sim 6.2 + RTX cameras</b><span>Kitchen and tabletop simulator behind the bridge; RGB, metric depth and instance masks through Replicator; H2 and MicroDuck bridges.</span></li>
+              <li><b>PhysX (GPU/CUDA)</b><span>Default engine of the Spark launcher and Brev; H2 runs PhysX first, where its policy was trained.</span></li>
+              <li><b>GraspGen-X</b><span>Learned 6-DoF grasps from a local server; required in the Spark profile.</span></li>
+              <li><b>OpenShell 0.1.3</b><span>Sandbox for the OpenClaw agent on every Linux launch; its L7 proxy swaps secrets and blocks <code>reset_stop</code> and locked motion.</span></li>
+              <li><b>CUDA</b><span>Every GPU component; <code>device: auto</code> probes CUDA first.</span></li>
+              <li><b>DGX Spark (GB10)</b><span>The event machine for the PAAI kitchen; install, READY proof and visitor campaign on 6.2 pending.</span></li>
+            </ul>
+          </section>
+
+          <section class="stack-group reveal" data-tier="default" aria-labelledby="sg-default">
+            <header><h3 id="sg-default">Default backend</h3><span class="n">1</span><p>picked automatically when the preferred backend is missing</p></header>
+            <ul class="stack-items">
+              <li><b>Warp</b><span>Occupancy TSDF and exact EDT kernels when nvblox is absent (<code>auto: nvblox &gt; warp &gt; voxel</code>); camera readback buffers; the base of Newton and MJWarp.</span></li>
+            </ul>
+          </section>
+
+          <section class="stack-group reveal" data-tier="optin" aria-labelledby="sg-optin">
+            <header><h3 id="sg-optin">Opt-in</h3><span class="n">18</span><p>merged, selected by a profile, flag, extra or env var; its own validation scope</p></header>
+            <ul class="stack-items">
+              <li><b>Newton</b><span>Engine option in the Isaac bridge; MicroDuck actuators; Factory screw/thread-contact fixture.</span></li>
+              <li><b>Isaac Lab 3.0</b><span>Agentic MicroDuck demos: one Newton world per robot.</span></li>
+              <li><b>MuJoCo Warp</b><span><code>engine: warp</code> for MJCF arms; Newton's solver.</span></li>
+              <li><b>OVRTX + ovstage</b><span>RTX RGB-D without Kit; live producer and MicroDuck replays.</span></li>
+              <li><b>nvblox</b><span>GPU TSDF + ESDF clearance map behind the occupancy bridge.</span></li>
+              <li><b>cuVSLAM</b><span>Optional RGB-D SLAM in the spatial domain.</span></li>
+              <li><b>cuMotion</b><span>Trajectory optimization for every arm motion, through <code>SafeArm</code>.</span></li>
+              <li><b>Cosmos3-Edge Reasoner</b><span>Alternative local brain with XML tool calls.</span></li>
+              <li><b>NemoClaw</b><span>The older agent route: TLS MCP from a private CA.</span></li>
+              <li><b>H2 policy + Isaac assets</b><span>The H2 whole-body walking policy and its training stage.</span></li>
+              <li><b>Isaac Lab-Arena</b><span>Strict importer for Arena results and a policy adapter.</span></li>
+              <li><b>Brev</b><span>x86_64 cloud deployment of the kitchen.</span></li>
+              <li><b>NGC Isaac Sim container</b><span>Base image of the Brev deployment.</span></li>
+              <li><b>NVENC</b><span>Brev visitor camera video, one encoder for all cameras.</span></li>
+              <li><b>Isaac Sim RTSP streaming</b><span>Camera streams on Brev; off and unaccepted.</span></li>
+              <li><b>Jetson Thor</b><span>Host of the Franka FR3 rig.</span></li>
+              <li><b>NVFP4</b><span>Qwen3.8 NVFP4 weights on vLLM; the KV cache too since 19 Oct.</span></li>
+              <li><b>RTX PRO 6000 Blackwell</b><span>Development and x86_64 validation; the Brev instance type.</span></li>
+            </ul>
+          </section>
+
+          <section class="stack-group reveal" data-tier="assets" aria-labelledby="sg-assets">
+            <header><h3 id="sg-assets">Assets</h3><span class="n">5</span><p>build or supply the robot and scene assets</p></header>
+            <ul class="stack-items">
+              <li><b>urdf-usd-converter</b><span>Builds the reBot B601 USD from Seeed's URDF.</span></li>
+              <li><b>Isaac Sim asset transformer</b><span>Restructures the reBot USD per the SimReady rules.</span></li>
+              <li><b>vMaterials (MDL)</b><span>The reBot's material.</span></li>
+              <li><b>Isaac Sim public assets</b><span>H2 USD and policy files, the MicroDuck USD folder from Isaac Lab.</span></li>
+              <li><b>IsaacGymEnvs Factory assets</b><span>Nut, bolt, peg, hole and gear plate for fastening.</span></li>
+            </ul>
+          </section>
+
+          <section class="stack-group reveal" data-tier="tooling" aria-labelledby="sg-tooling">
+            <header><h3 id="sg-tooling">Tooling</h3><span class="n">3</span><p>build, profile and receipt tools</p></header>
+            <ul class="stack-items">
+              <li><b>NVIDIA Container Toolkit</b><span>GPU access for the Brev bridge containers.</span></li>
+              <li><b>Kit Tracy profiler extension</b><span>Isaac bridge profiling captures.</span></li>
+              <li><b>NVML / nvidia-smi</b><span>GPU identity, memory and process receipts.</span></li>
+            </ul>
+          </section>
+
+          <section class="stack-group muted reveal" data-tier="other" aria-labelledby="sg-other">
+            <header><h3 id="sg-other">Not counted in the 33</h3><span class="n">2 + 8</span><p>evaluated and not adopted, or cited as references with no dependency</p></header>
+            <ul class="stack-items">
+              <li><b>Nemotron 3.5 Super VL</b><span>Evaluated: 0.78 inventory identification, below Qwen3.8-27B's 0.83.</span></li>
+              <li><b>Cosmos3-Edge as detector</b><span>Evaluated: precise, but identifies a third of the objects.</span></li>
+              <li><b>ASPIRE</b><span>API surface and skill-note loop re-implemented; nothing imported.</span></li>
+              <li><b>Isaac ROS</b><span>nvblox multi-camera tutorial and URDF body masking cited.</span></li>
+              <li><b>cuRobo</b><span>Robot-sphere carving cited.</span></li>
+              <li><b>GR00T</b><span>Research table only.</span></li>
+              <li><b>AGILE</b><span>The H2 policy's training framework; the policy is frozen.</span></li>
+              <li><b>TensorRT</b><span>Not used; GraspGen-X runs as PyTorch.</span></li>
+              <li><b>newton-assets / mujoco-usd-converter</b><span>The documented Newton route for H2; nothing loads it yet.</span></li>
+              <li><b>NuRec</b><span>Roadmap: a photoreal twin of the tabletop; not started.</span></li>
+            </ul>
+          </section>
+        </div>
+
+        <p class="sources"><span>Sources</span><a href="https://github.com/johnnynunez/cascade/blob/main/docs/evidence/nvidia-stack-20261018/REPORT.md">NVIDIA technology inventory, 2026-10-18</a> (re-run: <code>python3 docs/evidence/nvidia-stack-20261018/tools/scan_nvidia.py</code>)</p>
+      </div>
+    </section>
+
+    <!-- ===================== 10 STATUS ===================== -->
+    <section class="section" id="status" aria-labelledby="status-title">
+      <div class="wrap">
+        <header class="section-head reveal">
+          <p class="eyebrow"><span class="num">10</span>Evidence and status</p>
+          <h2 id="status-title">What is measured, and what is not yet.</h2>
+          <p class="lede">A dated measurement keeps its original source and scope; it does not certify a later checkout. The capability status page in the repo is the source of truth; this is its summary.</p>
+        </header>
+
+        <div class="legend reveal" aria-label="Badge legend">
+          <div><span class="badge b-default">default</span> on in the shipped path</div>
+          <div><span class="badge b-optin">opt-in</span> merged, off unless selected</div>
+          <div><span class="badge b-measured">measured</span> recorded result, scope stated</div>
+          <div><span class="badge b-candidate">candidate</span> simulation, not admitted</div>
+          <div><span class="badge b-software">software only</span> CPU, mock or stub tests</div>
+          <div><span class="badge b-pending">pending</span> not run yet</div>
+        </div>
+
+        <div class="pending-box reveal">
+          <div><span class="badge b-pending">pending</span><h3>Spark acceptance on Isaac Sim 6.2</h3><p>No GB10 install, READY proof or visitor campaign has run on the pinned 6.2 source yet. The September receipts predate 6.2 and do not certify it.</p></div>
+          <div><span class="badge b-pending">pending</span><h3>Real-rig first motions</h3><p>The onsite checklist: CAN up, gripper travel and squeeze cap, hand-eye calibration, table plane, <code>pytest -m hardware</code>, then low-velocity motion.</p></div>
+          <div><span class="badge b-pending">in progress</span><h3>Local dual-RTX Pro delivery work</h3><p>Resolve the native timeout and the nvblox route/carry failures, then source-bound proof, the five-object campaign and a same-version restart.</p></div>
+        </div>
+
+        <div class="table-wrap reveal">
+          <table class="status-table rtable">
+            <thead><tr><th scope="col">Capability</th><th scope="col">Measured so far</th><th scope="col">Still open</th></tr></thead>
+            <tbody>
+              <tr><td data-label="Capability"><strong>Manipulation</strong><div class="badges"><span class="badge b-measured">sim</span></div></td><td data-label="Measured so far">Three retained two-object campaigns and a completed five-object campaign; reach envelope and gripper-clearance vet measured offline (5539 of 5586 tilted grasps survive).</td><td data-label="Still open">More scenes and repeated coverage; collision/carry protection through the agent route; live picks in the reach region; each new robot and hardware setup.</td></tr>
+              <tr><td data-label="Capability"><strong>Locomotion</strong><div class="badges"><span class="badge b-candidate">candidate</span></div></td><td data-label="Measured so far">MicroDuck standing, observed stop, short distance episodes; a clean standing handoff at zero twist.</td><td data-label="Still open">Longer routes and turns, balance-preserving stop, disconnect and reset; braking at completion (0.09–0.23 m/s left).</td></tr>
+              <tr><td data-label="Capability"><strong>Fastening</strong><div class="badges"><span class="badge b-measured">sim</span></div></td><td data-label="Measured so far">Mounted turn-and-rest episodes passing the unchanged verifier.</td><td data-label="Still open">Repeatability, tool acquisition, engagement, calibrated torque/preload, withdrawal.</td></tr>
+              <tr><td data-label="Capability"><strong>Perception and spatial</strong><div class="badges"><span class="badge b-software">software</span></div></td><td data-label="Measured so far">A static planar RGB-D result; capture-time alignment and producer-rate sampling (16/24 stale read-time pairings vs 24/24 aligned).</td><td data-label="Still open">Moving cameras, IMU fusion, the live skew distribution, hardware clock sync.</td></tr>
+              <tr><td data-label="Capability"><strong>Mapping and navigation</strong><div class="badges"><span class="badge b-candidate">candidate</span></div></td><td data-label="Measured so far">Twelve live cuVSLAM tracks joined to a 320-solve native producer with verified stop invalidation.</td><td data-label="Still open">Calibrated pose, collision mapping, native route execution and replanning.</td></tr>
+              <tr><td data-label="Capability"><strong>Speech and interaction</strong><div class="badges"><span class="badge b-measured">sim</span></div></td><td data-label="Measured so far">Two bounded voice cases end to end; a split conversation service with TLS on one host (+0.5–0.7 ms per call in clear, ~1.6 ms with TLS).</td><td data-label="Still open">A run between two real hosts, a real local speech provider with a native robot, latency under load.</td></tr>
+              <tr><td data-label="Capability"><strong>Whole-body humanoids</strong><div class="badges"><span class="badge b-candidate">candidate</span></div></td><td data-label="Measured so far">The mock <code>whole_body</code> contract (43 software tests); the H2 PhysX candidate.</td><td data-label="Still open">Physical admission, a whole-body controller, balance, collision, H2 arm physics.</td></tr>
+              <tr><td data-label="Capability"><strong>Hands and touch</strong><div class="badges"><span class="badge b-measured">sim</span></div></td><td data-label="Measured so far">The fixed LEAP free-finger runtime, four repetitions of one task.</td><td data-label="Still open">Broader trajectories, calibrated tactile sensing, contact and slip, grasp skills.</td></tr>
+              <tr><td data-label="Capability"><strong>Multiple robots</strong><div class="badges"><span class="badge b-candidate">candidate</span></div></td><td data-label="Measured so far">Twelve MicroDucks walk 68 s without a fall under scripted twists; host step median cut from 76.2 to 42.43 ms.</td><td data-label="Still open">Twelve closed-loop clients under the original limits; shared-space collision coordination; per-robot stop and reset.</td></tr>
+              <tr><td data-label="Capability"><strong>Agent intelligence</strong><div class="badges"><span class="badge b-software">stub</span></div></td><td data-label="Measured so far">The VLA executor against its protocol stub, including a live Isaac run with a scripted stub policy.</td><td data-label="Still open">Any run with real weights; Arena/VAB task episodes and held-out failures.</td></tr>
+              <tr><td data-label="Capability"><strong>Hardware and deployment</strong><div class="badges"><span class="badge b-measured">sim</span><span class="badge b-pending">hardware</span></div></td><td data-label="Measured so far">A sandboxed agent's physics-confirmed pick and reset on 2 of 3 fresh Isaac stages; the read-only MCP lane live (stop answered in 0.032 s).</td><td data-label="Still open">Kitchen proof cases on the OpenShell route, the Spark, the grip squeeze cap on hardware.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="sub-head reveal"><h3 class="h3">Dated evidence reports</h3><p>Each keeps its method, raw results and re-run commands.</p></div>
+        <ul class="evidence-list reveal">
+          <li><time datetime="2026-10-19">2026-10-19</time><div><a href="https://github.com/johnnynunez/cascade/blob/main/docs/evidence/brain-kv-nvfp4-2026-10-19/REPORT.md">NVFP4 KV cache on the two vLLM brains</a><p>Capacity, prefix reuse, prefill and decode costs.</p></div></li>
+          <li><time datetime="2026-10-19">2026-10-19</time><div><a href="https://github.com/johnnynunez/cascade/blob/main/docs/evidence/cosmos-vllm-032-nvfp4-2026-10-19/openclaw-route/REPORT.md">Cosmos3-Edge as the OpenClaw agent</a><p>Captured requests, factor replays, the shipped agent profile.</p></div></li>
+          <li><time datetime="2026-10-19">2026-10-19</time><div><a href="https://github.com/johnnynunez/cascade/blob/main/docs/evidence/cosmos-vllm-032-nvfp4-2026-10-19/REPORT.md">Cosmos3-Edge on vLLM 0.32.0</a><p>Upgrade, compatibility patches, NVFP4 KV accuracy cost.</p></div></li>
+          <li><time datetime="2026-10-19">2026-10-19</time><div><a href="https://github.com/johnnynunez/cascade/blob/main/docs/evidence/bolt-warm-start-2026-10-19/REPORT.md">Bolt warm start</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/evidence/bolt-default-fixes-2026-10-19/REPORT.md">Bolt default fixes</a><p>First-chat latency, inventory repetition loops.</p></div></li>
+          <li><time datetime="2026-10-18">2026-10-18</time><div><a href="https://github.com/johnnynunez/cascade/blob/main/docs/evidence/brain-nemotron-bolt-2026-10-18/REPORT.md">Nemotron 3.5 Bolt as the default brain</a><p>llama.cpp vs vLLM, Xid faults, e2e beside Isaac Newton.</p></div></li>
+          <li><time datetime="2026-10-18">2026-10-18</time><div><a href="https://github.com/johnnynunez/cascade/blob/main/docs/evidence/nvidia-stack-20261018/REPORT.md">NVIDIA technology inventory</a><p>33 technologies, tiers, versions, gaps.</p></div></li>
+          <li><time datetime="2026-10-15">2026-10-15</time><div><a href="https://github.com/johnnynunez/cascade/blob/main/docs/evidence/perception-bakeoff-20261015/REPORT.md">Perception bake-off</a><p>47 reBot keyframes, 157 objects.</p></div></li>
+          <li><time datetime="2026-10-13">2026-10-13</time><div><a href="https://github.com/johnnynunez/cascade/blob/main/docs/evidence/microduck-agentic-20261013/attempts.json">Agentic MicroDuck attempts</a><p>All 18 attempts, failures included.</p></div></li>
+          <li><time datetime="2026-10-10">2026-10-10</time><div><a href="https://github.com/johnnynunez/cascade/blob/main/docs/evidence/b36-pick-reliability-20261010/README.md">Pick reliability (B36)</a><p>Hold after contact: 9/16 → 15/16 on PhysX.</p></div></li>
+          <li><time datetime="2026-10-09">2026-10-09</time><div><a href="https://github.com/johnnynunez/cascade/blob/main/docs/evidence/b44-live-qwen-judge-20261009/README.md">Live Qwen judge (B44)</a><p>72 recorded Isaac picks judged offline.</p></div></li>
+          <li><time datetime="2026-10-08">2026-10-08</time><div><a href="https://github.com/johnnynunez/cascade/blob/main/docs/evidence/b35-nemoclaw-openshell-20261008/REPORT.md">Sandboxed agent route (B35)</a><p>Pick and reset from an OpenShell sandbox.</p></div></li>
+          <li><time datetime="2026-10-07">2026-10-07</time><div><a href="https://github.com/johnnynunez/cascade/blob/main/docs/evidence/h2-owner-first-episodes-20261007/REPORT.md">Unitree H2 first owner episodes</a><p>3 of 5 walk commands confirmed.</p></div></li>
+        </ul>
+
+        <p class="sources"><span>Sources</span><a href="https://github.com/johnnynunez/cascade/blob/main/docs/ROADMAP.md">ROADMAP.md (capability status)</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/DGX_SPARK_SETUP.md#validated-release-and-scope">DGX_SPARK_SETUP.md (validated release)</a> · <a href="https://github.com/johnnynunez/cascade/tree/main/docs/evidence">docs/evidence/</a></p>
+      </div>
+    </section>
+
+    <!-- ===================== 11 GET STARTED ===================== -->
+    <section class="section band" id="start" aria-labelledby="start-title">
+      <div class="wrap">
+        <header class="section-head reveal">
+          <p class="eyebrow"><span class="num">11</span>Get started</p>
+          <h2 id="start-title">Run it.</h2>
+          <p class="lede">The whole cascade runs with no robot, GPU or credentials. Pick a path; every command is copied from the repo's own docs.</p>
+        </header>
+
+        <div class="tabs reveal" id="start-tabs">
+          <div class="tablist" role="tablist" aria-label="Ways to run CASCADE">
+            <button class="tab" role="tab" id="tab-mock" aria-controls="tp-mock" aria-selected="true">No robot</button>
+            <button class="tab" role="tab" id="tab-mujoco" aria-controls="tp-mujoco" aria-selected="false" tabindex="-1">Laptop + OpenClaw</button>
+            <button class="tab" role="tab" id="tab-spark" aria-controls="tp-spark" aria-selected="false" tabindex="-1">DGX Spark kitchen</button>
+            <button class="tab" role="tab" id="tab-arm" aria-controls="tp-arm" aria-selected="false" tabindex="-1">Real arm</button>
+            <button class="tab" role="tab" id="tab-hosts" aria-controls="tp-hosts" aria-selected="false" tabindex="-1">Other MCP hosts</button>
+          </div>
+
+          <div class="tabpanel" id="tp-mock" aria-labelledby="tab-mock" tabindex="0">
+            <div>
+              <div class="meta"><span class="badge b-software">mock stack</span><span class="badge b-measured">MuJoCo physics</span></div>
+              <h3>The verifier at work, in minutes</h3>
+              <p>The mock jaws hold nothing, so the task report says <code>success: False</code> with the postcondition refuted. With MuJoCo the postcondition channel becomes <code>physics</code>.</p>
+              <ul>
+                <li>Needs <a href="https://docs.astral.sh/uv/">uv</a> and Python 3.10+.</li>
+                <li>torch is not a dependency: install your platform's build if you need it.</li>
+              </ul>
+            </div>
+            <div>
+              <div class="code"><pre><code>git clone https://github.com/johnnynunez/cascade.git &amp;&amp; cd cascade
+uv sync --extra dev --extra kinematics
+uv run python -m cascade.apps.demo --task "pick and place the red object"</code></pre></div>
+              <div class="code"><pre><code><span class="c"># real physics, no robot or GPU</span>
+uv run python scripts/fetch_robot_assets.py so101
+uv run --extra sim python -m cascade.apps.demo --arm so101_mujoco --cameras mujoco_scene,mujoco_wrist --interactive</code></pre></div>
+            </div>
+          </div>
+
+          <div class="tabpanel" id="tp-mujoco" aria-labelledby="tab-mujoco" tabindex="0">
+            <div>
+              <div class="meta"><span class="badge b-measured">MuJoCo</span><span class="badge b-optin">OpenClaw</span></div>
+              <h3>Chat with the arm on a laptop</h3>
+              <p>The first run creates the venv, installs the extras and robot meshes, installs or updates the OpenClaw CLI, starts the sidecars and registers the robot tools. READY needs a physical order and a reset in one chat session, bound in <code>proof.json</code>.</p>
+              <ul>
+                <li>Chat at <code>http://127.0.0.1:18789/</code> or from the terminal.</li>
+                <li><code>./run.sh check isaac</code> reports what is missing and installs nothing.</li>
+              </ul>
+            </div>
+            <div>
+              <div class="code"><pre><code>git clone https://github.com/johnnynunez/cascade &amp;&amp; cd cascade
+./run.sh mujoco --brain keep        <span class="c"># use the auth already configured in OpenClaw</span>
+./run.sh down                       <span class="c"># stop owned sidecars and stale MCP servers</span></code></pre></div>
+              <div class="code"><pre><code>openclaw agent --session-id demo-1 -m "put both cubes in the drop zone, one at a time; call task_memory before each action"
+openclaw agent --session-id demo-1 -m "how many did you move and how do you know?"
+openclaw agent --session-id demo-1 -m "reset the scene"</code></pre></div>
+            </div>
+          </div>
+
+          <div class="tabpanel" id="tp-spark" aria-labelledby="tab-spark" tabindex="0">
+            <div>
+              <div class="meta"><span class="badge b-default">Isaac Sim 6.2 · PhysX</span><span class="badge b-pending">6.2 acceptance pending</span></div>
+              <h3>The PAAI kitchen on an NVIDIA DGX Spark</h3>
+              <p>Isaac Sim 6.2 with PhysX CUDA, real GraspGen-X, local Qwen Q4, OpenClaw and the camera extension in Chromium. Six numbered steps: check, install, check, start and prove, open, stop.</p>
+              <ul>
+                <li>Install and check use one pinned commit: copy them from <a href="https://github.com/johnnynunez/cascade/blob/main/docs/DGX_SPARK_SETUP.md#quick-path">DGX Spark setup</a>.</li>
+                <li>Needs at least 150 GiB free; 30–90 min uncached plus cold CUDA builds.</li>
+                <li><code>--accept-eula</code> records your explicit acceptance of the NVIDIA Isaac Sim / Omniverse licenses.</li>
+                <li>Booth presenters: the offline <a href="https://github.com/johnnynunez/cascade/blob/main/docs/spark-presenter/index.html">presenter page</a> and <a href="https://github.com/johnnynunez/cascade/blob/main/docs/BOOTH_RUNBOOK.md">booth runbook</a>.</li>
+              </ul>
+            </div>
+            <div>
+              <div class="code"><pre><code><span class="c"># 3. read-only install check (after the pinned install)</span>
+cd "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" &amp;&amp; bash scripts/install.sh --profile spark --dir "$PWD" --check &amp;&amp; printf 'CHECKED\n'</code></pre></div>
+              <div class="code"><pre><code><span class="c"># 4. start and prove: two placements and resets, then READY</span>
+python3 scripts/desktop.py launch --repo "$PWD"</code></pre></div>
+              <div class="code"><pre><code><span class="c"># in the chat</span>
+What can you see on the table?
+Could you put the green cube in the green square?
+Let's start over.
+Please put the orange in the open box.</code></pre></div>
+            </div>
+          </div>
+
+          <div class="tabpanel" id="tp-arm" aria-labelledby="tab-arm" tabindex="0">
+            <div>
+              <div class="meta"><span class="badge b-pending">hardware: read the safety notes first</span></div>
+              <h3>One stack for every real arm</h3>
+              <p>reBot and Franka FR3 run on the same route: <code>scripts/launch.sh --sim none</code>, the agent in OpenShell, the Nemotron 3.5 Bolt brain and GraspGen-X. The arm comes up observe-only; motion needs a timed unlock with the e-stop in hand.</p>
+              <ul>
+                <li>Hand-eye extrinsics are placeholders until you <a href="https://github.com/johnnynunez/cascade/blob/main/docs/HANDEYE_CALIBRATION.md">calibrate on site</a>.</li>
+                <li>Follow the <a href="https://github.com/johnnynunez/cascade/blob/main/docs/ROADMAP.md#onsite-bring-up-checklist">onsite bring-up checklist</a> and the <a href="https://github.com/johnnynunez/cascade/blob/main/README.md#safety-notes-for-a-live-rig">live-rig safety notes</a>.</li>
+              </ul>
+            </div>
+            <div>
+              <div class="code"><pre><code><span class="c"># reBot B601-RS</span>
+sudo ip link set can0 up type can bitrate 1000000
+./scripts/launch.sh --sim none --arm rebot_rs --cameras l515</code></pre></div>
+              <div class="code"><pre><code><span class="c"># Franka FR3 on a Jetson Thor (ROS bringup and brain already running)</span>
+taskset -c 0-7 ./scripts/launch.sh --sim none --arm fr3 --cameras d435i</code></pre></div>
+              <div class="code"><pre><code><span class="c"># when the operator is ready to let the arm move (re-locks itself)</span>
+scripts/openshell_rig.py motion unlock --for 20m</code></pre></div>
+            </div>
+          </div>
+
+          <div class="tabpanel" id="tp-hosts" aria-labelledby="tab-hosts" tabindex="0">
+            <div>
+              <div class="meta"><span class="badge b-optin">MCP</span></div>
+              <h3>Claude Code, Codex, Hermes</h3>
+              <p>The skill runtime is an MCP server: register it in any MCP host. Every runtime switch set in the registering shell is copied into the host's entry; rig selectors and secrets never are.</p>
+              <ul>
+                <li><code>--llm auto</code> picks a logged-in Codex CLI, then Hermes, Anthropic, OpenAI, else the offline mock.</li>
+              </ul>
+            </div>
+            <div>
+              <div class="code"><pre><code>uv run python scripts/setup_agents.py --host claude --camera isaac,isaac_side --arm isaac --python "$PWD/.venv/bin/python" --write
+uv run python scripts/setup_agents.py --host codex --python "$PWD/.venv/bin/python" --write
+./scripts/hermes_demo.sh            <span class="c"># Hermes: register + test + chat</span></code></pre></div>
+            </div>
+          </div>
+        </div>
+
+        <p class="sources"><span>Sources</span><a href="https://github.com/johnnynunez/cascade/blob/main/README.md">README.md</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/QUICKSTART.md">QUICKSTART.md</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/DGX_SPARK_SETUP.md">DGX_SPARK_SETUP.md</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/FRANKA_OPENCLAW.md">FRANKA_OPENCLAW.md</a> · <a href="https://github.com/johnnynunez/cascade/blob/main/docs/OPENSHELL.md#bring-up">OPENSHELL.md (bring-up)</a></p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-foot">
+    <div class="wrap">
+      <div class="foot-grid">
+        <div>
+          <a class="brand" href="#main">
+            <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#0f1316"/><path d="M6 8h11v4.2H6zM10.5 14h11v4.2h-11zM15 20h11v4.2H15z" fill="#76b900"/></svg>
+            CASCADE
+          </a>
+          <p class="foot-thesis">The AI never says “done” without proof.</p>
+          <p class="note">Safe agentic robotics: NVIDIA OpenShell bounds the agent, the CASCADE safety harness checks every move, and every result is verified.</p>
+        </div>
+        <nav aria-label="Documentation">
+          <h2>Docs</h2>
+          <ul>
+            <li><a href="https://github.com/johnnynunez/cascade/blob/main/docs/README.md">Documentation index</a></li>
+            <li><a href="https://github.com/johnnynunez/cascade/blob/main/docs/ARCHITECTURE.md">Architecture</a></li>
+            <li><a href="https://github.com/johnnynunez/cascade/blob/main/docs/ROADMAP.md">Capability status</a></li>
+            <li><a href="https://github.com/johnnynunez/cascade/blob/main/docs/QUICKSTART.md">Quickstart</a></li>
+            <li><a href="https://github.com/johnnynunez/cascade/blob/main/AGENTS.md">AGENTS.md</a></li>
+          </ul>
+        </nav>
+        <nav aria-label="Deploy">
+          <h2>Deploy</h2>
+          <ul>
+            <li><a href="https://github.com/johnnynunez/cascade/blob/main/docs/DGX_SPARK_SETUP.md">DGX Spark setup</a></li>
+            <li><a href="https://github.com/johnnynunez/cascade/blob/main/docs/OPENSHELL.md">OpenShell route</a></li>
+            <li><a href="https://github.com/johnnynunez/cascade/blob/main/docs/BREV.md">Brev deployment</a></li>
+            <li><a href="https://github.com/johnnynunez/cascade/blob/main/docs/BOOTH_RUNBOOK.md">Booth runbook</a></li>
+          </ul>
+        </nav>
+        <nav aria-label="Project">
+          <h2>Project</h2>
+          <ul>
+            <li><a href="https://github.com/johnnynunez/cascade">GitHub repository</a></li>
+            <li><a href="https://github.com/johnnynunez/cascade/tree/main/docs/evidence">Evidence reports</a></li>
+            <li><a href="https://github.com/johnnynunez/cascade/blob/main/LICENSE">MIT License</a></li>
+            <li><a href="https://github.com/johnnynunez/cascade/blob/main/demo/scene/NOTICE.md">Kitchen scene notice</a></li>
+          </ul>
+        </nav>
+      </div>
+      <div class="foot-small">
+        <p>Code under the MIT License. The kitchen geometry is an owner-authorized adaptation of Cocina_Asier_01; models, weights, assets and third-party software keep their own licenses (see the notices in the repo).</p>
+        <p>Every claim on this page links to its source in the repository; when the repo says candidate, pending or simulation only, so does this page. Fonts: Archivo and JetBrains Mono, SIL Open Font License (<a href="assets/fonts/OFL-Archivo.txt">Archivo</a>, <a href="assets/fonts/OFL-JetBrainsMono.txt">JetBrains Mono</a>).</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="assets/js/site.js" defer></script>
+</body>
+</html>

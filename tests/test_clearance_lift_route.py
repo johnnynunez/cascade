@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-from conftest import needs_pin
+from conftest import needs_pin, observed
 from test_home_routes import CartesianKin, case
 
 from cascade.safety.trajectory import plan_route, vet_route, vet_segment
@@ -369,8 +369,8 @@ def test_signed_rebot_model_with_synthetic_wrist_camera_obstacle(turn, succeeds)
         clearance=lambda points: np.linalg.norm(points - obstacle, axis=1),
         required=True, unknown_blocks=True,
     )
-    harness = SafetyHarness(SafetyLimits.from_config(cfg.safety), kin, occupancy=occupancy,
-                            tool_volume=build_tool_volume(cfg, cfg.arm))
+    harness = observed(SafetyHarness(SafetyLimits.from_config(cfg.safety), kin, occupancy=occupancy,
+                            tool_volume=build_tool_volume(cfg, cfg.arm)))
     assert harness.limits.min_clearance_m == .03
     assert "wrist camera clearance 0.026 m below 0.030 m" in harness.vet_pose(start)
     for old_route in ([goal], [goal, goal], [start, goal]):

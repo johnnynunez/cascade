@@ -28,8 +28,16 @@ SGLang 0.5.22 (sglang/srt/): `SGLANG_GRPC_PORT` starts a native gRPC listener be
 cover, `SGLANG_RUST_SERVER` swaps in the embedded Rust HTTP server, `SGLANG_OLLAMA_*_ROUTE` and `AIP_PREDICT_ROUTE`
 move the Ollama routes and /vertex_generate anywhere (/v1/** too), `DUMPER_SERVER_PORT` starts a keyless control server
 on 0.0.0.0 (`reuse`: /dumper/{method}) and the other `DUMPER_*` dump tensors or load code,
-`SGLANG_ENABLE_REQUEST_HEADER_OVERRIDES` lets x-override-* headers set request fields, and `EXA_API_KEY` adds a web
-search tool behind /v1/responses.
+`SGLANG_ENABLE_REQUEST_HEADER_OVERRIDES` lets x-override-* headers set request fields, `EXA_API_KEY` adds a web
+search tool behind /v1/responses, `SGLANG_EXTERNAL_MODEL_PACKAGE` imports a package that replaces the whole model
+registry (srt/models/registry.py), `SGLANG_EXTERNAL_MM_PROCESSOR_PACKAGE` one of multimodal processors
+(managers/tokenizer_manager.py) and `SGLANG_EXTERNAL_MM_MODEL_ARCH` names that package's architecture, and
+`SGLANG_LOGGING_CONFIG_PATH` replaces the logging setup with a dictConfig file (utils/common.py configure_logger): its
+`()` factories import code, and an INFO handler writes the start line, the key included, wherever it says.
+`SGLANG_DISTRIBUTED_INIT_METHOD_OVERRIDE` replaces the torch.distributed init method (distributed/bootstrap.py
+`_resolve_dist_init_method`): `env://` (MASTER_ADDR / MASTER_PORT) or `tcp://HOST:PORT` puts the rendezvous store on a
+port the caller picks, and HOST may be another machine. torch's TCPStore listens on every interface whatever host it is
+given (torch 2.14: `[::]`), and SGLang skips its own port checks under the override (server_args.py PortArgs).
 """
 from __future__ import annotations
 
@@ -78,6 +86,11 @@ HOSTILE_SGLANG_ENV = {
     "DUMPER_ENABLE": "1",                                # tensor dumps to disk
     "SGLANG_ENABLE_REQUEST_HEADER_OVERRIDES": "1",       # x-override-* headers set request fields
     "EXA_API_KEY": "inherited-exa-key",                  # a web search tool behind /v1/responses
+    "SGLANG_EXTERNAL_MODEL_PACKAGE": "caller_models",    # imported: replaces the whole model registry
+    "SGLANG_EXTERNAL_MM_MODEL_ARCH": "CallerArch",       # that package's multimodal architecture
+    "SGLANG_EXTERNAL_MM_PROCESSOR_PACKAGE": "caller_mm",  # imported: multimodal processors
+    "SGLANG_LOGGING_CONFIG_PATH": "/tmp/logging.json",   # a dictConfig: `()` factories, INFO (the key) to any file
+    "SGLANG_DISTRIBUTED_INIT_METHOD_OVERRIDE": "tcp://192.0.2.7:29500",  # the rendezvous store: any port, any host
 }
 
 #: Inherited SGLang-looking names the server keeps: tuning of features it never starts, and look-alikes.
@@ -86,6 +99,9 @@ BENIGN_SGLANG_ENV = {
     "SGLANG_OLLAMA": "kept",             # not SGLANG_OLLAMA_*
     "XDUMPER_SERVER_PORT": "kept",       # not DUMPER_*
     "SGLANG_TORCH_PROFILER_DIR": "/tmp/profiles",
+    "SGLANG_EXTERNAL": "kept",           # not SGLANG_EXTERNAL_*
+    "SGLANG_LOG_MS": "1",                # milliseconds in the log's timestamps
+    "MASTER_PORT": "29500",              # torch's env:// init reads it; only the scrubbed override selects env://
 }
 
 #: A llama.cpp config.ini as an attacker would write it: every tool (exec_shell_command, write_file) at /tools, and

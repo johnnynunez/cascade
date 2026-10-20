@@ -18,6 +18,7 @@ import numpy as np
 import pytest
 
 from cascade.config import load_demo_config, load_profile
+from conftest import observed
 
 
 # ── the rclpy stub ────────────────────────────────────────────────────────
@@ -1025,7 +1026,7 @@ def test_native_safe_arm_planned_route_keeps_single_bounded_controller_goal(traj
     # Keep the synthetic feedback below the unchanged measured-velocity gate;
     # an instantaneous .1 rad jump correctly fails even after path admission.
     client = _use_native_future(arm, monkeypatch, _native_result_future(arm, target, delay=.25))
-    harness = SafetyHarness(SafetyLimits(np.full(3, -1.), np.full(3, 1.)))
+    harness = observed(SafetyHarness(SafetyLimits(np.full(3, -1.), np.full(3, 1.))))
     safe = SafeArm(arm, harness)
     try:
         assert safe.move_planned(target, duration_s=.1)

@@ -68,6 +68,8 @@ class Ros2Arm(ArmBase):
     # must not park or close the hand; disconnect only cancels an active goal
     # into a measured hold before releasing the transport.
     shutdown_park_required = False
+    #: disconnect() destroys this node only; ros2_control keeps the arm held.
+    disconnect_cuts_torque = False
 
     def __init__(self, cfg: Cfg):
         self._cfg = cfg

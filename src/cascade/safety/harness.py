@@ -30,6 +30,7 @@ escape vertically.
 
 from __future__ import annotations
 
+import math
 import sys
 import time
 import threading
@@ -173,6 +174,10 @@ ESCAPE_MAX_INTERIOR_SAMPLES = 16
 #: Serializes `SafetyHarness.heartbeat`'s read-compare-write (the watcher
 #: thread and the skill runtime both beat; one module lock, held for a compare).
 _HEARTBEAT_LOCK = threading.Lock()
+#: Serializes `SafetyHarness.approved_commands`'s increment: two motions on
+#: one harness (a bug of its own) must never lose a count, or a started move
+#: could read as "refused before any command".
+_APPROVED_LOCK = threading.Lock()
 
 
 class GateCtx(NamedTuple):
@@ -288,6 +293,16 @@ class SafetyHarness:
     #: True from a successful begin_motion until that motion's first
     #: approved waypoint (or its end_motion).
     _motion_uncounted: bool = False
+    #: Every command approve() cleared to go, over every motion and thread:
+    #: one per approved waypoint, never for a refused approve, a vetted
+    #: (preflight) step or begin/end_motion. Monotonic. A handler compares it
+    #: before/after its move to tell "refused before any command" from "the
+    #: move started" (`SkillRuntime._refused_before_motion`): unlike
+    #: `motions_begun`, whose one shared flag ANY end_motion clears, no
+    #: concurrent motion can hide a start from it (#422 review Minor 1); a
+    #: concurrent motion's commands only ever make a refusal read as started,
+    #: the side that stops and latches.
+    approved_commands: int = 0
 
     def __init__(self, limits: SafetyLimits, kinematics=None, occupancy=None,
                  base_pose=None, tool_volume=None, arm_name: str | None = None):
@@ -344,7 +359,13 @@ class SafetyHarness:
         self._model_withdrawal_scope = threading.local()
         #: (center_xy, radius, z_min) or, with a ceiling, (..., z_max)
         self._grasp_exempt: tuple | None = None
-        self._last_heartbeat = time.monotonic()
+        # Stale until the first observation (#414 review Minor 4): an arm
+        # never moves on perception it has not had. Every motion starts after
+        # a real frame's beat (the runtime's build feeds the warm-up's frames,
+        # the watcher every new one, calibration and home_rebot_rs their own
+        # grabs); counting the build as an observation let an arm whose
+        # camera never delivered move for `watchdog_s`.
+        self._last_heartbeat = -math.inf
         self._motion_active = False
         self.violations: list[str] = []
         #: per-motion contact monitor summaries, drained into the run trace
@@ -399,7 +420,14 @@ class SafetyHarness:
                 self._last_heartbeat = at
 
     def _watchdog_refusal(self, age: float) -> str:
+        if not math.isfinite(age):
+            return f"perception watchdog: no observation yet{self.watchdog_note}"
         return f"perception watchdog: last observation {age:.1f}s old{self.watchdog_note}"
+
+    def _check_watchdog(self) -> None:
+        age = time.monotonic() - self._last_heartbeat
+        if age > self.limits.watchdog_s:
+            self._reject(self._watchdog_refusal(age))
 
     def estop(self, reason: str = "manual") -> None:
         with self._observation_lock:
@@ -1096,11 +1124,23 @@ class SafetyHarness:
         with self._observation_lock:
             self._check_halt_generation(halt_generation)
             self._halt = None
-        age = time.monotonic() - self._last_heartbeat
-        if age > self.limits.watchdog_s:
-            self._reject(self._watchdog_refusal(age))
+        self._check_watchdog()
         self._motion_active = True
         self._motion_uncounted = True
+
+    def check_before_motion(self, *, halt_generation: int | None = None) -> None:
+        """begin_motion's refusals, in its order -- the e-stop, a halt since
+        `halt_generation` or since the running skill started, the perception
+        watchdog -- for a command that PRECEDES a motion and goes out only for
+        it (the grasp's pre-grasp jaw opening): a dead camera then refuses
+        that command too, instead of the motion right after it. Starts no
+        motion and leaves a pending halt from before the caller started for
+        that motion's begin_motion to clear, as begin_motion would.
+        """
+        if self._estopped:
+            raise SafetyViolation("e-stop latched")
+        self._check_halt_generation(halt_generation)
+        self._check_watchdog()
 
     def end_motion(self) -> None:
         self._motion_active = False
@@ -1120,9 +1160,7 @@ class SafetyHarness:
         self._check_halt_generation(halt_generation)
         if self._halt is not None:
             raise MotionHalted(f"halted: {self._halt}")
-        age = time.monotonic() - self._last_heartbeat
-        if age > self.limits.watchdog_s:
-            self._reject(self._watchdog_refusal(age))
+        self._check_watchdog()
 
     # ── the gate ─────────────────────────────────────────────────────────
 
@@ -1137,6 +1175,8 @@ class SafetyHarness:
         neighbours) still runs at full strength.
         """
         self._approve_step(q_prev, q_next, dt, joint_margin, self._reject, True)
+        with _APPROVED_LOCK:
+            self.approved_commands += 1
         if self._motion_uncounted:
             # The motion's first command is cleared to go: it has started.
             self._motion_uncounted = False
@@ -1510,11 +1550,12 @@ class SafetyHarness:
         if exact:
             return f"TCP {self._quoted(tcp)} outside workspace [{_mm(lo_t)} .. {_mm(hi_t)}]"
         # a mount that rotates the box: the base frame's numbers decide, so
-        # they come first (the FAILED line keeps 240 characters, #412 review
-        # Minor 4), the table-frame bounds last
-        return (f"TCP {self._quoted(tcp)} outside workspace (its base_pose rotates it: in the arm's base frame the "
-                f"TCP {_mm(tcp)} is outside [{_mm(lo_w)} .. {_mm(hi_w)}]; table-frame bounds "
-                f"[{_mm(lo_t)} .. {_mm(hi_t)}])")
+        # the text opens with them, the table frame's last: the FAILED line
+        # keeps 240 characters (#412 review Minor 4), after the longest
+        # prefix the code puts before this text too (they end within 101
+        # characters; #413 review Minor 4)
+        return (f"TCP {_mm(tcp)} outside workspace [{_mm(lo_w)} .. {_mm(hi_w)}] in the arm's base frame (its "
+                f"base_pose rotates it; table frame: TCP {self._quoted(tcp)}, bounds [{_mm(lo_t)} .. {_mm(hi_t)}])")
 
     def _table_clearance_refusal(self, tcp, floor: float) -> str:
         if self.base_pose is None:
@@ -2091,6 +2132,23 @@ class SafeArm:
             if self.harness.estopped:
                 raise SafetyViolation("e-stop latched") from None
             raise
+
+    def preflight_planned(self, q_target: np.ndarray, duration_s: float = 3.0, *, rate_hz=None) -> None:
+        """move_planned's route check without a command: plan the route from
+        the measured joints and raise its refusal (SkillError: no safe route;
+        SafetyViolation) for a command that goes out only for that move (the
+        grasp's pre-grasp jaw opening before its home move), so a refused
+        route costs no command at all (#422 review Minor 5). Authorizes
+        nothing: move_planned plans and vets its own route again from the
+        joints measured when it starts, and every step is approved live. A
+        planner-bound arm plans inside move_joints: nothing to check here."""
+        if self.motion_planner is not None:
+            return
+        from .trajectory import plan_route
+        from ..control.motion_profile import resolve_motion_rate
+
+        start = self.get_state().q
+        plan_route(self.harness, start, q_target, duration_s, rate_hz=resolve_motion_rate(self._arm, rate_hz))
 
     def move_planned(self, q_target: np.ndarray, duration_s: float = 3.0, *,
                      _halt_generation=None, rate_hz=None) -> bool:

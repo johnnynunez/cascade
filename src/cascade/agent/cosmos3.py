@@ -55,7 +55,7 @@ import re
 from copy import deepcopy
 from typing import Any
 
-from .llm import LLMResponse, OpenAICompatClient, ToolCall
+from .llm import LLMResponse, OpenAICompatClient, ToolCall, read_api_key_file
 
 logger = logging.getLogger(__name__)
 
@@ -239,11 +239,16 @@ class Cosmos3EdgeClient(OpenAICompatClient):
 
 
 def make_cosmos3_client(cfg) -> Cosmos3EdgeClient:
-    """Build the client from a ``configs/llm/local_cosmos.yaml`` profile."""
+    """Build the client from a ``configs/llm/local_cosmos.yaml`` profile.
+
+    ``api_key_file`` (a path, e.g. local_cosmos_sglang's brain key file) wins
+    over a literal ``api_key``: scripts/serve_cosmos_sglang.sh serves only with
+    a key, and a profile names the key FILE, never the key."""
+    key_file = cfg.get("api_key_file")
     return Cosmos3EdgeClient(
         model=cfg.get("model", "nvidia/Cosmos3-Edge"),
         base_url=cfg.get("base_url", "http://127.0.0.1:8000/v1"),
-        api_key=cfg.get("api_key", "EMPTY"),
+        api_key=read_api_key_file(key_file, who="cosmos3") if key_file else cfg.get("api_key", "EMPTY"),
         supports_vision=bool(cfg.get("supports_vision", True)),
         temperature=float(cfg.get("temperature", 0.2)),
         enable_thinking=bool(cfg.get("enable_thinking", False)),

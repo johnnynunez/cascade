@@ -1,5 +1,7 @@
 # CASCADE 🦾 — Cascaded Agentic Skill Control with Adaptive Dispatch and Execution
 
+Website: https://johnnynunez.github.io/cascade/ (after the first deploy)
+
 Run the whole cascade with no robot, GPU or credentials:
 
 ```bash
@@ -46,7 +48,11 @@ agent and the CASCADE safety harness checks every motion sample.
 Dark versions: [simplified](docs/assets/paai_demo_simple_dark.png) ·
 [in depth](docs/assets/paai_demo_pipeline_dark.png). The
 [modular architecture](docs/ROBOT_MODULARITY.md#architecture-and-the-implemented-boundary)
-(robot runtimes, fleet coordination and backend adapters) lives in its own doc.
+(robot runtimes, fleet coordination and backend adapters) lives in its own doc. The MicroDuck
+agentic demos have their own pipeline diagram
+([light](docs/assets/microduck_pipeline_light.png) · [dark](docs/assets/microduck_pipeline_dark.png)):
+the agent in NVIDIA OpenShell, onboard sensors, cuVSLAM, YOLOE, the learned walking policy, BAM servos
+and Newton (the onboard-only loop of #329, not yet on `main`).
 
 ## Pick your path
 
@@ -227,7 +233,7 @@ only and no hardware base exists. Code paths and evidence:
 | `anthropic` / `openai` | Claude / any OpenAI-compatible cloud endpoint | `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` |
 | `local_nemotron_bolt` | **default brain**: Nemotron 3.5 Bolt 74B-A9B 24GB via `scripts/serve_nemotron_bolt_llamacpp.sh` (llama.cpp v0.7.0, :8080; vLLM `serve_nemotron_bolt_vllm.sh` is opt-in, not beside Isaac) | served id `nemotron-3.5-bolt`; sends `enable_thinking: false` itself |
 | `local_qwen` | Qwen3.8-27B via `scripts/serve_qwen_llamacpp.sh` or `serve_qwen_vllm.sh` (:8080) | `model:` must be one of `serve_qwen_vllm.sh`'s served names |
-| `local_cosmos` / `local_cosmos_sglang` | Cosmos3-Edge via vLLM (:8082) / SGLang (:8083, **unverified**) | `type: cosmos3` (XML tool calls) |
+| `local_cosmos` / `local_cosmos_sglang` | Cosmos3-Edge via vLLM (:8082) / SGLang (:8083, **unverified**) | `type: cosmos3` (XML tool calls); SGLang serves only with a key: the profile sends `~/.cascade/nemoclaw/llama.key` (or `CASCADE_MODEL_API_KEY_FILE`) |
 | `mock` | scripted | tests and wiring checks |
 
 ## Run it under any MCP agent platform

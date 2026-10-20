@@ -37,8 +37,22 @@ class ModelNotServed(ProofError):
     """The endpoint answers, but not with the requested model."""
 
 
+class Unauthorized(ProofError):
+    """The endpoint answers, but refuses the key the request sent (HTTP 401 or 403)."""
+
+
 #: Nemotron 3.5 Bolt, the default brain (scripts/serve_nemotron_bolt_llamacpp.sh).
 NEMOTRON_BOLT_MODEL = "nemotron-3.5-bolt"
+
+#: The bearer key file every local serve script is started with (API_KEY_FILE), unless CASCADE_BRAIN_KEY_FILE names
+#: another: launch.sh's default too.
+BRAIN_KEY_FILE = "~/.cascade/nemoclaw/llama.key"
+#: Brains that never serve without a key -> their serve script. Their check falls back to the brain key file.
+KEYED_BRAINS = {"cosmos-sglang": "scripts/serve_cosmos_sglang.sh"}
+
+
+def brain_key_file() -> Path:
+    return Path(os.environ.get("CASCADE_BRAIN_KEY_FILE") or BRAIN_KEY_FILE).expanduser()
 
 #: The readiness turn. OpenClaw's agent prompt says "Nothing to say: entire
 #: reply exactly NO_REPLY" (its silent-reply rule, which no config switch
@@ -129,7 +143,9 @@ def wait_gateway(wait_s: float = 45, *, retry_delay: float = 1, environment=None
     raise ProofError("gateway did not become healthy for the selected profile; port ownership/authentication may conflict")
 
 
-def request_json(url: str, payload: dict | None = None, timeout: float = 5) -> dict:
+def request_json(url: str, payload: dict | None = None, timeout: float = 5, *, key_file: Path | None = None) -> dict:
+    """`key_file`: a keyed brain's fallback key file, read when neither CASCADE_MODEL_API_KEY nor
+    CASCADE_MODEL_API_KEY_FILE is set and the file exists."""
     parsed = urlsplit(url)
     if parsed.scheme not in ("http", "https") or not parsed.hostname:
         raise ProofError("model base URL must be HTTP(S)")
@@ -144,6 +160,11 @@ def request_json(url: str, payload: dict | None = None, timeout: float = 5) -> d
             key = Path(os.environ["CASCADE_MODEL_API_KEY_FILE"]).expanduser().read_text().strip()
         except OSError as exc:
             raise ProofError(f"cannot read CASCADE_MODEL_API_KEY_FILE ({type(exc).__name__})") from exc
+    elif not key and key_file is not None and key_file.is_file():
+        try:
+            key = key_file.read_text().strip()
+        except OSError as exc:
+            raise ProofError(f"cannot read the brain key file {key_file} ({type(exc).__name__})") from exc
     if key:
         headers["Authorization"] = f"Bearer {key}"
     data = None
@@ -154,7 +175,8 @@ def request_json(url: str, payload: dict | None = None, timeout: float = 5) -> d
         with opener.open(Request(url, data=data, headers=headers), timeout=timeout) as response:
             result = json.loads(response.read(4 * 1024 * 1024))
     except HTTPError as exc:
-        raise ProofError(f"model endpoint returned HTTP {exc.code}; refusing silent fallback") from exc
+        refused = Unauthorized if exc.code in (401, 403) else ProofError
+        raise refused(f"model endpoint returned HTTP {exc.code}; refusing silent fallback") from exc
     except (URLError, OSError) as exc:
         raise EndpointUnavailable(f"model endpoint {parsed.hostname}:{parsed.port if parsed.port is not None else 80} unavailable ({type(exc).__name__})") from exc
     except ValueError as exc:
@@ -164,22 +186,24 @@ def request_json(url: str, payload: dict | None = None, timeout: float = 5) -> d
     return result
 
 
-def local_brain(base: str, expected: str | None) -> dict:
-    data = request_json(base.rstrip("/") + "/models")
+def local_brain(base: str, expected: str | None, key_file: Path | None = None) -> dict:
+    url = base.rstrip("/") + "/models"
+    data = request_json(url) if key_file is None else request_json(url, key_file=key_file)
     ids = [row.get("id") or row.get("model") for row in data.get("data", data.get("models", [])) if isinstance(row, dict)]
     if not ids or (expected and expected not in ids):
         raise ModelNotServed(f"model {expected or '<any>'} not served at {base}; available={ids}")
     return {"base_url": base, "model": expected or ids[0]}
 
 
-def probe_native_tools(base: str, model: str) -> dict:
+def probe_native_tools(base: str, model: str, key_file: Path | None = None) -> dict:
     """Prove native tool generation; no tool runs and no readiness is inferred.
 
     Use ordinary read-only CASCADE inspection schemas and a semantic request,
     rather than a greeting or a synthetic readiness function. The model still
     chooses between tools with tool_choice=auto; prose is never sufficient.
+    `key_file`: a keyed brain's fallback key file (`request_json`).
     """
-    info = local_brain(base, model)
+    info = local_brain(base, model) if key_file is None else local_brain(base, model, key_file=key_file)
     payload = {
         "model": model, "stream": False, "temperature": 0, "max_tokens": 512,
         "messages": [{"role": "system", "content": "You are a robot assistant. Use the available tools to inspect the physical workspace when asked. Observations must come from tools."},
@@ -218,7 +242,9 @@ def probe_native_tools(base: str, model: str) -> dict:
         "tool_choice": "auto",
         "chat_template_kwargs": {"enable_thinking": False},
     }
-    response = request_json(base.rstrip("/") + "/chat/completions", payload, timeout=120)
+    url = base.rstrip("/") + "/chat/completions"
+    response = (request_json(url, payload, timeout=120) if key_file is None
+                else request_json(url, payload, timeout=120, key_file=key_file))
     choices = response.get("choices") or []
     calls = (choices[0].get("message") or {}).get("tool_calls") if choices else None
     if not isinstance(calls, list) or len(calls) != 1:
@@ -233,8 +259,18 @@ def probe_native_tools(base: str, model: str) -> dict:
     return {**info, "native_tools": True}
 
 
-def check_brain(brain: str) -> dict:
-    endpoints = {
+def _key_source(key_file: Path) -> str:
+    """Which key request_json sent a keyed brain (names and paths only, never the key)."""
+    if os.environ.get("CASCADE_MODEL_API_KEY"):
+        return "CASCADE_MODEL_API_KEY"
+    if os.environ.get("CASCADE_MODEL_API_KEY_FILE"):
+        return f"the key in CASCADE_MODEL_API_KEY_FILE ({os.environ['CASCADE_MODEL_API_KEY_FILE']})"
+    return f"the key in {key_file}" if key_file.is_file() else f"no key ({key_file} is missing)"
+
+
+def brain_endpoints() -> dict[str, tuple[str, str | None]]:
+    """brain -> (base URL, served id) of every local brain --check-brain knows."""
+    return {
         # Both serve scripts default to :8080, so the Qwen endpoint is Bolt's too.
         "nemotron-bolt": (os.environ.get("CASCADE_NEMOTRON_BOLT_BASE_URL")
                           or os.environ.get("CASCADE_QWEN_BASE_URL", "http://127.0.0.1:8080/v1"),
@@ -244,10 +280,42 @@ def check_brain(brain: str) -> dict:
         "qwen": (os.environ.get("CASCADE_QWEN_BASE_URL", "http://127.0.0.1:8080/v1"),
                  "Qwen/Qwen3.8-27B" if os.environ.get("CASCADE_INSTALL_PROFILE") == "spark" else None),
     }
+
+
+def probe_native(base: str, model: str) -> dict:
+    """--probe-native: `probe_native_tools`. A keyed brain (KEYED_BRAINS) at its endpoint that refuses the probe
+    (HTTP 401/403) when no key was named (neither CASCADE_MODEL_API_KEY nor CASCADE_MODEL_API_KEY_FILE) is probed
+    again with the brain key file, as --check-brain sends it: a standalone probe of the SGLang brain needs no key
+    variable. Every other probe, and every probe that already sent a key, is unchanged (#421 review Minor 2)."""
+    try:
+        return probe_native_tools(base, model)
+    except Unauthorized as exc:
+        keyed = [name for name in KEYED_BRAINS if brain_endpoints()[name][0].rstrip("/") == base.rstrip("/")]
+        if not keyed or os.environ.get("CASCADE_MODEL_API_KEY") or os.environ.get("CASCADE_MODEL_API_KEY_FILE"):
+            raise
+        key_file = brain_key_file()
+        if not key_file.is_file():
+            raise ProofError(f"{exc}: {KEYED_BRAINS[keyed[0]]} serves only with its API_KEY_FILE, and this probe "
+                             f"sent {_key_source(key_file)}; start the brain with that file, or name the brain's key "
+                             "file in CASCADE_MODEL_API_KEY_FILE") from exc
+    return probe_native_tools(base, model, key_file)
+
+
+def check_brain(brain: str) -> dict:
+    endpoints = brain_endpoints()
     if brain in endpoints:
         context = 32768 if os.environ.get("CASCADE_INSTALL_PROFILE") == "spark" else (
             65536 if brain in ("qwen", "nemotron-bolt") else 32768)
-        return {**local_brain(*endpoints[brain]), "brain": brain, "context_window": context}
+        if brain not in KEYED_BRAINS:
+            return {**local_brain(*endpoints[brain]), "brain": brain, "context_window": context}
+        key_file = brain_key_file()
+        try:
+            found = local_brain(*endpoints[brain], key_file=key_file)
+        except Unauthorized as exc:
+            raise ProofError(f"{exc}: {KEYED_BRAINS[brain]} serves only with its API_KEY_FILE, and this check sent "
+                             f"{_key_source(key_file)}; start the brain with that file, or name the brain's key file in "
+                             "CASCADE_MODEL_API_KEY_FILE") from exc
+        return {**found, "brain": brain, "context_window": context}
     if brain not in ("auto", "keep"):
         raise ProofError(f"unknown brain: {brain}")
     if brain == "auto":
@@ -636,7 +704,7 @@ def main() -> int:
         if args.check_brain:
             result = check_brain(args.check_brain)
         elif args.probe_native:
-            result = probe_native_tools(args.probe_native, args.model)
+            result = probe_native(args.probe_native, args.model)
         elif args.wait_gateway is not None:
             result = wait_gateway(args.wait_gateway)
         else:

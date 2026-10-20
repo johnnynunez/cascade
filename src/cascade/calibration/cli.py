@@ -198,25 +198,31 @@ def _cleanup(rig: Rig | None, *, park: bool) -> None:
     """Runtime shutdown order: park through SafeArm (if the arm may have
     moved), then torque off, then release the camera. A fresh frame feeds
     the watchdog first -- only if one actually arrives; with a dead camera
-    the harness refuses the park, as it does in the runtime."""
+    the harness refuses the park, as it does in the runtime, and then the
+    arm stays powered and holding (the runtime's rule, `apps.demo
+    ._arms_to_hold`): torque off would drop it where it stopped."""
     if rig is None:
         return
     from types import SimpleNamespace
 
-    from ..apps.demo import _park_arm
+    from ..apps.demo import _announce_held, _arms_to_hold, _park_arm
     from ..perception.freshness import observed_at
 
+    held = {}
     if park:
         try:
             frame = rig.camera.get_frame()
             rig.safe_arm.harness.heartbeat(at=observed_at(frame))
         except Exception as e:
             print(f"[calib] no camera frame before park ({e}); the watchdog may refuse it")
-        _park_arm(SimpleNamespace(arm=rig.safe_arm))
-    try:
-        rig.raw_arm.disconnect()
-    except Exception as e:
-        print(f"[calib] arm disconnect failed: {e}")
+        parked = _park_arm(SimpleNamespace(arm=rig.safe_arm))
+        held = _arms_to_hold(SimpleNamespace(arm_rig=None), rig.raw_arm, parked)
+        _announce_held(held)
+    if not held:
+        try:
+            rig.raw_arm.disconnect()
+        except Exception as e:
+            print(f"[calib] arm disconnect failed: {e}")
     try:
         rig.camera.close()
     except Exception as e:

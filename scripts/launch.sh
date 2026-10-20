@@ -1310,7 +1310,7 @@ run oc mcp set "$MCP_NAME" "$MCP_JSON"
 
 # brain
 brain_local() {  # brain_local <base_url> <model_id> <ctx>
-    local base=$1 mid=$2 ctx=$3 active_cfg providers provider_models custom_key="" keyed=0
+    local base=$1 mid=$2 ctx=$3 active_cfg providers provider_models custom_key="" key_file keyed=0
     "$PY" "$REPO/scripts/demo_proof.py" --probe-native "$base" --model "$mid" \
         || die "requested model lacks working native tool calls; refusing to substitute another brain"
     log "onboarding local provider $base ($mid)"
@@ -1326,8 +1326,10 @@ brain_local() {  # brain_local <base_url> <model_id> <ctx>
         # (a subshell), never on its argv.
         custom_key="${CASCADE_MODEL_API_KEY:-}"
         if [[ -z "$custom_key" ]]; then
-            custom_key="$(tr -d '[:space:]' < "$CASCADE_MODEL_API_KEY_FILE")" \
-                || die "cannot read the brain key file $CASCADE_MODEL_API_KEY_FILE"
+            # a literal ~ (a quoted value) names HOME, as demo_proof reads it
+            key_file="${CASCADE_MODEL_API_KEY_FILE/#\~/$HOME}"
+            custom_key="$(tr -d '[:space:]' < "$key_file")" \
+                || die "cannot read the brain key file $key_file"
         fi
         (export CUSTOM_API_KEY="$custom_key"; run oc "${onboard[@]}")
         custom_key=""
@@ -1355,14 +1357,18 @@ PYEOF
     if [[ $keyed == 1 ]]; then
         # Onboarding stored the brain's key in this provider: set only its
         # models (the context window), so the key never reaches an argument.
+        # OpenClaw MERGES providers (custom-<host>-<port>) and the vLLM Cosmos
+        # brain serves the same id on :8082: the provider is the one onboarded
+        # at this brain's base URL, never the first that serves the id.
         provider_models="$(printf '%s' "$providers" | "$PY" -c '
 import json, sys
 for name, provider in json.load(sys.stdin).items():
-    if any(model.get("id") == sys.argv[1] for model in provider.get("models", [])):
+    if (str(provider.get("baseUrl", "")).rstrip("/") == sys.argv[2].rstrip("/")
+            and any(model.get("id") == sys.argv[1] for model in provider.get("models", []))):
         print(name, json.dumps(provider["models"]))
         break
 else:
-    raise SystemExit("onboarding did not register the requested model")' "$mid")" \
+    raise SystemExit("onboarding did not register the requested model at the brain base URL")' "$mid" "$base")" \
             || die "local provider config is incomplete"
         run oc config set "models.providers.${provider_models%% *}.models" "${provider_models#* }" --strict-json >/dev/null
     else

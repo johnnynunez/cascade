@@ -445,12 +445,13 @@ def test_the_shipped_tasks_have_hidden_checks_the_improver_never_reads(path):
     from cascade.harnessing.recursion import _task_md
 
     specs = [TaskSpec.from_dict(t) for t in json.loads(path.read_text())]
-    assert specs and all(s.check is not None and s.check.objects for s in specs)
+    assert specs and all(s.check is not None and (s.check.objects or s.check.humanoid) for s in specs)
     for s in specs:
         assert TaskSpec.from_dict(s.as_dict()) == s                               # what a worker receives
         text = _task_md(s, TOOL_SPECS)
         for key in ("in_region", "delivery_area", "displaced_xy_m", "at_start_of", "on_object", "unmoved",
-                    "arm_home_tol_rad", "on_table_tol_m", "honest_claim"):
+                    "arm_home_tol_rad", "on_table_tol_m", "honest_claim", "humanoid", "expect_claim",
+                    "min_turns", "max_turns", "unmoved_tol_m"):
             assert not re.search(rf"\b{key}\b", text), (s.id, key)
 
 

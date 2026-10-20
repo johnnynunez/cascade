@@ -58,6 +58,11 @@ def _describe_domain(domain_id, profile, *, embodiment=None, sensor_domains=None
         from ..skills.hand_runtime import HandDomain
         resources, specs = hand_description(domain_id, profile)
         return DomainAdapter(domain_id, profile, resources, specs, HandDomain.motion_skills)
+    if kind == "humanoid_locomanip":
+        # Learned whole-body policy behind a bridge; the gate and verifier stay in CASCADE.
+        from ..skills.humanoid_locomanip import MOTION_SKILLS, describe
+        resources, specs = describe(domain_id, profile)
+        return DomainAdapter(domain_id, profile, resources, specs, MOTION_SKILLS)
     if kind == "fastening":
         from .factory_runtime import factory_description
         resources, specs = factory_description(domain_id, profile)
@@ -253,6 +258,11 @@ def build_robot_runtime(cfg, run_dir, *, navigation_bindings=None, **_kwargs):
             if domain.profile["kind"] == "fastening":
                 from .factory_runtime import build_factory_runtime
                 domain.runtime = build_factory_runtime(domain.profile, directory, domain_id=name)
+                built.append(domain)
+                continue
+            if domain.profile["kind"] == "humanoid_locomanip":
+                from ..skills.humanoid_locomanip import build
+                domain.runtime = build(domain.profile, directory, domain_id=name)
                 built.append(domain)
                 continue
             if domain.profile["kind"] == "hand":

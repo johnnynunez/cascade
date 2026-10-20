@@ -45,18 +45,23 @@ class TaskSpec:
     max_steps: int = 20
     #: the hidden success check (`checks.TaskCheck`); None: CASCADE's own verifier decides
     check: TaskCheck | None = None
+    #: the composed robot profile the task runs on (None: the executor's rig)
+    robot: str | None = None
 
     @classmethod
     def from_dict(cls, data: dict, *, domain: str | None = None) -> "TaskSpec":
         if not data.get("id") or not data.get("task"):
             raise ValueError(f"task needs id and task: {data!r}")
         return cls(str(data["id"]), str(data["task"]), str(data.get("domain") or domain or "default"),
-                   int(data.get("max_steps", 20)), TaskCheck.from_dict(data.get("check")))
+                   int(data.get("max_steps", 20)), TaskCheck.from_dict(data.get("check")),
+                   str(data["robot"]) if data.get("robot") else None)
 
     def as_dict(self) -> dict:
         out = {"id": self.id, "task": self.task, "domain": self.domain, "max_steps": self.max_steps}
         if self.check is not None:
             out["check"] = self.check.as_dict()
+        if self.robot is not None:
+            out["robot"] = self.robot
         return out
 
 
@@ -126,7 +131,7 @@ def _result_line(result: Any) -> str:
         return _clip(repr(result), RESULT_CHARS)
     keep = {}
     for key in ("ok", "error", "held", "outcome", "next_action", "ask", "postcondition", "warning",
-                "refused", "verified", "objects_visible", "position", "placed"):
+                "refused", "verified", "objects_visible", "position", "placed", "verdict", "stopped"):
         if key in result:
             value = result[key]
             if key == "objects_visible" and isinstance(value, list):
@@ -266,6 +271,9 @@ class CascadeExecutor:
     #: a file every concurrent rollout locks while it builds its runtime: the MuJoCo scene writer
     #: regenerates one shared XML next to the robot model (`sim.demo_scene`)
     build_lock: str | None = None
+    #: a composed robot profile (`configs/robots/<robot>.yaml`, e.g. the humanoid profiles);
+    #: when set, `camera` and `arm` are not used
+    robot: str | None = None
 
     def worker_kwargs(self) -> dict:
         """What a rollout worker process needs to rebuild this executor (no callables)."""
@@ -273,11 +281,13 @@ class CascadeExecutor:
             raise ValueError("an executor with an llm_factory or runtime_hook cannot run in a worker process")
         return {"camera": self.camera, "arm": self.arm, "llm_profile": self.llm_profile,
                 "decompose": self.decompose, "verify_milestones": self.verify_milestones,
-                "env": dict(self.env), "build_lock": self.build_lock}
+                "env": dict(self.env), "build_lock": self.build_lock, "robot": self.robot}
 
     def _config(self):
         from ..config import load_demo_config
 
+        if self.robot:
+            return load_demo_config(robot=self.robot, llm=self.llm_profile)
         return load_demo_config(camera=self.camera, arm=self.arm, llm=self.llm_profile)
 
     def run(self, harness: AgentHarness, spec: TaskSpec, label: str, out_dir: Path) -> Rollout:
@@ -336,7 +346,10 @@ class CascadeExecutor:
                 llm.close()
             if runtime is not None:
                 try:
-                    shutdown_runtime(runtime, arm)
+                    if getattr(runtime, "robot_mode", None) == "composed":
+                        runtime.close()
+                    else:
+                        shutdown_runtime(runtime, arm)
                 except Exception:  # noqa: BLE001
                     pass
             for key, value in saved_env.items():

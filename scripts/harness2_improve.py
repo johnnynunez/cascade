@@ -41,6 +41,9 @@ def main(argv=None) -> int:
     ap.add_argument("--tasks", type=Path, required=True, help="JSON list of {id, task, domain?, max_steps?}")
     ap.add_argument("--arm", default="so101_mujoco")
     ap.add_argument("--camera", default="mujoco_scene")
+    ap.add_argument("--robot", default=None,
+                    help="composed robot profile (configs/robots/<robot>.yaml, e.g. g1_arena_locomanip); "
+                         "replaces --arm/--camera")
     ap.add_argument("--llm", default="codex_astra", help="LLM profile of the agent being improved")
     ap.add_argument("--improver", default="claude", choices=("claude", "codex", "llm"))
     ap.add_argument("--improver-model", default=None)
@@ -64,11 +67,26 @@ def main(argv=None) -> int:
     specs = [TaskSpec.from_dict(t) for t in tasks_raw]
     if len({s.id for s in specs}) != len(specs):
         raise SystemExit("task ids must be unique")
-    cfg = load_demo_config(camera=args.camera, arm=args.arm, llm=args.llm)
-    tool_specs = tool_specs_for_config(cfg)
+    # A task file may span several composed robots (each task names its `robot`); one run
+    # improves the tasks of the selected robot only.
+    other = [s.id for s in specs if s.robot is not None and s.robot != args.robot]
+    if other:
+        print(f"[harness2] skipped (other robot than {args.robot!r}): {', '.join(other)}")
+        specs = [s for s in specs if s.robot is None or s.robot == args.robot]
+    if not specs:
+        raise SystemExit("no task for this rig")
+    if args.robot:
+        from cascade.apps.robot_runtime import robot_tool_descriptors
+
+        cfg = load_demo_config(robot=args.robot, llm=args.llm)
+        tool_specs = [t.as_spec() for t in robot_tool_descriptors(cfg).values()]
+    else:
+        cfg = load_demo_config(camera=args.camera, arm=args.arm, llm=args.llm)
+        tool_specs = tool_specs_for_config(cfg)
     tool_names = {s["name"] for s in tool_specs}
     model = str(cfg.llm.get("model", "")) if "llm" in cfg else ""
-    scope = scope_key(arm=args.arm, camera=args.camera, llm_profile=args.llm, model=model)
+    scope = (scope_key(arm=f"robot-{args.robot}", camera="", llm_profile=args.llm, model=model) if args.robot
+             else scope_key(arm=args.arm, camera=args.camera, llm_profile=args.llm, model=model))
     out = args.out or REPO / "runs" / "harness2" / dt.datetime.now().strftime("%Y%m%d-%H%M%S")
     print(f"[harness2] scope {scope}; {len(specs)} task(s); mode {args.mode} k={args.k}; out {out}")
 
@@ -99,10 +117,11 @@ def main(argv=None) -> int:
 
         if not args.improver_llm:
             raise SystemExit("--improver llm needs --improver-llm <profile>")
-        improver_llm = make_llm(load_demo_config(camera=args.camera, arm=args.arm, llm=args.improver_llm).llm)
+        improver_llm = make_llm((load_demo_config(llm=args.improver_llm, _ignore_robot_environment=True) if args.robot
+                                 else load_demo_config(camera=args.camera, arm=args.arm, llm=args.improver_llm)).llm)
     improver = make_improver(args.improver, model=args.improver_model, llm=improver_llm)
     out.mkdir(parents=True, exist_ok=True)
-    executor = CascadeExecutor(camera=args.camera, arm=args.arm, llm_profile=args.llm,
+    executor = CascadeExecutor(camera=args.camera, arm=args.arm, llm_profile=args.llm, robot=args.robot,
                                decompose=not args.no_decompose, build_lock=str(out.resolve() / ".build.lock"))
     if args.rollout_workers > 1:
         executor = SubprocessExecutor(executor)

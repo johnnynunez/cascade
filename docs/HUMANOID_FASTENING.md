@@ -88,7 +88,7 @@ server makes; no stdio or LLM). The runs went one after another in one job.
 | 2 | **confirmed** | 0.9501 | 0.9554 | 2.230 | 0.256 | 0.419 | 99.5 % | 0.5 s, zero wrist-roll effort | 113.4 |
 | 3 | **confirmed** | 0.9502 | 0.9560 | 2.201 | 0.262 | 0.426 | 98.7 % | 0.5 s, zero wrist-roll effort | 111.6 |
 | Two-turn request (standalone, `verify_threading`, requested 2) | **confirmed** | - | 2.0051 | 4.84 | 0.26 | 0.42 | 99.4 % | wrist-roll command 0 | 114.6 |
-| Negative control, fingers open (same turn, hand never closes) | **refuted** (requested rotation, advance, thread/tool contact) | - | - | - | - | - | - | lease expired after 3 strokes, nut rotation 0.001 turn | 121.7 |
+| Negative control, fingers open (same turn, hand never closes) | **refuted** (requested rotation, advance, thread/tool contact) | - | - | - | - | - | - | lease expired after 3 strokes, nut rotation <= 0.001 turn per stroke, zero grip force | 121.7 |
 
 Grip per stroke (mean normal force over the stroke, share of the summed grip force; every finger
 was in loaded contact on 100 % of the solves of every stroke, the palm never touched):

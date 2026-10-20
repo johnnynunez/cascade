@@ -266,7 +266,10 @@ def failure_reason(command):
     """Human-readable cause of a non-verified command, from its recorded result."""
     error = str(command.get('error') or command.get('reason') or '')
     if command.get('postcondition') == 'refuted':
-        return ['postcondition REFUTED by the verifier: ' + str(command.get('reason') or ''), error[:70]]
+        names = {'requested_fastener_rotation': 'rotation', 'axial_advance': 'axial advance',
+                 'thread_and_tool_contact': 'thread/tool contact'}
+        failed = [names.get(k.strip(), k.strip()) for k in str(command.get('reason') or '').split(';') if k.strip()]
+        return ['postcondition REFUTED by the verifier', 'failed: ' + ', '.join(failed), error[:60]]
     if 'observation_age' in error:
         age = json.loads(error.split('observation_age=', 1)[1])
         return [f"observation age {age['age_s']:.4f} s > {age['max_observation_age_s']} s at solve {age['step']}",

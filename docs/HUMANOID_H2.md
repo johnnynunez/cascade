@@ -21,7 +21,7 @@ ARM of a standing Unitree humanoid over ROS2/Arm-SDK and are unrelated.
 | policy | NVIDIA **`Velocity-H2-History-v0`**: `Isaac/Samples/Policies/h2/{policy.pt, env.yaml, IO_descriptors.yaml}`, TorchScript MLP 255 → 14, 14 leg + waist-roll/pitch joints, history 5, 50 Hz control / 200 Hz physics, trained on **PhysX** in AGILE | the only public pretrained H2 walking policy; SHA-256 `0a47182b…` (the pin of Isaac Sim's `h2_standalone.py`) |
 | engine | **PhysX first** in the internal Isaac Sim 6.2 build | the policy's training engine; there is no Newton-trained H2 policy yet |
 | Newton route | `newton-physics/newton-assets` **PR #53** (open): closed-loop-linkage H2 USD from `H2_loop.xml` (`mujoco-usd-converter 0.5.0`, 44 bodies, six loop closures) | for an MJWarp-trained H2 policy, or this policy re-validated on Newton as an explicit experiment |
-| not chosen | G1 29-DoF from newton-assets (`g1.usd` + `mjw_g1_29DOF.onnx`, MJWarp-trained) | Newton-first and complete, but not the H2 |
+| not chosen | G1 29-DoF from newton-assets (`g1.usd` + `mjw_g1_29DOF.onnx`, MJWarp-trained) | Newton-first and complete, but not the H2; its 29-DoF + Dex3 MJCF drives the Newton [humanoid fastening](HUMANOID_FASTENING.md) task (pelvis fixed) |
 
 Provenance, digests and licences: [`configs/h2/bundle.json`](../configs/h2/bundle.json) (the two
 YAML files vendored under `assets/h2/bundle/`, Apache-2.0; `policy.pt` and the USD are fetched or
@@ -54,7 +54,7 @@ without downloading).
    `max_samples` 801 → 1201), rest thresholds unchanged: 6 of 7 confirmed on both paths (MCP via
    `CASCADE_ROBOT=h2`, 13 tools), but `turn` 0.8 rad stayed refuted (yaw 0.69 → 0.32 rad/s over
    3.75 s sim). A walk issued after the previous runtime's close latched the stop was refused.
-5. **Not shown:** any Newton run, anything on hardware, measured (not candidate) verifier limits,
+5. **Not shown:** any Newton run of the H2, anything on hardware, measured (not candidate) verifier limits,
    `walk_distance` beyond ~0.6 m (bounded by the 3 s command budget).
 
 ## Candidate revision 3: turn goal ramp (software only, 7 October 2026)

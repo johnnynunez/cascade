@@ -11,7 +11,8 @@ pyyaml/jsonschema/opencv-python-headless), not cascade's `.venv`:
 ```
 
 `<newton-assets>` is `newton.utils.download_asset("unitree_g1")` (newton-assets commit
-`f8fb7abc`, needs GitPython); the Factory meshes come from `scripts/fetch_factory_assets.py`.
+`f8fb7abc`, needs GitPython); the shipped profile expects that `unitree_g1` folder at
+`assets/mjcf/unitree_g1` (gitignored). The Factory meshes come from `scripts/fetch_factory_assets.py`.
 `--output` must be a new directory. A two-turn request uses the standalone fixture:
 `scripts/validate_humanoid_screw_contact.py --turns 2 ... --cache <dir>`.
 

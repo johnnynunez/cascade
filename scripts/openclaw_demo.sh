@@ -12,6 +12,8 @@
 # Brains are the local servers from this repo (start them first):
 #   cosmos         scripts/serve_cosmos_vllm.sh   -> http://127.0.0.1:8082/v1  (cosmos3-edge, vLLM)
 #   cosmos-sglang  scripts/serve_cosmos_sglang.sh -> http://127.0.0.1:8083/v1  (cosmos3-edge, SGLang; UNVERIFIED, see script header)
+#                  serves only with its API_KEY_FILE: this script sends ~/.cascade/nemoclaw/llama.key
+#                  (or CASCADE_MODEL_API_KEY_FILE / CASCADE_BRAIN_KEY_FILE), never on an argv
 #   qwen           scripts/serve_qwen_llamacpp.sh -> http://127.0.0.1:8080/v1
 #           NOTE: OpenClaw's agent system prompt overflows llama.cpp's default
 #           16k/slot — serve Qwen with CTX=65536 for OpenClaw.
@@ -103,26 +105,55 @@ ss -ltn 2>/dev/null | grep -q ':18789' \
 
 # 3. Point the agent at a local brain (custom OpenAI-compatible provider).
 case "$BRAIN" in
-    cosmos)        BASE_URL="http://127.0.0.1:8082/v1"; MODEL_ID="cosmos3-edge"; CTX=32768 ;;
-    cosmos-sglang) BASE_URL="http://127.0.0.1:8083/v1"; MODEL_ID="cosmos3-edge"; CTX=32768 ;;
-    qwen)   BASE_URL="http://127.0.0.1:8080/v1"
+    cosmos)        BASE_URL="http://127.0.0.1:8082/v1"; MODEL_ID="cosmos3-edge"; CTX=32768; SERVE=serve_cosmos_vllm.sh ;;
+    cosmos-sglang) BASE_URL="http://127.0.0.1:8083/v1"; MODEL_ID="cosmos3-edge"; CTX=32768; SERVE=serve_cosmos_sglang.sh ;;
+    qwen)   BASE_URL="http://127.0.0.1:8080/v1"; SERVE=serve_qwen_llamacpp.sh
             MODEL_ID="$(curl -sf -m 5 http://127.0.0.1:8080/v1/models \
                         | "$PY" -c 'import json,sys; print(json.load(sys.stdin)["models"][0]["model"])')"
             CTX=65536 ;;
     skip)   BASE_URL="" ;;
     *) echo "unknown --brain $BRAIN (cosmos|cosmos-sglang|qwen|skip)"; exit 1 ;;
 esac
+# serve_cosmos_sglang.sh serves only with its API_KEY_FILE: the probe and the
+# provider send the brain key file every local brain uses (or
+# CASCADE_MODEL_API_KEY_FILE / CASCADE_BRAIN_KEY_FILE), read here; the key goes
+# to curl as a header on a file descriptor and to onboarding in its own
+# environment, never on an argv.
+BRAIN_KEY=""
+if [[ "$BRAIN" == cosmos-sglang ]]; then
+    KEY_FILE="${CASCADE_MODEL_API_KEY_FILE:-${CASCADE_BRAIN_KEY_FILE:-$HOME/.cascade/nemoclaw/llama.key}}"
+    KEY_FILE="${KEY_FILE/#\~/$HOME}"
+    [[ -r "$KEY_FILE" ]] && BRAIN_KEY="$(tr -d '[:space:]' < "$KEY_FILE")"
+    if [[ -z "$BRAIN_KEY" ]]; then
+        echo "[!] no key in $KEY_FILE: $SERVE serves only with its API_KEY_FILE; set CASCADE_MODEL_API_KEY_FILE to that file"
+        exit 1
+    fi
+fi
 if [[ -n "$BASE_URL" ]]; then
-    if ! curl -sf -m 5 "$BASE_URL/models" >/dev/null; then
-        echo "[!] no server on $BASE_URL — start scripts/serve_${BRAIN}_*.sh first"; exit 1
+    if [[ -n "$BRAIN_KEY" ]]; then
+        code="$(curl -s -o /dev/null -w '%{http_code}' -m 5 \
+            -H @<(printf 'Authorization: Bearer %s\n' "$BRAIN_KEY") "$BASE_URL/models" || true)"
+        if [[ "$code" == 401 || "$code" == 403 ]]; then
+            echo "[!] the server on $BASE_URL refused the key in $KEY_FILE (HTTP $code): start scripts/$SERVE with API_KEY_FILE=$KEY_FILE"; exit 1
+        elif [[ "$code" != 200 ]]; then
+            echo "[!] no server on $BASE_URL — start scripts/$SERVE first"; exit 1
+        fi
+    elif ! curl -sf -m 5 "$BASE_URL/models" >/dev/null; then
+        echo "[!] no server on $BASE_URL — start scripts/$SERVE first"; exit 1
     fi
     echo "[+] onboarding custom provider $BASE_URL ($MODEL_ID)"
-    openclaw onboard --non-interactive --accept-risk --mode local \
+    ONBOARD=(onboard --non-interactive --accept-risk --mode local \
         --auth-choice custom-api-key \
         --custom-base-url "$BASE_URL" \
         --custom-model-id "$MODEL_ID" \
         --custom-compatibility openai \
-        --custom-image-input
+        --custom-image-input)
+    if [[ -n "$BRAIN_KEY" ]]; then
+        # OpenClaw reads a custom provider's key from CUSTOM_API_KEY: this call only.
+        CUSTOM_API_KEY="$BRAIN_KEY" openclaw "${ONBOARD[@]}"
+    else
+        openclaw "${ONBOARD[@]}"
+    fi
     # onboard writes contextWindow=128000 regardless of the server; fix it to
     # what the local server actually allocated or long turns overflow. Ask the
     # server rather than trusting the constant above: llama.cpp reports its

@@ -174,8 +174,11 @@ class HumanoidThreadingScene:
     pitch_m = .0025
     frame_dt = 1 / 60
     motor_limit_nm = 1.          # wrist-roll torque cap of this task (G1 actuator: 25 N m)
-    stroke_speed_rad_s = 2.
-    return_speed_rad_s = 4.
+    # Stroke speed: measured contact-supported travel (one turn, standalone, 2 runs each)
+    # 0.92/0.94 at 1.0 rad/s, 0.89/0.93 at 1.5, 0.80-0.85 at 2.0: the hand is ~50x the
+    # nut's inertia, so a faster wall makes the nut chatter inside the 0.3 mm socket clearance.
+    stroke_speed_rad_s = 1.
+    return_speed_rad_s = 3.
     roll_kp, roll_kd = 6., .15   # host PD of the turning wrist roll, torque-limited
     roll_low, roll_high = -1.62, 1.62
     max_joint_speed_rad_s = 1.5  # rate limit of every position target (fingers, arm follower)

@@ -23,7 +23,6 @@ commands, additionally judged as one two-turn request by ``verify_threading``).
 import argparse
 import hashlib
 import json
-import math
 from pathlib import Path
 import shutil
 import sys
@@ -151,7 +150,6 @@ def run_episode(args, index, commands, digest, sources):
     domain_dir = episode / 'run/domains/fastening'
     admissions = [c['result'].get('admission') for c in calls if c['result'].get('admission')]
     stats, samples = _stream_stats(domain_dir, admissions)
-    binding = json.loads((domain_dir / 'model.json').read_text())
     summary = {'episode': index, 'commands_requested': commands, 'build_wall_s': built,
                'readiness': json.loads((domain_dir / 'readiness.json').read_text()),
                'commands': [dict(_summarize_command(c['result']), reset_ok=c['reset_stop'].get('ok'),

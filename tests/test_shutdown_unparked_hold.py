@@ -10,8 +10,10 @@ disconnected anyway and the raised arm fell.
 
 Ruling (the SAFE option; no gate is relaxed): the park stays refused, and an arm whose park did not
 bring it to rest keeps its torque on and holds; the receipt (`torque_held`) and stderr say so per
-arm. Cutting torque there needs the operator's explicit confirmation,
-`CASCADE_TORQUE_OFF_UNPARKED='holding the arm'`, never anything automatic. A parked arm, a
+arm. Cutting torque there needs the operator's explicit confirmation given at the moment of the cut
+(`scripts/arm_hold.py confirm`, cascade.control.arm_hold; #426 review Minor 5: the variable
+`CASCADE_TORQUE_OFF_UNPARKED`, set when the process started, is no longer read), never anything
+automatic. A parked arm, a
 controller-held arm (ros2), a simulator (mujoco, isaac), the Unitree arm SDK (its weight ramp hands
 the arm back to the robot's own controller) and the mock disconnect as before.
 
@@ -117,7 +119,7 @@ def test_a_refused_park_keeps_a_torque_cutting_arm_powered_and_says_so(fast, cap
                                           "errors": [{"type": "TorqueHeld", "message": reason}]}]
     err = capsys.readouterr().err
     assert f"arm 0 is POWERED and HOLDING its pose: {reason}" in err, err
-    assert "CASCADE_TORQUE_OFF_UNPARKED='holding the arm'" in err
+    assert "arm_hold.py confirm" in err and "CASCADE_TORQUE_OFF_UNPARKED" not in err, err
 
 
 def test_a_parked_arm_still_has_its_torque_cut(fast):
@@ -135,14 +137,38 @@ def test_a_parked_arm_still_has_its_torque_cut(fast):
 @pytest.mark.parametrize("value, cut", [("holding the arm", True), ("  Holding the Arm ", True), ("1", False),
                                         ("yes", False), ("", False), ("holding", False)])
 def test_only_the_operators_exact_confirmation_cuts_torque_on_an_unparked_arm(fast, monkeypatch, capsys, value, cut):
+    """The operator's confirmation at the moment of the cut (`arm_hold.confirm`, what the interactive
+    `scripts/arm_hold.py confirm` writes once the phrase is typed); anything else is no confirmation."""
+    from cascade.control import arm_hold
+
     events = []
     arm = feetech(events, fresh=False)
-    monkeypatch.setenv(TORQUE_OFF_CONFIRM_ENV, value)
+    try:
+        arm_hold.confirm(value)
+    except ValueError:
+        assert not cut
     receipt = shutdown_runtime(runtime_for(arm), arm.raw)
     assert len(_torque_offs(events)) == (6 if cut else 0), events
     assert ("torque_held" in receipt) is not cut
     err = capsys.readouterr().err
     assert ("cutting its torque anyway: the operator confirmed" in err) is cut, err
+
+
+@pytest.mark.parametrize("value", ["holding the arm", "  Holding the Arm "])
+def test_the_variable_set_when_the_process_started_no_longer_cuts_torque(fast, monkeypatch, capsys, value):
+    """#426 review Minor 5: `CASCADE_TORQUE_OFF_UNPARKED`, set when the demo CLI started, said nothing
+    about who holds the arm at the cut, yet it cut the torque. Now the arm stays held, its marker is
+    written, and the teardown says the variable is no longer read."""
+    from cascade.control import arm_hold
+
+    events = []
+    arm = feetech(events, fresh=False)
+    monkeypatch.setenv(TORQUE_OFF_CONFIRM_ENV, value)
+    receipt = shutdown_runtime(runtime_for(arm), arm.raw)
+    assert _torque_offs(events) == [] and "torque_held" in receipt, events
+    assert arm_hold.read("/dev/ttyACM0") is not None
+    err = capsys.readouterr().err
+    assert "is set, but it is no longer read" in err and "operator confirmed" not in err, err
 
 
 def test_a_two_arm_rig_holds_only_the_arm_whose_park_was_refused(fast, capsys):

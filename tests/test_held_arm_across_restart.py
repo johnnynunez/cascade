@@ -19,9 +19,7 @@ stage naming the park and the hold share (Minor 5).
 from __future__ import annotations
 
 import json
-import os
 import signal
-import subprocess
 import sys
 import threading
 import time
@@ -108,6 +106,7 @@ def test_a_restart_never_sends_a_frame_to_a_rebot_arm_its_last_teardown_held(mon
     assert [e for e in sent if e[0] == "clear_error"] == [], f"the restart dropped the held arm: {sent}"
     assert sent == [] and len(fake.instances) == built, "a refused connect opens nothing"
     assert refused is not None and "POWERED and HOLDING" in refused and "confirm" in refused, refused
+    assert "arm_hold.py" not in refused and "holding the arm" not in refused, "agent-facing: no command"
 
 
 def test_a_restart_never_sends_a_frame_to_a_motorbridge_rebot_its_last_teardown_held(monkeypatch, no_sleep):  # noqa: F811
@@ -165,7 +164,7 @@ def test_the_operators_fresh_confirmation_lets_the_next_connect_through_and_clea
     _install_fake_sdk(monkeypatch, log)
     _hold_a_rebot(log)
     assert arm_hold.read("can0") is not None
-    assert arm_hold.main(["confirm", "holding the arm"]) == 0
+    arm_hold.confirm("holding the arm")  # what the operator's `arm_hold.py confirm` writes
     n0 = len(log)
     _rs_arm().connect()
     sent = [e[0] for e in log[n0:]]
@@ -182,9 +181,9 @@ def test_a_stale_or_misspelled_confirmation_never_lets_a_held_arm_connect(monkey
     log = _Log()
     _install_fake_sdk(monkeypatch, log)
     _hold_a_rebot(log)
-    with pytest.raises(SystemExit):
-        arm_hold.main(["confirm", "yes"])
-    assert arm_hold.main(["confirm", "  Holding the ARM "]) == 0  # the phrase, case and spaces aside
+    with pytest.raises(ValueError):
+        arm_hold.confirm("yes")
+    arm_hold.confirm("  Holding the ARM ")  # the phrase, case and spaces aside
 
     class Later:
         def time(self):
@@ -242,7 +241,7 @@ def test_the_motorbridge_connect_never_drops_an_enabled_arm_without_a_confirmati
         arm.connect()
     assert ("disable_all", None) not in log, "the connect cut torque on an enabled arm unconfirmed"
     assert ("close_bus", None) in log and ("close", None) in log and arm._ctrl is None
-    assert arm_hold.main(["confirm", "holding the arm"]) == 0
+    arm_hold.confirm("holding the arm")
     arm.connect()
     events = [e[0] for e in log]
     assert events.count("disable_all") == 1 and events.index("disable_all") < events.index("enable_all")
@@ -341,8 +340,9 @@ def test_clear_if_at_rest_holds_its_own_tolerance_whatever_the_caller_checked():
 def test_the_teardown_reads_the_confirmation_at_the_moment_of_the_cut_and_says_how(fast, capsys, tmp_path):
     """Minor 4: the confirmation was an env variable set when the process started (stale), and the
     server.log warning told MCP operators to set it although no registration forwards it. Now the
-    warning names a command that works from any shell (absolute interpreter and script path), and a
-    confirmation it wrote just before the cut lets that teardown cut torque."""
+    warning names a command that works from any shell (absolute interpreter and script path; the
+    operator types the phrase at its prompt, #426 review Important 4), and a confirmation written just
+    before the cut lets that teardown cut torque."""
     from cascade.control import arm_hold
 
     events = []
@@ -353,11 +353,9 @@ def test_the_teardown_reads_the_confirmation_at_the_moment_of_the_cut_and_says_h
     assert arm_hold.read("/dev/ttyACM0")["reason"] == receipt["torque_held"]["0"]
     err = capsys.readouterr().err
     script = REPO / "scripts" / "arm_hold.py"
-    command = f"{sys.executable} {script} confirm 'holding the arm'"
-    assert command in err, err
-    run = subprocess.run([sys.executable, str(script), "confirm", "holding the arm"], cwd=tmp_path,
-                         capture_output=True, text=True, timeout=60, env=dict(os.environ))
-    assert run.returncode == 0, run.stderr
+    command = f"{sys.executable} {script} confirm"
+    assert command in err and "holding the arm" not in err.split(command)[1][:3], err
+    arm_hold.confirm("holding the arm")  # what that command writes once the operator typed the phrase
     events2 = []
     arm2 = hardware(events2)
     arm2.harness._last_heartbeat = -np.inf

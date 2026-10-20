@@ -89,6 +89,26 @@ class _Group:
         self._log.append(("group_send_mit", self._label))
 
 
+class _SdkController:
+    """The SDK's per-vendor motorbridge Controller (`RebotArm._ctrl_map`):
+    what a connect that refuses after opening the bus may touch."""
+
+    def __init__(self, log):
+        self._log = log
+
+    def close_bus(self):  # no frame
+        self._log.append(("close_bus", None))
+
+    def close(self):
+        self._log.append(("close", None))
+
+    def shutdown(self):  # disables every motor (motorbridge v0.5.6)
+        self._log.append(("shutdown", None))
+
+    def disable_all(self):
+        self._log.append(("disable_all", None))
+
+
 def _install_fake_sdk(monkeypatch, log, failures=None):
     failures = failures or {}
     joint_names = [f"joint{i}" for i in range(1, 7)]
@@ -99,6 +119,7 @@ def _install_fake_sdk(monkeypatch, log, failures=None):
         def __init__(self, hw_yaml=None):
             self.hw_yaml = hw_yaml
             self._motor_map = {}
+            self._ctrl_map = {"robstride": _SdkController(log)}
             names = joint_names + ["gripper"]
             for n in names:
                 self._motor_map[n] = _Motor(n, log, failures.get(n, ()))

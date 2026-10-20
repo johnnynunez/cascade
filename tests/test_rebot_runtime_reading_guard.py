@@ -38,6 +38,7 @@ from test_safety import FakeKin, limits
 
 from cascade.safety.harness import SafetyHarness
 from cascade.types import SafetyViolation
+from conftest import observed
 
 GARBAGE = 2.3354605539310961e18
 
@@ -48,7 +49,7 @@ GARBAGE = 2.3354605539310961e18
 @pytest.mark.parametrize("kin", [None, FakeKin()])
 @pytest.mark.parametrize("bad", [float("nan"), float("inf"), -float("inf")])
 def test_harness_rejects_a_non_finite_target(kin, bad):
-    h = SafetyHarness(limits(), kinematics=kin)
+    h = observed(SafetyHarness(limits(), kinematics=kin))
     ok = np.array([0.3, 0.0, 0.2, 0, 0, 0])
     q = ok.copy()
     q[1] = bad
@@ -60,7 +61,7 @@ def test_harness_rejects_a_non_finite_target(kin, bad):
 
 
 def test_harness_vet_pose_rejects_a_non_finite_pose():
-    h = SafetyHarness(limits(), kinematics=FakeKin())
+    h = observed(SafetyHarness(limits(), kinematics=FakeKin()))
     q = np.array([0.3, 0.0, 0.2, 0, float("nan"), 0])
     assert "non-finite" in (h.vet_pose(q) or "")
     assert h.vet_pose(np.array([0.3, 0.0, 0.2, 0, 0, 0])) is None

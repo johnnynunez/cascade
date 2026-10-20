@@ -12,6 +12,7 @@ from cascade.control.feetech_arm import FeetechArm
 from cascade.control.isaac_arm import IsaacArm
 from cascade.control.lazy_arm import LazyArm
 from cascade.safety.harness import SafeArm, SafetyHarness
+from conftest import observed
 from test_safety import limits
 
 
@@ -29,7 +30,7 @@ def runtime_for(*arms, retained=None):
 
 
 def safe(raw):
-    harness = SafetyHarness(limits())
+    harness = observed(SafetyHarness(limits()))
     harness.park_q = np.zeros(raw.n_joints)
     return SafeArm(raw, harness)
 

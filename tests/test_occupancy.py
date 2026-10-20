@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from conftest import REPO, loopback_host
+from conftest import REPO, loopback_host, observed
 from owned_server import OwnedServerError, held_dead_port, start_owned_server
 
 from cascade.perception.occupancy import OccupancyError, OccupancyMap
@@ -141,7 +141,7 @@ def limits(**kw):
 def test_harness_rejects_a_waypoint_too_close_to_an_occupied_point():
     occ = _map(occupied=np.array([[0.3, 0.0, 0.2]]))
     occ.refresh(_frame(), T_base_cam=np.eye(4))
-    h = SafetyHarness(limits(), kinematics=FakeKin(), occupancy=occ)
+    h = observed(SafetyHarness(limits(), kinematics=FakeKin(), occupancy=occ))
     far = np.array([0.3, 0.0, 0.5, 0, 0, 0])  # tcp = q[:3]
     h.approve(far, far, dt=1e9)  # 0.3 m away, clear
     near = np.array([0.3, 0.0, 0.21, 0, 0, 0])  # 0.01 m away, too close
@@ -152,7 +152,7 @@ def test_harness_rejects_a_waypoint_too_close_to_an_occupied_point():
 def test_harness_ignores_occupancy_without_fresh_data():
     occ = _map(occupied=np.array([[0.3, 0.0, 0.2]]))
     # never refreshed -> clearance() returns None -> check is skipped
-    h = SafetyHarness(limits(), kinematics=FakeKin(), occupancy=occ)
+    h = observed(SafetyHarness(limits(), kinematics=FakeKin(), occupancy=occ))
     near = np.array([0.3, 0.0, 0.21, 0, 0, 0])
     h.approve(near, near, dt=1e9)
 
@@ -160,7 +160,7 @@ def test_harness_ignores_occupancy_without_fresh_data():
 def test_harness_grasp_exemption_covers_occupancy_too():
     occ = _map(occupied=np.array([[0.3, 0.0, 0.2]]))
     occ.refresh(_frame(), T_base_cam=np.eye(4))
-    h = SafetyHarness(limits(), kinematics=FakeKin(), occupancy=occ)
+    h = observed(SafetyHarness(limits(), kinematics=FakeKin(), occupancy=occ))
     near = np.array([0.3, 0.0, 0.21, 0, 0, 0])
     # Step INTO the margin from 10 cm above: a hold at `near` is the
     # strict-retreat escape's exact hold and is admitted (spec 3.1).
@@ -174,7 +174,7 @@ def test_harness_grasp_exemption_covers_occupancy_too():
 def test_vet_pose_reports_occupancy_violation():
     occ = _map(occupied=np.array([[0.3, 0.0, 0.2]]))
     occ.refresh(_frame(), T_base_cam=np.eye(4))
-    h = SafetyHarness(limits(), kinematics=FakeKin(), occupancy=occ)
+    h = observed(SafetyHarness(limits(), kinematics=FakeKin(), occupancy=occ))
     q = np.array([0.3, 0.0, 0.21, 0, 0, 0])
     reason = h.vet_pose(q)
     assert reason is not None and "occupancy" in reason
@@ -245,7 +245,7 @@ def test_required_map_refuses_missing_client_and_failed_probe(monkeypatch):
 @pytest.mark.parametrize("state", ["stale", "refresh_failed", "no_grid", "all_unknown"])
 def test_required_map_fault_blocks_motion_even_with_a_grasp_exemption(state):
     m = _required_grid()
-    h = SafetyHarness(limits(), kinematics=FakeKin(), occupancy=m)
+    h = observed(SafetyHarness(limits(), kinematics=FakeKin(), occupancy=m))
     q = np.array([.25, 0, .25, 0, 0, 0])
     h.approve(q, q, dt=1e9)
     if state == "stale":
@@ -267,7 +267,7 @@ def test_required_map_fault_blocks_motion_even_with_a_grasp_exemption(state):
 @pytest.mark.parametrize("outside", [False, True])
 def test_required_map_unknown_support_blocks_waypoints_and_pose_ranking(outside):
     m = _required_grid()
-    h = SafetyHarness(limits(), kinematics=FakeKin(), occupancy=m)
+    h = observed(SafetyHarness(limits(), kinematics=FakeKin(), occupancy=m))
     q = np.array([.75 if outside else .25, 0, .25, 0, 0, 0])
     if not outside:
         m._client.grid[2, 1, 2] = np.inf
@@ -584,7 +584,7 @@ def test_the_harness_gates_on_data_that_came_over_the_wire(bridge_server):
     m.refresh(_frame(depth_val=0.0), T_base_cam=np.eye(4))   # query-only
     assert m.last_error is None
 
-    h = SafetyHarness(limits(), kinematics=FakeKin(), occupancy=m)
+    h = observed(SafetyHarness(limits(), kinematics=FakeKin(), occupancy=m))
     far = np.array([0.3, 0.0, 0.9, 0, 0, 0])
     h.approve(far, far, dt=1e9)                     # clear, must pass
     near = np.array([0.3, 0.0, 0.21, 0, 0, 0])      # 0.01 m from the obstacle
@@ -602,7 +602,7 @@ def test_a_dead_bridge_degrades_instead_of_freezing_the_arm(bridge_server, dead_
     assert m.last_error is not None, "a dead bridge should record an error"
     assert m.clearance(np.zeros((1, 3))) is None, "no data must read as None"
 
-    h = SafetyHarness(limits(), kinematics=FakeKin(), occupancy=m)
+    h = observed(SafetyHarness(limits(), kinematics=FakeKin(), occupancy=m))
     q = np.array([0.3, 0.0, 0.21, 0, 0, 0])
     h.approve(q, q, dt=1e9)   # must NOT raise
 
@@ -707,7 +707,7 @@ def test_the_harness_gates_on_a_carved_grid(fresh_bridge):
                   region_max=np.array([0.6, 0.3, 0.4]), depth_stride=1)
     for _ in range(3):
         m.refresh(_tabletop_frame(cube=True), T_base_cam=_T_TOPDOWN)
-    h = SafetyHarness(limits(), kinematics=FakeKin(), occupancy=m)
+    h = observed(SafetyHarness(limits(), kinematics=FakeKin(), occupancy=m))
     far = np.array([0.28, 0.10, 0.30, 0, 0, 0])
     h.approve(far, far, dt=1e9)
     near = np.array([0.28, 0.10, 0.07, 0, 0, 0])   # 2 cm above the cube top

@@ -10,7 +10,7 @@ from cascade.safety.harness import SafeArm, SafetyHarness, SafetyLimits
 from cascade.safety.trajectory import plan_route, vet_segment
 from cascade.skills.runtime import SkillRuntime
 from cascade.types import SafetyViolation, SkillError
-from conftest import JOINT_SIGNS, URDF, needs_pin
+from conftest import JOINT_SIGNS, URDF, needs_pin, observed
 
 # physical-12/tomato_can_r1/witness/samples.jsonl, sequence324 (asset q negated).
 # Receipt SHA256 34c03d91b6e59dcef91c1a356ce32e3f4c1f49b3910485261979c21ba764b5ce
@@ -36,7 +36,7 @@ class CartesianKin:
 def case(*, occupancy=None, start=(.3, 0., .3)):
     kin = CartesianKin()
     limits = SafetyLimits(np.array([.1, -.3, -.01]), np.array([.5, .3, .55]))
-    harness = SafetyHarness(limits, kin, occupancy=occupancy)
+    harness = observed(SafetyHarness(limits, kin, occupancy=occupancy))
     raw = MockArm(Cfg({"home_q": list(start), "n_joints": 3}), kin)
     raw.connect()
     return SafeArm(raw, harness), raw, harness
@@ -48,7 +48,7 @@ def test_recorded_can_home_curve_is_replanned_inside_unchanged_workspace():
 
     cfg = load_demo_config(arm="isaac_kitchen_gpu", llm="mock")
     kin = Kinematics(str(URDF), "gripper_end", 6, JOINT_SIGNS)
-    harness = SafetyHarness(SafetyLimits.from_config(cfg.safety), kin)
+    harness = observed(SafetyHarness(SafetyLimits.from_config(cfg.safety), kin))
     home = np.asarray(cfg.arm.home_q)
     chord = np.array([kin.fk(CAN_AFTER_HOME_ABORT + s * (home - CAN_AFTER_HOME_ABORT))[:3, 3]
                       for s in np.linspace(0., 1., 301)])

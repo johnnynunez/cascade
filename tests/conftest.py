@@ -117,6 +117,15 @@ needs_pin_so101 = pytest.mark.skipif(
 )
 
 
+def observed(harness):
+    """`harness` once its camera has delivered a frame, as in a running demo
+    whose watcher beats (`SafetyHarness.heartbeat`). A harness is built stale,
+    "no observation yet" (#414 review Minor 4), so a unit-test rig that
+    streams motion with no camera beats once first."""
+    harness.heartbeat()
+    return harness
+
+
 @pytest.fixture(autouse=True)
 def _isolate_persistent_beliefs(monkeypatch, tmp_path):
     """No test may read or write the SHARED persistent world model.

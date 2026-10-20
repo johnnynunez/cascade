@@ -8,6 +8,7 @@ from cascade.control.simulation_motion import SimulationMotion
 from cascade.safety.harness import SafeArm
 from cascade.safety.trajectory import plan_route, vet_segment
 from cascade.types import SafetyViolation
+from conftest import observed
 from test_home_routes import case
 from test_isaac_simulation_motion import Sim
 
@@ -80,7 +81,7 @@ def test_original_50hz_edges_preserve_workspace_escape_refusals(monkeypatch):
         def fk(self,q):
             p=np.eye(4);p[:3,3]=[np.interp(q[0],qs,[.60,.60,.6008,.6016,.6008,.59]),0,.3];return p
         def link_positions(self,q):return np.array([[0,0,.1],self.fk(q)[:3,3]])
-    harness=SafetyHarness(SafetyLimits(np.array([.1,-.3,-.01]),np.array([.5,.3,.55])),Kin())
+    harness=observed(SafetyHarness(SafetyLimits(np.array([.1,-.3,-.01]),np.array([.5,.3,.55])),Kin()))
     assert 'outside workspace' in vet_segment(harness,[.1],[.2],1.,rate_hz=50.,stretch=False)
     assert 'outside workspace' in vet_segment(harness,[.1],[.2],1.,rate_hz=30.,stretch=False)
     sim=Sim(monkeypatch);sim.n_joints=1;sim.q=np.array([.1]);sim.dq=np.zeros(1)

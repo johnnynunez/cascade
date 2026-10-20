@@ -6,6 +6,7 @@ import pytest
 
 from cascade.safety.harness import SafeArm, SafetyHarness, SafetyLimits
 from cascade.types import SafetyViolation
+from conftest import observed
 
 
 class Raw:
@@ -24,7 +25,7 @@ class Raw:
 
 def setup():
     raw=Raw()
-    harness=SafetyHarness(SafetyLimits(np.full(3,-1.), np.ones(3), watchdog_s=100.), object())
+    harness=observed(SafetyHarness(SafetyLimits(np.full(3,-1.), np.ones(3), watchdog_s=100.), object()))
     return SafeArm(raw,harness),raw,harness
 
 

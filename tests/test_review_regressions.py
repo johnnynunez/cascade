@@ -11,6 +11,7 @@ from cascade.perception.grounding import Extrinsics, localize_object
 from cascade.perception.mock_camera import synthetic_tabletop
 from cascade.safety.harness import SafetyHarness, SafetyLimits
 from cascade.types import Detection, SafetyViolation
+from conftest import observed
 
 
 T_CAM2BASE = np.array(
@@ -119,7 +120,7 @@ def test_watchdog_checked_at_motion_start_not_per_waypoint():
 
 
 def test_escape_upward_from_below_clearance():
-    h = SafetyHarness(_limits(watchdog_s=1e9), kinematics=FakeKin())
+    h = observed(SafetyHarness(_limits(watchdog_s=1e9), kinematics=FakeKin()))
     below = np.array([0.3, 0.0, 0.005, 0, 0, 0])
     slightly_up = np.array([0.3, 0.0, 0.012, 0, 0, 0])
     deeper = np.array([0.3, 0.0, 0.001, 0, 0, 0])

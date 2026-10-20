@@ -33,7 +33,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from conftest import needs_pin
+from conftest import needs_pin, observed
 
 from cascade.config import Cfg, load_demo_config
 from cascade.types import SafetyViolation
@@ -60,7 +60,7 @@ def _rig(profile, q0):
                      joint_signs=a.joint_signs)
     raw = MockArm(Cfg({"home_q": list(q0), "n_joints": int(a.n_joints)}), kin)
     raw.connect()
-    harness = SafetyHarness(SafetyLimits.from_config(cfg.safety), kinematics=kin)
+    harness = observed(SafetyHarness(SafetyLimits.from_config(cfg.safety), kinematics=kin))
     if a.get("park_q") is not None:
         harness.park_q = list(a.park_q)
     return cfg, kin, raw, harness, SafeArm(raw, harness)

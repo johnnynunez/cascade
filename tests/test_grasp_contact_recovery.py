@@ -9,6 +9,7 @@ from cascade.control.arm_base import prepare_stream
 from cascade.safety.harness import SafeArm, SafetyHarness, SafetyLimits
 from cascade.skills import runtime as module
 from cascade.types import Grasp, SafetyViolation, SkillError
+from conftest import observed
 
 
 HOME = np.array([.30, 0., .20])
@@ -27,7 +28,7 @@ def fixture(monkeypatch, failure):
     kin = Kin()
     limits = SafetyLimits(workspace_min=np.array([0., -.3, -.01]),
                     workspace_max=np.array([.5, .3, .55]), max_joint_vel=3.)
-    harness = SafetyHarness(limits, kin)
+    harness = observed(SafetyHarness(limits, kin))
     def clearance(points):
         return np.linalg.norm(points - GRASP, axis=1) - .025
     harness.occupancy = SimpleNamespace(clearance=clearance)

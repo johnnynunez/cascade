@@ -19,6 +19,7 @@ from cascade.control.mock_arm import MockArm
 from cascade.safety.contact import ContactMonitorConfig
 from cascade.safety.harness import SafeArm, SafetyHarness, SafetyLimits
 from cascade.types import ContactDetected, SafetyViolation, SkillError
+from conftest import observed
 
 START = np.array([0.30, 0.0, 0.20, 0.0, 0.0, 0.0])   # FakeKin: TCP = q[:3]
 
@@ -31,7 +32,7 @@ def contact_cfg(**kw):
 
 
 def rig(contact=None, kin=True):
-    h = SafetyHarness(limits(contact=contact), kinematics=FakeKin() if kin else None)
+    h = observed(SafetyHarness(limits(contact=contact), kinematics=FakeKin() if kin else None))
     arm = MockArm(Cfg({"n_joints": 6, "home_q": START.tolist()}))
     arm.connect()
     return arm, SafeArm(arm, h), h
@@ -59,7 +60,7 @@ def test_disabled_monitor_passes_nothing_to_the_backend():
             seen.append(sorted(kw))
             return super().stream_to(q, duration_s, **kw)
     for contact in (None, contact_cfg(enabled=False)):
-        h = SafetyHarness(limits(contact=contact), kinematics=FakeKin())
+        h = observed(SafetyHarness(limits(contact=contact), kinematics=FakeKin()))
         arm = Recording(Cfg({"n_joints": 6, "home_q": START.tolist()}))
         arm.connect()
         assert SafeArm(arm, h).move_joints(START + [0.05, 0, 0, 0, 0, 0], 1.0)
@@ -133,7 +134,7 @@ def test_a_backend_that_cannot_run_the_monitor_refuses_before_any_command():
     class Legacy(MockArm):
         def stream_to(self, q, duration_s, rate_hz=50.0, approve=None):  # no contact_monitor
             return super().stream_to(q, duration_s, rate_hz=rate_hz, approve=approve)
-    h = SafetyHarness(limits(contact=contact_cfg()), kinematics=FakeKin())
+    h = observed(SafetyHarness(limits(contact=contact_cfg()), kinematics=FakeKin()))
     arm = Legacy(Cfg({"n_joints": 6, "home_q": START.tolist()}))
     arm.connect()
     with pytest.raises(SafetyViolation, match="cannot stream under the contact monitor"):
@@ -145,7 +146,7 @@ def test_a_planner_bound_arm_refuses_rather_than_stream_unmonitored():
     class Planner:
         def close(self):
             pass
-    h = SafetyHarness(limits(contact=contact_cfg()), kinematics=FakeKin())
+    h = observed(SafetyHarness(limits(contact=contact_cfg()), kinematics=FakeKin()))
     arm = MockArm(Cfg({"n_joints": 6, "home_q": START.tolist()}))
     arm.connect()
     with pytest.raises(SafetyViolation, match="contact monitor"):

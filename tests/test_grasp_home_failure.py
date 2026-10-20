@@ -19,6 +19,7 @@ class _Arm:
         from cascade.safety.harness import SafetyHarness, SafetyLimits
         self.harness = SafetyHarness(SafetyLimits(
             workspace_min=np.array([.2, -.6, -.01]), workspace_max=np.ones(3), table_z=0.0))
+        self.harness.heartbeat()  # a fresh observation: the harness is built stale
         self.raw = self
         self.n_joints = 7
 

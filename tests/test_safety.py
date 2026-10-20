@@ -3,6 +3,7 @@ import pytest
 
 from cascade.safety.harness import SafetyHarness, SafetyLimits
 from cascade.types import SafetyViolation
+from conftest import observed
 
 
 def limits(**kw):
@@ -19,7 +20,7 @@ def limits(**kw):
 
 
 def test_velocity_cap():
-    h = SafetyHarness(limits())
+    h = observed(SafetyHarness(limits()))
     q = np.zeros(6)
     h.approve(q, q + 0.01, dt=0.02)  # 0.5 rad/s ok
     with pytest.raises(SafetyViolation, match="velocity"):
@@ -27,7 +28,7 @@ def test_velocity_cap():
 
 
 def test_estop_latches():
-    h = SafetyHarness(limits())
+    h = observed(SafetyHarness(limits()))
     h.estop("test")
     with pytest.raises(SafetyViolation, match="e-stop"):
         h.approve(np.zeros(6), np.zeros(6), 0.02)
@@ -59,14 +60,14 @@ class FakeKin:
 
 
 def test_joint_limits():
-    h = SafetyHarness(limits(), kinematics=FakeKin())
+    h = observed(SafetyHarness(limits(), kinematics=FakeKin()))
     bad = np.array([3.5, 0.2, 0.2, 0, 0, 0])
     with pytest.raises(SafetyViolation, match="joint 1"):
         h.approve(bad, bad, 0.02)
 
 
 def test_workspace_aabb():
-    h = SafetyHarness(limits(), kinematics=FakeKin())
+    h = observed(SafetyHarness(limits(), kinematics=FakeKin()))
     inside = np.array([0.3, 0.0, 0.2, 0, 0, 0])
     h.approve(inside, inside, 0.02)
     outside = np.array([0.9, 0.0, 0.2, 0, 0, 0])
@@ -75,7 +76,7 @@ def test_workspace_aabb():
 
 
 def test_table_clearance_and_grasp_exemption():
-    h = SafetyHarness(limits(), kinematics=FakeKin())
+    h = observed(SafetyHarness(limits(), kinematics=FakeKin()))
     above = np.array([0.3, 0.0, 0.20, 0, 0, 0])
     low = np.array([0.3, 0.0, 0.01, 0, 0, 0])
     # Descending below the clearance floor from above is rejected...
@@ -94,10 +95,10 @@ def test_table_clearance_and_grasp_exemption():
 
 
 def test_keep_out_zone():
-    h = SafetyHarness(
+    h = observed(SafetyHarness(
         limits(keep_out=[(np.array([0.2, -0.1, 0.0]), np.array([0.3, 0.1, 0.5]))]),
         kinematics=FakeKin(),
-    )
+    ))
     inside_ko = np.array([0.25, 0.0, 0.3, 0, 0, 0])
     with pytest.raises(SafetyViolation, match="keep-out"):
         h.approve(inside_ko, inside_ko, dt=1e9)

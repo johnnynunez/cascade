@@ -12,6 +12,7 @@ from test_occupancy import FakeKin, limits
 from cascade.perception.occupancy import OccupancyMap
 from cascade.safety.harness import SafetyHarness
 from cascade.types import Frame, SafetyViolation
+from conftest import observed
 
 HELPERS = runpy.run_path(
     str(Path(__file__).resolve().parents[1] / "scripts/isaac_self_mask.py")
@@ -181,7 +182,7 @@ def test_interrupted_attachment_replay_remains_uncommitted_and_retries(failed_ac
 def test_carried_surface_collision_rejects_motion_with_clear_tcp():
     m = mapping()
     m.refresh(frame(), np.eye(4))
-    h = SafetyHarness(limits(min_clearance_m=0.03), kinematics=FakeKin(), occupancy=m)
+    h = observed(SafetyHarness(limits(min_clearance_m=0.03), kinematics=FakeKin(), occupancy=m))
     q = np.array([0.2, 0, 0.5, 0, 0, 0])
     assert m.clearance(q[None, :3])[0] > 0.03
     assert "attached object" in h.vet_pose(q)
@@ -193,7 +194,7 @@ def test_payload_unknown_cells_cannot_become_clear_space():
     m = mapping()
     m.refresh(frame(), np.eye(4))
     m._grid[:] = np.inf
-    h = SafetyHarness(limits(min_clearance_m=0.03), kinematics=FakeKin(), occupancy=m)
+    h = observed(SafetyHarness(limits(min_clearance_m=0.03), kinematics=FakeKin(), occupancy=m))
     q = np.array([0.2, 0, 0.5, 0, 0, 0])
     assert "unobserved" in h.vet_pose(q)
     h.allow_grasp_descent([.26, 0], radius_m=.1, z_min=.4)

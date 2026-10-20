@@ -486,6 +486,50 @@ def test_a_render_that_stalled_during_the_plan_is_refused_however_often_it_is_re
 
 
 @needs_pin
+@pytest.mark.parametrize("first_received_s", [0.3, 0.7])
+def test_the_first_receipt_bound_sits_between_a_slow_render_and_a_stalled_one(rig, monkeypatch,  # noqa: F811
+                                                                              first_received_s):
+    """`pointing.FRESH_OBSERVED_S` (0.5 s) from both sides: the sim renders
+    once more just before the look again and its bridge re-sends that render,
+    so the look again's image was first received `first_received_s` before
+    the look started. 0.3 s (a ~3 Hz sim): points; 0.7 s: refused (main
+    pointed on both)."""
+    from cascade.perception.freshness import observed_at
+    from cascade.skills import runtime as rmod
+
+    r = rig("mock")
+    rt = r.runtime
+    _long_plans(monkeypatch)
+    device = _Device(monkeypatch, rt, stamp=True)
+    _stamped_delivered(rt)
+    real_still = rmod.SkillRuntime._point_at_still_there
+    first = []
+
+    def still(self, *a, **k):
+        device.resend_at = time.monotonic()  # the next render is the last one; the bridge re-sends it
+        end = time.monotonic() + 5.0
+        while device.resent is None and time.monotonic() < end:
+            time.sleep(0.005)
+        assert device.resent is not None, "test setup: the sim never rendered"
+        first.append(device.resent.t)
+        time.sleep(max(0.0, first[0] + first_received_s - time.monotonic()))
+        return real_still(self, *a, **k)
+
+    monkeypatch.setattr(rmod.SkillRuntime, "_point_at_still_there", still)
+    looks = _looks(monkeypatch, rt)
+
+    out = rt.execute("point_at", {"label": "red cube"})
+
+    assert len(looks) == 2 and looks[1].capture == device.resent.capture, "test setup: the re-sent render"
+    assert looks[1].observed_t is not None and observed_at(looks[1]) == first[0], "test setup: its first receipt"
+    if first_received_s < 0.5:
+        assert out["ok"] is True and _commands(r) and r.jaws, out
+    else:
+        assert out["ok"] is False and _commands(r) == [] and r.jaws == [], out
+        assert re.search(_RESENT_STALL, out["error"]), out
+
+
+@needs_pin
 @pytest.mark.parametrize("image", ["in_flight", "stalled_0.3_s_before", "the_plans_own"])
 def test_an_image_in_flight_when_the_look_started_counts_but_an_older_one_does_not(rig, monkeypatch, image):  # noqa: F811
     """#413 review Minor 3 (the single-frame path): the stream's pump stamps
@@ -590,14 +634,17 @@ class _SideCamera:
 
 
 @needs_pin
-@pytest.mark.parametrize("side", ["fresh", "stalled"])
+@pytest.mark.parametrize("side", ["fresh", "stalled", "fresh_then_the_primary"])
 def test_a_look_again_found_on_another_camera_is_judged_by_that_cameras_receipts(rig, monkeypatch, side):  # noqa: F811
     """#413 review Minor 1: the plan was made from the primary camera's
     capture; on the look again the primary misses and the side camera finds
     the target. Two cameras' captures cannot be compared (main refused a
     FRESH side render: \"capture identity changed\"), so the side image is
     judged by its own receipts: a fresh render points; a render the side
-    camera's bridge has re-sent for ~1 s is refused."""
+    camera's bridge has re-sent for ~1 s is refused. `fresh_then_the_primary`:
+    the side camera's fix moved 3 cm, so it is planned once more from that
+    image, and the next look finds it on the primary again: that is another
+    camera than the replan's (the side camera), so it points too."""
     from cascade.skills import runtime as rmod
     from cascade.types import SkillError
 
@@ -612,12 +659,14 @@ def test_a_look_again_found_on_another_camera_is_judged_by_that_cameras_receipts
         real = rmod.localize_object
 
         def localize_object(frame, *a, **k):
-            if looks and (getattr(frame, "capture", None) or {}).get("camera") == "cam0":
+            primary = (getattr(frame, "capture", None) or {}).get("camera") == "cam0"
+            if primary and (len(looks) == 1 if side == "fresh_then_the_primary" else looks):
                 raise SkillError("No current visual match for 'red cube' (the primary camera lost it)")
             return real(frame, *a, **k)
 
         monkeypatch.setattr(rmod, "localize_object", localize_object)
-        looks = _looks(monkeypatch, rt)
+        replan = side == "fresh_then_the_primary"
+        looks = _looks(monkeypatch, rt, shifts=[(0.0, 0.0, 0.0), (0.0, 0.03, 0.0)] if replan else None)
         if side == "stalled":
             time.sleep(0.8)  # the side camera's bridge re-sends its one render meanwhile
 
@@ -625,14 +674,16 @@ def test_a_look_again_found_on_another_camera_is_judged_by_that_cameras_receipts
     finally:
         camera.stream.close()
 
-    assert len(looks) == 2 and looks[0].capture["camera"] == "cam0", "test setup: planned on the primary"
+    assert len(looks) == (3 if replan else 2) and looks[0].capture["camera"] == "cam0", "test setup: planned on cam0"
     assert looks[1].capture["camera"] == "cam1", "test setup: found again by the side camera"
-    if side == "fresh":
-        assert out["ok"] is True and _commands(r) and r.jaws, out
-    else:
+    if replan:
+        assert looks[2].capture["camera"] == "cam0", "test setup: the replan's look found it on the primary"
+    if side == "stalled":
         assert looks[1].observed_t is not None, "test setup: a re-sent side render"
         assert out["ok"] is False and _commands(r) == [] and r.jaws == [], out
         assert re.search(_RESENT_STALL, out["error"]), out
+    else:
+        assert out["ok"] is True and _commands(r) and r.jaws, out
 
 
 @needs_pin

@@ -59,6 +59,17 @@
   .footer .big { color: var(--ink); font-size: 15.4px; font-weight: 800; }
   .footer .green { color: var(--green-dark); font-size: 12.6px; font-weight: 600; margin-top: 5px; }
   .footer .small { color: var(--muted); font-size: 9.8px; margin-top: 5px; }
+  .shell { flex: 2.15 1 0; border: 2.5px solid var(--green); border-radius: 13px; padding: 16px 10px 9px; position: relative;
+           background: var(--green-soft); }
+  .shell > .row .card { background: var(--card); }
+  .shell-label { position: absolute; top: -12px; left: 14px; background: var(--green); color: var(--chip-ink); font-weight: 800;
+                 font-size: 10.6px; padding: 2px 10px; border-radius: 9px; white-space: nowrap; }
+  .shell-rules { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 8px; justify-content: center; }
+  .shell-rules span { font-size: 9.6px; color: var(--ink); background: var(--card); border: 1px solid var(--green); border-radius: 10px;
+                      padding: 1px 7px; }
+  .shell-rules span::before { content: "🔒 "; font-size: 8.5px; }
+  .arrow.mcp { display: flex; flex-direction: column; justify-content: center; align-items: center; width: 34px; flex: 0 0 34px; }
+  .arrow.mcp small { font-size: 8.6px; font-weight: 800; color: var(--green-dark); letter-spacing: 0.2px; }
   svg text { font-family: "Noto Sans", sans-serif; }
   .stroke { stroke: var(--body); }
   .gstroke { stroke: var(--green); }
@@ -73,34 +84,46 @@
   <div class="sub">What happens between one sentence and one learned step, for the request “Cross the backstage to the green marker without touching the equipment.”</div>
 
   <!-- ===================================================== 1 -->
-  <div class="section"><span class="ring">1</span>From words to a tool call</div>
+  <div class="section"><span class="ring">1</span>From words to a tool call <span class="tag">the agent runs inside NVIDIA OpenShell</span></div>
   <div class="row">
-    <div class="card">
+    <div class="card" style="flex:0.9">
       <h3><span class="num">1</span>Operator</h3>
       <div class="bubble">“Cross the backstage to the green marker without touching the equipment.”</div>
       <div class="caption">one request per duck; several ducks can share an explicit fleet board</div>
     </div>
     <div class="arrow">➜</div>
-    <div class="card">
-      <h3><span class="num">2</span>LLM agent</h3>
-      <p class="lead">Cascade's AgentOrchestrator: one LLM agent per duck, each with its own episodic memory and trace.</p>
-      <ul>
-        <li>reads the request, the last tool receipts and a short list of robot tools</li>
-        <li>answers with a tool call, never with joint targets</li>
-      </ul>
-    </div>
-    <div class="arrow">➜</div>
-    <div class="card">
-      <h3><span class="num">3</span>Tool call</h3>
-      <span class="code">follow_route(
+    <div class="shell">
+      <span class="shell-label">NVIDIA OpenShell sandbox: the agent's boundary</span>
+      <div class="row">
+        <div class="card">
+          <h3><span class="num">2</span>LLM agent</h3>
+          <p class="lead">One agent per duck, each with its own episodic memory and trace.</p>
+          <ul>
+            <li>reads the request, the last tool receipts and a short list of robot tools</li>
+            <li>answers with a tool call, never with joint targets</li>
+          </ul>
+        </div>
+        <div class="arrow">➜</div>
+        <div class="card">
+          <h3><span class="num">3</span>Tool call</h3>
+          <span class="code">follow_route(
   waypoints=[[1.2, 0.4],
              [2.6, 0.2]])</span>
-      <div class="caption" style="text-align:left">All the LLM decides: which skill, which arguments. Other tools: observe, scan, my_map, plan_route, walk, turn, get_up…</div>
+          <div class="caption" style="text-align:left">All the LLM decides: which skill, which arguments. Other tools: observe, scan, my_map, plan_route, walk, turn, get_up…</div>
+        </div>
+      </div>
+      <div class="shell-rules">
+        <span>credentials never enter the sandbox</span>
+        <span>no internet: deny-by-default egress</span>
+        <span>only the brain and the Cascade MCP endpoint</span>
+        <span>per-tool rules: reset_stop is staff-only</span>
+        <span>motion tools locked until a timed unlock</span>
+      </div>
     </div>
-    <div class="arrow">➜</div>
-    <div class="card">
+    <div class="arrow mcp">➜<small>MCP</small></div>
+    <div class="card" style="flex:0.95">
       <h3><span class="num">4</span>Skill runtime</h3>
-      <p class="lead">Cascade's per-robot MicroDuck runtime. Every tool:</p>
+      <p class="lead">Cascade's MCP server and per-robot MicroDuck runtime, on the host. Every tool:</p>
       <ul>
         <li>runs a learned policy, never a scripted gait</li>
         <li>returns a receipt with a fresh ToF frame, the pose estimate and what the duck saw</li>
@@ -304,8 +327,8 @@
 
   <div class="footer">
     <div class="big">Honest agentic robotics: the agent sees only the duck's own sensors and its own pose estimate, every joint target comes from a learned policy, and every result is checked against the physics.</div>
-    <div class="green">Isaac Lab 3.0 · NVIDIA Newton · NVIDIA cuVSLAM · YOLOE · OVRTX · Cascade agents</div>
-    <div class="small">The onboard-only loop (own sensors, cuVSLAM, YOLOE) is on the feat/microduck-agentic-skating branch (#329); on main, the MicroDuck agentic demos still use the simulator pose in place of SLAM.</div>
+    <div class="green">NVIDIA OpenShell · Isaac Lab 3.0 · NVIDIA Newton · NVIDIA cuVSLAM · YOLOE · OVRTX · Cascade agents</div>
+    <div class="small">OpenShell: the Linux agent route (OpenClaw in an OpenShell sandbox, the Cascade MCP server on the host, scripts/openshell_rig.py); the MCP server serves MicroDuck with CASCADE_BASE. The recorded Isaac Lab episodes ran Cascade's AgentOrchestrator in-process.<br>The onboard-only loop (own sensors, cuVSLAM, YOLOE) is on the feat/microduck-agentic-skating branch (#329); on main, the MicroDuck agentic demos still use the simulator pose in place of SLAM.</div>
   </div>
 </div>
 <script>

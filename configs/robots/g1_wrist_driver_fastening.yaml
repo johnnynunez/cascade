@@ -1,0 +1,23 @@
+# Optional humanoid fastening fixture: a Unitree G1 (29 DoF + Dex3 hands, the
+# newton-assets MJCF) tightens the pre-engaged Factory M20 nut with a hand-held
+# hex driver by rolling its right wrist, re-gripping between strokes. Same
+# fastening.turn_screw tool and unchanged FasteningDomain verifier as
+# factory_m20_mounted. Simplifications (pelvis fixed, weld grasp, no robot link
+# collisions, gravity-compensation feed-forward, driver pre-mounted) and
+# results: docs/HUMANOID_FASTENING.md.
+#
+# Discovery is passive. Build refuses until an owned preparation pins the exact
+# model identity and selects an explicit CUDA device; neither grants admission.
+# robot_asset: newton-assets unitree_g1 (newton.utils.download_asset("unitree_g1"));
+# set CASCADE_G1_MJCF to its mjcf/g1_29dof_with_hand_rev_1_0.xml.
+version: 1
+robot_id: unitree_g1_29dof_dex3_wrist_driver
+domains:
+  fastening:
+    kind: fastening
+    recipe: g1_wrist_driver_m20_v1
+    assets: ${assets}/factory/nut_bolt
+    robot_asset: ${CASCADE_G1_MJCF:-${assets}/mjcf/unitree_g1/mjcf/g1_29dof_with_hand_rev_1_0.xml}
+    device: null
+    model_identity_sha256: null
+    gc_policy: freeze-startup-heap

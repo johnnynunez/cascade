@@ -38,6 +38,9 @@ def _retain_error_note(error, message):
 
 
 def validate_factory_profile(profile):
+    from .humanoid_fastening_runtime import is_humanoid_profile, validate_humanoid_profile
+    if is_humanoid_profile(profile):
+        return validate_humanoid_profile(profile)
     required = {"kind", "recipe", "assets", "robot_asset", "device", "model_identity_sha256"}
     if not isinstance(profile, dict) or set(profile)-required-{"robot_id", "precompile", "sdk_recipe", "seating", "gc_policy"} or required-set(profile):
         raise ValueError("fastening requires the explicit fixed Factory profile fields")
@@ -73,6 +76,9 @@ def validate_factory_profile(profile):
 
 
 def factory_description(domain_id, profile):
+    from .humanoid_fastening_runtime import humanoid_description, is_humanoid_profile
+    if is_humanoid_profile(profile):
+        return humanoid_description(domain_id, profile)
     validate_factory_profile(profile)
     resource = domain_id + "/mounted_arm_spindle"
     seating = "seating" in profile
@@ -139,14 +145,14 @@ def _write(path, value):
 
 
 class RecordedFactoryDomain(FasteningDomain):
-    def __init__(self, owner, directory, *, domain_id):
+    def __init__(self, owner, directory, *, domain_id, controller_id=CONTROLLER_ID):
         self.owner, self.directory = owner, Path(directory)
         self._record_lock = threading.Lock()
         self._record_error = None
         self.heap_freeze = None
         self._release_failures = []
         super().__init__(owner.controller, owner.journal.read,
-                         controller_id=CONTROLLER_ID, domain_id=domain_id)
+                         controller_id=controller_id, domain_id=domain_id)
 
     def flush_records(self):
         # Never called by the owner/write/stop path. A slow disk cannot delay
@@ -272,6 +278,9 @@ def _ready(owner, *, clock=time.monotonic, timeout_s=10., _reader=None):
 
 
 def build_factory_runtime(profile, directory, *, domain_id):
+    from .humanoid_fastening_runtime import build_humanoid_fastening_runtime, is_humanoid_profile
+    if is_humanoid_profile(profile):
+        return build_humanoid_fastening_runtime(profile, directory, domain_id=domain_id)
     validate_factory_profile(profile)
     expected = profile["model_identity_sha256"]
     if expected is None:

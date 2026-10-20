@@ -273,9 +273,12 @@ def _camera_watchdog_feed(arm_rig, ccfg, extrinsics):
 
 
 def _unfed_arm_note(name) -> str:
-    """The watchdog-refusal note of an arm no camera feeds (`_warn_unfed_arms`)."""
-    return (f"; no camera on this rig feeds arm {name!r} (a `role: wrist` view feeds no arm, an "
-            "eye-in-hand camera only the primary): it needs a fixed scene camera")
+    """The watchdog-refusal note of an arm no camera feeds (`_warn_unfed_arms`).
+    The deciding words first and the whole note short: behind the longest
+    refusal prefix it must fit the 240 characters of the agent's FAILED line
+    with the longest arm name (#414 review Minor 5)."""
+    return (f"; no camera on this rig feeds arm {name!r}: it needs a fixed scene camera "
+            "(a wrist view feeds at most the primary arm)")
 
 
 def _warn_unfed_arms(arm_rig, watched) -> list[str]:

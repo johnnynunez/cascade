@@ -4,6 +4,10 @@ from __future__ import annotations
 import math
 import time
 
+#: `Frame.capture["backend"]` values `capture_marker` reads as a producer's
+#: own capture (identity + producer clock), never as a local frame.
+_PRODUCER_BACKENDS = ("ovrtx", "isaac")
+
 
 def capture_marker(frame) -> dict:
     """Identity and clock of one capture, or a local backend's frame creation."""
@@ -50,7 +54,16 @@ def observed_at(frame) -> float:
     first receipt of that capture in `Frame.observed_t`. A producer's own
     capture clock is never used: it may be remote and is never comparable with
     the client's monotonic(). NaN (ignored by the heartbeat: fail closed) for a
-    frame that carries no usable stamp."""
+    frame that carries no usable stamp, and for a frame that claims a
+    producer capture but fails its identity/clock check (an Isaac bridge sends
+    `proprioception: None` after a failed read): its receipt time would date
+    a capture of unknown age, so it is never read as a local frame's."""
+    capture = getattr(frame, "capture", None)
+    if isinstance(capture, dict) and capture.get("backend") in _PRODUCER_BACKENDS:
+        try:
+            capture_marker(frame)
+        except ValueError:
+            return math.nan
     stamp = getattr(frame, "observed_t", None)
     if stamp is None:
         stamp = getattr(frame, "t", None)

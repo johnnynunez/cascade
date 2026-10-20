@@ -214,15 +214,17 @@ class CameraStream:
         (`Frame.observed_t`, read by `freshness.observed_at`), so a frozen
         render never makes the perception watchdog fresher. Producer stamps are
         only compared with each other (same identity), never with the client's
-        clock. Local frames (one Frame per capture) are left untouched."""
+        clock. Local frames (one Frame per capture) are left untouched, and so
+        is the remembered first receipt: an invalid or a local frame in
+        between never makes the next re-send of that capture count as new
+        (#414 review Minor 3; an invalid capture itself carries no stamp,
+        `observed_at`)."""
         try:
             marker = capture_marker(frame)
             received = float(frame.t)
         except (AttributeError, TypeError, ValueError):
-            self._first_receipt = None
             return
         if marker["channel"] != "producer_capture":
-            self._first_receipt = None
             return
         stamp = marker.pop("t")
         previous = self._first_receipt

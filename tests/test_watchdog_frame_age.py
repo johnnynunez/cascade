@@ -608,6 +608,117 @@ def test_the_stream_restamps_a_re_delivered_producer_capture():
     assert {observed_at(f) for f in later} == {observed_at(first)}
 
 
+def _invalid_isaac_frame(stamp):
+    """An Isaac bridge frame whose capture data is invalid: the bridge sends `proprioception: None`
+    after a failed read."""
+    from cascade.types import Frame
+
+    return Frame(rgb=np.zeros((2, 2, 3), np.uint8), depth_m=None, K=np.eye(3),
+                 capture={"backend": "isaac", "source": ["e1", 1], "camera": "front", "t": stamp,
+                          "proprioception": None})
+
+
+@pytest.mark.parametrize("between", ["invalid", "local"])
+def test_a_re_delivered_capture_keeps_its_first_receipt_across_an_invalid_or_local_frame(between):
+    """#414 review Minor 3: the stream forgot the capture's first receipt at an invalid or a local
+    frame in between, so the next re-send of the OLD capture counted as new and refreshed the
+    watchdog."""
+    from cascade.perception.freshness import observed_at
+    from cascade.types import Frame
+
+    stream = CameraStream(camera=None, name="isaac")
+    first = _isaac_frame(10.0)
+    first.t -= 8.0
+    stream._note_first_receipt(first)
+    other = (_invalid_isaac_frame(11.0) if between == "invalid"
+             else Frame(rgb=np.zeros((2, 2, 3), np.uint8), depth_m=None, K=np.eye(3)))
+    stream._note_first_receipt(other)
+    copy = _isaac_frame(10.0)
+    stream._note_first_receipt(copy)
+    assert copy.observed_t == first.t and observed_at(copy) == first.t
+    newer = _isaac_frame(10.5)
+    stream._note_first_receipt(newer)
+    assert newer.observed_t is None and observed_at(newer) == newer.t
+
+
+def test_an_isaac_frame_with_invalid_capture_data_carries_no_stamp(make_runtime):  # noqa: F811
+    """... and is never stamped at its receipt like a local frame (#414 review Minor 3): nothing tells
+    when it was captured, so it beats no watchdog, through the stream or a runtime grab."""
+    from cascade.perception.freshness import observed_at
+
+    stream = CameraStream(camera=None, name="isaac")
+    bad = _invalid_isaac_frame(3.0)
+    stream._note_first_receipt(bad)
+    assert math.isnan(observed_at(bad))
+    rt = _mock(make_runtime)
+    rt.watcher.stop()
+    h = next(iter(_harnesses(rt).values()))
+    t = time.monotonic() - 30.0
+    h._last_heartbeat = t
+    rt._mark_perception_fresh(bad)
+    assert h._last_heartbeat == t
+    good = _isaac_frame(3.0)  # control: a valid capture beats at its receipt
+    rt._mark_perception_fresh(good)
+    assert h._last_heartbeat == good.t
+
+
+def test_the_unfed_arm_note_fits_the_agents_failed_line():
+    """#414 review Minor 5: with a long arm name behind the longest prefix the note ran past the 240
+    characters the agent's FAILED line quotes ("it needs a fixed scene camera" was cut). Worst case:
+    the longest arm profile name plus two digits (a profile used twice is named "<profile><i>"),
+    a watchdog age of 99999.9 s, or no observation yet."""
+    from cascade.apps.demo import _unfed_arm_note
+    from cascade.config import PACKAGE_ROOT
+    from cascade.skills.runtime import _with_failure_instruction
+    from cascade.types import SafetyViolation
+
+    longest = max(len(p.stem) for p in (PACKAGE_ROOT / "configs" / "arms").glob("*.yaml"))
+    name = "x" * (longest + 2)
+    h = _harness()
+    h.watchdog_note = _unfed_arm_note(name)
+    note = h.watchdog_note.removeprefix("; ")
+    assert f"no camera on this rig feeds arm {name!r}" in note and "it needs a fixed scene camera" in note
+    for last in (time.monotonic() - 99999.9, -math.inf):
+        h._last_heartbeat = last
+        with pytest.raises(SafetyViolation) as refused:
+            h.begin_motion()
+        for prefix, suffix in (("refused by the safety harness: ", ". The arm did not move."),
+                               ("SafetyViolation: ", "")):
+            line = _with_failure_instruction({"ok": False, "error": prefix + str(refused.value) + suffix})
+            assert note in line["next_action"], line["next_action"]
+
+
+def test_localize_measures_the_grab_age_from_the_first_receipt(make_runtime, monkeypatch):  # noqa: F811
+    """#414 review Minor 6: `_localize`'s grab age (`age_at_start`, which decides "the camera stopped"
+    over "the camera is live") came from `Frame.t`, so a re-sent Isaac capture (a new receipt of a
+    capture first received 30 s ago) read as fresh."""
+    from dataclasses import replace
+
+    from cascade.skills import runtime as runtime_mod
+
+    rt = _mock(make_runtime)
+    real = runtime_mod._analyzed_frame_age_s
+    seen = []
+
+    class _Seen(Exception):
+        pass
+
+    def spy(frame, analysis_s, max_age_s=5.0, **kw):
+        if "age_at_start" in kw:
+            seen.append(kw["age_at_start"])
+            raise _Seen
+        return real(frame, analysis_s, max_age_s, **kw)
+
+    monkeypatch.setattr(runtime_mod, "_analyzed_frame_age_s", spy)
+    now = time.monotonic()
+    resent = replace(rt.camera.latest(), t=now, observed_t=now - 30.0)
+    monkeypatch.setattr(rt, "observe", lambda **_k: resent)
+    rt.beliefs.clear()
+    with pytest.raises(_Seen):
+        rt._localize("purple unicorn")
+    assert seen[0] == pytest.approx(30.0, abs=2.0), seen
+
+
 # ── calibration grabs ──────────────────────────────────────────────────────
 
 

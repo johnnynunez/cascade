@@ -4456,14 +4456,14 @@ class SkillRuntime:
         # The primary frame's age when it was grabbed: a dead camera's last
         # frame is already past the limit then, and the fallbacks below say so
         # (StaleFrameError) instead of "fresh at capture ... the camera is live".
+        # Measured from its first arrival (`observed_at`): a producer's re-sent
+        # capture is as old as its first delivery, not its new receipt.
         frame_age_at_grab = None
 
         def grabbed(f):
             nonlocal frame_age_at_grab
-            try:
-                frame_age_at_grab = time.monotonic() - float(f.t)
-            except (AttributeError, TypeError, ValueError):
-                frame_age_at_grab = None
+            age = time.monotonic() - observed_at(f)
+            frame_age_at_grab = age if math.isfinite(age) else None
             return f
 
         last_err: SkillError | None = None

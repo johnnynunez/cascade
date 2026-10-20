@@ -262,7 +262,7 @@ class LocomanipDomain:
                     steps += 1
                     phase = msg.get("phase", "policy")
                     gate_log.write(json.dumps({"phase": phase, "sim_time_s": msg["state"].get("sim_time_s"),
-                                               **decision.as_dict()}) + "\n")
+                                               **decision.as_dict(), "action": msg.get("action")}) + "\n")
                     for row in decision.rows:
                         if row.value is None:
                             continue

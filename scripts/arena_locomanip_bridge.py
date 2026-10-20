@@ -31,6 +31,7 @@ import json
 import math
 import os
 import queue
+import re
 import socket
 import sys
 import threading
@@ -99,6 +100,26 @@ class Conn:
 def t(x):
     """ProxyArray / tensor -> torch tensor."""
     return x.torch if hasattr(x, "torch") else x
+
+
+def observer_views():
+    """[(scene key, eye, target)]; BRIDGE_CAMS="eye_x,eye_y,eye_z:t_x,t_y,t_z;..." overrides (env frame, m)."""
+    spec = os.environ.get("BRIDGE_CAMS", "-1.05,-1.6,2.2:0.0,-0.6,-0.45;-1.0,-0.8,2.1:0.2,-0.4,-0.5")
+    views = []
+    for k, item in enumerate(v for v in spec.split(";") if v.strip()):
+        eye, target = ([float(x) for x in part.split(",")] for part in item.split(":"))
+        views.append((OBSERVER if k == 0 else f"{OBSERVER}_{k}", eye, target))
+    return views
+
+
+def look_at_xyzw(eye, target):
+    """World-convention camera orientation (forward +X, up +Z) looking from eye to target, as (x, y, z, w)."""
+    dx, dy, dz = (t - e for t, e in zip(target, eye))
+    yaw = math.atan2(dy, dx)
+    pitch = math.atan2(-dz, math.hypot(dx, dy))  # positive tilts the forward axis down
+    cy, sy, cp, sp = math.cos(yaw / 2), math.sin(yaw / 2), math.cos(pitch / 2), math.sin(pitch / 2)
+    # q = q_yaw(z) * q_pitch(y)
+    return (-sy * sp, cy * sp, sy * cp, cy * cp)
 
 
 def xyzw_to_wxyz(q):
@@ -172,7 +193,8 @@ class Bridge:
         from pxr import Gf, Usd, UsdGeom
 
         stage = omni.usd.get_context().get_stage()
-        path = self.scene[name].cfg.prim_path.replace("{ENV_REGEX_NS}", "/World/envs/env_0").replace(".*", "0")
+        pattern = self.scene[name].cfg.prim_path.replace("{ENV_REGEX_NS}", "/World/envs/env_0")
+        path = re.sub(r"env_(\.\*|\[\^/\]\+)", "env_0", pattern)
         prim = stage.GetPrimAtPath(path)
         if not prim.IsValid():
             raise RuntimeError(f"no USD prim for {name} at {path}")
@@ -185,8 +207,9 @@ class Bridge:
 
     def _rigid(self, name, with_aabb=True):
         data = self.scene[name].data
+        vel = getattr(data, "root_lin_vel_w", None)
         out = {"pos": rnd(t(data.root_pos_w)[0]), "quat_wxyz": rnd(xyzw_to_wxyz(t(data.root_quat_w)[0])),
-               "lin_vel": rnd(t(data.root_lin_vel_w)[0])}
+               "lin_vel": rnd(t(vel)[0]) if vel is not None else [0.0, 0.0, 0.0]}
         if with_aabb:
             out["aabb_local"] = self.aabb[name]
         return out
@@ -243,8 +266,8 @@ class Bridge:
     # -- recording ----------------------------------------------------------------------------
     def _frame(self, key):
         try:
-            if key == "observer":
-                rgb = t(self.scene[OBSERVER].data.output["rgb"])
+            if key == "observer" or key.startswith(OBSERVER):
+                rgb = t(self.scene[OBSERVER if key == "observer" else key].data.output["rgb"])
             else:
                 rgb = t(self.obs["camera_obs"][key]) if isinstance(self.obs, dict) and "camera_obs" in self.obs else None
                 if rgb is None:
@@ -259,7 +282,8 @@ class Bridge:
             return None
 
     def _place_observer(self):
-        if OBSERVER not in self.scene.keys():
+        return  # fixed observer (see with_observer)
+        if OBSERVER not in self.scene.keys():  # noqa: unreachable -- kept for a chase camera on PhysX
             return
         import numpy as np
         torch = self.torch
@@ -278,7 +302,8 @@ class Bridge:
             return
         from PIL import Image
 
-        for key, sub in (("observer", "observer"), (self.args.bridge_head_cam, "head")):
+        keys = [("observer", "observer")] + [(name, name.replace(OBSERVER, "observer")) for name, _, _ in observer_views()[1:]]
+        for key, sub in keys + [(self.args.bridge_head_cam, "head")]:
             f = self._frame(key)
             if f is not None:
                 d = os.path.join(seg_dir, sub)
@@ -376,6 +401,19 @@ class Bridge:
                    "sim_time_s": final["sim_time_s"], "final": final, "arena": arena, "stopped": stopped,
                    "recording": recording})
 
+    def _handle(self, conn, msg):
+        kind = msg.get("type")
+        if kind == "session":
+            seed = msg.get("seed")
+            seed = int(seed) if seed is not None else int(time.time()) % 100000
+            conn.send({"type": "ready", "state": self.reset(seed), "seed": seed})
+        elif kind == "observe":
+            conn.send({"type": "state", "state": self.snapshot()})
+        elif kind == "segment":
+            self.segment(conn, msg)
+        elif kind != "close":
+            conn.send({"type": "error", "error": f"unknown message {kind!r}"})
+
     def serve(self, server):
         log(f"listening on 127.0.0.1:{server.port}")
         while True:
@@ -386,19 +424,12 @@ class Bridge:
                 conn.send(self.hello())
                 while True:
                     msg = conn.recv()
-                    kind = msg.get("type")
-                    if kind == "session":
-                        seed = msg.get("seed")
-                        seed = int(seed) if seed is not None else int(time.time()) % 100000
-                        conn.send({"type": "ready", "state": self.reset(seed), "seed": seed})
-                    elif kind == "observe":
-                        conn.send({"type": "state", "state": self.snapshot()})
-                    elif kind == "segment":
-                        self.segment(conn, msg)
-                    elif kind == "close":
+                    # Policy state (chunk scheduler) is built under inference mode, as in Arena's own runner:
+                    # every handler runs under it too (an in-place reset outside it raises).
+                    with self.torch.inference_mode():
+                        self._handle(conn, msg)
+                    if msg.get("type") == "close":
                         break
-                    else:
-                        conn.send({"type": "error", "error": f"unknown message {kind!r}"})
             except (ConnectionError, OSError, json.JSONDecodeError) as exc:
                 log(f"session {self.session} ended: {exc}")
             except Exception as exc:  # noqa: BLE001
@@ -471,17 +502,23 @@ def main():
                 import isaaclab.sim as sim_utils
                 from isaaclab.sensors import TiledCameraCfg
 
-                setattr(env_cfg.scene, OBSERVER, TiledCameraCfg(
-                    prim_path="{ENV_REGEX_NS}/CascadeObserverCam", update_period=0.0, height=OBS_H, width=OBS_W,
-                    data_types=["rgb"], spawn=sim_utils.PinholeCameraCfg(focal_length=12.0, clipping_range=(0.05, 40.0)),
-                    offset=TiledCameraCfg.OffsetCfg(pos=(-1.0, -1.0, 2.4), rot=(0.0, 0.0, 0.0, 1.0), convention="world")))
+                # FIXED observers (not policy inputs): moving a camera at run time did not reach the
+                # renderer on the Newton preset (Fabric transform hierarchy), so each view is chosen once.
+                for name, eye, target in observer_views():
+                    setattr(env_cfg.scene, name, TiledCameraCfg(
+                        prim_path="{ENV_REGEX_NS}/Cascade_" + name, update_period=0.0, height=OBS_H, width=OBS_W,
+                        data_types=["rgb"], spawn=sim_utils.PinholeCameraCfg(focal_length=12.0, clipping_range=(0.05, 40.0)),
+                        offset=TiledCameraCfg.OffsetCfg(pos=tuple(eye), rot=look_at_xyzw(eye, target), convention="world")))
 
             builder_mod._configure_arena_visualizer_defaults = with_observer
         builder = get_arena_builder_from_cli(args_cli, hydra_overrides=hydra)
         env = builder.make_registered()
         policy = build_policy_from_cli(policy_cls, args_cli)
         bridge = Bridge(args_cli, env, policy, args_cli.policy_label, args_cli.bridge_record_dir)
-        bridge.reset(args_cli.seed if args_cli.seed is not None else 0)
+        import torch
+
+        with torch.inference_mode():
+            bridge.reset(args_cli.seed if args_cli.seed is not None else 0)
         server = Server(args_cli.bridge_port, bridge.hello)
         print(f"BRIDGE_READY port={server.port}", flush=True)
         bridge.serve(server)

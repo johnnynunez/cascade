@@ -371,3 +371,25 @@ def test_agent_orchestrator_drives_the_composed_runtime(tmp_path, monkeypatch):
                                                     "carry.verify_placement", "task_done"]
     assert report.success
     runtime.close()
+
+
+def test_mcp_server_exposes_and_runs_the_humanoid_tools(tmp_path, monkeypatch):
+    """CASCADE_ROBOT=g1_arena_locomanip: passive catalog, then a real call through the MCP server."""
+    from cascade.apps.mcp_server import McpSkillServer
+    from cascade.skills import humanoid_bridge
+
+    fake = FakeBridge(walk_script(3), final=state(99, box_pos=IN_BIN))
+    monkeypatch.delenv("CASCADE_BASE", raising=False)
+    monkeypatch.setenv("CASCADE_ROBOT", "g1_arena_locomanip")
+    monkeypatch.setenv("CASCADE_RUN_DIR", str(tmp_path))
+    monkeypatch.setattr(hl, "connect_first_free",
+                        lambda host, ports, **kw: humanoid_bridge.BridgeClient(host, fake.port, **{
+                            k: v for k, v in kw.items() if k == "reply_timeout_s"}))
+    server = McpSkillServer()
+    tools = {tool["name"] for tool in server.list_tools()}
+    assert {"carry.describe_scene", "carry.carry_object", "carry.verify_placement", "emergency_stop"} <= tools
+    assert server._runtime is None  # listing is passive
+    out = json.loads(server.call_tool("carry.carry_object", {"object": "brown_box", "destination": "blue_sorting_bin"})
+                     ["content"][-1]["text"])
+    assert out["postcondition"]["status"] == "confirmed" and out["gate"]["verdict"] == "PASS"
+    assert fake.verdicts == ["pass"] * 5

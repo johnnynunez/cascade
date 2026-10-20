@@ -274,6 +274,12 @@ class CascadeExecutor:
     #: a composed robot profile (`configs/robots/<robot>.yaml`, e.g. the humanoid profiles);
     #: when set, `camera` and `arm` are not used
     robot: str | None = None
+    #: a private configuration directory (e.g. a copy whose fastening profile is pinned to a
+    #: prepared model identity and device); None: the repository's configs/
+    config_dir: str | None = None
+    #: the OPERATOR clears a startup stop latch (`reset_stop`) once after the build, as the
+    #: fastening validation does; the agent never resets a stop (a locked harness tool)
+    operator_arm: bool = False
 
     def worker_kwargs(self) -> dict:
         """What a rollout worker process needs to rebuild this executor (no callables)."""
@@ -281,14 +287,17 @@ class CascadeExecutor:
             raise ValueError("an executor with an llm_factory or runtime_hook cannot run in a worker process")
         return {"camera": self.camera, "arm": self.arm, "llm_profile": self.llm_profile,
                 "decompose": self.decompose, "verify_milestones": self.verify_milestones,
-                "env": dict(self.env), "build_lock": self.build_lock, "robot": self.robot}
+                "env": dict(self.env), "build_lock": self.build_lock, "robot": self.robot,
+                "config_dir": self.config_dir, "operator_arm": self.operator_arm}
 
-    def _config(self):
+    def _config(self, robot: str | None = None):
         from ..config import load_demo_config
 
-        if self.robot:
-            return load_demo_config(robot=self.robot, llm=self.llm_profile)
-        return load_demo_config(camera=self.camera, arm=self.arm, llm=self.llm_profile)
+        robot = robot or self.robot
+        config_dir = Path(self.config_dir) if self.config_dir else None
+        if robot:
+            return load_demo_config(robot=robot, llm=self.llm_profile, config_dir=config_dir)
+        return load_demo_config(camera=self.camera, arm=self.arm, llm=self.llm_profile, config_dir=config_dir)
 
     def run(self, harness: AgentHarness, spec: TaskSpec, label: str, out_dir: Path) -> Rollout:
         import os
@@ -305,9 +314,13 @@ class CascadeExecutor:
         runtime = arm = None
         llm = None
         try:
-            cfg = isolated_config(self._config(), out_dir)
+            cfg = isolated_config(self._config(spec.robot), out_dir)
             with _file_lock(self.build_lock):
                 runtime, arm = build_runtime(cfg, out_dir / "run")
+            if self.operator_arm:
+                armed = runtime.execute("reset_stop", {})
+                if not isinstance(armed, dict) or armed.get("ok") is not True:
+                    raise RuntimeError(f"operator reset_stop after the build failed: {armed!r}")
             if self.runtime_hook is not None:
                 self.runtime_hook(runtime, arm)
             probe = CheckProbe(spec.check, runtime, arm) if spec.check is not None else None

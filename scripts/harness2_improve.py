@@ -44,6 +44,10 @@ def main(argv=None) -> int:
     ap.add_argument("--robot", default=None,
                     help="composed robot profile (configs/robots/<robot>.yaml, e.g. g1_arena_locomanip); "
                          "replaces --arm/--camera")
+    ap.add_argument("--operator-arm", action="store_true",
+                    help="the operator clears the startup stop latch (reset_stop) after each rollout's build")
+    ap.add_argument("--config-dir", type=Path, default=None,
+                    help="private configuration directory (e.g. with a pinned fastening profile)")
     ap.add_argument("--llm", default="codex_astra", help="LLM profile of the agent being improved")
     ap.add_argument("--improver", default="claude", choices=("claude", "codex", "llm"))
     ap.add_argument("--improver-model", default=None)
@@ -78,7 +82,7 @@ def main(argv=None) -> int:
     if args.robot:
         from cascade.apps.robot_runtime import robot_tool_descriptors
 
-        cfg = load_demo_config(robot=args.robot, llm=args.llm)
+        cfg = load_demo_config(robot=args.robot, llm=args.llm, config_dir=args.config_dir)
         tool_specs = [t.as_spec() for t in robot_tool_descriptors(cfg).values()]
     else:
         cfg = load_demo_config(camera=args.camera, arm=args.arm, llm=args.llm)
@@ -122,6 +126,8 @@ def main(argv=None) -> int:
     improver = make_improver(args.improver, model=args.improver_model, llm=improver_llm)
     out.mkdir(parents=True, exist_ok=True)
     executor = CascadeExecutor(camera=args.camera, arm=args.arm, llm_profile=args.llm, robot=args.robot,
+                               config_dir=str(args.config_dir.resolve()) if args.config_dir else None,
+                               operator_arm=args.operator_arm,
                                decompose=not args.no_decompose, build_lock=str(out.resolve() / ".build.lock"))
     if args.rollout_workers > 1:
         executor = SubprocessExecutor(executor)

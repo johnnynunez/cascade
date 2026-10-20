@@ -5992,13 +5992,14 @@ class SkillRuntime:
         elif _home is not None and not preserve_view_home and scene_gate is not None:
             # Gate on (the Isaac reBot sim): the home move's own preflight --
             # the harness's segment vet and the observed-finger profile --
-            # from the joints measured now, BEFORE the jaw opens, so a refused
-            # home segment costs no jaw command either (#424 review Minor 3).
-            # Authorizes nothing: the move runs it again from its own start.
+            # from the joints the opening was just bound to (open_state: no
+            # extra read), BEFORE the jaw opens, so a refused home segment
+            # costs no jaw command either (#424 review Minor 3). Authorizes
+            # nothing: the move runs it again from its own start.
             begun = SkillRuntime._approved_commands(self)
             home_q = np.asarray(_home, dtype=float)
             try:
-                now_q = np.asarray(self.arm.get_state().q, dtype=float)
+                now_q = np.asarray(open_state.q, dtype=float)
                 _scene_motion(home_q)["preflight"](now_q, _scene_duration(now_q, home_q, 1.5))
             except MotionHalted:
                 raise

@@ -62,7 +62,8 @@ def test_actual_stream_preflights_and_feedback_guard_stop_before_close(monkeypat
     rt, calls, fix, frame = runtime(monkeypatch)
     result = rt.skill_grasp_object('orange', _fix=fix, _frame=frame)
     assert result['held'] == 'orange' and result['grip_verified']
-    assert len([c for c in checks if c[0] == 'preflight']) == 3  # home, pre, descent; no close/lift
+    # home vetted before the jaw opens (#424 review Minor 3), home, pre, descent; no close/lift
+    assert len([c for c in checks if c[0] == 'preflight']) == 4
     assert len([c for c in checks if c[0] == 'feedback']) > 3
     assert len([c for c in checks if c[0] == 'close_preflight']) == 2
 

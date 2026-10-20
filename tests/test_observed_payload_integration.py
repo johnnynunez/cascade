@@ -75,5 +75,6 @@ def test_first_closing_veto_creates_no_payload_episode(monkeypatch):
         rt.skill_grasp_object("orange", _fix=fix, _frame=frame)
     assert began == [] and getattr(rt, "_held_provisional", None) is None
     assert [c for c in calls if c[0] == "gripper"] == [("gripper", 1., .8)]
-    # The explicit pre-close retreat also keeps the observed profile gate.
-    assert len([c for c in checks if c[0] == "preflight"]) == 4
+    # The explicit pre-close retreat also keeps the observed profile gate (the
+    # first preflight: the home segment vetted before the jaw opens, #424 review Minor 3).
+    assert len([c for c in checks if c[0] == "preflight"]) == 5

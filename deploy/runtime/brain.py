@@ -261,7 +261,10 @@ def serve(plan):
     logfile = Path(plan["state_file"]).parent / "logs" / f"brain-{stamp}-{os.getpid()}.log"
     logfile.parent.mkdir(parents=True, exist_ok=True)
     child_env = llama_server_environment(os.environ)
-    child_env.update(CUDA_VISIBLE_DEVICES="0", GGML_SCHED_DEBUG="1")
+    # XDG_CONFIG_HOME: the server reads no llama.cpp/config.ini (none can exist under /dev/null), not the
+    # deployment-wide config home every worker of this uid shares (runtime.py: $PAAI_DATA_DIR/config). A config.ini
+    # takes any option before argv: `tools = all`, `api-prefix = /v1`. The image's /etc/llama.cpp is the image's.
+    child_env.update(CUDA_VISIBLE_DEVICES="0", GGML_SCHED_DEBUG="1", XDG_CONFIG_HOME="/dev/null")
     child = subprocess.Popen(plan["argv"], cwd=ROOT, env=child_env, stdout=subprocess.PIPE,
                              stderr=subprocess.STDOUT, bufsize=64 * 1024)
     def terminate(*_):

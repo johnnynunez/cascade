@@ -218,8 +218,9 @@ class _Device:
     - `stamp`: every render carries an Isaac-style producer capture whose clock
       advances one tick per render (`source` names the bridge);
     - `freeze(at)`: the driver keeps handing back its last buffer, the same
-      Frame: from now on (`at` None), else from its first render at or after
-      monotonic time `at`;
+      Frame: from now on (`at` None; a render in flight then is lost, so the
+      buffer is `last` as it was at the call), else from its first render at
+      or after monotonic time `at`;
     - `resend(frame)`: a bridge re-sends that capture (same pixels, same
       producer clock) in a NEW Frame per request, so `Frame.t`, the client's
       receipt time, is new on every delivery;
@@ -229,8 +230,9 @@ class _Device:
       slower than the bridge serves; each delivery a new Frame);
     - `hold_next()`: the next render is received (`Frame.t` stamped) and then
       held in the stream's pump until the returned release is set: an image
-      in flight (`held`: the frames held so far); the next render waits
-      0.2 s, so a grab waiting for that delivery gets the held one;
+      in flight (`held`: the frames held so far); the next render waits for
+      `resume()` (5 s at most), so a grab waiting for that delivery gets the
+      held one however late it wakes;
     - `stamp = False` later: the frames carry no capture any more."""
 
     def __init__(self, monkeypatch, rt, *, stamp=False):
@@ -245,18 +247,16 @@ class _Device:
         self.repeat = 1
         self._served = 0
         self._hold = None
-        self._pause = 0.0
+        self._resumed = threading.Event()
+        self._resumed.set()
         self.held = []
         self.by_stamp = {}
         monkeypatch.setattr(rt.camera._camera, "get_frame", self.get_frame)
 
     def get_frame(self):
-        with self._lock:
-            pause, self._pause = self._pause, 0.0
-        if pause:
-            # after a held image: the stream's waiting grab takes that one
-            # (CameraStream.get_frame returns the LATEST delivery)
-            time.sleep(pause)
+        # after a held image: the stream's waiting grab takes that one
+        # (CameraStream.get_frame returns the LATEST delivery)
+        self._resumed.wait(5.0)
         with self._lock:
             if self.frozen and self.last is not None:
                 return self.last
@@ -267,6 +267,10 @@ class _Device:
                 return replace(self.last, t=time.monotonic())
         frame = self._real()
         with self._lock:
+            if self.frozen and self.last is not None:
+                # the driver stalled while this render was in flight: it
+                # keeps handing back the buffer it had
+                return self.last
             self._served += 1
             if self.stamp:
                 self.clock += 1.0 / 30.0
@@ -280,19 +284,22 @@ class _Device:
             hold, self._hold = self._hold, None
         if hold is not None:
             self.held.append(frame)
+            self._resumed.clear()
             hold[0].set()
             hold[1].wait(5.0)
-            with self._lock:
-                self._pause = 0.2
         return frame
 
     def hold_next(self):
         """(received, release): `received` is set once the next render was
-        received; the pump publishes it when `release` is set."""
+        received; the pump publishes it when `release` is set, and renders
+        again after `resume()`."""
         hold = (threading.Event(), threading.Event())
         with self._lock:
             self._hold = hold
         return hold
+
+    def resume(self):
+        self._resumed.set()
 
     def freeze(self, at=None):
         with self._lock:
@@ -529,6 +536,46 @@ def test_the_first_receipt_bound_sits_between_a_slow_render_and_a_stalled_one(ri
         assert re.search(_RESENT_STALL, out["error"]), out
 
 
+class _RuntimeClock:
+    """`cascade.skills.runtime`'s `time` module as it is, except that the
+    next `monotonic()` on the thread that called `pin(t)` returns `t`, once:
+    the instants point_at stamps (its localization, the look again's start)
+    are chosen by the test, never by how long a runner took to plan (main's
+    x86 CI: 0.105 s from the plan's image to the look, past the 0.1 s the
+    row needed). `pinned`: the stamps handed out, in order."""
+
+    def __init__(self, monkeypatch):
+        from cascade.skills import runtime as rmod
+
+        self._real, self._pins, self.pinned = rmod.time, {}, []
+        monkeypatch.setattr(rmod, "time", self)
+
+    def __getattr__(self, name):
+        return getattr(self._real, name)
+
+    def pin(self, t: float) -> None:
+        self._pins[threading.get_ident()] = t
+
+    def monotonic(self) -> float:
+        t = self._pins.pop(threading.get_ident(), None)
+        if t is None:
+            return self._real.monotonic()
+        self.pinned.append(t)
+        return t
+
+
+def _rendered_after(device, t, timeout_s=5.0):
+    """The device's last render, once it is one received after monotonic
+    time `t` (a starved pump may still hold one from before)."""
+    end = time.monotonic() + timeout_s
+    while time.monotonic() < end:
+        last = device.last
+        if last is not None and last.t > t:
+            return last
+        time.sleep(0.005)
+    raise AssertionError("test setup: the camera rendered nothing after the plan started")
+
+
 @needs_pin
 @pytest.mark.parametrize("image", ["in_flight", "stalled_0.3_s_before", "the_plans_own"])
 def test_an_image_in_flight_when_the_look_started_counts_but_an_older_one_does_not(rig, monkeypatch, image):  # noqa: F811
@@ -539,28 +586,44 @@ def test_an_image_in_flight_when_the_look_started_counts_but_an_older_one_does_n
     before this look started\"; the review: refused from 25 ms on). It counts
     now. One received 0.3 s before the look (the driver stalled then and keeps
     handing it back) is still refused, and so is one from before the plan
-    started however recent (the driver stalled at the localization; the plan's
-    4 s are faked here, so that image is ~0.05 s old at the look)."""
+    started however recent (the driver stalled at the localization; that
+    image is 0.05 s old at the look, within the in-flight time).
+
+    The instants are fixed, not raced: point_at's localization and the look's
+    start come from a pinned runtime clock (`_RuntimeClock`), set from the
+    receipt (`Frame.t`) of the very image the look gets, so no planning time
+    can move an image across `pointing.FRESH_IN_FLIGHT_S`."""
+    from cascade.skills import pointing
     from cascade.skills import runtime as rmod
 
     r = rig("mock")
     rt = r.runtime
     _long_plans(monkeypatch)
     device = _Device(monkeypatch, rt)
-    pending, before_look = [], []
+    clock = _RuntimeClock(monkeypatch)
+    pending, stamps = [], []
     real_still = rmod.SkillRuntime._point_at_still_there
 
-    def still(self, *a, **k):
-        if image == "in_flight":
-            received, release = device.hold_next()
-            assert received.wait(5.0), "test setup: the camera never rendered"
-            pending.append(release)
-            time.sleep(0.03)
-        elif image == "stalled_0.3_s_before":
-            device.freeze()
-            time.sleep(0.3)
-        before_look.append(time.monotonic())
-        return real_still(self, *a, **k)
+    def still(self, label, fix, localized, *a, **k):
+        since = localized[1]
+        if image == "the_plans_own":
+            received = device.last.t          # frozen at the localization
+            looking = received + 0.05
+        else:
+            _rendered_after(device, since)    # the camera works again after the plan started
+            if image == "in_flight":
+                got, release = device.hold_next()
+                assert got.wait(5.0), "test setup: the camera never rendered"
+                pending.append(release)
+                received = device.held[-1].t
+                looking = received + 0.03     # received 30 ms before the look, published after it
+            else:
+                device.freeze()
+                received = device.last.t
+                looking = received + 0.3      # the driver stalled 0.3 s before the look
+        stamps.append((since, received, looking))
+        clock.pin(looking)
+        return real_still(self, label, fix, localized, *a, **k)
 
     monkeypatch.setattr(rmod.SkillRuntime, "_point_at_still_there", still)
     real_get = rt.camera.get_frame
@@ -569,23 +632,33 @@ def test_an_image_in_flight_when_the_look_started_counts_but_an_older_one_does_n
         # the look's grab waits for the stream's next delivery: the held image
         while pending:
             threading.Timer(0.05, pending.pop().set).start()
-        return real_get(*a, **k)
+        try:
+            return real_get(*a, **k)
+        finally:
+            device.resume()
 
     monkeypatch.setattr(rt.camera, "get_frame", get_frame)
-    frozen = []
 
     def first_look(frame):
         if image == "the_plans_own":
             device.freeze()
-            frozen.append(time.monotonic())  # before point_at stamps its localization
+            clock.pin(device.last.t + 0.01)   # point_at stamps its localization 10 ms after that image
 
     looks = _looks(monkeypatch, rt, after_first=first_look)
 
     out = rt.execute("point_at", {"label": "red cube"})
 
-    assert len(looks) == 2, "test setup: one look again"
-    stalled = device.held[-1] if image == "in_flight" else device.last
-    assert looks[1].t == stalled.t and looks[1].t < before_look[0], "test setup: received before the look started"
+    assert len(looks) == 2 and len(stamps) == 1, "test setup: one look again"
+    ((since, received, looking),) = stamps
+    assert clock.pinned == ([since] if image == "the_plans_own" else []) + [looking], \
+        "test setup: point_at stamped the pinned instants"
+    assert looks[1].t == received < looking, "test setup: the look again got that image, received before it started"
+    if image == "the_plans_own":
+        assert received < since and looking - received < pointing.FRESH_IN_FLIGHT_S, \
+            "test setup: an image from before the plan, within the in-flight time of the look"
+    else:
+        assert since < received, "test setup: an image received during the plan"
+        assert (looking - received < pointing.FRESH_IN_FLIGHT_S) == (image == "in_flight"), "test setup"
     if image == "in_flight":
         assert out["ok"] is True and _commands(r) and r.jaws, out
     else:
@@ -594,9 +667,6 @@ def test_an_image_in_flight_when_the_look_started_counts_but_an_older_one_does_n
                else "received during the plan, before this look started")
         assert ("it was not seen again after a long plan (4.0 s): the image it was found on again was " + why
                 ) in out["error"], out
-    if image == "the_plans_own":
-        assert looks[1].t < frozen[0] and before_look[0] - looks[1].t < 0.1, \
-            "test setup: an image from before the plan, within the in-flight time of the look"
 
 
 class _SideCamera:

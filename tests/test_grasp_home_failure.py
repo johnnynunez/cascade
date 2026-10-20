@@ -90,7 +90,7 @@ def _refused_before_any_command(exc):
 
 def _failed_after_its_first_command(exc):
     def move(harness):
-        harness.motions_begun += 1  # the move's first command was approved
+        harness.approved_commands += 1  # the move's first command was approved
         raise exc
     return move
 
@@ -132,11 +132,11 @@ def test_a_home_move_that_started_or_hit_a_backend_fault_still_stops(monkeypatch
     assert runtime.arm.stops == 1
 
 
-def test_a_harness_that_counts_no_motion_starts_keeps_the_stop(monkeypatch):
-    """Without a motion count nothing proves the move never started: stop, as before."""
+def test_a_harness_that_counts_no_approved_commands_keeps_the_stop(monkeypatch):
+    """Without a command count nothing proves the move never started: stop, as before."""
     runtime, fix, _ = _runtime(monkeypatch, _refused_before_any_command(
         SafetyViolation("perception watchdog: last observation 6.0s old")))
-    runtime.arm.harness.motions_begun = None
+    runtime.arm.harness.approved_commands = None
     with pytest.raises(SkillError, match="^home move failed before pregrasp: perception watchdog"):
         runtime.skill_grasp_object("rubber duck", _fix=fix, _frame=object())
     assert runtime.arm.stops == 1

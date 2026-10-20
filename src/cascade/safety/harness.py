@@ -1510,11 +1510,12 @@ class SafetyHarness:
         if exact:
             return f"TCP {self._quoted(tcp)} outside workspace [{_mm(lo_t)} .. {_mm(hi_t)}]"
         # a mount that rotates the box: the base frame's numbers decide, so
-        # they come first (the FAILED line keeps 240 characters, #412 review
-        # Minor 4), the table-frame bounds last
-        return (f"TCP {self._quoted(tcp)} outside workspace (its base_pose rotates it: in the arm's base frame the "
-                f"TCP {_mm(tcp)} is outside [{_mm(lo_w)} .. {_mm(hi_w)}]; table-frame bounds "
-                f"[{_mm(lo_t)} .. {_mm(hi_t)}])")
+        # the text opens with them, the table frame's last: the FAILED line
+        # keeps 240 characters (#412 review Minor 4), after the longest
+        # prefix the code puts before this text too (they end within 101
+        # characters; #413 review Minor 4)
+        return (f"TCP {_mm(tcp)} outside workspace [{_mm(lo_w)} .. {_mm(hi_w)}] in the arm's base frame (its "
+                f"base_pose rotates it; table frame: TCP {self._quoted(tcp)}, bounds [{_mm(lo_t)} .. {_mm(hi_t)}])")
 
     def _table_clearance_refusal(self, tcp, floor: float) -> str:
         if self.base_pose is None:

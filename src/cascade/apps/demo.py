@@ -227,16 +227,27 @@ class _RigHeartbeat:
             harness.heartbeat(at=at)
 
 
+def _rig_arms(arm_rig) -> list:
+    """The rig's arms (SafeArms or standby LazyArms), in rig order; none
+    without a rig."""
+    return list(getattr(arm_rig, "arms", {}).values()) if arm_rig is not None else []
+
+
+def _every_arm_feed(arms) -> _RigHeartbeat:
+    """A feed that keeps every one of `arms`' watchdogs alive. Harnesses are
+    read from the SafeArm's instance dict (never a LazyArm attribute probe)."""
+    return _RigHeartbeat([a.__dict__["harness"] for a in arms])
+
+
 def _watcher_heartbeat(arm_rig, primary_harness):
     """What the watcher heartbeats: the primary's harness itself on one arm
-    (unchanged), every arm's harness on a rig of two or more. Harnesses are
-    read from the SafeArm's instance dict (never a LazyArm attribute probe).
-    On a rig every camera also carries its own feed (`_camera_watchdog_feed`),
-    which the watcher uses instead."""
-    arms = list(getattr(arm_rig, "arms", {}).values()) if arm_rig is not None else []
+    (unchanged), every arm's harness on a rig of two or more
+    (`_every_arm_feed`). On a rig every camera also carries its own feed
+    (`_camera_watchdog_feed`), which the watcher uses instead."""
+    arms = _rig_arms(arm_rig)
     if len(arms) < 2:
         return primary_harness
-    return _RigHeartbeat([a.__dict__["harness"] for a in arms])
+    return _every_arm_feed(arms)
 
 
 def _camera_watchdog_feed(arm_rig, ccfg, extrinsics):
@@ -251,11 +262,11 @@ def _camera_watchdog_feed(arm_rig, ccfg, extrinsics):
     - a `role: wrist` view without hand-eye extrinsics does not say which arm
       it rides on: no arm (fail closed; the fixed cameras still feed them all).
     """
-    arms = list(getattr(arm_rig, "arms", {}).values()) if arm_rig is not None else []
+    arms = _rig_arms(arm_rig)
     if len(arms) < 2:
         return None
     if not is_wrist_view(ccfg):
-        return _RigHeartbeat([a.__dict__["harness"] for a in arms])
+        return _every_arm_feed(arms)
     if extrinsics.mode == "eye_in_hand":
         return _RigHeartbeat([arm_rig.primary.__dict__["harness"]])
     return _RigHeartbeat(())

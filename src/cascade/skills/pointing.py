@@ -80,8 +80,10 @@ When more than FRESH_PLAN_S of wall time passed between the target's
 localization and the end of planning (the budget's core-speed search
 included), point_at looks at the target again before the first command, on a
 detection newer than the plan only (never the remembered belief, never an
-image received before that look started, never a camera's producer capture no
-newer than the one the plan was made from: not seen again, it refuses); moved
+image received before that look started (FRESH_IN_FLIGHT_S aside) or whose
+capture was first received more than FRESH_OBSERVED_S before it, never a
+camera's producer capture no newer than the one the plan was made from on that
+camera: not seen again, it refuses); moved
 more than FRESH_MOVE_M (`fix_moved_m`), it is planned once more from where it
 is now, on what is left of the same budget, and refused if it moved again;
 never a move toward a stale pose.
@@ -176,6 +178,20 @@ FRESH_PLAN_S = 3.0
 #: ... and plans once more, from where it is now, when it moved more than
 #: this (m: its centre or its observed top), the pose's own aim tolerance
 FRESH_MOVE_M = AIM_TOLERANCE_M
+#: The look again's image must have been received after that look started,
+#: or at most this long before it (s, its `Frame.t`): an image the camera's
+#: pump had received but not yet published when the look started (its pose
+#: and depth work comes after the stamp; the #413 review refused from 25 ms of
+#: it on). A driver that stalled earlier hands back an older one: refused, and
+#: an image from before the plan started is refused however recent.
+FRESH_IN_FLIGHT_S = 0.1
+#: ... and its capture FIRST received at most this long before that look
+#: started (s, `freshness.observed_at`): a bridge re-sends a render in a new
+#: Frame with a new receipt `Frame.t`, so a sim that froze during the plan
+#: looks new (#413 review Minor 2: first received 3.03 s before the look; a
+#: sim rendering slower than its bridge serves, 0.09 s). A bound 5x the benign
+#: case and a sixth of FRESH_PLAN_S (the age a short plan acts on unseen).
+FRESH_OBSERVED_S = 0.5
 #: the planning clocks (tests replace them): the calling thread's CPU time,
 #: and wall time
 _clock = time.thread_time

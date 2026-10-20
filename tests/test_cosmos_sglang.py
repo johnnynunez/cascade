@@ -216,7 +216,7 @@ def test_the_scrub_is_the_audited_list_and_every_entry_is_exercised():
     patterns = _scrub_patterns()
     assert patterns == ["SGLANG_GRPC_PORT", "SGLANG_RUST_SERVER", "SGLANG_OLLAMA_*", "AIP_*", "DUMPER_*",
                         "SGLANG_ENABLE_REQUEST_HEADER_OVERRIDES", "EXA_API_KEY", "SGLANG_EXTERNAL_*",
-                        "SGLANG_LOGGING_CONFIG_PATH"]
+                        "SGLANG_LOGGING_CONFIG_PATH", "SGLANG_DISTRIBUTED_INIT_METHOD_OVERRIDE"]
     assert all(any(fnmatch.fnmatchcase(name, p) for name in HOSTILE_SGLANG_ENV) for p in patterns)
     assert not any(fnmatch.fnmatchcase(name, p) for name in {**BENIGN_ENV, **BENIGN_SGLANG_ENV} for p in patterns)
     assert f'SGLANG_VERSION={SGLANG_VERSION}' in SCRIPT.read_text().splitlines()

@@ -81,6 +81,24 @@ def newer_capture(frame, previous) -> bool:
     return current_t > prior_t
 
 
+def producer_clock(frame) -> tuple[tuple, float] | None:
+    """(the producer clock a frame's capture is stamped on, its stamp on that
+    clock), or None for a local frame (no producer capture).
+
+    Every camera of one Isaac sim stamps its captures on that sim's physics
+    loop clock, whatever camera or bridge port served them: one clock per
+    (robot_id, time_source). An OVRTX capture is on its source's snapshot
+    clock (source, producer epoch). So two cameras' captures on one clock are
+    ordered by their stamps; captures on different clocks are not. Raises
+    ValueError for a capture `capture_marker` refuses."""
+    marker = capture_marker(frame)
+    if marker["channel"] != "producer_capture":
+        return None
+    if marker["backend"] == "isaac":
+        return ("isaac", marker["robot_id"], marker["clock"]), marker["t"]
+    return ("ovrtx", marker["source"], marker["epoch"], marker["clock"]), marker["t"]
+
+
 def _deadline(timeout_s):
     if not math.isfinite(timeout_s) or not 0 < timeout_s <= 30:
         raise ValueError("Expected a positive frame timeout of at most 30 seconds")

@@ -8269,9 +8269,9 @@ class SkillRuntime:
         before the first command, on a detection newer than the plan only
         (never the remembered belief, never an image received before that
         look started (an image in flight then aside: 0.1 s) or whose capture
-        was first received more than 0.5 s before it, never a camera's
-        producer capture no newer than the one the plan was made from on that
-        camera): not seen again, it refuses; moved more than
+        was first received more than 0.5 s before it, never a producer
+        capture no newer than the one the plan was made from on that camera or
+        on a producer clock both share): not seen again, it refuses; moved more than
         1 cm (its centre or its top), it is planned once more from where it is
         now, on what is left of the same budget; moved again, refuses (nothing
         was moved). The object top is
@@ -8523,12 +8523,16 @@ class SkillRuntime:
         re-sends an old capture in a new Frame, with a new `Frame.t` (#411
         review Minor 1); one that cannot be compared with it (another
         identity, none any more) refuses too. An image another camera found
-        (`_localized_camera`) is never compared with it: two cameras' captures
-        are not comparable (#413 review Minor 1). Either way the capture must
-        have been FIRST received (`freshness.observed_at`) at most
-        `pointing.FRESH_OBSERVED_S` before this look started: a sim that froze
-        during the plan while its bridge re-sends the last render looks new
-        otherwise (#413 review Minor 2). Not seen again: refuses. Moved more
+        (`_localized_camera`) is compared with it only on a producer clock
+        both captures share (`freshness.producer_clock`: one Isaac sim's
+        physics loop, #418 review Minors 1-2), else not: captures on two
+        clocks are not comparable (#413 review Minor 1). Either way the
+        capture must have been FIRST received (`freshness.observed_at`) at
+        most `pointing.FRESH_OBSERVED_S` before this look started: a sim that
+        froze during the plan while its bridge re-sends the last render looks
+        new otherwise (#413 review Minor 2); a first receipt that is not a
+        finite time up to now (one the perception heartbeat would ignore)
+        refuses too. Not seen again: refuses. Moved more
         than `pointing.FRESH_MOVE_M` (`fix_moved_m`): raises
         `_PointTargetMoved` with the fresh fix (planned once more), or, when
         this already was that plan, refuses. Nothing was commanded either way;
@@ -8565,18 +8569,42 @@ class SkillRuntime:
         # producer clocks compare within one camera; an unknown camera (the
         # VLM's answer) compares as before
         one_camera = camera is None or planned_camera is None or camera is planned_camera
-        if one_camera and (getattr(frame, "capture", None) is not None
-                           or getattr(planned_on, "capture", None) is not None):
+        captured = getattr(frame, "capture", None) is not None or getattr(planned_on, "capture", None) is not None
+        if one_camera and captured:
             try:
                 newer = freshness.newer_capture(frame, planned_on)
             except ValueError as exc:
                 raise not_seen(f"its capture cannot be compared with the one the plan was made from ({exc})") from None
             if not newer:
                 raise not_seen("its camera re-sent a capture no newer than the one the plan was made from")
+        elif captured:
+            # another camera's image: two cameras on one producer clock (one
+            # Isaac sim's physics loop, `freshness.producer_clock`) are ordered
+            # by it, whatever stream each came through. A stream's first-receipt
+            # record restarts on one bad or local frame or a reconnect, so a
+            # capture frozen since before the call can read as first received
+            # now (#418 review Minors 1-2); captures on different clocks are
+            # judged by their receipts alone
+            try:
+                found, planned = freshness.producer_clock(frame), freshness.producer_clock(planned_on)
+            except ValueError as exc:
+                raise not_seen(f"its capture cannot be compared with the one the plan was made from ({exc})") from None
+            if found is not None and planned is not None and found[0] == planned[0] and not found[1] > planned[1]:
+                raise not_seen("another camera's capture on the same producer clock is no newer than the one the "
+                               "plan was made from")
         first_received = freshness.observed_at(frame)
+        # a stamp the perception heartbeat ignores (NaN, +-inf, the future)
+        # proves no receipt at all (#418 review Minors 3-5)
+        if not (math.isfinite(first_received) and first_received <= seen_again[1]):
+            ahead = first_received - seen_again[1]
+            stamp = (f"stamped {max(0.01, math.ceil(round(100 * ahead, 6)) / 100):.2f} s in the future"
+                     if math.isfinite(ahead) else str(first_received))
+            raise not_seen(f"its camera gave no usable first receipt of that capture ({stamp})")
         if not first_received >= looking - pointing.FRESH_OBSERVED_S:
-            raise not_seen(f"its camera re-sent a capture it first received {looking - first_received:.1f} s before "
-                           f"this look started (more than {pointing.FRESH_OBSERVED_S:g} s: its renders stalled)")
+            # rounded up: never printed at or below the bound it exceeds
+            stale = math.ceil(round(100 * (looking - first_received), 6)) / 100
+            raise not_seen(f"its camera re-sent a capture it first received {stale:.2f} s before this look "
+                           f"started (more than {pointing.FRESH_OBSERVED_S:g} s: its renders stalled)")
         fresh = _host_fix(fresh)
         moved = pointing.fix_moved_m(fix, fresh)
         if moved <= pointing.FRESH_MOVE_M:     # NaN counts as moved

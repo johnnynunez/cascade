@@ -133,19 +133,35 @@ Every start path sends that file's key: `launch.sh` (brain checks and the agent'
 route (macOS, the Spark kitchen) hands the key to `openclaw onboard` as `CUSTOM_API_KEY`, and OpenClaw
 stores it with the provider.
 
+Which key file each start path sends this brain (the first one set wins; `~` means your home):
+
+| start path | reads |
+|---|---|
+| `launch.sh` brain checks (`demo_proof --check-brain`, `--probe-native`) and host-route onboarding | `CASCADE_MODEL_API_KEY`, else `CASCADE_MODEL_API_KEY_FILE`, which `launch.sh` sets to `CASCADE_BRAIN_KEY_FILE`, else `~/.cascade/nemoclaw/llama.key` |
+| OpenShell route, the agent's brain provider (`launch_openshell.sh`) | `CASCADE_BRAIN_KEY_FILE`, else `CASCADE_MODEL_API_KEY`, else `CASCADE_MODEL_API_KEY_FILE` (the checks' file) |
+| `openclaw_demo.sh` | `CASCADE_MODEL_API_KEY_FILE`, else `CASCADE_BRAIN_KEY_FILE`, else `~/.cascade/nemoclaw/llama.key` |
+| `--llm local_cosmos_sglang`, `CASCADE_GROUNDING_LLM_PROFILE=local_cosmos_sglang` | `CASCADE_MODEL_API_KEY_FILE`, else `~/.cascade/nemoclaw/llama.key`; in the robot MCP server always the latter (registrations never forward it) |
+
+Name one file: when `CASCADE_BRAIN_KEY_FILE` and `CASCADE_MODEL_API_KEY_FILE` name different files, the
+OpenShell route's checks and its provider send different keys.
+
 1. **Keyed.** It refuses without `API_KEY_FILE` (0600, one key). SGLang takes a key only as
    `--api-key KEY`, so the script reads the file inside the server process: `ps` shows the path,
    never the key. It runs at `--log-level warning`: SGLang's INFO start line prints every argument,
    the key included. `/get_server_info` returns them to key holders.
-2. **Loopback, no remote code.** It binds `127.0.0.1`. There is no `--trust-remote-code`:
+2. **Loopback, no remote code.** Its HTTP server binds `127.0.0.1`. There is no `--trust-remote-code`:
    Cosmos3-Edge is native in SGLang and transformers, and `nvidia/Cosmos3-Edge` ships no code at the
-   pinned revision (`a9d944e2`, the vLLM route's).
+   pinned revision (`a9d944e2`, the vLLM route's). SGLang's own torch.distributed rendezvous store (a
+   free port below the ephemeral range) listens on every interface: torch's TCPStore binds `[::]`
+   whatever host it is given (torch 2.14), and the key does not cover it. Keep the host firewall closed.
 3. **Scrubbed.** It drops `SGLANG_GRPC_PORT` (a gRPC listener the key does not cover),
    `SGLANG_RUST_SERVER` (another HTTP server), `SGLANG_OLLAMA_*` and `AIP_*` (routes moved anywhere,
    `/v1/**` too), `DUMPER_*` (a keyless control server on `0.0.0.0`),
    `SGLANG_ENABLE_REQUEST_HEADER_OVERRIDES`, `EXA_API_KEY` (a web search tool behind `/v1/responses`),
-   `SGLANG_EXTERNAL_*` (packages imported as the model registry or multimodal processors) and
-   `SGLANG_LOGGING_CONFIG_PATH` (a logging config that imports code and can log the key).
+   `SGLANG_EXTERNAL_*` (packages imported as the model registry or multimodal processors),
+   `SGLANG_LOGGING_CONFIG_PATH` (a logging config that imports code and can log the key) and
+   `SGLANG_DISTRIBUTED_INIT_METHOD_OVERRIDE` (the rendezvous store on a port, or at a host, the caller
+   picks).
 4. **Inside `/v1/**`** (what the sandbox reaches): chat/completions, completions, models, responses
    (the store is off), messages, embeddings, classify, rerank, score, decisions, systemone, tokenize,
    detokenize, loads, audio/transcriptions, all keyed. The WebSocket `/v1/realtime` skips the key
@@ -338,7 +354,7 @@ sidecars start as before; steps 4-6 are [`scripts/launch_openshell.sh`](../scrip
 |---|---|
 | instance | `sim` for a simulator, the default instance (the real rig's) for `--sim none`; `CASCADE_OPENSHELL_INSTANCE` overrides |
 | brain | a model on this host's loopback (`--brain nemotron-bolt\|qwen\|cosmos\|cosmos-sglang`; `auto` finds a local Cosmos, else the brain on :8080, Nemotron 3.5 Bolt by default); `keep` (a cloud model) is refused. The served id must be bare (no `/`); its context window reaches the sandbox (`--context-window`) |
-| brain key | `CASCADE_BRAIN_KEY_FILE`; for `cosmos-sglang` (which serves only with a key) else the brain checks' `CASCADE_MODEL_API_KEY_FILE`, which defaults to `~/.cascade/nemoclaw/llama.key`; else `CASCADE_MODEL_API_KEY` written to a 0600 file in the launch state, else a minted one (a server without `--api-key` ignores it) |
+| brain key | `CASCADE_BRAIN_KEY_FILE`; else `CASCADE_MODEL_API_KEY` written to a 0600 file in the launch state; else, for `cosmos-sglang` (which serves only with a key), the brain checks' `CASCADE_MODEL_API_KEY_FILE`, which defaults to `~/.cascade/nemoclaw/llama.key`; else a minted one (a server without `--api-key` ignores it) |
 | robot server | built once (`runtime_check`), then `openshell_rig.py mcp-start`: `serve-mcp` as the instance's unit, bound to this launch's owner, env from a 0600 file. A simulator learns into the launch state's `memory/` (grasp memory, envelope, beliefs, episodic), never `~/.cascade`, and starts empty every launch; explicit `CASCADE_*_PATH` values win |
 | sandbox | `openshell_rig.py up`: a simulator starts with motion allowed for 12 h; the real robot starts observe-only (`motion unlock`) |
 | proof | the sandbox's OpenClaw (`openshell_rig.py exec -- openclaw ...`, via `CASCADE_OPENCLAW_COMMAND`): healthy gateway, `mcp probe` lists the robot tools, the brain answers, and in sim one pick is checked against physics and the world reset (`demo_proof.py --persistent-mcp`) |

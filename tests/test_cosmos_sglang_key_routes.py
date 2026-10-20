@@ -119,12 +119,15 @@ def _keyed_env(h, keys: str) -> tuple[dict, Path | None]:
     key_file = {
         "default key file": lambda: _write_key(home / DEFAULT_KEY),
         "model key file": lambda: _write_key(tmp / "model.key"),
+        "model key file under ~": lambda: _write_key(home / "model.key"),
         "brain key file": lambda: _write_key(tmp / "brain.key"),
         "both": lambda: _write_key(tmp / "brain.key"),
         "no key file": lambda: None,
     }[keys]()
     if keys in ("model key file", "both"):
         env["CASCADE_MODEL_API_KEY_FILE"] = str(key_file)
+    if keys == "model key file under ~":
+        env["CASCADE_MODEL_API_KEY_FILE"] = "~/model.key"   # a quoted value: the shell never expanded it
     if keys in ("brain key file", "both"):
         env["CASCADE_BRAIN_KEY_FILE"] = str(key_file)
     return env, key_file
@@ -229,8 +232,10 @@ def test_the_other_brains_keep_their_openshell_start_path(linux_launcher, brain,
 # ── launch.sh, host route (macOS; the Spark kitchen) ───────────────────────
 
 #: OpenClaw 2026.9.3 as the host route drives it, for the calls that touch the custom provider (the rest goes to the
-#: launcher_boundary fake). Real words (dist/onboard-custom-config): the provider id is custom-<host>-<port>, and the
-#: key from --custom-api-key or CUSTOM_API_KEY is stored as models.providers.<id>.apiKey.
+#: launcher_boundary fake). Real words (dist/onboard-custom-config, applyCustomApiConfig): the provider id is
+#: custom-<host>-<port>, onboarding MERGES it into the providers it finds (another brain's provider stays, with its own
+#: models), selects it as the default model, and stores the key from --custom-api-key or CUSTOM_API_KEY as
+#: models.providers.<id>.apiKey.
 FAKE_OPENCLAW = r'''
 import json, os, re, sys
 from pathlib import Path
@@ -249,10 +254,15 @@ if rest[:1] == ["onboard"]:
     u = urlsplit(base)
     pid = "custom-" + re.sub(r"[^a-z0-9]+", "-", u.hostname, flags=re.I).lower() + (f"-{u.port}" if u.port else "")
     provider = {"baseUrl": base, "api": "openai-completions",
-                "models": [{"id": rest[rest.index("--custom-model-id") + 1], "contextWindow": 128000}]}
+                "models": [{"id": rest[rest.index("--custom-model-id") + 1], "contextWindow": 128000,
+                            "maxTokens": 8192}]}
     if os.environ.get("CUSTOM_API_KEY"):
         provider["apiKey"] = os.environ["CUSTOM_API_KEY"]
-    cfg.write_text(json.dumps({"models": {"providers": {pid: provider}}}))
+    data = json.loads(cfg.read_text()) if cfg.exists() else {}
+    data.setdefault("models", {}).setdefault("providers", {})[pid] = provider
+    data.setdefault("agents", {}).setdefault("defaults", {})["model"] = {
+        "primary": pid + "/" + provider["models"][0]["id"]}
+    cfg.write_text(json.dumps(data))
 elif provider_path:
     _, _, pid, field = rest[2].split(".")
     data = json.loads(cfg.read_text())
@@ -296,6 +306,54 @@ def test_the_host_route_onboards_the_provider_with_the_key_in_its_environment(la
     assert provider["models"][0]["contextWindow"] == 32768, "the brain's context, set without the key"
     assert _unauthorized(h) == []
     assert KEY not in _argv_logs(h).replace(f'"CUSTOM_API_KEY": "{KEY}"', ""), "the key is on no argv"
+
+
+def test_a_model_key_file_named_with_a_literal_tilde_reaches_onboarding(launcher_boundary):
+    """#421 review Minor 4: CASCADE_MODEL_API_KEY_FILE='~/model.key' (quoted, so the shell never expanded it). The brain
+    checks read it (demo_proof expands ~); onboarding read it literally, so the launch died after the checks passed."""
+    h = launcher_boundary
+    env, _ = _keyed_env(h, "model key file under ~")
+    _host_openclaw(h, env)
+    p = _launch(h, env)
+    assert p.returncode == 0, p.stdout + p.stderr
+    onboard = [c for c in _oc_calls(h) if "onboard" in c["argv"]]
+    assert len(onboard) == 1 and onboard[0]["CUSTOM_API_KEY"] == KEY, onboard
+    assert _unauthorized(h) == []
+
+
+#: the vLLM Cosmos brain's provider, as an earlier `launch.sh --brain cosmos` left it in the profile (OpenClaw's own
+#: defaults: it serves the same id as the SGLang brain)
+_VLLM_COSMOS_PROVIDER = ("custom-127-0-0-1-8082", {
+    "baseUrl": "http://127.0.0.1:8082/v1", "api": "openai-completions",
+    "models": [{"id": "cosmos3-edge", "contextWindow": 128000, "maxTokens": 8192}]})
+
+
+@pytest.mark.parametrize("brain", ["cosmos-sglang", "cosmos"])
+def test_the_context_window_goes_to_the_provider_onboarded_at_the_brains_url(launcher_boundary, brain):
+    """#421 review Important 1: the profile already holds the vLLM Cosmos provider (:8082, served id cosmos3-edge).
+    OpenClaw merges the SGLang brain's provider beside it, and the keyed route set the context window of the FIRST
+    provider serving cosmos3-edge: :8082 got 32768, the selected SGLang provider kept OpenClaw's 128000 (long turns
+    then overflow a 32k server). It sets the provider at the brain's base URL now, and leaves the other one alone.
+    Control: vLLM Cosmos (no key) sets the whole providers map, as before: both get the brain's window."""
+    h = launcher_boundary
+    h["http"]["require_key"] = brain == "cosmos-sglang"
+    env, _ = _keyed_env(h, "default key file")
+    _host_openclaw(h, env)
+    name, vllm = _VLLM_COSMOS_PROVIDER
+    cfg = Path(h["env"]["HOST_CFG"])
+    cfg.write_text(json.dumps({"models": {"providers": {name: vllm}}}))
+    p = _launch(h, env, brain=brain)
+    assert p.returncode == 0, p.stdout + p.stderr
+    assert "contextWindow=32768 for cosmos3-edge" in p.stdout + p.stderr
+    providers = json.loads(cfg.read_text())["models"]["providers"]
+    (selected,) = [v for v in providers.values() if v["baseUrl"] == h["http"]["base_url"]]
+    assert [(m["id"], m["contextWindow"], m["maxTokens"]) for m in selected["models"]] == [("cosmos3-edge", 32768, 4096)]
+    other = providers[name]
+    if brain == "cosmos-sglang":
+        assert selected["apiKey"] == KEY
+        assert other == vllm, "another brain's provider is not this launch's"
+    else:
+        assert [(m["contextWindow"], m["maxTokens"]) for m in other["models"]] == [(32768, 4096)]
 
 
 def test_the_host_route_without_a_key_file_refuses_before_onboarding(launcher_boundary):
@@ -492,6 +550,56 @@ def test_check_brain_vllm_cosmos_still_sends_no_key(model_http_boundary, monkeyp
     monkeypatch.setenv("CASCADE_COSMOS_BASE_URL", model_http_boundary["base_url"])
     assert demo_proof.check_brain("cosmos")["brain"] == "cosmos"
     assert [a[2] for a in model_http_boundary["auth"]] == [None]
+
+
+def _probe_native(model_http_boundary, tmp_path, *, endpoint="cosmos-sglang", **named) -> subprocess.CompletedProcess:
+    """`demo_proof.py --probe-native <the fake brain> --model cosmos3-edge`, standalone: a private HOME, no key
+    variable but `named`, and `endpoint`'s base URL variable pointing at the fake brain."""
+    env = {k: v for k, v in os.environ.items() if k not in KEY_VARS}
+    env.update(HOME=str(tmp_path), **named)
+    variable = {"cosmos-sglang": "CASCADE_COSMOS_SGLANG_BASE_URL", "cosmos": "CASCADE_COSMOS_BASE_URL"}[endpoint]
+    env[variable] = model_http_boundary["base_url"]
+    return subprocess.run([sys.executable, str(REPO / "scripts" / "demo_proof.py"), "--probe-native",
+                           model_http_boundary["base_url"], "--model", "cosmos3-edge"],
+                          env=env, capture_output=True, text=True, timeout=60, check=False)
+
+
+@pytest.mark.parametrize("named", ["default key file", "CASCADE_BRAIN_KEY_FILE"])
+def test_a_standalone_native_probe_of_the_keyed_brain_falls_back_to_the_brain_key_file(model_http_boundary, tmp_path,
+                                                                                         named):
+    """#421 review Minor 2: `demo_proof.py --probe-native` alone (no launcher exporting CASCADE_MODEL_API_KEY_FILE)
+    sent no key to the SGLang brain and failed on its 401. Refused without a key, it probes again with the brain key
+    file, as --check-brain does."""
+    extra = {}
+    if named == "default key file":
+        _write_key(tmp_path / DEFAULT_KEY)
+    else:
+        extra[named] = str(_write_key(tmp_path / "other.key"))
+    p = _probe_native(model_http_boundary, tmp_path, **extra)
+    assert p.returncode == 0, p.stdout + p.stderr
+    assert json.loads(p.stdout)["native_tools"] is True
+    sent = [a[2] for a in model_http_boundary["auth"]]
+    assert sent[0] is None and sent[1:] == [f"Bearer {KEY}"] * 2, sent
+
+
+def test_a_standalone_native_probe_without_the_key_file_names_the_file_and_the_serve_script(model_http_boundary,
+                                                                                              tmp_path):
+    p = _probe_native(model_http_boundary, tmp_path)
+    assert p.returncode == 3
+    assert "HTTP 401" in p.stderr and "serve_cosmos_sglang.sh" in p.stderr and str(DEFAULT_KEY) in p.stderr, p.stderr
+    assert [a[2] for a in model_http_boundary["auth"]] == [None]
+
+
+def test_a_native_probe_falls_back_only_for_the_keyed_brain_and_only_without_a_named_key(model_http_boundary, tmp_path):
+    """The brain key file goes only to the keyed brain's endpoint, and only when no key was named: a 401 elsewhere
+    (vLLM Cosmos's endpoint here) or after CASCADE_MODEL_API_KEY_FILE was sent stays the refusal it was."""
+    _write_key(tmp_path / DEFAULT_KEY)
+    other = _probe_native(model_http_boundary, tmp_path, endpoint="cosmos")
+    assert other.returncode == 3 and "HTTP 401" in other.stderr, other.stderr
+    wrong = _write_key(tmp_path / "wrong.key", "wrong-key\n")
+    named = _probe_native(model_http_boundary, tmp_path, CASCADE_MODEL_API_KEY_FILE=str(wrong))
+    assert named.returncode == 3 and "HTTP 401" in named.stderr, named.stderr
+    assert [a[2] for a in model_http_boundary["auth"]] == [None, "Bearer wrong-key"]
 
 
 # ── end to end: the real serve script, then the launcher, with only the brain key file ──

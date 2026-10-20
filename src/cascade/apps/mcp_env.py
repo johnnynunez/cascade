@@ -157,11 +157,12 @@ NOT_FORWARDED: dict[str, tuple[str, str]] = {
                                     "start the stdio transport"),
     "CASCADE_MCP_TOKEN": ("secret", "bearer secret of `mcp_server --http` only; stdio servers never read it "
                           "and it must not be persisted (use --token-file)"),
-    "CASCADE_MODEL_API_KEY_FILE": ("secret", "path of the model's bearer key file, never the key, read by "
-                                   "configs/llm/local_cosmos_sglang.yaml's api_key_file (also as the grounding "
-                                   "profile); named like a key variable, so never forwarded: without it the "
-                                   "profile reads ~/.cascade/nemoclaw/llama.key, the brain key file launch.sh's "
-                                   "brain checks use"),
+    "CASCADE_MODEL_API_KEY_FILE": ("secret", "path of the model's bearer key file, never the key; in the robot "
+                                   "server only configs/llm/local_cosmos_sglang.yaml reads it (api_key_file), as "
+                                   "the grounding profile no registration selects, so the server reads "
+                                   "~/.cascade/nemoclaw/llama.key there. Not forwarded: launch.sh also exports it "
+                                   "for its brain checks (Nemotron 3.5 Bolt's too), so a copy would change every "
+                                   "such registration, and its name is a key variable's"),
 }
 
 

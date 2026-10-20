@@ -338,16 +338,33 @@ def _handover(why: str) -> str:
     return _fit_label("could not grasp {} for handover: ", repr(_LONG_LABEL), keep=len(why)) + why
 
 
+def _vla_refusal(text: str, chunk: int, waypoint: int) -> str:
+    """`vla_executor`'s own refusal (its exception name first) of VLA chunk
+    `chunk` whose `waypoint`-th target the harness refused for `text`."""
+    from cascade.grasping.vla_executor import VLAExecutor
+    from cascade.types import SafetyViolation
+
+    class _Harness:
+        def vet_pose(self, q):
+            return text if q == waypoint - 1 else None
+
+    with pytest.raises(SafetyViolation) as refused:
+        VLAExecutor._admit(_Harness(), [(i, 0.2) for i in range(waypoint)], chunk)
+    return f"SafetyViolation: {refused.value}"
+
+
 #: the longest texts the code puts before a harness refusal (#413 review
 #: Minor 4; the 3 `_SITES` aside): a handover whose grasp the harness refused
 #: (the review's 58-character prefix, here with a long label cut to its least),
 #: the same grasp run by a VLA chunk the harness refused before it moved
-#: (`vla_executor`, the longest found: 137 characters), and a pick-and-place
+#: (`vla_executor`'s own words, the longest found), with 2-digit chunk and
+#: waypoint numbers (the defaults allow 20 chunks of 64) and with 4-digit ones
+#: (both limits are open-ended: #418 review Minor 6), and a pick-and-place
 #: carry lift (`place_geometry`)
 _LONG_PREFIXES = {
     "handover": lambda text: _handover("SafetyViolation: " + text),
-    "handover_vla": lambda text: _handover("SafetyViolation: harness refused VLA chunk 12 at waypoint 16 before any "
-                                           "of it moved: " + text),
+    "handover_vla": lambda text: _handover(_vla_refusal(text, 12, 16)),
+    "handover_vla_4_digits": lambda text: _handover(_vla_refusal(text, 1234, 5678)),
     "carry_lift": lambda text: "_PreCarryLiftError: pre-carry lift is unsafe: " + text,
 }
 
@@ -385,19 +402,22 @@ def test_the_failed_line_keeps_the_deciding_numbers_after_the_longest_prefixes(m
         assert ws == box_text("workspace", T, ws_lo, ws_hi, tcp)
         deciding = ws.index(f"{_q(ws_hi)}]") + len(f"{_q(ws_hi)}]")
         assert deciding <= 101, (deciding, ws)
-        # after the longest prefix (137) the words naming the frame can fall
+        # after the VLA prefixes (129-133) the words naming the frame can fall
         # past the 240th character with the longest numbers; `error` keeps them
-        words = "" if prefix == "handover_vla" else _ROTATED_WORDS
+        words = "" if prefix.startswith("handover_vla") else _ROTATED_WORDS
         _assert_keeps_the_base_frame(_LONG_PREFIXES[prefix](ws), [tcp, ws_lo, ws_hi], words)
         _assert_keeps_the_base_frame(_LONG_PREFIXES[prefix](h._keep_out_refusal(lo, hi)), [lo, hi], words)
 
 
 def test_the_longest_prefix_is_the_one_the_test_names():
     """Before a reason too long for the FAILED line the handover-through-VLA
-    prefix is 137 characters (the label cut to its least): with the 101 the
-    deciding numbers take, 238 of the FAILED line's 240."""
+    prefix is 129 characters (the label cut to its least), 133 with 4-digit
+    chunk and waypoint numbers: with the 101 the deciding numbers take, 234 of
+    the FAILED line's 240 (#418 review Minor 6: 3-digit numbers took all 240,
+    4-digit ones cut the box)."""
     long_reason = "TCP " + "x" * 236
-    assert _LONG_PREFIXES["handover_vla"](long_reason).index(long_reason) == 137
+    assert _LONG_PREFIXES["handover_vla"](long_reason).index(long_reason) == 129
+    assert _LONG_PREFIXES["handover_vla_4_digits"](long_reason).index(long_reason) == 133
     assert _LONG_PREFIXES["handover"](long_reason).index(long_reason) == 69
 
 

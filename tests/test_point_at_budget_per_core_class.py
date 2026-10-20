@@ -476,3 +476,18 @@ def test_measuring_the_classes_leaves_no_thread_behind(monkeypatch):
         pointing.Budget(3.0, wall=30.0)
     _join_probe_helpers()
     assert [t.name for t in threading.enumerate() if t.name == "core-speed-probe"] == []
+
+# ── 5. a Python without ctypes (#429 review Minor 5) ────────────────────────
+
+
+def test_a_python_without_ctypes_still_imports_and_knows_no_core(monkeypatch):
+    """`_libc_sched_getcpu` caught OSError / AttributeError / TypeError but not ImportError: on a Python built
+    without `_ctypes`, `cascade.skills.pointing` failed to import. There no core is known (-1: no stretch)."""
+    import sys
+
+    from cascade import core_speed
+
+    monkeypatch.setitem(sys.modules, "ctypes", None)        # `import ctypes` raises ImportError
+    assert core_speed._libc_sched_getcpu() is None
+    monkeypatch.setattr(core_speed, "_SCHED_GETCPU", None)
+    assert core_speed.current_cpu() == -1

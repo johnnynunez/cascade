@@ -228,9 +228,9 @@ class CameraStream:
         render read as first received now). Local frames (one Frame per
         capture) are left untouched, and so is the remembered first receipt:
         an invalid or a local frame in between never makes the next re-send of
-        that capture count as new (#414 review Minor 3; an invalid capture
-        itself carries no stamp, `observed_at`), nor does another clock's
-        capture in between.
+        that capture count as new (#414 review Minor 3; an invalid capture,
+        a malformed `producer_epoch` too, itself carries no stamp,
+        `observed_at`), nor does another clock's capture in between.
         A remote sim host that rebooted while this stream ran starts its clock
         again under a new bridge run (`producer_epoch`, part of the producer
         clock): its captures are first received when they arrive (#425 review

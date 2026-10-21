@@ -16,6 +16,7 @@ import json
 import os
 import shutil
 import signal
+import socket
 import ssl
 import subprocess
 import sys
@@ -407,6 +408,121 @@ def test_tls_listener_round_trip(tmp_path):
             plain.getresponse().read()
     finally:
         s.close()
+
+
+def _tls_files(tmp_path):
+    cert, key = tmp_path / "cert.pem", tmp_path / "key.pem"
+    subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
+                    "-subj", "/CN=localhost", "-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1",
+                    "-keyout", str(key), "-out", str(cert)], check=True, capture_output=True)
+    return cert, key
+
+
+def _tls_server(tmp_path) -> HttpMcp:
+    cert, key = _tls_files(tmp_path)
+    return HttpMcp(tmp_path, extra_args=("--tls-cert", str(cert), "--tls-key", str(key)),
+                   tls=ssl.create_default_context(cafile=str(cert)))
+
+
+@pytest.mark.skipif(shutil.which("openssl") is None, reason="openssl CLI not available")
+def test_a_silent_tls_client_blocks_neither_new_clients_nor_the_stop_channel(tmp_path):
+    """#435 review: the listener did the TLS handshake inside accept(), with no timeout. One TCP
+    client that never sends its ClientHello stalled it: no new client was served, the stop channel
+    included, until that socket closed. Now each handshake runs on its connection's own thread."""
+    s = _tls_server(tmp_path)
+    silent = None
+    try:
+        s.start()
+        silent = socket.create_connection((loopback_host(), s.port))  # TCP only: no ClientHello, ever
+        time.sleep(0.3)
+        stop = s.rpc("tools/call", {"name": "emergency_stop", "arguments": {}}, timeout=5)
+        assert _payload(stop)[0]["stopped"]
+        assert s.rpc("ping", timeout=5)["result"] == {}
+        assert s.rpc("tools/list", timeout=5)["result"]["tools"]
+    finally:
+        if silent is not None:
+            silent.close()
+        s.close()
+
+
+@pytest.mark.skipif(shutil.which("openssl") is None, reason="openssl CLI not available")
+def test_sigterm_with_a_silent_tls_client_connected_still_tears_down(tmp_path):
+    """#435 review: SIGTERM's listener shutdown waited for a stalled handshake: the server exited
+    13 s after the signal, and only because the silent client went away first."""
+    s = _tls_server(tmp_path)
+    silent = None
+    try:
+        s.start()
+        silent = socket.create_connection((loopback_host(), s.port))
+        time.sleep(0.3)
+        t0 = time.monotonic()
+        s.proc.send_signal(signal.SIGTERM)
+        try:
+            rc = s.proc.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            pytest.fail("SIGTERM did not end the server while a silent TLS client stayed connected")
+        took = time.monotonic() - t0
+    finally:
+        if silent is not None:
+            silent.close()
+        s.close()
+    assert rc == 128 + signal.SIGTERM and took < 8, (rc, took)
+    receipt = json.loads((tmp_path / "run" / "teardown.json").read_text())
+    assert receipt["ok"] is True and receipt["complete"] is True, receipt
+
+
+@pytest.mark.skipif(shutil.which("openssl") is None, reason="openssl CLI not available")
+def test_a_tls_handshake_that_never_completes_is_dropped_after_its_bound(tmp_path):
+    """The handshake's own timeout: a silent client holds its connection thread at most that long,
+    then the server closes the socket. A real client is served meanwhile and afterwards."""
+    from http.server import BaseHTTPRequestHandler
+
+    from cascade.apps import mcp_server
+
+    cert, key = _tls_files(tmp_path)
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.load_cert_chain(str(cert), str(key))
+
+    class Ok(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def do_GET(self):  # noqa: N802
+            self.send_response(200)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        def log_message(self, *_a):
+            pass
+
+    httpd = mcp_server._tls_http_server(("127.0.0.1", 0), Ok, ctx, handshake_s=0.5)
+    port = httpd.server_address[1]
+    listener = threading.Thread(target=httpd.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True)
+    listener.start()
+    client = ssl.create_default_context(cafile=str(cert))
+
+    def get():
+        conn = http.client.HTTPSConnection("127.0.0.1", port, timeout=5, context=client)
+        try:
+            conn.request("GET", "/")
+            return conn.getresponse().status
+        finally:
+            conn.close()
+
+    try:
+        silent = socket.create_connection(("127.0.0.1", port))
+        silent.settimeout(10)
+        t0 = time.monotonic()
+        assert get() == 200, "served while the silent client holds its handshake"
+        try:
+            assert silent.recv(1) == b"", "the server closes the silent connection"
+        finally:
+            silent.close()
+        assert 0.4 <= time.monotonic() - t0 < 5
+        assert get() == 200
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        listener.join(5)
 
 
 def test_the_server_logs_its_url_and_writes_the_run_log(server, tmp_path):

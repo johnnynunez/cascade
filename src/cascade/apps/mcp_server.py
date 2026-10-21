@@ -2367,8 +2367,14 @@ def _serve_stdio(server, signals):
             elif server._mobile or signals.signum is not None:
                 server.stop_now()
             reader_halt.set()
-            reader.join()
-            os.close(input_fd)
+            # bounded: it sees reader_halt within 0.05 s unless a frame's
+            # handling blocks; then its fd stays open (no reuse under it)
+            reader.join(TRANSPORT_STOP_S)
+            if reader.is_alive():
+                print(f"[cascade-mcp] WARNING: the stdin reader did not stop within {TRANSPORT_STOP_S:g} s",
+                      file=sys.stderr, flush=True)
+            else:
+                os.close(input_fd)
 
 
 def _admit(server, m: dict, send) -> bool:
@@ -2514,6 +2520,58 @@ def _worker_loop(server, signals, inbox, eof) -> int:
 
 HTTP_MAX_BODY = 131_072      # OpenShell's managed-MCP request-body cap
 HTTP_MIN_TOKEN = 24          # characters of bearer secret
+#: How long an HTTPS connection may take to finish its TLS handshake. It runs
+#: on that connection's own thread, never in the listener's accept(): one
+#: client that connects and never sends its ClientHello used to stall the
+#: listener, so no other client (the stop channel included) was served and
+#: SIGTERM's listener shutdown waited until that socket closed (#435 review).
+HTTP_TLS_HANDSHAKE_S = 10.0
+#: The longest SIGTERM's teardown waits for the listener (or the stdio
+#: reader) to stop before it goes on; past it the thread is named in the log.
+TRANSPORT_STOP_S = 5.0
+
+
+def _tls_http_server(address, handler, ctx, *, handshake_s: float | None = None):
+    """A ThreadingHTTPServer on `address` that serves HTTPS with `ctx`: the
+    listener only accepts; each connection's thread does its own handshake,
+    bounded by `handshake_s` (default HTTP_TLS_HANDSHAKE_S), and a connection
+    that does not finish it in time is closed."""
+    from http.server import ThreadingHTTPServer
+
+    bound = HTTP_TLS_HANDSHAKE_S if handshake_s is None else float(handshake_s)
+
+    class TlsServer(ThreadingHTTPServer):
+        daemon_threads = True
+
+        def finish_request(self, request, client_address):
+            try:
+                request.settimeout(bound)
+                conn = ctx.wrap_socket(request, server_side=True)  # the handshake, on this thread
+            except TimeoutError:
+                print(f"[cascade-mcp] https {client_address[0]}: no TLS handshake within {bound:g} s; "
+                      "connection closed", file=sys.stderr)
+                return
+            except (OSError, ValueError):
+                return  # not TLS, or it went away: as a failed accept() always was
+            try:
+                conn.settimeout(None)  # then exactly as before: no timeout on the request itself
+                super().finish_request(conn, client_address)
+            finally:
+                self.shutdown_request(conn)
+
+    return TlsServer(address, handler)
+
+
+def _stop_listener(httpd, listener) -> None:
+    """`httpd.shutdown()` waits for serve_forever without a bound: ask from
+    a helper thread, wait at most TRANSPORT_STOP_S, then close the socket."""
+    stopper = threading.Thread(target=httpd.shutdown, daemon=True, name="cascade-mcp-http-stop")
+    stopper.start()
+    listener.join(TRANSPORT_STOP_S)
+    if listener.is_alive():
+        print(f"[cascade-mcp] WARNING: the HTTP listener did not stop within {TRANSPORT_STOP_S:g} s; "
+              "closing its socket anyway", file=sys.stderr, flush=True)
+    httpd.server_close()
 
 
 def _http_settings(args) -> dict:
@@ -2729,8 +2787,6 @@ def _serve_http(server, signals, *, host, port, path, token, cert=None, key=None
                     except OSError:
                         pass
 
-        httpd = ThreadingHTTPServer((host, port), Handler)
-        httpd.daemon_threads = True
         scheme = "http"
         if cert:
             import ssl
@@ -2738,8 +2794,11 @@ def _serve_http(server, signals, *, host, port, path, token, cert=None, key=None
             ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
             ctx.minimum_version = ssl.TLSVersion.TLSv1_2
             ctx.load_cert_chain(cert, key)
-            httpd.socket = ctx.wrap_socket(httpd.socket, server_side=True)
+            httpd = _tls_http_server((host, port), Handler, ctx)
             scheme = "https"
+        else:
+            httpd = ThreadingHTTPServer((host, port), Handler)
+            httpd.daemon_threads = True
         bound_port = httpd.server_address[1]
         print(f"[cascade-mcp] cascade MCP server on {scheme}://{host}:{bound_port}{path} "
               f"(log: {run_dir / 'server.log'})", file=sys.stderr, flush=True)
@@ -2758,9 +2817,7 @@ def _serve_http(server, signals, *, host, port, path, token, cert=None, key=None
         with signals.defer():
             server._close_admission()
             server.stop_now()
-            httpd.shutdown()
-            httpd.server_close()
-            listener.join(5)
+            _stop_listener(httpd, listener)
 
 
 if __name__ == "__main__":

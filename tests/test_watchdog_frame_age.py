@@ -772,8 +772,9 @@ def test_the_producer_clock_names_the_bridge_run():
 
 
 #: a `producer_epoch` that is there but is not a run's name (the bridge sends a non-empty uuid hex string)
+#: ("bytes": the run's name, but not a str: #430 review Minor 1, an epoch accepted as `(str, bytes)` passed every row)
 _MALFORMED_EPOCHS = {"empty": "", "int": 7, "list": ["run"], "dict": {"run": 1}, "none": None, "bool": True,
-                     "nan": math.nan, "float": 1.0}
+                     "nan": math.nan, "float": 1.0, "bytes": b"run-1"}
 
 
 @pytest.mark.parametrize("bad", list(_MALFORMED_EPOCHS))

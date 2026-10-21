@@ -589,6 +589,38 @@ def test_the_shipped_search_wait_outlasts_one_search():
     assert pointing.SEARCH_WAIT_S <= 2.0, "a bounded wait: it counts toward FRESH_PLAN_S"
 
 
+def test_a_class_search_that_raises_leaves_the_search_lock_free(monkeypatch):
+    """#430 review Minor 1: a search that fails (here `class_times` raises) must still release `_SEARCH`. Released only
+    on success, the lock stayed held for the life of the process: every later Budget waited SEARCH_WAIT_S for it and
+    planned with no factor at all. The error reaches its caller; the next Budget searches at once and gets its
+    factors."""
+    from cascade import core_speed
+    from cascade.skills import pointing
+
+    monkeypatch.setattr(pointing, "_CLASSES", {})
+    monkeypatch.setattr(pointing, "class_factors", _CLASS_FACTORS)
+    monkeypatch.setattr(pointing, "_SEARCH", threading.Lock())      # this test's own: a leak cannot outlive it
+    searches = []
+
+    def class_times(workload, *, skip=frozenset(), **_):
+        searches.append(skip)
+        if len(searches) == 1:
+            raise RuntimeError("the helper could not start")
+        return core_speed.ClassTimes({(0,): 1e-3, (1,): 2.7e-3}, True)
+
+    monkeypatch.setattr(core_speed, "class_times", class_times)
+    with pytest.raises(RuntimeError, match="the helper could not start"):
+        pointing.Budget(3.0, wall=30.0)
+    assert not pointing._SEARCH.locked(), "a failed search left the class-search lock held"
+    start = time.monotonic()
+    budget = pointing.Budget(3.0, wall=30.0)
+    took = time.monotonic() - start
+    assert len(searches) == 2, "the next Budget searched again at once"
+    assert budget.factors == {0: 1.0, 1: pytest.approx(2.7)}, budget.factors
+    assert took < pointing.SEARCH_WAIT_S, f"the next Budget waited {took:.2f} s for a lock no search held"
+    assert not pointing._SEARCH.locked()
+
+
 # ── 5. a Python without ctypes (#429 review Minor 5) ────────────────────────
 
 

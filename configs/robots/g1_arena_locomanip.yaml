@@ -1,0 +1,53 @@
+# Unitree G1 humanoid loco-manipulation through CASCADE: a learned GR00T policy (served by its own
+# GR00T policy server) executes carry_object inside Isaac Lab-Arena's G1 box pick-and-place scene,
+# behind scripts/arena_locomanip_bridge.py (Arena's own Python environment; CASCADE never imports
+# Arena). CASCADE keeps the humanoid safety gate (every control step) and the independent verifier.
+# docs/HUMANOID_LOCOMANIP.md: start order, protocol, limits and what is not validated.
+#
+# Start the GR00T server and one bridge per port first; build connects to the first idle bridge.
+version: 1
+robot_id: unitree_g1_arena_locomanip
+domains:
+  carry:
+    kind: humanoid_locomanip
+    bridge:
+      host: 127.0.0.1
+      ports: [8765, 8766, 8767]
+      connect_wait_s: 0
+      reply_timeout_s: 60
+    scene:
+      objects: {brown_box: brown box}
+      destinations: {blue_sorting_bin: blue bin}
+    # Built from the tool arguments; for (brown box, blue bin) it is the checkpoint's training
+    # instruction verbatim.
+    instruction_template: "Pick up the {object} from the shelf, and place it into the {destination} on the table located at the right of the shelf."
+    max_steps: 1500          # 30 s at 50 Hz, Arena's episode limit
+    rest_steps: 25           # 0.5 s hold (zero navigation command) before the verdict
+    segment_wall_s: 900
+    safety:
+      max_pelvis_tilt_deg: 30.0           # humanoid fall criterion (docs/HUMANOID_H2.md)
+      min_pelvis_height_m: 0.45           # above ankle level at session start; G1 stands at ~0.7
+      joint_position_tolerance_rad: 0.05  # measured joints beyond the articulation limits
+      max_joint_velocity_fraction: 1.0    # |qd| / articulation velocity limit
+      workspace_xy_m: [[-1.5, -2.6], [1.5, 1.2]]
+      # GR00T commands outside the checkpoint's training-data envelope (dataset_statistics.json:
+      # vx 0..0.4, vy -0.128..0.158, wz -0.4..0.1 m/s, rad/s; base height 0.6..0.75 m), plus margin
+      max_nav_command: [0.45, 0.2, 0.45]
+      base_height_command_m: [0.55, 0.8]
+      command_joint_tolerance_rad: 0.02      # arm and waist targets beyond their articulation range
+      # Finger joints (Dex3, matched by finger_joint_pattern) are position-limited by the
+      # articulation itself: a finger target beyond a joint stop cannot move the finger past the
+      # stop, it only adds drive force pressing the finger into its own stop. So the gate has NO
+      # finger command tolerance: finger targets are clamped onto the joint range (every clamp is
+      # sent to the bridge, applied there and logged per step in gate.jsonl), and fingers are
+      # judged on what they physically do: measured finger positions and velocities go through
+      # joint_position_tolerance_rad and max_joint_velocity_fraction like every other joint, so a
+      # finger that leaves its range or moves too fast still STOPs. Arm/waist targets are never
+      # edited: beyond range + command_joint_tolerance_rad (0.02 rad, the joint margin of CASCADE's
+      # fastening write guard, FasteningLimits.joint_margin_rad; set before any run) is a STOP.
+      finger_joint_pattern: ".*_hand_.*"
+      policy_joint_exclude: [".*_hip_.*", ".*_knee_.*", ".*_ankle_.*"]   # legs: whole-body controller
+    verifier:
+      max_object_speed_m_s: 0.05
+      min_hand_clearance_m: 0.03
+      z_tolerance_m: 0.03

@@ -821,7 +821,7 @@ def test_yes_never_skips_the_supported_prompt_over_a_marker(monkeypatch, capsys,
     arm_hold.record("can0", arm="0", reason="held by the robot server's teardown")
     arm_hold.confirm("holding the arm")
     asked = []
-    monkeypatch.setattr(builtins, "input", lambda prompt="": asked.append(prompt) or answer)
+    monkeypatch.setattr(arm_hold, "_answer_at_terminal", lambda prompt: asked.append(prompt) or answer)
     if answer == "go":
         with pytest.raises(energized):
             mod.main()
@@ -833,6 +833,53 @@ def test_yes_never_skips_the_supported_prompt_over_a_marker(monkeypatch, capsys,
         assert arm_hold.read("can0") is not None
     assert len(asked) == 1, "--yes did not skip the prompt"
     assert "POWERED and HOLDING" in capsys.readouterr().out
+
+
+# The 'supported, type go' prompt follows confirm's and the let-go's rules (#435 review Minor 3): it
+# read input(), so a piped 'go' (`echo go | jog_rebot_mb.py ...`), in an agent's environment too,
+# energized an arm an earlier session left held with nobody saying it was supported.
+
+
+def _no_terminal(prompt):
+    raise arm_hold.NoTerminal("no interactive terminal (stdin and stdout on a terminal)")
+
+
+@pytest.mark.parametrize("how", ["piped", "agent"])
+@pytest.mark.parametrize("script", ["jog_rebot_mb", "sign_check_rebot_mb"])
+def test_the_supported_prompt_takes_no_go_it_did_not_read_at_the_terminal(monkeypatch, capsys, script, how):
+    """`piped`: 'go' on stdin, no terminal. `agent`: an agent's environment, a terminal that would answer
+    'go'. Either way nothing is energized (no mode write, no fault clear, no enable), nobody is asked, the
+    confirmation is kept for a retry and the marker stays."""
+    log = []
+    mod, _opened, _energized = _bringup(monkeypatch, script, log)
+    arm_hold.record("can0", arm="0", reason="held by the robot server's teardown")
+    arm_hold.confirm("holding the arm")
+    asked = []
+    monkeypatch.setattr(builtins, "input", lambda prompt="": "go")  # what a pipe would answer
+    if how == "piped":
+        monkeypatch.setattr(arm_hold, "_answer_at_terminal", _no_terminal)
+    else:
+        monkeypatch.setenv("HERMES_SESSION_ID", "s-1")
+        monkeypatch.setattr(arm_hold, "_answer_at_terminal", lambda prompt: asked.append(prompt) or "go")
+    assert mod.main() == 0
+    assert not {"ensure_mode", "clear_error", "enable_all"} & {e[0] for e in log}, log
+    assert asked == [], "an agent's environment is never asked"
+    assert len(arm_hold.pending_confirmations()) == 1 and arm_hold.read("can0") is not None
+    out = capsys.readouterr().out
+    assert "not asked" in out and "aborted, nothing was energized" in out, out
+
+
+@pytest.mark.parametrize("script", ["jog_rebot_mb", "sign_check_rebot_mb"])
+def test_without_yes_the_supported_prompt_is_answered_at_the_terminal_too(monkeypatch, capsys, script):
+    """No marker and no --yes: the same rules (a piped 'go' energizes nothing); --yes stays the way to
+    skip the prompt over an arm no marker names."""
+    log = []
+    mod, _opened, _energized = _bringup(monkeypatch, script, log, yes=False)
+    monkeypatch.setattr(builtins, "input", lambda prompt="": "go")
+    monkeypatch.setattr(arm_hold, "_answer_at_terminal", _no_terminal)
+    assert mod.main() == 0
+    assert not {"ensure_mode", "clear_error", "enable_all"} & {e[0] for e in log}, log
+    assert "aborted, nothing was energized" in capsys.readouterr().out
 
 
 # ── Minor 5: a connect on a confirmation connects and holds; the next call moves ──────────────────

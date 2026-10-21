@@ -1594,6 +1594,13 @@ TORQUE_OFF_CONFIRMATION = "holding the arm"
 #: torque and holds, the park is skipped and the teardown still finishes with
 #: its receipt (#424 review follow-up 3, Minor 1).
 TEARDOWN_WAIT_S = 10.0
+#: How long the teardown waits for each thread owner (drift monitors, the
+#: watcher, the viewer, every camera stream) to finish its in-flight work.
+#: Generous: a watcher inside a cold CUDA inference (> 5 s) still finishes,
+#: so it never reaches interpreter exit in native code. Past it the owner is
+#: logged and named in the receipt's `pending_threads`, and the teardown
+#: goes on; the hold markers were written before the first of these waits.
+TEARDOWN_JOIN_S = 30.0
 #: The demo CLI's StopSignals while its teardown runs (`main`): a stop signal
 #: deferred during the teardown's wait ends that wait at once.
 _TEARDOWN_SIGNALS = None
@@ -1980,9 +1987,12 @@ def shutdown_runtime(runtime, arm) -> dict:
     is listed in pending_threads). The detector goes last: its threads touch
     neither cameras nor arms, and disconnecting the arms must never wait
     behind a brain request. Each thread owner WAITS for its thread's
-    in-flight work; a bounded join here once let the watcher's first cold
-    CUDA detector inference (> 5 s) outlive shutdown and abort the launcher's
-    runtime check at interpreter exit.
+    in-flight work, at most TEARDOWN_JOIN_S each (30 s: a 5 s bound once let
+    the watcher's first cold CUDA detector inference outlive shutdown and
+    abort the launcher's runtime check at interpreter exit); an owner past it
+    is logged and named in `pending_threads`. The arms that stay powered are
+    decided, announced and their hold markers written right after the park,
+    before the first of these waits (#435 review).
     """
     import copy
     from ..lifecycle import retain_teardown_attempt, teardown_receipt, teardown_step
@@ -2018,23 +2028,38 @@ def shutdown_runtime(runtime, arm) -> dict:
         n = runtime.memory.save_visual(path)
         print(f"[cascade] remembered {n} appearance(s) -> {path}")
 
-    park, held, markers = {}, {}, {}
+    park, held, markers, raws = {}, {}, {}, {}
+
+    def _hold_unparked():
+        # An arm whose park did not bring it to rest and whose disconnect
+        # cuts torque stays powered and holding (#422 review follow-up 2),
+        # and a marker tells every later process so (#424 review I1). Right
+        # after the park, BEFORE any wait for a thread owner: a wait that
+        # hangs, or a SIGKILL during one, never leaves a held arm with no
+        # marker (#435 review).
+        held.update(_arms_to_hold(runtime, arm, park.get("receipt")))
+        raws.update(_arm_raws(runtime, arm))
+        _announce_held(held, raws)
+        markers.update(_record_holds(raws, held))
+        park["held_decided"] = True
 
     def _park():
         # No other thread moves an arm from here on; one still streaming is
         # halted and waited for (bounded), so the park runs alone.
-        _quiesce_for_teardown(runtime)
-        park["receipt"] = _park_arm(runtime)
-        return park["receipt"]
+        try:
+            _quiesce_for_teardown(runtime)
+            park["receipt"] = _park_arm(runtime)
+            return park["receipt"]
+        finally:
+            try:
+                _hold_unparked()
+            except Exception as exc:  # noqa: BLE001 -- the arms stage decides again, and fails there
+                print(f"[cascade] WARNING: teardown: the hold decision after the park failed ({exc}); "
+                      "retried before the disconnect", file=sys.stderr, flush=True)
 
     def _disconnect_arms():
-        # An arm whose park did not bring it to rest and whose disconnect
-        # cuts torque stays powered and holding (#422 review follow-up 2),
-        # and a marker tells every later process so (#424 review I1).
-        held.update(_arms_to_hold(runtime, arm, park.get("receipt")))
-        raws = _arm_raws(runtime, arm)
-        _announce_held(held, raws)
-        markers.update(_record_holds(raws, held))
+        if not park.get("held_decided"):
+            _hold_unparked()  # raises: the arms stage fails and nothing is disconnected
         # read BEFORE the disconnect: a LazyArm drops its backend there
         cutting = {name: _hold_key(raw) for name, raw in raws.items()
                    if name not in held and getattr(raw, "disconnect_cuts_torque", False) is True
@@ -2061,7 +2086,7 @@ def shutdown_runtime(runtime, arm) -> dict:
         # receipt keeps exactly its stages
         *((("episodic", _save_episodic),) if getattr(runtime, "episodic_path", None) is not None
           else ()),
-        *_owner_stages(runtime, arms=_disconnect_arms),
+        *_owner_stages(runtime, arms=_disconnect_arms, timeout_s=TEARDOWN_JOIN_S),
     ):
         stages.append(teardown_step(name, step))
 
@@ -2081,14 +2106,17 @@ def _still_running(owner) -> bool:
     return isinstance(thread, threading.Thread) and thread.is_alive()
 
 
-def _owner_stages(runtime, *, arms=None, live_view=None, timeout_s: float | None = None) -> list:
+def _owner_stages(runtime, *, arms=None, live_view=None, timeout_s: float | None = None,
+                  failed_build: bool = False) -> list:
     """The thread/device owners' stages of a teardown, as (name, step) pairs.
 
     Shared by shutdown_runtime (after park/beliefs/episodic, `arms` = every
-    arm's disconnect, no bound) and a failed build's _abandon_build (`arms` =
-    only passive ROS feedback attachments, `live_view` = the build's own
-    LiveViewController, closed instead of `runtime.stream_server`, and the
-    owners' joins bounded by `timeout_s`).
+    arm's disconnect, the owners' joins bounded by TEARDOWN_JOIN_S) and a
+    failed build's _abandon_build (`arms` = only passive ROS feedback
+    attachments, `live_view` = the build's own LiveViewController, closed
+    instead of `runtime.stream_server`, the joins bounded by
+    _FAILED_BUILD_JOIN_S, `failed_build`). `timeout_s=None` waits without a
+    bound.
     Order: drift monitors (they read the watcher's streams and the arm's
     joints) -> watcher (the consumer of the camera streams) -> dashboard ->
     viewer -> camera streams (producers) -> arms -> detector. Stages for the
@@ -2123,12 +2151,13 @@ def _owner_stages(runtime, *, arms=None, live_view=None, timeout_s: float | None
     detector = getattr(runtime, "detector", None)
 
     def _close_detector():
-        # A failed build's BOUNDED teardown can get here with the watcher
-        # still running (its bound expired inside a detector call), and
+        # A failed build's teardown can get here with the watcher still
+        # running (its bound expired inside a detector call), and
         # LockedDetector.close() would wait for that call under the detector
-        # lock: leave it open. shutdown_runtime has no bound and closes the
-        # detector whatever the watcher stage reported, as it always did.
-        if timeout_s is not None and _still_running(getattr(runtime, "watcher", None)):
+        # lock: leave it open. shutdown_runtime closes the detector whatever
+        # the watcher stage reported, as it always did (the one closable
+        # detector, the brain detector, is concurrent-safe: no lock wait).
+        if failed_build and _still_running(getattr(runtime, "watcher", None)):
             raise RuntimeError("the watcher is still inside the detector; detector left open")
         # Logged here, recorded in the receipt by teardown_step; never raised.
         try:
@@ -2161,11 +2190,11 @@ def _pending_threads(threads, *, after: str) -> list:
     for label, thread in threads:
         if thread.is_alive():
             pending.append({"owner": label, "thread": thread.name})
-            # The owners above wait without a bound, except the brain
-            # detector (bounded joins of its refreshes and SAM warm-up) and a
-            # failed build's teardown: this fires when such a bound expired,
-            # or an owner regressed to one. Name it: the alternative is an
-            # unexplained abort at interpreter exit.
+            # Every owner's wait is bounded (TEARDOWN_JOIN_S, a failed
+            # build's _FAILED_BUILD_JOIN_S, the brain detector's own joins of
+            # its refreshes and SAM warm-up): this fires when such a bound
+            # expired. Name it: the alternative is an unexplained abort at
+            # interpreter exit.
             print(f"[cascade] WARNING: {label} thread {thread.name!r} is still running "
                   f"after {after}; native code may abort the process at exit",
                   file=sys.stderr)
@@ -2217,7 +2246,7 @@ def _abandon_build(started) -> None:
             started.occupancy.close_client()
 
         steps = _owner_stages(started, arms=_detach_feedback_arms if feedback else None,
-                              live_view=live_view, timeout_s=_FAILED_BUILD_JOIN_S)
+                              live_view=live_view, timeout_s=_FAILED_BUILD_JOIN_S, failed_build=True)
         if started.occupancy is not None:
             steps.append(("occupancy_client", _close_occupancy_client))
         stages = [teardown_step(name, step) for name, step in steps]
@@ -2741,6 +2770,9 @@ def main(argv: list[str] | None = None) -> int:
 
     runtime = arm = None
     status = 0
+    # an arm connected on the operator's confirmation waits for their 'go':
+    # until they typed it, any exit leaves it powered and holding
+    let_go_pending = False
     with StopSignals() as signals:
         try:
             # Construction is passive (no command dispatch). Publish ownership
@@ -2751,10 +2783,12 @@ def main(argv: list[str] | None = None) -> int:
                     runtime.arm.stop()
                 # before any signal can start a teardown park
                 held = [] if mobile or composed else _hold_confirmed_connects(runtime)
+                let_go_pending = bool(held)
             signals.checkpoint()
             if held and not _let_go_or_hold(held):
                 status = STOPPED_HOLDING
             else:
+                let_go_pending = False
                 status = _run_demo(args, cfg, runtime, mobile)
         except SignalRequest:
             # Interrupted with-blocks have released their locks. Invalidate
@@ -2781,6 +2815,10 @@ def main(argv: list[str] | None = None) -> int:
                 if runtime is not None:
                     shutdown_runtime(runtime, arm)
         if signals.signum is not None:
+            if let_go_pending and signals.signum == signal.SIGINT:
+                # Ctrl+C at the 'go' prompt: nothing ran and the arm stays
+                # powered and holding, as after a 'no' (#435 review Minor 2)
+                return STOPPED_HOLDING
             return 0 if not mobile and signals.signum == signal.SIGINT else 128 + signals.signum
     return status
 

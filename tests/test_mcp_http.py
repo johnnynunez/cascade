@@ -531,9 +531,11 @@ def test_a_tls_handshake_that_never_completes_is_dropped_after_its_bound(tmp_pat
     listener.start()
     client = ssl.create_default_context(cafile=str(cert))
 
-    def get():
+    def get(pause_s=0.0):
         conn = http.client.HTTPSConnection("127.0.0.1", port, timeout=5, context=client)
         try:
+            conn.connect()  # the handshake
+            time.sleep(pause_s)  # then a request slower than the handshake's bound: no timeout applies
             conn.request("GET", "/")
             return conn.getresponse().status
         finally:
@@ -550,6 +552,7 @@ def test_a_tls_handshake_that_never_completes_is_dropped_after_its_bound(tmp_pat
             silent.close()
         assert 0.4 <= time.monotonic() - t0 < 5
         assert get() == 200
+        assert get(pause_s=1.0) == 200, "the handshake's bound must not apply to the request"
     finally:
         httpd.shutdown()
         httpd.server_close()

@@ -15,6 +15,12 @@ from .arm_base import ArmBase
 
 
 class LazyArm(ArmBase):
+    #: What a caller may still reach on the backend while a confirmed connect
+    #: holds (`holding_on_confirmation`): reads and stops. Every other
+    #: callable is a command (the jaw included) and refuses.
+    PASSES_WHILE_HOLDING = frozenset({"read_positions_for_monitor", "contact_joint_reader", "body_mask_q",
+                                      "body_mask_state", "hard_estop"})
+
     def __init__(self, factory, n_joints: int = 6, profile_type: str | None = None,
                  on_materialize=None, hold_key: str | None = None):
         self._factory = factory
@@ -34,6 +40,14 @@ class LazyArm(ArmBase):
         #: on a standby arm without materializing it.
         self._hold_key = hold_key
         self._arm: ArmBase | None = None
+        #: A connect that went ahead on an operator's confirmation (a held or
+        #: raised reBot, `control/arm_hold.py`) only connects and HOLDS, with
+        #: their hands on the arm: None, or "untold" from that connect until the
+        #: caller has answered 'let go of the arm and retry' (`told_to_let_go`),
+        #: then "told" until its next motion call starts (`next_call`) or the
+        #: operator says so at a terminal (`let_go`). Meanwhile every command,
+        #: arm and jaw, refuses, whatever swallowed the connect's own answer.
+        self._holding: str | None = None
         self._lock = threading.Lock()
 
     def _ensure(self) -> ArmBase:
@@ -42,12 +56,75 @@ class LazyArm(ArmBase):
             if self._arm is None:
                 arm = self._factory()
                 arm.connect()
+                if getattr(arm, "connected_on_confirmation", False) is True:
+                    self._holding = "untold"  # before any other thread can reach the arm
                 self._arm = arm
                 woke = True
             arm = self._arm
-        if woke and self._on_materialize is not None:
-            self._on_materialize()
+        if woke:
+            self._woke(arm)
         return arm
+
+    def _command(self) -> ArmBase:
+        """The backend for a COMMAND: refused while a confirmed connect holds."""
+        arm = self._ensure()
+        if self._holding is not None:
+            from .arm_hold import connected_and_holding
+
+            raise connected_and_holding(self.hold_key)
+        return arm
+
+    @property
+    def holding_on_confirmation(self) -> bool:
+        """A connect made on an operator's confirmation holds the arm: every
+        command refuses (never materializes)."""
+        return self._holding is not None
+
+    @property
+    def holding_untold(self) -> bool:
+        """...and the caller has not answered 'let go of the arm and retry' yet."""
+        return self._holding == "untold"
+
+    def told_to_let_go(self) -> None:
+        """The caller answered 'let go of the arm and retry'."""
+        with self._lock:
+            if self._holding == "untold":
+                self._holding = "told"
+
+    def next_call(self) -> None:
+        """A new motion call starts: after the let-go answer, the operator has
+        let go, so commands go through again. Before it, nothing changes."""
+        with self._lock:
+            if self._holding == "told":
+                self._holding = None
+
+    def let_go(self) -> None:
+        """The operator let go and said so at the terminal (a command-line
+        tool's 'go'): commands go through again."""
+        with self._lock:
+            self._holding = None
+
+    def _woke(self, arm) -> None:
+        """After the materializing connect: the hook, then -- when that
+        connect went ahead on an operator's confirmation (a held or raised
+        reBot, `control/arm_hold.py`) -- end the call that woke it: the arm
+        is connected and HOLDS with the operator's hands on it, so the motion
+        is not sent, whatever the hook said. Every later command refuses too
+        until the caller has said so and its next call starts
+        (`holding_on_confirmation`): a best-effort read that swallows this
+        answer never lets the same call move the arm."""
+        hook_error = None
+        if self._on_materialize is not None:
+            try:
+                self._on_materialize()
+            except BaseException as exc:  # noqa: BLE001 -- re-raised below unless the hold answers first
+                hook_error = exc
+        if self._holding is not None:
+            from .arm_hold import connected_and_holding
+
+            raise connected_and_holding(self.hold_key) from hook_error
+        if hook_error is not None:
+            raise hook_error
 
     @property
     def connected(self) -> bool:
@@ -113,15 +190,16 @@ class LazyArm(ArmBase):
             if self._arm is not None:
                 self._arm.disconnect()
                 self._arm = None
+            self._holding = None  # released: the next connect starts over
 
     def get_state(self, **kwargs):
         return self._ensure().get_state(**kwargs)
 
     def send_joint_target(self, q) -> None:
-        self._ensure().send_joint_target(q)
+        self._command().send_joint_target(q)
 
     def set_gripper(self, pos: float, effort: float = 1.0) -> None:
-        self._ensure().set_gripper(pos, effort)
+        self._command().set_gripper(pos, effort)
 
     def stop(self) -> None:
         # An e-stop on a never-materialized arm must NOT power the bus up.
@@ -130,16 +208,16 @@ class LazyArm(ArmBase):
 
     def stream_to(self, *args, **kwargs) -> bool:
         # Delegate wholesale so backend overrides (settle_tol, pacing) apply.
-        return self._ensure().stream_to(*args, **kwargs)
+        return self._command().stream_to(*args, **kwargs)
 
     def stream_path(self, *args, **kwargs) -> bool:
-        return self._ensure().stream_path(*args, **kwargs)
+        return self._command().stream_path(*args, **kwargs)
 
     def wait_settled(self, *args, **kwargs) -> bool:
-        return self._ensure().wait_settled(*args, **kwargs)
+        return self._command().wait_settled(*args, **kwargs)
 
     def stream_profile(self, *args, **kwargs) -> bool:
-        return self._ensure().stream_profile(*args, **kwargs)
+        return self._command().stream_profile(*args, **kwargs)
 
     def resume(self) -> None:
         """Clear a soft stop on the underlying arm, whatever its idiom."""
@@ -156,4 +234,13 @@ class LazyArm(ArmBase):
         # intent when invoking hardware-specific ops.
         if name.startswith("_"):  # never materialize on private/dunder probes
             raise AttributeError(name)
-        return getattr(self._ensure(), name)
+        value = getattr(self._ensure(), name)
+        if self._holding is None or not callable(value) or name in self.PASSES_WHILE_HOLDING:
+            return value
+
+        def refused(*_args, **_kwargs):
+            # a command (a jaw close, an open, ...) while a confirmed connect holds
+            self._command()
+            return value(*_args, **_kwargs)
+
+        return refused

@@ -257,16 +257,18 @@ def move_to_rest(rt, *, keep_torque=False) -> dict:
         # Not standby: an earlier session's teardown left this arm POWERED
         # and HOLDING (control/arm_hold.py), and its connect would cut the
         # torque. Nothing is sent and nothing is promised (#426 review
-        # Important 2: this answered "safe to power off").
+        # Important 2: this answered "safe to power off"). The operator ask
+        # comes first: next_action quotes only the first 240 characters.
+        from ..control.arm_hold import ASK_THE_OPERATOR
+
         return {
             "ok": False, "at": "held", "moved": False, "torque": "on", "safe_to_power_off": False,
             "arm_state": "held", "refused": "arm_held", "rest_q": _rounded(park) if park is not None else None,
-            "error": (f"an earlier session left this arm POWERED and HOLDING ({held.get('reason')}): "
-                      "nothing was sent, the arm was not moved and its pose was not read. It is NOT safe "
-                      "to switch the robot off: without torque a raised arm falls. Do not tell the user it "
-                      "is safe to power off. Ask the operator to support the arm (they then switch its "
-                      "power off, or confirm at the robot's own terminal so the next motion connects it); "
-                      "an agent cannot confirm."),
+            "error": (f"{ASK_THE_OPERATOR} An earlier session left this arm POWERED and HOLDING "
+                      f"({held.get('reason')}): nothing was sent, the arm was not moved and its pose was not "
+                      "read. It is NOT safe to switch the robot off: without torque a raised arm falls. Do not "
+                      "tell the user it is safe to power off: the operator supports the arm, then switches its "
+                      "power off or confirms at the robot's own terminal so the next motion connects it."),
         }
 
     if park is None:

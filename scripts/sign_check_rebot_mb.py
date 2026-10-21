@@ -70,9 +70,11 @@ from jog_rebot_mb import (  # noqa: E402  (path set above)
     MECH_POS,
     _joint_limits,
     _motor_models,
+    _claim_hold,
     _profile_gains,
     _read,
     _sdk_motors,
+    _supported,
     _urdf_local_limits,
 )
 
@@ -202,13 +204,25 @@ def main() -> int:
               "so guessing one model for all seven mis-scales them. Refusing.")
         return 2
 
+    # An arm an earlier session left POWERED and HOLDING: refused before the
+    # bus opens unless the operator confirmed (cascade.control.arm_hold).
+    refused, permit, held = _claim_hold(args.channel, dry_run=args.dry_run, script="sign_check_rebot_mb.py")
+    if refused is not None:
+        return refused
+    claim = {"permit": permit}
+
     from motorbridge import Controller, Mode
 
-    ctrl = Controller(channel=args.channel)
-    motors = {
-        mid: ctrl.add_robstride_motor(motor_id=mid, feedback_id=HOST_ID, model=models[mid])
-        for mid in (*ARM_IDS, GRIPPER_ID)
-    }
+    try:
+        ctrl = Controller(channel=args.channel)
+        motors = {
+            mid: ctrl.add_robstride_motor(motor_id=mid, feedback_id=HOST_ID, model=models[mid])
+            for mid in (*ARM_IDS, GRIPPER_ID)
+        }
+    except BaseException:
+        if permit is not None:
+            permit.failed()  # nothing was cut: the confirmation stays for a retry
+        raise
     q_hold: dict[int, float] = {}
     gains: dict[int, tuple[float, float]] = {}
     #: set before the enable: from then on the motors may hold the arm
@@ -256,13 +270,11 @@ def main() -> int:
             print("\n[dry-run] nothing was enabled or commanded.")
             return 0
 
-        if not args.yes:
-            print("\nThe arm will be ENERGIZED. Each joint moves at most "
-                  f"{args.delta:.3f} rad ({np.degrees(args.delta):.1f} deg) and "
-                  "returns. Confirm it is supported and clear, then type 'go':")
-            if input("  > ").strip().lower() != "go":
-                print("[+] aborted, nothing was energized.")
-                return 0
+        if not _supported(held, yes=args.yes,
+                          intro=("\nThe arm will be ENERGIZED. Each joint moves at most "
+                                 f"{args.delta:.3f} rad ({np.degrees(args.delta):.1f} deg) and returns.")):
+            print("[+] aborted, nothing was energized.")
+            return 0
 
         for m in motors.values():
             m.ensure_mode(Mode.MIT)
@@ -271,6 +283,9 @@ def main() -> int:
         from cascade.control.robstride import clear_motor_faults
 
         clear_motor_faults(sorted(motors.items()))
+        if claim["permit"] is not None:  # its torque was cut on the operator's word: used
+            claim["permit"].connected()
+            claim["permit"] = None
         _hold(motors, q_hold, gains)
         energized["on"] = True
         ctrl.enable_all()
@@ -325,6 +340,8 @@ def main() -> int:
                       "SUPPORT THE ARM.")
         return 130
     finally:
+        if claim["permit"] is not None:  # never got to the torque cut: kept for a retry
+            claim["permit"].failed()
         try:
             ctrl.close_bus()
         finally:

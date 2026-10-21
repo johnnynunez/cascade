@@ -173,7 +173,7 @@ def test_the_startup_check_over_a_hold_says_so_without_a_traceback(monkeypatch, 
         raise arm_hold.ArmHeldError("the arm on can0 is not folded at rest (test)")
 
     mod = _check_script()
-    monkeypatch.setattr(mod, "read_rest_pose", lambda: [0.0] * 6)
+    monkeypatch.setattr(mod, "read_rest_pose", lambda: ([0.0] * 6, [0.0] * 6))
     monkeypatch.setattr(rs, "RebotRSArm", lambda cfg: SimpleNamespace(connect=refuse, hold_key="can0"))
     assert mod.main(["--yes", "--reference-only"]) == 2
     assert "the arm was NOT connected: the arm on can0 is not folded at rest" in capsys.readouterr().out
@@ -202,7 +202,7 @@ def test_the_startup_checks_hold_after_connecting_is_remembered(monkeypatch, cap
     arm = SimpleNamespace(connect=lambda: calls.append("connect"), stop=lambda: calls.append("stop"),
                           disconnect=lambda: calls.append("disconnect"), hold_key="can0")
     mod = _check_script()
-    monkeypatch.setattr(mod, "read_rest_pose", lambda: [0.0] * 6)
+    monkeypatch.setattr(mod, "read_rest_pose", lambda: ([0.0] * 6, [0.0] * 6))
     monkeypatch.setattr(mod, "run", lambda arm, park, **k: 2)
     monkeypatch.setattr(rs, "RebotRSArm", lambda cfg: arm)
     assert mod.main(["--yes", "--reference-only"]) == 2
@@ -250,7 +250,7 @@ def test_a_raised_rebot_with_no_marker_is_refused_on_parameter_reads_alone(monke
     kinds = [e[0] for e in log]
     assert _dropped(log) == [] and not {"mode_mit", "ensure_mode", "enable", "enable_all"} & set(kinds), log
     assert set(kinds) <= {"connect", "param_read", "close_bus", "close"}, log
-    assert kinds.count("param_read") == 6 and kinds[-2:] == ["close_bus", "close"], log
+    assert kinds.count("param_read") == 12 and kinds[-2:] == ["close_bus", "close"], log  # each joint twice
     assert "arm_hold.py" not in str(err.value) and "holding the arm" not in str(err.value)
     why = {"raised": "rad from park_q", "just_out": "rad from park_q", "j3_unread": "joint(s) [3] did not answer",
            "j1_nan": "joint(s) [1] gave an implausible reading"}
@@ -268,7 +268,7 @@ def test_a_rebot_folded_at_rest_connects_as_before_after_reading_it(monkeypatch,
     make().connect()
     kinds = [e[0] for e in log]
     mode = kinds.index("mode_mit" if backend == "rebot_rs" else "ensure_mode")
-    assert kinds[:mode].count("param_read") == 6, "the rest is read before the mode write"
+    assert kinds[:mode].count("param_read") == 12, "the rest is read (twice) before the mode write"
     assert kinds.count("clear_error") == 7 and "close_bus" not in kinds
 
 
@@ -439,22 +439,40 @@ def _clean_env(**extra):
 #: fork in the test process itself: pytest runs threads).
 _IN_A_TERMINAL = ("import fcntl, os, sys, termios; os.setsid(); fcntl.ioctl(1, termios.TIOCSCTTY, 0); "
                   "os.execv(sys.executable, [sys.executable] + sys.argv[1:])")
+#: `arm_hold confirm` with a stub sudo (`arm_hold.SUDO`, set in the child): never the host's real sudo.
+#: argv: src, stub, args...
+_LAUNCH = ("import sys; sys.path.insert(0, sys.argv[1]); from cascade.control import arm_hold; "
+           "arm_hold.SUDO = sys.argv[2]; sys.exit(arm_hold.main(sys.argv[3:]))")
+_PASSWORD = "operator-pw"
+
+
+def _stub_sudo(where: Path) -> Path:
+    """A password-protected stand-in for sudo: `-n` fails; otherwise it asks at the terminal."""
+    stub = where / "stub-sudo"
+    stub.write_text("#!/bin/sh\ncase \" $* \" in *\" -n \"*) exit 1;; esac\n"
+                    "printf '[sudo stub] password: ' > /dev/tty\nIFS= read -r pw < /dev/tty || exit 1\n"
+                    f"[ \"$pw\" = '{_PASSWORD}' ] && exit 0\nexit 1\n")
+    stub.chmod(0o755)
+    return stub
 
 
 def _confirm_in_a_terminal(env, typed: str | None, *args, timeout_s=60.0, piped: str | None = None):
-    """`scripts/arm_hold.py confirm` with a pseudo-terminal as its controlling terminal (and stdin,
-    unless `piped` text is its stdin instead); types `typed` at its prompt. (exit code, output)."""
+    """`arm_hold confirm` (with a stub sudo whose password it types) on a pseudo-terminal as its
+    controlling terminal (and stdin, unless `piped` text is its stdin instead); types `typed` at its
+    phrase prompt. (exit code, output)."""
     import pty
+    import tempfile
 
+    stub = _stub_sudo(Path(tempfile.mkdtemp(dir=os.environ.get("TMPDIR"))))
     master, slave = pty.openpty()
-    proc = subprocess.Popen([sys.executable, "-c", _IN_A_TERMINAL, str(REPO / "scripts" / "arm_hold.py"),
+    proc = subprocess.Popen([sys.executable, "-c", _IN_A_TERMINAL, "-c", _LAUNCH, str(REPO / "src"), str(stub),
                              "confirm", *args], stdin=slave if piped is None else subprocess.PIPE, stdout=slave,
                             stderr=slave, env=env, close_fds=True)
     os.close(slave)
     if piped is not None:
         proc.stdin.write(piped.encode())
         proc.stdin.close()
-    out, sent, deadline = b"", False, time.monotonic() + timeout_s
+    out, sent, password, deadline = b"", False, False, time.monotonic() + timeout_s
     try:
         while time.monotonic() < deadline:
             ready, _, _ = select.select([master], [], [], 0.1)
@@ -466,6 +484,9 @@ def _confirm_in_a_terminal(env, typed: str | None, *args, timeout_s=60.0, piped:
                 if not chunk:
                     break
                 out += chunk
+                if not password and b"[sudo stub] password" in out:
+                    os.write(master, _PASSWORD.encode() + b"\n")
+                    password = True
                 if typed is not None and not sent and b"Type 'holding the arm'" in out:
                     os.write(master, typed.encode() + b"\n")
                     sent = True
@@ -502,7 +523,8 @@ def test_confirm_refuses_a_piped_stdin_even_with_a_terminal_to_type_on():
                                     "OPENCLAW_GATEWAY_TOKEN"])
 def test_confirm_refuses_in_an_agents_environment_even_at_a_terminal(marker):
     code, out = _confirm_in_a_terminal(_clean_env(**{marker: "1"}), "holding the arm")
-    assert code == 2 and f"REFUSED: {marker} is set" in out and "agent" in out, out
+    # the refusal names no variable to unset (#426 fix-round re-review, Important 1)
+    assert code == 2 and "REFUSED" in out and "agent" in out and marker not in out, out
     assert arm_hold.pending_confirmations() == []
 
 
@@ -510,7 +532,8 @@ def test_confirm_refuses_without_a_terminal_and_never_takes_the_phrase_as_an_arg
     with pytest.raises(SystemExit):  # the phrase is typed, never passed
         arm_hold.main(["confirm", "holding the arm"])
     assert arm_hold.main(["confirm"]) == 2  # pytest's stdin is no terminal
-    run = subprocess.run([sys.executable, str(REPO / "scripts" / "arm_hold.py"), "confirm"], cwd=tmp_path,
+    run = subprocess.run([sys.executable, "-c", _LAUNCH, str(REPO / "src"), str(_stub_sudo(tmp_path)), "confirm"],
+                         cwd=tmp_path,
                          input="holding the arm\n", capture_output=True, text=True, timeout=60,
                          env=_clean_env(), start_new_session=True)  # piped, no controlling terminal
     assert run.returncode == 2 and "REFUSED" in run.stderr, run

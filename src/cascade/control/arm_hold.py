@@ -19,24 +19,44 @@ with the motors enabled. Every process reads it:
   THAT MOMENT, at the robot's own terminal (`scripts/arm_hold.py confirm`, valid `CONFIRM_TTL_S`):
   they support the arm. The confirmation is used, and the marker cleared, only when that connect
   succeeds; a connect that fails (the bus is down) keeps both, so a retry within the window may use
-  the same confirmation;
+  the same confirmation. A connect that went ahead on a confirmation only connects and HOLDS: the
+  motion that triggered it is not sent (`ConnectedAndHolding`, raised by the LazyArm, which then
+  refuses every command, arm and jaw, until the agent was answered 'let go of the arm and retry'
+  and its next motion call starts; the CLIs and the startup check ask the operator to let go and
+  type 'go'), and the next call moves;
 - with no marker, the same connect still measures the arm first, with parameter reads only (no frame
   that can change a motor's torque), before its mode write and fault clear: an arm that is not folded
   at rest may be held by motors an earlier process left ENABLED with no marker (a killed process, an
   older version, a bring-up script), so it is refused like a marker. The RobStride protocol has no
   read that reports whether a motor is enabled (its mode bits come only in status frames, which a
   motor sends in answer to a control frame; motorbridge's `request_feedback` is a no-op for
-  RobStride), so the measured pose is the evidence: a disabled raised arm falls to its rest;
+  RobStride), so the measured pose is the evidence: a disabled raised arm falls to its rest. Every
+  joint is read twice and the two reads must agree (`READ_AGREE_RAD`): one plausible glitch never
+  passes for the rest. "Folded" is within the rig's `rest_check_tol_rad` (its arm profile; default
+  and ceiling `REST_TOL_RAD`), tightened from the readings every check logs (`log_rest_reading`,
+  `scripts/rest_tolerance_report.py`);
 - the startup check (`scripts/check_rebot_gripper.py`, run by `~/cascade-demo.sh up`) reads the arm
-  with no motor enabled and clears the marker when the arm rests folded at park_q
-  (`clear_if_at_rest`): the connect's STOP frame then drops nothing;
+  (twice) with no motor enabled and clears the marker only when every joint rests within
+  `MARKER_CLEAR_TOL_RAD` of park_q, the runtime's own torque-release tolerance (`clear_if_at_rest`):
+  the connect's STOP frame then drops nothing. Farther off (the runtime may have refused to release
+  it there), the marker stays;
 - a teardown that parks the arm and cuts its torque, or cuts it on a fresh confirmation, clears it;
 - the dashboard /state, MCP `world_state` and `move_to_rest` report it (`arm_held`; `arm_connected`
   true: the arm is powered, never "standby"; never `safe_to_power_off`).
 
 Only the operator confirms. No agent-facing text (a tool error, world_state, /state) names the
 command, and `confirm` reads the phrase from the controlling terminal (/dev/tty) of an interactive
-session, refusing without one or in an agent's or the robot server's environment (`AGENT_ENV`).
+session, after the operator's own sudo PASSWORD (`sudo -k -v`: cached credentials ignored; a sudo
+that needs no password, NOPASSWD, is refused). It refuses without a terminal or in an agent's or the
+robot server's environment (`AGENT_ENV`, never named in the refusal).
+
+The limit of all this: the markers and confirmations are files of the robot's user. Any process
+running as that user can delete a marker or write a confirmation file directly; the checks above
+stop accidents and an agent that only uses the commands it is given. The boundary against an agent
+is the OpenShell sandbox, where the booth agent has no host shell. The operator's sudo password is
+the one factor an agent lacks: never give it to Hermes or any agent on a robot host (no
+`SUDO_PASSWORD` in `~/.hermes/.env` or any agent's environment; Hermes offers to store one when a
+sudo fails headless). With it, an agent's shell passes `sudo -k -v` and can confirm.
 
 An SO-101's connect writes no torque-off (`FeetechArm.connect`): it is never refused, but its hold is
 reported until a parked torque-off clears it.
@@ -44,7 +64,7 @@ reported until a parked torque-off clears it.
 Command line (the operator, in a terminal on the robot host, any working directory):
 
     python scripts/arm_hold.py list      # exit 0: nothing held; 3: an arm is held, or it cannot tell
-    python scripts/arm_hold.py confirm [--arm can0]   # interactive: type the phrase at the prompt
+    python scripts/arm_hold.py confirm [--arm can0]   # interactive: your sudo password, then the phrase
     python scripts/arm_hold.py revoke    # drop every pending confirmation
 """
 
@@ -68,9 +88,36 @@ CONFIRMATION = "holding the arm"
 #: one connect (or one teardown cut): it means "I am supporting the arm NOW",
 #: never "for this session".
 CONFIRM_TTL_S = 120.0
-#: How far (rad, every arm joint) from park_q a reBot connect still counts
-#: the arm folded at rest; the startup check and the arm-check use the same.
+#: How far (rad, every arm joint) from park_q a reBot connect with NO marker
+#: still counts the arm folded at rest, unless the rig's arm profile sets a
+#: tighter `rest_check_tol_rad` (`rest_tolerance`): the default and the
+#: ceiling. The arm-check's start pose uses the same.
 REST_TOL_RAD = 0.12
+#: The arm profile key of a rig's own no-marker tolerance (rad, <= REST_TOL_RAD).
+REST_TOL_KEY = "rest_check_tol_rad"
+#: How far from park_q the startup check still clears a hold marker: the
+#: runtime's own torque-release tolerance (`skills.rest_pose.REST_TOL_RAD`).
+#: An arm the runtime refused to release farther off may still be held.
+MARKER_CLEAR_TOL_RAD = 0.05
+#: A rest check reads every joint twice; the two reads must agree this
+#: closely (rad), or one of them is a glitch and the arm is not measured.
+READ_AGREE_RAD = 0.02
+#: Every rest check appends its readings here (JSON lines) for tuning the
+#: rig's tolerance (`scripts/rest_tolerance_report.py`); the env names the file.
+REST_LOG_ENV = "CASCADE_REST_LOG"
+#: Past this size the log moves to `<name>.1` (the one older file kept).
+REST_LOG_MAX_BYTES = 256 * 1024
+#: The operator's sudo, by absolute path (never looked up on PATH, where a
+#: stand-in could come first). `confirm` needs its PASSWORD (`sudo -k -v`).
+SUDO = "/usr/bin/sudo"
+SUDO_PROMPT = "[cascade] your own sudo password (never give it to an agent): "
+#: What the confirm dialog says first, and `confirm --help`: the sudo password
+#: is the one factor an agent lacks (#431 re-review Minor 2).
+NEVER_TO_AN_AGENT = ("never give it to Hermes or any agent on this host (no SUDO_PASSWORD in ~/.hermes/.env or "
+                     "any agent's environment): with it, an agent can confirm")
+CONFIRM_HELP = (f"you are supporting the arm: the next connect (or a teardown's torque cut) may go ahead, once, "
+                f"within {CONFIRM_TTL_S:.0f} s. Interactive: your own sudo password (a password-protected sudo; "
+                f"{NEVER_TO_AN_AGENT}), then you type the phrase at the prompt")
 #: `list`'s exit status when an arm is held, or when it cannot tell.
 LIST_HELD_RC = 3
 #: The marker's bus key for each torque-cutting backend: (config key, the
@@ -437,51 +484,137 @@ def confirm_command(key: str | None = None) -> str:
     return f"{head} confirm" + (f" --arm {key}" if key else "")
 
 
-#: What every refusal asks for, agent-facing (a tool error): no command.
-ASK_THE_OPERATOR = ("Do not retry on your own: ask the operator to support the arm (or lower it to rest) "
-                    "and confirm at the robot's own terminal, then retry; an agent cannot confirm.")
+#: What a hold refusal asks for, agent-facing (a tool error): no command. It
+#: comes FIRST in every refusal: next_action quotes only the first 240
+#: characters of the error (`skills.runtime._FAILED_ERROR_CHARS`).
+ASK_THE_OPERATOR = ("Do not retry on your own: ask the operator to support the arm and confirm at the robot's own "
+                    "terminal, then retry; an agent cannot confirm.")
+#: The same for an arm measured off its rest with no marker: folding it
+#: (power off, by hand) is enough, with no confirmation.
+ASK_LOWER_OR_CONFIRM = ("Do not retry on your own: ask the operator to lower the arm to rest and retry (no "
+                        "confirmation is needed then), or to support it and confirm at the robot's own terminal, "
+                        "then retry; an agent cannot confirm.")
 
 
 def refusal(marker: dict, key: str) -> str:
     who = f"pid {marker['pid']}, " if marker.get("pid") is not None else ""
     when = marker.get("at_text") or "an earlier session"
-    return (f"the arm on {key} was left POWERED and HOLDING by an earlier session ({marker.get('reason')}; "
-            f"{who}{when}). Nothing was sent to it: connecting clears its motor faults with a stop frame that "
-            f"cuts its torque, and a raised arm would drop. {ASK_THE_OPERATOR} Folded at rest, the operator's "
-            "startup check measures it with no motor enabled and clears the hold.")
+    return (f"{ASK_THE_OPERATOR} The arm on {key} was left POWERED and HOLDING by an earlier session "
+            f"({marker.get('reason')}; {who}{when}). Nothing was sent to it: connecting clears its motor faults "
+            "with a stop frame that cuts its torque, and a raised arm would drop. Folded at rest (within "
+            f"{MARKER_CLEAR_TOL_RAD:g} rad of park_q), the operator's startup check measures it with no motor "
+            "enabled and clears the hold.")
 
 
-def rest_problem(q, park, tol: float = REST_TOL_RAD) -> str | None:
+def rest_tolerance(cfg) -> float:
+    """The rig's no-marker rest tolerance (rad): its arm profile's
+    `rest_check_tol_rad`, else REST_TOL_RAD. Raises ValueError for a value
+    that is not a number in (0, REST_TOL_RAD]: a profile may only tighten it."""
+    value = cfg.get(REST_TOL_KEY) if cfg is not None else None
+    if value is None:
+        return REST_TOL_RAD
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)) \
+            or not 0.0 < float(value) <= REST_TOL_RAD:
+        raise ValueError(f"arm profile {REST_TOL_KEY}: {value!r} is not a tolerance in (0, {REST_TOL_RAD:g}] rad "
+                         "(it may only tighten the default)")
+    return float(value)
+
+
+def rest_problem(q, park, tol: float = REST_TOL_RAD, *, again=None) -> str | None:
     """Why the joints `q` (None: no answer) are not the folded rest `park`
-    within `tol`, or None when every joint is. A reading that cannot be a
-    position (rig 2026-10-10: a mechPos read of +2.3e18; NaN) is named
-    implausible, never measured against the rest."""
+    within `tol`, or None when every joint is. `again`: the second read of
+    every joint; both must be within `tol`, and agree within READ_AGREE_RAD
+    (one plausible glitch is never taken for the rest). A reading that cannot
+    be a position (rig 2026-10-10: a mechPos read of +2.3e18; NaN) is named
+    implausible, never measured against the rest. Names the joints off."""
     import numpy as np
 
     from .robstride import plausible_position
 
-    vals = list(q)
     pv = np.asarray(park, dtype=float).reshape(-1)
-    if len(vals) != pv.size:
-        return f"{len(vals)} joints read for a {pv.size}-joint rest pose"
-    silent = [i + 1 for i, v in enumerate(vals) if v is None]
+    passes = [list(q)] + ([list(again)] if again is not None else [])
+    for vals in passes:
+        if len(vals) != pv.size:
+            return f"{len(vals)} joints read for a {pv.size}-joint rest pose"
+    silent = sorted({i for vals in passes for i, v in enumerate(vals) if v is None})
     if silent:
-        return f"joint(s) {silent} did not answer"
-    bad = [i + 1 for i, v in enumerate(vals) if not plausible_position(v)]
+        return f"joint(s) {[i + 1 for i in silent]} did not answer"
+    bad = sorted({i for vals in passes for i, v in enumerate(vals) if not plausible_position(v)})
     if bad:
-        return f"joint(s) {bad} gave an implausible reading (not a position)"
-    qv = np.asarray(vals, dtype=float).reshape(-1)
-    off = float(np.max(np.abs(qv - pv))) if qv.size else 0.0
-    if off > float(tol):
-        return f"{off:.3f} rad from park_q (> {float(tol):g})"
+        return f"joint(s) {[i + 1 for i in bad]} gave an implausible reading (not a position)"
+    reads = np.asarray(passes, dtype=float)
+    if len(passes) > 1:
+        split = np.abs(reads[0] - reads[1])
+        torn = [i for i in range(pv.size) if split[i] > READ_AGREE_RAD]
+        if torn:
+            told = "; ".join(f"joint {i + 1} read {reads[0][i]:+.3f} then {reads[1][i]:+.3f}" for i in torn)
+            return (f"{told}: the two reads disagree by more than {READ_AGREE_RAD:g} rad, so the arm is not "
+                    "measured")
+    off = np.max(np.abs(reads - pv), axis=0)
+    far = sorted((i for i in range(pv.size) if off[i] > float(tol)), key=lambda i: -off[i])
+    if far:
+        return "; ".join(f"joint {i + 1} is {off[i]:.3f} rad from park_q" for i in far) + f" (> {float(tol):g})"
     return None
 
 
 def raised_refusal(key: str, problem: str) -> str:
-    return (f"the arm on {key} is not folded at rest ({problem}), and no earlier session recorded why: its "
-            "motors may still be ENABLED and holding it (a killed process, an older cascade, a bring-up "
-            "script). Only parameter reads were sent and the bus is released: connecting clears its motor "
-            f"faults with a stop frame that cuts its torque, and a raised arm would drop. {ASK_THE_OPERATOR}")
+    return (f"{ASK_LOWER_OR_CONFIRM} The arm on {key} is not folded at rest ({problem}), and no earlier "
+            "session recorded why: its motors may still be ENABLED and holding it (a killed process, an older "
+            "cascade, a bring-up script). Only parameter reads were sent and the bus is released: connecting "
+            "clears its motor faults with a stop frame that cuts its torque, and a raised arm would drop.")
+
+
+# ── the rest readings, logged for tuning the rig's tolerance ─────────────────────────────────────
+
+
+def rest_log_path() -> Path:
+    override = os.environ.get(REST_LOG_ENV, "").strip()
+    return Path(override).expanduser() if override else Path.home() / ".cascade" / "logs" / "rest_readings.jsonl"
+
+
+def _num(v):
+    try:
+        x = float(v)
+    except (TypeError, ValueError):
+        return None
+    return round(x, 6) if math.isfinite(x) else str(x)
+
+
+def log_rest_reading(*, source: str, key: str | None, q, again, park, tol: float, marker: bool,
+                     verdict: str) -> None:
+    """Append one rest check (both reads of every joint, each joint's largest
+    |q - park|, the tolerance applied, whether a hold marker was on file, the
+    verdict) to `rest_log_path()`. Bounded: past REST_LOG_MAX_BYTES the file
+    moves to `<name>.1` (replacing the one before). Never raises: a log that cannot be
+    written costs the tuning data, never the connect."""
+    try:
+        import numpy as np
+
+        pv = [float(v) for v in np.asarray(park, dtype=float).reshape(-1)]
+        passes = [list(q)] + ([list(again)] if again is not None else [])
+        dev = []
+        for i, p in enumerate(pv):
+            vals = [vals[i] if i < len(vals) else None for vals in passes]
+            ok = all(isinstance(v, (int, float)) and math.isfinite(float(v)) for v in vals)
+            dev.append(round(max(abs(float(v) - p) for v in vals), 6) if ok and vals else None)
+        known = [d for d in dev if d is not None]
+        now = time.time()
+        row = {"at": round(now, 3), "at_text": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now)),
+               "source": str(source), "key": key, "pid": os.getpid(), "park": pv,
+               "q": [_num(v) for v in passes[0]], "again": [_num(v) for v in passes[1]] if len(passes) > 1 else None,
+               "dev": dev, "max_dev": max(known) if len(known) == len(dev) and known else None,
+               "tol_rad": float(tol), "marker": bool(marker), "verdict": str(verdict)}
+        path = rest_log_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            if path.stat().st_size >= REST_LOG_MAX_BYTES:
+                os.replace(path, path.with_name(path.name + ".1"))
+        except FileNotFoundError:
+            pass
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(row, sort_keys=True) + "\n")
+    except Exception as exc:  # noqa: BLE001 -- tuning data only: the check itself already decided
+        print(f"[cascade] note: the rest reading could not be logged ({exc})", file=sys.stderr, flush=True)
 
 
 class Permit:
@@ -508,6 +641,39 @@ def _warn_going_ahead(key: str, driver: str, what: str) -> None:
           "fault clear cuts torque while they support the arm", file=sys.stderr, flush=True)
 
 
+#: What a connect made on a confirmation answers the call that triggered it.
+LET_GO = "connected and holding; let go of the arm and retry"
+
+
+class ConnectedAndHolding(RuntimeError):
+    """A connect that went ahead on an operator's confirmation ends the call
+    that triggered it: the arm is connected and HOLDS where it is, with the
+    operator's hands on it, and the motion is not sent. The next call moves
+    (#426 fix-round re-review Minor 5)."""
+
+
+def connected_and_holding(key: str | None) -> ConnectedAndHolding:
+    where = f"The arm on {key}" if key else "The arm"
+    return ConnectedAndHolding(
+        f"{LET_GO}. {where} connected on the operator's confirmation and holds where it is; this call moved "
+        "nothing. Ask the operator to let go of the arm, then retry this call once.")
+
+
+def wait_for_let_go(key: str | None, *, ask=None, log=print) -> bool:
+    """A command-line tool whose connect went ahead on the operator's
+    confirmation: says it holds and asks the operator, at the terminal, to
+    let go and type 'go' before its first motion (whatever `--yes` said).
+    True to go on; anything else (or no terminal) means stop, holding."""
+    log(f"[+] {LET_GO}: {'the arm on ' + key if key else 'the arm'} connected on your confirmation and HOLDS "
+        "where it is; nothing has moved yet.")
+    try:
+        answer = (ask or input)("    Let go of the arm, then type 'go' to start moving it (anything else stops "
+                                "here; the arm stays held) > ")
+    except (EOFError, KeyboardInterrupt, OSError):
+        answer = ""
+    return str(answer or "").strip().lower() == "go"
+
+
 def check_connect(key: str | None, *, driver: str) -> Permit | None:
     """Call FIRST in a torque-cutting connect, before anything opens the bus:
     raise ArmHeldError over a hold unless an operator's fresh confirmation is
@@ -529,24 +695,31 @@ class ConnectGate:
     """The hold gate of one torque-cutting connect (both reBot drivers):
 
         with arm_hold.ConnectGate(key, driver="rebot_rs") as gate:
-            ...open the bus; read the joints with parameter reads only...
-            gate.require_rest(q, park)       # before the mode write / fault clear
+            ...open the bus; read every joint TWICE with parameter reads only...
+            gate.require_rest(q, park, tol, again=q2)   # before the mode write / fault clear
             ...the rest of the connect...
+        arm.connected_on_confirmation = gate.used_confirmation
 
     Entering refuses over a marker (`check_connect`: nothing is opened).
-    `require_rest` refuses an arm that does not measure folded at rest
-    unless this connect holds an operator's confirmation. Leaving uses the
-    confirmation and clears the marker only when the connect succeeded."""
+    `require_rest` logs the reading (`log_rest_reading`) and refuses an arm
+    that does not measure folded at rest unless this connect holds an
+    operator's confirmation. Leaving uses the confirmation and clears the
+    marker only when the connect succeeded; `used_confirmation` then says so
+    (that connect only holds: `ConnectedAndHolding`)."""
 
     def __init__(self, key: str | None, *, driver: str):
         self.key, self.driver, self.permit = key, driver, None
+        self.used_confirmation = False
 
     def __enter__(self) -> "ConnectGate":
         self.permit = check_connect(self.key, driver=self.driver)
         return self
 
-    def require_rest(self, q, park, tol: float = REST_TOL_RAD) -> None:
-        problem = rest_problem(q, park, tol)
+    def require_rest(self, q, park, tol: float = REST_TOL_RAD, *, again=None) -> None:
+        problem = rest_problem(q, park, tol, again=again)
+        log_rest_reading(source=f"connect:{self.driver}", key=self.key, q=q, again=again, park=park, tol=tol,
+                         marker=self.permit is not None and self.permit.marker is not None,
+                         verdict="rest" if problem is None else problem)
         if problem is None or self.key is None:
             return
         if self.permit is None:
@@ -570,24 +743,36 @@ class ConnectGate:
         if permit is not None:
             if exc_type is None:
                 permit.connected()
+                self.used_confirmation = True
+                print(f"[cascade] {self.driver} on {self.key}: {LET_GO} (connected on the operator's "
+                      "confirmation; holding where it is, nothing moved)", file=sys.stderr, flush=True)
             else:
                 permit.failed()
         return False
 
 
-def clear_if_at_rest(key: str | None, q, park, tol: float, *, log=print) -> bool:
-    """The startup check's measured rest (`q`: every joint read with no motor
-    enabled) within `tol` of `park`: the arm on `key` drops nothing when its
-    torque goes, so its hold is cleared. True if a hold was cleared."""
+def clear_if_at_rest(key: str | None, q, park, *, again=None, log=print) -> bool:
+    """The startup check's measured rest (`q`, `again`: every joint read
+    twice with no motor enabled) within MARKER_CLEAR_TOL_RAD of `park`, the
+    runtime's own torque-release tolerance: the arm on `key` drops nothing
+    when its torque goes, so its hold is cleared. Farther off, the runtime
+    may have refused to release it there (still holding): the hold stays,
+    and says so. True if a hold was cleared."""
     if key is None or read(key) is None:
         return False
-    if rest_problem(q, park, tol) is not None:
+    problem = rest_problem(q, park, MARKER_CLEAR_TOL_RAD, again=again)
+    if problem is not None:
+        log(f"[!] the arm on {key} was left POWERED and HOLDING by an earlier session and is not within "
+            f"{MARKER_CLEAR_TOL_RAD:g} rad of park_q, the robot server's torque-release tolerance ({problem}): "
+            "the hold stays. Support the arm and confirm at this terminal (python scripts/arm_hold.py confirm), "
+            "or lower it to rest, then run this again.")
         return False
     import numpy as np
 
-    off = float(np.max(np.abs(np.asarray(q, dtype=float) - np.asarray(park, dtype=float))))
+    reads = np.asarray([q] + ([again] if again is not None else []), dtype=float)
+    off = float(np.max(np.abs(reads - np.asarray(park, dtype=float))))
     log(f"[+] the arm on {key} was left holding by an earlier session; it rests folded at park_q "
-        f"(max |q - park| {off:.3f} <= {tol}): hold cleared")
+        f"(max |q - park| {off:.3f} <= {MARKER_CLEAR_TOL_RAD:g}): hold cleared")
     return clear(key, why="measured folded at rest with no motor enabled")
 
 
@@ -604,15 +789,43 @@ def agent_environment(environ=None) -> str | None:
     return None
 
 
+def _sudo_refusal() -> str | None:
+    """Why the operator's sudo password was not checked here, or None when
+    it was: `sudo -k -n -v` must FAIL (a sudo that validates with no password
+    -- NOPASSWD, no authentication -- proves nothing about who types), then
+    `sudo -k -v` asks for the password at this terminal (cached credentials
+    ignored: an earlier sudo in the same terminal does not count)."""
+    import subprocess
+
+    sudo = str(SUDO)
+    if not (os.path.isfile(sudo) and os.access(sudo, os.X_OK)):
+        return f"no {sudo}: the confirmation needs a password-protected sudo"
+    try:
+        free = subprocess.run([sudo, "-k", "-n", "-v"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL, timeout=30, check=False)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return f"sudo could not be run ({exc}): the confirmation needs a password-protected sudo"
+    if free.returncode == 0:
+        return ("sudo validated without a password (NOPASSWD): the confirmation needs a password-protected "
+                "sudo, whose password only the operator types")
+    try:
+        asked = subprocess.run([sudo, "-k", "-v", "-p", SUDO_PROMPT], timeout=600, check=False)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return f"sudo could not be run ({exc})"
+    if asked.returncode != 0:
+        return "sudo did not accept a password"
+    return None
+
+
 def _confirm_at_terminal(key: str | None) -> int:
     """`confirm`: only a person at the robot's terminal. Refuses (exit 2) in
-    an agent's or the robot server's environment, or without an interactive
-    session whose controlling terminal can be opened; reads the phrase there,
-    never from an argument or a pipe."""
-    marker = agent_environment()
-    if marker is not None:
-        print(f"REFUSED: {marker} is set: this runs in an agent's (or the robot server's) environment. Only the "
-              "operator confirms, at a terminal on the robot host. Nothing was written.", file=sys.stderr)
+    an agent's or the robot server's environment (never naming what gave it
+    away), without an interactive session whose controlling terminal can be
+    opened, or without the operator's sudo password (`_sudo_refusal`); reads
+    the phrase there, never from an argument or a pipe."""
+    if agent_environment() is not None:
+        print("REFUSED: this runs in an agent's (or the robot server's) environment. Only the operator "
+              "confirms, at a terminal on the robot host. Nothing was written.", file=sys.stderr)
         return 2
     try:
         interactive = sys.stdin.isatty() and sys.stdout.isatty()
@@ -629,6 +842,12 @@ def _confirm_at_terminal(key: str | None) -> int:
         print(f"REFUSED: no controlling terminal ({exc}). Nothing was written.", file=sys.stderr)
         return 2
     with tty_in, tty_out:
+        tty_out.write(f"Only the operator confirms: first your own sudo password; {NEVER_TO_AN_AGENT}.\n")
+        tty_out.flush()
+        problem = _sudo_refusal()
+        if problem is not None:
+            print(f"REFUSED: {problem}. Nothing was written.", file=sys.stderr)
+            return 2
         tty_out.write(f"Hold the arm{' on ' + key if key else ''} NOW: its torque drops when it connects (or "
                       f"when a teardown cuts it).\nType {CONFIRMATION!r} to confirm (valid {CONFIRM_TTL_S:.0f} s, "
                       "once): ")
@@ -650,9 +869,7 @@ def main(argv=None) -> int:
     sub = parser.add_subparsers(dest="cmd", required=True)
     sub.add_parser("list", help="the arms an earlier session left powered and holding (exit 0: none; "
                                 f"{LIST_HELD_RC}: held, or it cannot tell)")
-    p_confirm = sub.add_parser("confirm", help="you are supporting the arm: the next connect (or a teardown's "
-                                               f"torque cut) may go ahead, once, within {CONFIRM_TTL_S:.0f} s. "
-                                               "Interactive: you type the phrase at the prompt")
+    p_confirm = sub.add_parser("confirm", help=CONFIRM_HELP, description=CONFIRM_HELP)
     p_confirm.add_argument("--arm", default=None, help="the held arm's bus (can0, /dev/ttyACM0); default: any")
     sub.add_parser("revoke", help="drop every pending confirmation")
     args = parser.parse_args(argv)

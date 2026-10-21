@@ -100,6 +100,9 @@ class RebotRSMotorBridgeArm(ArmBase):
 
     def __init__(self, cfg: Cfg):
         self._cfg = cfg
+        # the rig's no-marker rest tolerance (arm_hold.REST_TOL_KEY): a value
+        # that loosens the default is a config error, here at construction
+        self._rest_tol = arm_hold.rest_tolerance(cfg)
         self._ctrl = None
         self._motors: dict[int, object] = {}
         self._lock = threading.Lock()
@@ -160,6 +163,10 @@ class RebotRSMotorBridgeArm(ArmBase):
     #: Its connect clears motor faults with a STOP frame: a held arm drops
     #: (control/arm_hold.py), so that connect refuses over a hold.
     connect_cuts_torque = True
+    #: The last connect went ahead on an operator's confirmation: it only
+    #: holds, and a LazyArm ends the call that triggered it
+    #: (`arm_hold.ConnectedAndHolding`).
+    connected_on_confirmation = False
 
     @property
     def hold_key(self) -> str | None:
@@ -167,20 +174,24 @@ class RebotRSMotorBridgeArm(ArmBase):
         arm as `rebot_rs`'s, whichever transport connects it next)."""
         return arm_hold.hold_key("rebot_rs_mb", getattr(self, "_cfg", None))
 
-    def _rest_reading(self, motors) -> list:
+    def _rest_reading(self, motors) -> tuple[list, list]:
         """Every arm joint's mechPos (local convention) by parameter read
-        (type 17: no frame that changes a motor's torque), None for one that
-        did not answer; `arm_hold.rest_problem` judges it."""
-        out = []
+        (type 17: no frame that changes a motor's torque), TWICE (a pass over
+        the joints, then a second), None for one that did not answer;
+        `arm_hold.rest_problem` judges both (they must agree)."""
+        passes = []
         with self._lock:
-            for mid, sign in zip(self._joint_ids, self._wire):
-                try:
-                    x = float(motors[mid].robstride_get_param_f32(MECH_POS, self._read_timeout_ms))
-                except Exception:  # noqa: BLE001 -- no answer: judged unread (fail closed)
-                    out.append(None)
-                    continue
-                out.append(x * float(sign))
-        return out
+            for _ in range(2):
+                out = []
+                for mid, sign in zip(self._joint_ids, self._wire):
+                    try:
+                        x = float(motors[mid].robstride_get_param_f32(MECH_POS, self._read_timeout_ms))
+                    except Exception:  # noqa: BLE001 -- no answer: judged unread (fail closed)
+                        out.append(None)
+                        continue
+                    out.append(x * float(sign))
+                passes.append(out)
+        return passes[0], passes[1]
 
     def connect(self) -> None:
         # The mode write (motorbridge v0.5.6 disables a motor whose run mode
@@ -189,9 +200,12 @@ class RebotRSMotorBridgeArm(ArmBase):
         # opened (#424 review Important 1), a raised one right after it opened
         # on parameter reads alone (#426 review Important 1). The operator's
         # confirmation is used, and the marker cleared, only when this
-        # connect succeeds (#426 review Important 3).
+        # connect succeeds (#426 review Important 3); such a connect only
+        # holds, and the call that triggered it moves nothing (LazyArm).
+        self.connected_on_confirmation = False
         with arm_hold.ConnectGate(self.hold_key, driver="rebot_rs_mb") as gate:
             self._connect(gate)
+        self.connected_on_confirmation = gate.used_confirmation
 
     def _connect(self, gate) -> None:
         try:
@@ -218,8 +232,9 @@ class RebotRSMotorBridgeArm(ArmBase):
             # write: a raised arm (no marker) is refused here, unconfirmed,
             # into the bus release below.
             park = self._cfg.get("park_q")
-            gate.require_rest(self._rest_reading(motors),
-                              park if park is not None else np.zeros(self.n_joints))
+            q, again = self._rest_reading(motors)
+            gate.require_rest(q, park if park is not None else np.zeros(self.n_joints), self._rest_tol,
+                              again=again)
             try:
                 for m in motors.values():
                     m.ensure_mode(Mode.MIT)
@@ -235,10 +250,10 @@ class RebotRSMotorBridgeArm(ArmBase):
                 # hands the arm back whatever pose it has settled into.
                 if not gate.confirmed_now():
                     raise arm_hold.ArmHeldError(
-                        f"the arm on {self.hold_key} looks ENABLED from an earlier session (its run-mode "
-                        f"write failed: {e}). Setting MIT mode needs its torque off, and a raised arm "
-                        "would drop: nothing more was sent (it measured folded at rest just before) and the "
-                        f"bus is released. {arm_hold.ASK_THE_OPERATOR}") from e
+                        f"{arm_hold.ASK_THE_OPERATOR} The arm on {self.hold_key} looks ENABLED from an earlier "
+                        f"session (its run-mode write failed: {e}). Setting MIT mode needs its torque off, and a "
+                        "raised arm would drop: nothing more was sent (it measured folded at rest just before) "
+                        "and the bus is released.") from e
                 print(
                     f"[warn] ensure_mode failed ({e}).\n"
                     "[warn] The motors look enabled from an earlier session. "

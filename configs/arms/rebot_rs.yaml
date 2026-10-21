@@ -29,6 +29,15 @@ handover_q: [0.5, 1.2, 1.2, 0.0, 0.75, 0.0]
 # tests/test_rebot_rest_and_park.py.) On the real arm joint 2 reads +0.004 at
 # the stop (Seeed WRC rig), so commanding 0 presses into it by only kp*4 mrad.
 park_q: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+# No-marker rest check (cascade.control.arm_hold): with no hold marker on file, a
+# connect refuses an arm whose joints are not all within this of park_q (rad,
+# every joint read twice), since motors a killed process left ENABLED may hold it
+# up. Per rig: 0.12 until this rig's folded, unpowered rest spread is measured.
+# Every connect and startup check logs its reading to
+# ~/.cascade/logs/rest_readings.jsonl; scripts/rest_tolerance_report.py reads it
+# and recommends a value (the runtime releases torque within 0.05). May only
+# tighten: a value above 0.12 is a config error.
+rest_check_tol_rad: 0.12
 
 # Per-arm speed cap: below the global demo.yaml default (1.2 rad/s). Lower =
 # slower but longer moves -- min-jerk peak velocity (1.875*dq/T) is auto-stretched

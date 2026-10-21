@@ -70,7 +70,10 @@ It prints the mounting instructions and waits for `yes`. Then, per run (a few mi
 4. Settles (`--settle-time`, default 1 s), waits for `--stable-frames` (default 4) consecutive
    marker readings within 2 mm, and records FK of the **measured** joints.
 5. Ctrl+C or a safety stop: halt, park through `SafeArm` to `park_q`, torque off. A refused park
-   (dead camera) keeps the torque on and says so: support the arm before you power it off.
+   (dead camera) keeps the torque on and says so: support the arm before you power it off. The
+   hold is remembered: the next calibrate, arm-check or start refuses to connect that arm until
+   you hold it and run `python scripts/arm_hold.py confirm` at a terminal on the robot host (you
+   type the phrase).
 
 `--manual` asks for ENTER before every vetted preset (`s` skips, `q` finishes). `--poses FILE`
 replaces the presets with your own `[x, y, z, roll, pitch, yaw]` list (base frame, URDF rpy).

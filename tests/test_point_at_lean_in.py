@@ -40,7 +40,7 @@ import pytest
 from conftest import REPO, SO101_URDF, needs_pin, needs_pin_so101
 
 from cascade.control.mock_arm import MockArm
-from cascade.skills.pointing import core_factor as _CORE_FACTOR
+from cascade.skills.pointing import class_factors as _CLASS_FACTORS
 
 #: safety.min_clearance_m in configs/demo.yaml (no arm profile overrides it)
 MARGIN = 0.03
@@ -1783,6 +1783,7 @@ def test_the_shipped_planning_budget_is_pinned():
     assert shipped["SLOWER_CORE_MIN"] == "1.25"
     assert shipped["_clock"] == "time.thread_time"
     assert shipped["_wall"] == "time.monotonic"
+    assert shipped["_cpu"] == "core_speed.current_cpu"
     assert inspect.signature(pointing.Budget).parameters["seconds"].default is None
     assert inspect.signature(pointing.Budget).parameters["wall"].default is None
     source = inspect.getsource(runtime.SkillRuntime.skill_point_at)
@@ -1810,7 +1811,7 @@ def test_the_wall_clock_cap_bounds_planning_on_a_starved_host(monkeypatch):
     wall time: never unbounded."""
     from cascade.skills import pointing
 
-    monkeypatch.setattr(pointing, "core_factor", lambda: 1.0)
+    monkeypatch.setattr(pointing, "class_factors", lambda: {})
 
     now = [100.0]
     monkeypatch.setattr(pointing, "_wall", lambda: now[0])
@@ -1828,164 +1829,44 @@ def test_the_wall_clock_cap_bounds_planning_on_a_starved_host(monkeypatch):
         pointing.Budget(3.0).check()
 
 
-def test_a_slower_core_is_measured_against_the_hosts_fastest(monkeypatch):
-    """`core_factor`: the planner's own kernel timed on this thread's core
-    over its time on the host's fastest core. A core within 25 % of the
-    fastest counts as it (timing noise); a GB10 Cortex-A725 (~2.5x an X925
-    on this kernel) stretches the budget. (The conftest pins the factor to 1
-    for every other test.)"""
+def test_a_slower_core_class_is_measured_against_the_hosts_fastest(monkeypatch):
+    """`class_factors`: the planner's own kernel timed on one core of each
+    class over its time on the fastest class. A class within 25 % of the
+    fastest counts as it (timing noise); a GB10 Cortex-A725 (~2.5x an X925 on
+    this kernel) counts its CPU at that speed. (The conftest measures no class
+    for every other test; tests/test_point_at_budget_per_core_class.py has the
+    budget's rows.)"""
+    from cascade import core_speed
     from cascade.skills import pointing
 
-    monkeypatch.setattr(pointing, "core_factor", _CORE_FACTOR)
-    monkeypatch.setattr(pointing, "_fastest_probe_s", lambda: 0.4e-3)
-    for now, factor in ((0.4e-3, 1.0), (0.48e-3, 1.0), (1.0e-3, 2.5), (math.nan, 1.0), (math.inf, 1.0)):
-        monkeypatch.setattr(pointing, "_speed_probe_s", lambda now=now: now)
-        assert pointing.core_factor() == pytest.approx(factor), now
-    assert 1.0 <= _CORE_FACTOR() < 10.0                   # the real one, on this host
+    monkeypatch.setattr(pointing, "class_factors", _CLASS_FACTORS)
+    monkeypatch.setattr(pointing, "_CLASSES", {})
+    monkeypatch.setattr(core_speed, "class_times", lambda workload, **_: core_speed.ClassTimes(
+        {(9,): 0.4e-3, (5, 6): 0.48e-3, (0, 1): 1.0e-3}, True))
+    assert pointing.class_factors() == pytest.approx({9: 1.0, 5: 1.0, 6: 1.0, 0: 2.5, 1: 2.5})
 
 
-def test_the_budget_stretches_on_a_slower_core_never_past_the_wall_cap(monkeypatch):
+def test_the_budget_counts_cpu_on_a_slower_core_at_its_speed(monkeypatch):
     from cascade.skills import pointing
 
     now = [0.0]
     monkeypatch.setattr(pointing, "_clock", lambda: now[0])
-    monkeypatch.setattr(pointing, "core_factor", lambda: 2.0)
+    monkeypatch.setattr(pointing, "_cpu", lambda: 3)
+    monkeypatch.setattr(pointing, "class_factors", lambda: {3: 2.0})
     budget = pointing.Budget(3.0, wall=30.0)
     now[0] = 6.0
     budget.check()
     now[0] = 6.01
-    with pytest.raises(pointing.PlanningTimeout, match=r"planning took longer than its 3\.0 s budget \(x2\.0 "):
+    with pytest.raises(pointing.PlanningTimeout, match=r"planning took longer than its 3\.0 s budget \(6\.0 s of CPU, "
+                                                       r"slower cores counted at their speed\)"):
         budget.check()
-    monkeypatch.setattr(pointing, "core_factor", lambda: 9.0)
-    now[0] = 0.0
-    capped = pointing.Budget(3.0, wall=8.0)
-    assert capped.factor == pytest.approx(8.0 / 3.0)
-
-
-def test_the_core_is_measured_once_before_planning_and_never_again(monkeypatch):
-    """#423 review follow-up 5 (the r399f `spin3.5_cpu` row: 3.5 s of CPU
-    against the 3 s budget pointed in 7 of 24 runs on main): the budget
-    measured the core again once it ran out, right after the spin, and a
-    reading 1.29x the fastest on an X925 (cache-cold timing noise past the
-    1.25 bound) stretched the budget to 3.9 s for CPU time already spent on
-    the fastest core. The factor is measured once, before planning: 3 s x
-    that factor (capped by the wall time) is the budget, and nothing read
-    later stretches it."""
-    from cascade.skills import pointing
-
-    calls = []
-    now = [0.0]
-    monkeypatch.setattr(pointing, "_clock", lambda: now[0])
-    monkeypatch.setattr(pointing, "core_factor", lambda: calls.append(1) or (1.0 if len(calls) == 1 else 1.3))
-    budget = pointing.Budget(3.0, wall=30.0)
-    assert budget.factor == 1.0
-    now[0] = 3.0
-    budget.check()
-    now[0] = 3.5
-    for _ in range(4):
-        with pytest.raises(pointing.PlanningTimeout, match=r"planning took longer than its 3\.0 s budget$"):
-            budget.check()
-    assert len(calls) == 1 and budget.factor == 1.0, "measured once, before planning"
-
-
-def _woke_on_a_slower_core(monkeypatch, *, before_s=0.4e-3, after_s=1.2e-3, ref_s=0.4e-3):
-    """The core-speed probes as a GB10 answers them when the reference search
-    blocks the planning thread: `before_s` on its core until the search
-    (`_fastest_probe_s`, the host's fastest: `ref_s`) has run, `after_s` from
-    then on (the scheduler woke it on a Cortex-A725, which it leaves again
-    within milliseconds once busy). Returns the order of the calls."""
-    from cascade.skills import pointing
-
-    order = []
-
-    def probe():
-        order.append("probe")
-        return after_s if "search" in order else before_s
-
-    def search():
-        order.append("search")
-        return ref_s
-
-    monkeypatch.setattr(pointing, "_speed_probe_s", probe)
-    monkeypatch.setattr(pointing, "_fastest_probe_s", search)
-    return order
-
-
-def test_the_planning_threads_core_is_timed_before_the_core_speed_search(monkeypatch):
-    """#423 review follow-up 5: in 6 of the 7 runs that pointed, the factor
-    (2.6-2.7) was timed right after the core-speed search had put the planning
-    thread to sleep; it woke on an idle Cortex-A725 for those few milliseconds
-    and then spent 87-98 % of its CPU samples on X925 cores. This thread's
-    core is timed first, where it was planning from; the search after it."""
-    from cascade.skills import pointing
-
-    monkeypatch.setattr(pointing, "core_factor", _CORE_FACTOR)
-    order = _woke_on_a_slower_core(monkeypatch)
-    assert pointing.core_factor() == 1.0
-    assert order == ["probe", "probe", "search"]
-    # control: a thread on a slower core when its budget starts still stretches it
-    _woke_on_a_slower_core(monkeypatch, before_s=1.0e-3, after_s=1.0e-3)
-    assert pointing.core_factor() == pytest.approx(2.5)
-
-
-#: how the planning thread's core reads before planning: (core_factor, points after a 3.5 s CPU spin)
-_SPIN_ROWS = {
-    "re_measured_noisy_after_the_spin": (lambda mp: mp.setattr(
-        "cascade.skills.pointing.core_factor", iter([1.0] + [1.3] * 9).__next__), False),
-    "woke_on_a_slower_core_after_the_search": (lambda mp: (
-        mp.setattr("cascade.skills.pointing.core_factor", _CORE_FACTOR), _woke_on_a_slower_core(mp)), False),
-    "on_a_slower_core_before_planning": (lambda mp: (
-        mp.setattr("cascade.skills.pointing.core_factor", _CORE_FACTOR),
-        _woke_on_a_slower_core(mp, before_s=1.08e-3, after_s=1.08e-3)), True),
-}
-
-
-@pytest.mark.parametrize("row", list(_SPIN_ROWS))
-def test_a_cpu_spin_past_the_budget_is_refused_unless_the_core_read_slower_before_planning(rig, monkeypatch, row):
-    """The r399f stop lane's `spin3.5_cpu` row, deterministic: 3.5 s of the
-    planning thread's CPU at the first budget check, against the shipped 3 s
-    budget. Main pointed (136 commands and a jaw close) when the core was
-    measured again after the spin and read noisy (1.3x), or when it was timed
-    on the core the core-speed search woke it on; both refuse now, nothing
-    sent. A thread on a slower core when planning starts (2.7x the fastest)
-    keeps the documented stretch (3 s x 2.67, the 8 s wall cap): it points,
-    on main as now."""
-    from cascade.skills import pointing
-
-    r = rig("mock", camera="mock")
-    monkeypatch.setattr(pointing, "PLAN_BUDGET_S", 3.0)
-    monkeypatch.setattr(pointing, "PLAN_WALL_S", 8.0)
-    setup, points = _SPIN_ROWS[row]
-    setup(monkeypatch)
-    cpu = [0.0]
-    monkeypatch.setattr(pointing, "_clock", lambda: cpu[0])
-    real_check, seen = pointing.Budget.check, []
-
-    def check(self):
-        if not seen:
-            cpu[0] += 3.5                # the planning thread's CPU spin
-        seen.append(self.factor)
-        return real_check(self)
-
-    monkeypatch.setattr(pointing.Budget, "check", check)
-
-    out = r.runtime.execute("point_at", {"label": "red cube"})
-
-    assert seen, "test setup: planning checked its budget"
-    if points:
-        assert seen[0] == pytest.approx(8.0 / 3.0), "test setup: measured on the slower core before planning"
-        assert out["ok"] is True and _commands(r) and r.jaws, out
-    else:
-        _refused_untouched(r, out)
-        assert "planning took longer than its 3.0 s budget (the pose" in out["error"], out
-        assert seen == [1.0], "the factor measured before planning, refused at its first check"
 
 
 @pytest.mark.skipif(not hasattr(os, "sched_setaffinity") or len(os.sched_getaffinity(0)) < 2,
                     reason="Linux: per-thread CPU affinity, two cores")
-def test_the_fastest_core_is_timed_on_that_core(monkeypatch):
-    """The reference is the probe on each core in turn (a helper thread
-    pinned there), not on the caller's core: here only the last core is
+def test_each_core_class_is_timed_on_that_class(monkeypatch):
+    """Each class's time is the probe on one of its cores (a helper thread
+    pinned there), never on the caller's core: here only the last core is
     fast, and the caller may run anywhere. (No capacity classes here, as on
     an x86 host: every core is a class of its own.)"""
     from cascade import core_speed
@@ -1993,26 +1874,25 @@ def test_the_fastest_core_is_timed_on_that_core(monkeypatch):
 
     fast = max(os.sched_getaffinity(0))
     monkeypatch.setattr(core_speed, "_capacities", lambda cpus: None)
+    monkeypatch.setattr(core_speed, "SEARCH_S", 30.0)
+    monkeypatch.setattr(pointing, "class_factors", _CLASS_FACTORS)
     monkeypatch.setattr(pointing, "_speed_probe_s", lambda: 1e-3 if os.sched_getaffinity(0) == {fast} else 3e-3)
-    monkeypatch.setattr(pointing, "_FASTEST", {})
-    assert pointing._fastest_probe_s() == 1e-3
+    monkeypatch.setattr(pointing, "_CLASSES", {})
+    factors = pointing.class_factors()
+    assert factors[fast] == 1.0 and {f for cpu, f in factors.items() if cpu != fast} == {3.0}, factors
 
 
 @pytest.mark.skipif(not hasattr(os, "sched_setaffinity"), reason="Linux: per-thread CPU affinity")
-def test_the_fastest_core_is_found_without_moving_the_planning_thread():
+def test_the_core_classes_are_measured_without_moving_the_planning_thread(monkeypatch):
     from cascade.skills import pointing
 
+    monkeypatch.setattr(pointing, "class_factors", _CLASS_FACTORS)
+    monkeypatch.setattr(pointing, "_CLASSES", {})
     before = os.sched_getaffinity(0)
-    monkey = pointing._FASTEST.copy()
-    try:
-        pointing._FASTEST.clear()
-        ref = pointing._fastest_probe_s()
-        assert os.sched_getaffinity(0) == before
-        assert 0.0 < ref <= 1.5 * min(pointing._speed_probe_s() for _ in range(3))
-        assert pointing._fastest_probe_s() == ref          # measured once per process
-    finally:
-        pointing._FASTEST.clear()
-        pointing._FASTEST.update(monkey)
+    factors = pointing.class_factors()
+    assert os.sched_getaffinity(0) == before
+    assert set(factors) <= before and all(1.0 <= f < 10.0 for f in factors.values()), factors
+    assert pointing.class_factors() == factors          # measured once per process
 
 
 def test_a_budget_read_from_another_thread_counts_wall_time_against_its_cpu_budget():

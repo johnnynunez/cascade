@@ -10,6 +10,7 @@ instead of crashing the loop.
 from __future__ import annotations
 
 from ..control import motion_evidence
+from ..control.arm_hold import ArmHeldError
 from ..control.jaw_stages import closing_stages, opens_past
 
 import contextlib
@@ -3031,6 +3032,15 @@ class SkillRuntime:
             except TypeError as e:
                 refused_by = type(e).__name__
                 result = {"ok": False, "error": f"bad arguments for {name}: {e}"}
+            except ArmHeldError as e:
+                # The arm's connect refused before any frame that can cut its
+                # torque: an earlier session left it held (or it measures
+                # raised). Named as the hold, not an "unexpected" fault
+                # (#426 review Minor 8); the text asks for the operator.
+                refused_by = type(e).__name__
+                result = {"ok": False, "error": f"ArmHeldError: {e}", "refused": "arm_held",
+                          "hint": "nothing was sent to the arm; only the operator can release this hold"}
+                _with_retrace_result(result, e)
             except Exception as e:  # camera dropouts, CAN loss, ... : the agent
                 # loop must survive and report, not crash mid-task.
                 import traceback
@@ -5989,6 +5999,22 @@ class SkillRuntime:
                 raise
             except Exception as exc:
                 SkillRuntime._raise_home_move_failure(self, exc, begun)
+        elif _home is not None and not preserve_view_home and scene_gate is not None:
+            # Gate on (the Isaac reBot sim): the home move's own preflight --
+            # the harness's segment vet and the observed-finger profile --
+            # from the joints the opening was just bound to (open_state: no
+            # extra read), BEFORE the jaw opens, so a refused home segment
+            # costs no jaw command either (#424 review Minor 3). Authorizes
+            # nothing: the move runs it again from its own start.
+            begun = SkillRuntime._approved_commands(self)
+            home_q = np.asarray(_home, dtype=float)
+            try:
+                now_q = np.asarray(open_state.q, dtype=float)
+                _scene_motion(home_q)["preflight"](now_q, _scene_duration(now_q, home_q, 1.5))
+            except MotionHalted:
+                raise
+            except Exception as exc:
+                SkillRuntime._raise_home_move_failure(self, exc, begun)
         self._set_gripper(open_pos, effort=0.8,
                              **({"_halt_generation": scene_halt_generation} if scene_enabled else {}))
         if _home is not None and not preserve_view_home:
@@ -6979,7 +7005,12 @@ class SkillRuntime:
             if not kept:
                 return len(stages)
             # The backend's own close bypasses SafeArm.set_gripper: a halt
-            # since the running skill started keeps the jaws open (A3 review).
+            # since the running skill started keeps the jaws open (A3 review),
+            # and so does a teardown that closed this arm to every other
+            # thread (#426 review Minor 9).
+            check_teardown = getattr(self.arm.harness, "_check_teardown", None)
+            if callable(check_teardown):
+                check_teardown()
             check_halt = getattr(self.arm.harness, "_check_halt_generation", None)
             if callable(check_halt):
                 check_halt(_halt_generation)
@@ -8279,7 +8310,8 @@ class SkillRuntime:
         the arm starts (or backed out), else at the waypoint or the pointing
         pose. While holding an object it never leans in and never closes the
         jaws. No clear pose, route or close, or planning past its budget (3 s
-        of CPU, more on a slower core, 8 s of wall time), refuses before any
+        of the fastest core class's CPU, CPU on a slower class counted at its
+        speed; 8 s of wall time), refuses before any
         arm or jaw command; an e-stop latched while planning, in the last
         close or in the hold is reported as the e-stop, an operator halt
         received since the call started as the halt (e-stop first), with the
@@ -8304,7 +8336,7 @@ class SkillRuntime:
         from . import pointing
 
         # the freshness clock starts here, at the localization, before the
-        # budget's core-speed search (#406 review Minor 1): (wall, monotonic,
+        # budget's core class search (#406 review Minor 1): (wall, monotonic,
         # the image the fix came from, that image's camera)
         localized = (pointing._wall(), time.monotonic(), frame, self._localized_camera())
         budget = pointing.Budget()

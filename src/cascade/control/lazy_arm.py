@@ -16,7 +16,7 @@ from .arm_base import ArmBase
 
 class LazyArm(ArmBase):
     def __init__(self, factory, n_joints: int = 6, profile_type: str | None = None,
-                 on_materialize=None):
+                 on_materialize=None, hold_key: str | None = None):
         self._factory = factory
         self._n_joints_default = n_joints
         #: The `type:` of the profile the factory will build (isaac, mujoco,
@@ -29,6 +29,10 @@ class LazyArm(ArmBase):
         #: arm must not deadlock): the demo waits there for the occupancy
         #: map's first masked refresh (apps/demo.py `_build_arm`).
         self._on_materialize = on_materialize
+        #: The bus a hold marker names for this arm (control/arm_hold.py),
+        #: from its profile: the dashboard reports an earlier session's hold
+        #: on a standby arm without materializing it.
+        self._hold_key = hold_key
         self._arm: ArmBase | None = None
         self._lock = threading.Lock()
 
@@ -66,6 +70,24 @@ class LazyArm(ArmBase):
         (never materializes to decide teardown)."""
         arm = self._arm
         return getattr(arm, "disconnect_cuts_torque", False) is True if arm is not None else False
+
+    @property
+    def hold_key(self) -> str | None:
+        """The materialized backend's, else the profile's; never materializes."""
+        arm = self._arm
+        key = getattr(arm, "hold_key", None) if arm is not None else None
+        return key if isinstance(key, str) else getattr(self, "_hold_key", None)
+
+    @property
+    def connect_cuts_torque(self) -> bool:  # type: ignore[override]
+        """The materialized backend's, else the profile type's
+        (`arm_hold.CONNECT_CUTS_TORQUE`); never materializes."""
+        arm = self._arm
+        if arm is not None:
+            return getattr(arm, "connect_cuts_torque", False) is True
+        from .arm_hold import CONNECT_CUTS_TORQUE
+
+        return getattr(self, "_profile_type", None) in CONNECT_CUTS_TORQUE
 
     @property
     def n_joints(self) -> int:  # type: ignore[override]

@@ -1,13 +1,13 @@
 """point_at planning follow-ups (#399 post-merge review, Minors 1-4).
 
-1. The core-speed reference (`pointing._fastest_probe_s`, `core_speed`) is
-   searched over the PROCESS's CPU set (not the calling thread's affinity),
-   one core per `cpu_capacity` class, fastest class first, each helper given
-   time to get its core; a search that ran out of time is never kept. main
-   searched the caller's own affinity in CPU-number order within 50 ms per
-   core: a first call from a thread pinned to a slow core, or helpers that
-   wait 60 ms for their core, made a slow core the reference for the life of
-   the process.
+1. The core classes (`pointing.class_factors`, `core_speed.class_times`)
+   are searched over the PROCESS's CPU set (not the calling thread's
+   affinity), one core per `cpu_capacity` class, fastest class first, each
+   helper given time to get its core; a class that did not answer in time is
+   never kept. main searched the caller's own affinity in CPU-number order
+   within 50 ms per core: a first call from a thread pinned to a slow core,
+   or helpers that wait 60 ms for their core, made a slow core the reference
+   for the life of the process.
 2. A halt received while planning, followed by a geometric or budget
    refusal, is reported as the halt (an e-stop still wins over it). main
    named the geometry or the clock (the review's stop rows `delay9_timer5
@@ -40,7 +40,7 @@ from base_pose_oracle import make_runtime  # noqa: F401  (the fixture, by name)
 from conftest import needs_pin
 
 from cascade.control.mock_arm import MockArm
-from cascade.skills.pointing import core_factor as _CORE_FACTOR
+from cascade.skills.pointing import class_factors as _CLASS_FACTORS
 
 needs_affinity = pytest.mark.skipif(
     not hasattr(os, "sched_setaffinity") or len(os.sched_getaffinity(0)) < 2,
@@ -96,7 +96,7 @@ def _commands(r) -> list:
     return [np.asarray(q, dtype=float) for arm in r.arms for q in arm.commands]
 
 
-# ── 1. the core-speed reference ────────────────────────────────────────────
+# ── 1. the core classes ────────────────────────────────────────────────────
 
 
 def _one_fast_core(monkeypatch, fast):
@@ -137,9 +137,10 @@ def test_a_helper_that_waits_60_ms_for_its_core_still_counts(monkeypatch):
         return 1e-3 if os.sched_getaffinity(0) == {fast} else 3e-3
 
     try:
-        assert core_speed.fastest_seconds(work) == 1e-3
+        times = core_speed.class_times(work)
     finally:
         _join_probe_helpers()
+    assert times == core_speed.ClassTimes({(fast,): 1e-3, tuple(cpus[:-1]): 3e-3}, True), times
 
 
 @needs_affinity
@@ -153,15 +154,14 @@ def test_a_first_call_from_a_thread_pinned_to_a_slow_core_still_finds_the_fast_c
     cpus = sorted(os.sched_getaffinity(0))
     slow, fast = cpus[0], cpus[-1]
     _one_fast_core(monkeypatch, fast)
-    monkeypatch.setattr(pointing, "core_factor", _CORE_FACTOR)
+    monkeypatch.setattr(pointing, "class_factors", _CLASS_FACTORS)
     monkeypatch.setattr(pointing, "_speed_probe_s", lambda: 1e-3 if os.sched_getaffinity(0) == {fast} else 3e-3)
-    monkeypatch.setattr(pointing, "_FASTEST", {})
+    monkeypatch.setattr(pointing, "_CLASSES", {})
     out = {}
 
     def run():
         os.sched_setaffinity(0, {slow})
-        out["ref"] = pointing._fastest_probe_s()
-        out["factor"] = pointing.core_factor()
+        out["factors"] = pointing.class_factors()
         out["aff"] = os.sched_getaffinity(0)
 
     th = threading.Thread(target=run)
@@ -169,10 +169,10 @@ def test_a_first_call_from_a_thread_pinned_to_a_slow_core_still_finds_the_fast_c
     th.join(30.0)
     _join_probe_helpers()
 
-    assert out["ref"] == 1e-3, out
-    assert out["factor"] == pytest.approx(3.0), out          # the budget stretches on the slow core
+    assert out["factors"][fast] == 1.0, out
+    assert out["factors"][slow] == pytest.approx(3.0), out  # CPU on the slow core counts at its speed
     assert out["aff"] == {slow}, "the caller's affinity must stay as it was"
-    assert pointing._FASTEST["s"] == 1e-3                    # a complete search is kept
+    assert pointing._CLASSES.get("complete") is True        # a complete search is kept
 
 
 @needs_affinity
@@ -191,7 +191,7 @@ def test_one_core_per_capacity_class_fastest_class_first(monkeypatch):
             probed.append(cores)
         return 1e-3
 
-    core_speed.fastest_seconds(work)
+    core_speed.class_times(work)
     _join_probe_helpers()
 
     assert probed[0] == [fast], probed
@@ -202,10 +202,10 @@ def test_one_core_per_capacity_class_fastest_class_first(monkeypatch):
 @pytest.mark.parametrize("stall", ["on_its_core", "before_its_core"])
 def test_a_search_that_ran_out_of_time_is_not_kept(monkeypatch, stall):
     """No helper got its core in time (stalled before it could even pin
-    itself, or on its core): this call uses what it measured (its own core,
-    which can only understate the stretch), and so does every call for
+    itself, or on its core): no class is measured, so no core counts as
+    slower (it can only understate the stretch), and so it stays for
     `SEARCH_AGAIN_S` (never a search on every call, #406 review Minor 1);
-    then a call searches again instead of keeping a slow reference for good."""
+    then a call searches again instead of keeping that for good."""
     from cascade import core_speed
     from cascade.skills import pointing
 
@@ -229,19 +229,23 @@ def test_a_search_that_ran_out_of_time_is_not_kept(monkeypatch, stall):
         return 1e-3 if os.sched_getaffinity(0) == {fast} else 3e-3
 
     monkeypatch.setattr(os, "sched_setaffinity", pin)
+    monkeypatch.setattr(pointing, "class_factors", _CLASS_FACTORS)
     monkeypatch.setattr(pointing, "_speed_probe_s", probe)
-    monkeypatch.setattr(pointing, "_FASTEST", {})
+    monkeypatch.setattr(pointing, "_CLASSES", {})
     monkeypatch.setattr(core_speed, "PER_CORE_S", 0.05)
     try:
-        assert pointing._fastest_probe_s() == 3e-3
-        assert "s" not in pointing._FASTEST, "a search that ran out of time was kept"
+        assert pointing.class_factors() == {}
+        assert not pointing._CLASSES.get("complete"), "a search that ran out of time was kept"
     finally:
         gate.set()
         _join_probe_helpers()
-    assert pointing._fastest_probe_s() == 3e-3                # within SEARCH_AGAIN_S: no search
+    assert pointing.class_factors() == {}                     # within SEARCH_AGAIN_S: no search
     now[0] += pointing.SEARCH_AGAIN_S
-    assert pointing._fastest_probe_s() == 1e-3
-    assert pointing._FASTEST["s"] == 1e-3
+    monkeypatch.setattr(core_speed, "PER_CORE_S", 5.0)         # its warm-up, on a loaded runner too
+    factors = pointing.class_factors()
+    _join_probe_helpers()
+    assert factors[fast] == 1.0 and factors[cpus[0]] == pytest.approx(3.0), factors
+    assert pointing._CLASSES.get("complete") is True
 
 
 @needs_affinity
@@ -268,13 +272,13 @@ def test_a_core_that_cannot_be_pinned_gives_way_to_the_next_of_its_class(monkeyp
     def work():
         return 1e-3 if os.sched_getaffinity(0) == {fast} else 3e-3
 
-    ref = core_speed.fastest(work)
-    assert ref == core_speed.Reference(1e-3, True), ref
+    times = core_speed.class_times(work)
+    assert times == core_speed.ClassTimes({(barred, fast): 1e-3, tuple(cpus[:-2]): 3e-3}, True), times
 
     caps.update({barred: 2048})                    # barred alone in the fastest class
-    ref = core_speed.fastest(work)
+    times = core_speed.class_times(work)
     _join_probe_helpers()
-    assert ref == core_speed.Reference(1e-3, True), ref
+    assert times == core_speed.ClassTimes({(fast,): 1e-3, tuple(cpus[:-2]): 3e-3}, True), times
 
 
 @needs_affinity
@@ -287,12 +291,13 @@ def test_a_class_the_search_had_no_time_for_leaves_it_incomplete(monkeypatch):
     fast = cpus[-1]
     _one_fast_core(monkeypatch, fast)
     ticks = iter([0.0, 0.5] + [5.0] * 10)          # SEARCH_S = 1: the second class finds the window closed
-    monkeypatch.setattr(core_speed, "time", SimpleNamespace(monotonic=lambda: next(ticks)))
+    monkeypatch.setattr(core_speed, "time", SimpleNamespace(monotonic=lambda: next(ticks),
+                                                            thread_time=time.thread_time))
 
-    ref = core_speed.fastest(lambda: 1e-3 if os.sched_getaffinity(0) == {fast} else 3e-3)
+    times = core_speed.class_times(lambda: 1e-3 if os.sched_getaffinity(0) == {fast} else 3e-3)
     _join_probe_helpers()
 
-    assert ref == core_speed.Reference(1e-3, False), ref
+    assert times == core_speed.ClassTimes({(fast,): 1e-3}, False), times
 
 
 def test_cpu_capacities_come_from_sysfs_or_not_at_all(tmp_path):

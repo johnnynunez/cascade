@@ -1,22 +1,24 @@
-"""How fast the calling thread's CPU core is next to the host's fastest.
+"""How fast each class of this host's CPU cores runs a workload, and which core a thread runs on.
 
 Hosts with two kinds of core run the same Python work at different speeds: the
 GB10 (DGX Spark) has ten Cortex-X925 and ten Cortex-A725 cores, and a planner
-moved to an A725 takes 2.5-3x the CPU time it takes on an X925. A CPU-time
-budget is blind to contention but not to that. `fastest` gives the reference:
-a workload timed on the caller's core and on one core of every capacity class
-(sysfs `cpu_capacity`) of this PROCESS's CPU set, each by a helper thread
-pinned there (the caller's own affinity is never touched), fastest class
-first, the least of them. The process's set, not the caller's: a caller
-pinned to a slow core still finds the fast one. Each helper gets PER_CORE_S to
-be given its core (a loaded core may make it wait tens of ms); a search that
-ran out of time before every class answered is `complete=False`, and its
-caller must not keep it for good (it can only overstate the reference). At most one
-helper runs at a time, process-wide: a late helper ends its search and stops
-after the work in hand. Without
-capacities (an x86 host) every core is a class of its own, in CPU-number
-order. Linux only (per-thread affinity); elsewhere the caller's own core is
-the reference, i.e. no core counts as slower.
+on an A725 takes 2.5-3x the CPU time it takes on an X925. A CPU-time budget is
+blind to contention but not to that, so it charges the CPU a thread spent by
+the class of the core it ran on (`current_cpu`). `class_times` gives each
+class's time: a workload timed on one core of every capacity class (sysfs
+`cpu_capacity`) of this PROCESS's CPU set, each by a helper thread pinned
+there (the caller is neither timed nor moved), fastest class first. The
+process's set, not the caller's: a caller pinned to a slow core still finds the
+fast one. A helper first runs the workload untimed for WARMUP_S of its CPU (a
+core that was idle runs its first milliseconds of work at a low clock), then
+CLASS_RUNS timed runs: their median is the class's time. Each helper gets
+PER_CORE_S to be given its core (a loaded core may make it wait tens of ms); a
+class that did not answer in time is left out (`complete=False`), and its
+caller must not take its cores for measured. At most one helper runs at a
+time, process-wide: a late helper ends its search and stops after the run in
+hand. Without capacities (an x86 host) every core is a class of its own, in
+CPU-number order. Linux only (per-thread affinity, `sched_getcpu`); elsewhere
+no class is timed and no core is known, i.e. no core counts as slower.
 
 This lives outside `cascade.skills`: a helper thread here must run only the
 workload it is given, which must read no runtime state (a skill's arm frame is
@@ -26,11 +28,13 @@ thread starts).
 
 from __future__ import annotations
 
+import math
 import os
+import statistics
 import threading
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 #: stop starting helpers after this long (s, wall): the GB10's five capacity
@@ -39,6 +43,12 @@ SEARCH_S = 1.0
 #: how long to wait for one core's helper (s, wall): a busy core may not give
 #: the helper its turn soon (the #399 review's probe: 60 ms)
 PER_CORE_S = 0.2
+#: a helper's untimed warm-up on its core (s of its own CPU): an idle core's
+#: clock has not ramped up for its first milliseconds of work (the #425 review
+#: read an X925 1.3-1.7x slow right after a sleep)
+WARMUP_S = 0.015
+#: timed runs per class after the warm-up; their median is the class's time
+CLASS_RUNS = 5
 #: where Linux publishes each core's capacity (1024 = the host's fastest)
 SYSFS_CPU = "/sys/devices/system/cpu"
 
@@ -49,13 +59,37 @@ _running: set = set()
 _running_lock = threading.Lock()
 
 
-@dataclass(frozen=True)
-class Reference:
-    """`fastest`'s answer: the least `seconds` measured, and whether every
-    capacity class answered in time (`complete`)."""
+def _libc_sched_getcpu():
+    try:
+        import ctypes
 
-    seconds: float
-    complete: bool
+        getcpu = ctypes.CDLL(None, use_errno=True).sched_getcpu
+    except (OSError, AttributeError, TypeError):
+        return None
+    getcpu.restype, getcpu.argtypes = ctypes.c_int, []
+    return getcpu
+
+
+_SCHED_GETCPU = _libc_sched_getcpu()
+
+
+def current_cpu() -> int:
+    """The core the calling thread runs on now (`sched_getcpu`), -1 when this
+    host cannot tell."""
+    if _SCHED_GETCPU is None:
+        return -1
+    cpu = int(_SCHED_GETCPU())
+    return cpu if cpu >= 0 else -1
+
+
+@dataclass(frozen=True)
+class ClassTimes:
+    """`class_times`' answer: {a class's cores (a tuple, CPU-number order): the
+    workload's median time on one of them} for every class that answered in
+    time (`seconds`), and whether every class searched did (`complete`)."""
+
+    seconds: dict = field(default_factory=dict)
+    complete: bool = True
 
 
 def _capacities(cpus, root=SYSFS_CPU) -> dict | None:
@@ -91,25 +125,38 @@ def _search_order(cpus) -> list:
     return [classes[cap] for cap in sorted(classes, reverse=True)]
 
 
-def fastest(workload: Callable[[], float], repeats: int = 3) -> Reference:
-    """The least of `workload()` (CPU seconds of a fixed slice of work, timed
-    by the workload itself on its own thread), `repeats` times each, over the
-    caller's core and one core of each capacity class of the process's CPU
-    set (a class's next core only when this one cannot be pinned).
+def _a_time(t) -> bool:
+    return isinstance(t, (int, float)) and math.isfinite(t) and t > 0.0
+
+
+def class_times(workload: Callable[[], float], *, skip=frozenset(), runs: int | None = None,
+                warmup_s: float | None = None) -> ClassTimes:
+    """`workload()` (CPU seconds of a fixed slice of work, timed by the
+    workload itself on its own thread) on one core of each capacity class of
+    the process's CPU set but those in `skip` (classes already timed, as
+    `ClassTimes` keys), fastest class first: run untimed for `warmup_s`
+    (WARMUP_S) of the helper's CPU, then the median of `runs` (CLASS_RUNS)
+    timed runs (a class's next core only when this one cannot be pinned; a
+    class none of whose cores can be is no part of the set). Runs that are
+    not all positive finite times are no answer.
 
     One helper at a time, process-wide (#406 review Minor 2: a hung workload
     left one helper per class alive): a helper that has not answered within
     its PER_CORE_S ends the search (`complete=False`), a search finds one
     still running and starts none (`complete=False`), and a helper whose
-    search is over runs no more of its repeats."""
-    best = min(workload() for _ in range(repeats))
+    search is over runs no more of its work."""
     if not (hasattr(os, "sched_setaffinity") and hasattr(os, "sched_getaffinity")):
-        return Reference(best, True)
+        return ClassTimes()
+    runs = CLASS_RUNS if runs is None else runs
+    warmup_s = WARMUP_S if warmup_s is None else warmup_s
     stop = time.monotonic() + SEARCH_S
     over = threading.Event()             # this search is over
+    seconds: dict = {}
     complete = True
     try:
         for cores in _search_order(_process_cpus()):
+            if tuple(cores) in skip:
+                continue
             answered = pinnable = False
             for cpu in cores:
                 left = stop - time.monotonic()
@@ -135,12 +182,18 @@ def fastest(workload: Callable[[], float], repeats: int = 3) -> Reference:
                         except OSError:
                             return                                 # not this core: the class's next one
                         pinned.append(cpu)
-                        times = []
-                        for _ in range(repeats):
+                        warm = time.thread_time() + warmup_s
+                        while time.thread_time() < warm:           # untimed: the core's clock ramps up
                             if over.is_set():
                                 return                             # its search ended without it
+                            workload()
+                        times = []
+                        for _ in range(runs):
+                            if over.is_set():
+                                return
                             times.append(workload())
-                        found = min(times)
+                        if times and all(_a_time(t) for t in times):
+                            found = float(statistics.median(times))
                     finally:
                         with _running_lock:                        # its answer and its end, at once
                             if found is not None:
@@ -158,20 +211,16 @@ def fastest(workload: Callable[[], float], repeats: int = 3) -> Reference:
                 with _running_lock:
                     running = token in _running
                 if pinned or running:
-                    # this class's core: its answer, if it came in time (a late or
-                    # failed one leaves the class open); never another of its cores
+                    # this class's core: its answer, if it came in time (a late,
+                    # failed or meaningless one leaves the class out); never
+                    # another of its cores
                     pinnable = True
                     if out:
-                        best = min(best, out[0])
+                        seconds[tuple(cores)] = out[0]
                         answered = True
                     break
             if pinnable and not answered:
                 complete = False
     finally:
         over.set()
-    return Reference(best, complete)
-
-
-def fastest_seconds(workload: Callable[[], float], repeats: int = 3) -> float:
-    """`fastest(workload, repeats).seconds`."""
-    return fastest(workload, repeats).seconds
+    return ClassTimes(seconds, complete)

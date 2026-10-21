@@ -43,8 +43,9 @@ def scene_callbacks(monkeypatch):
         rt.skill_grasp_object("orange", _fix=fix, _frame=frame)
     assert len(captured) == 1
     assert not [c for c in calls if c[0] == "joints"]
-    # Runtime legitimately checks feedback before its initial open command.
-    assert [check[0] for check in checks] == ["feedback"]
+    # Runtime legitimately checks feedback before its initial open command, and
+    # vets the home move's segment then too (#424 review Minor 3).
+    assert [check[0] for check in checks] == ["feedback", "preflight"]
     result = captured[0]
     assert "_scene_motion.<locals>.preflight" in result["preflight"].__qualname__
     assert "_scene_motion.<locals>.before_stream" in result["before_stream"].__qualname__

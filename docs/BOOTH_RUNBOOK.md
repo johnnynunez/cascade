@@ -157,11 +157,25 @@ move on, win or lose (exit lines in §8). One `pick_and_place` per group, ever.
    cascade.apps.mcp_server` (SIGUSR1 is the staff reset channel; a server restart also works
    but loses the warm state).
 4. **Never kill or disconnect with the arm loaded or raised.** Park first (*"go home"* =
-   `move_to_rest`; wait for `safe_to_power_off: true`). If the exit's own park is refused (dead
-   camera, latched e-stop: every `launch.sh --down` / SIGTERM latches it), the server keeps the
-   arm powered and holding and logs `POWERED and HOLDING`: support the arm, then switch its power
-   off.
-5. Attendees never reach into the workspace while the arm is powered; the host stages.
+   `move_to_rest`; wait for `safe_to_power_off: true`). An arm an earlier session left held
+   answers `at: held`, `safe_to_power_off: false` (nothing is sent to it): support it, never
+   power it off unsupported. If the exit's own park is refused (dead camera, latched e-stop:
+   every `launch.sh --down` / SIGTERM latches it), the server keeps the arm powered and holding
+   and logs `POWERED and HOLDING`: support the arm, then switch its power off.
+5. **After `POWERED and HOLDING` (or a `down`/`reset` with the arm powered, an arm-check or a
+   calibration that stopped with the arm raised), support the arm before any restart,
+   `arm-check` or `calibrate`.** The hold is remembered (`python scripts/arm_hold.py list`):
+   /state shows `arm_held`, and the next connect of the reBot sends nothing and fails with
+   `left POWERED and HOLDING`. A reBot that measures raised with no hold recorded (a killed
+   process) is refused the same way, after parameter reads only. To go on:
+   1. Hold the arm (or lower it to rest).
+   2. At a terminal on the robot host, run `python scripts/arm_hold.py confirm` (or
+      `~/cascade-demo.sh confirm-held`) and type the phrase it asks for. Valid 2 min, used by
+      the next connect that succeeds; it refuses without a terminal or in an agent's shell.
+      The agent cannot confirm: it asks you.
+   3. Retry within 2 min: the connect drops its torque while you hold it.
+   Folded at rest, `~/cascade-demo.sh up`'s startup check clears the hold by itself.
+6. Attendees never reach into the workspace while the arm is powered; the host stages.
 
 ## 7. Reset between groups (target: 60 s of hands, run during Q&A)
 

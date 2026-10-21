@@ -268,6 +268,8 @@ def main() -> int:
     # re-assert-the-hold path, not crash out and leave the arm uncommanded.
     q_hold: dict[int, float] = {}
     gains: dict[int, tuple[float, float]] = {}
+    #: set before the enable: from then on the motors may hold the arm
+    energized = {"on": False}
     try:
         for mid, m in motors.items():
             lo_j, hi_j = _joint_limits(limits, mid)
@@ -382,6 +384,7 @@ def main() -> int:
         # Hold the captured pose on every joint BEFORE enabling, so the first
         # thing each motor does once energized is stay where it already is.
         _send_hold(motors, q_hold, gains)
+        energized["on"] = True
         ctrl.enable_all()
         _send_hold(motors, q_hold, gains)
         time.sleep(0.3)
@@ -461,6 +464,7 @@ def main() -> int:
         if args.disable_after:
             print("[+] torque OFF")
             ctrl.disable_all()
+            energized["on"] = False
         else:
             print("[+] leaving the arm holding. Park it before any disconnect.")
         return 0
@@ -496,6 +500,14 @@ def main() -> int:
             ctrl.close_bus()
         finally:
             ctrl.close()
+            if energized["on"]:
+                # The motors stay enabled after this process: the next connect's
+                # fault clear (a STOP frame) would drop the arm. Remembered for
+                # every later process (cascade.control.arm_hold).
+                from cascade.control import arm_hold
+
+                arm_hold.remember(args.channel, arm="arm", source="jog_rebot_mb.py", log=print,
+                                  reason="jog_rebot_mb.py left the motors enabled, holding the arm")
 
 
 def _send_hold(motors, q_hold, gains) -> None:

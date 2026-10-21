@@ -118,6 +118,14 @@ class FeetechArm(ArmBase):
 
     # ── lifecycle ────────────────────────────────────────────────────────
 
+    @property
+    def hold_key(self) -> str | None:
+        """This arm's serial port: the bus its hold marker names. connect()
+        never turns a servo's torque off (it writes mode, torque limit,
+        acceleration and torque ENABLE), so a held SO-101 is not refused at
+        connect; its hold is reported until a parked torque-off clears it."""
+        return str(getattr(self, "_port_name", "/dev/ttyACM0"))
+
     def connect(self) -> None:
         if self._connected:
             return

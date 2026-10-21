@@ -190,7 +190,11 @@ def test_rs_connect_refuses_before_enable_when_the_rest_pose_is_implausible(
     with pytest.raises(RuntimeError, match="implausible"):
         arm.connect()
     assert not any(ev[0] == "enable" for ev in log)
-    assert ("disconnect", None) in log and arm._arm is None
+    # Refused by the rest measurement on parameter reads, before any frame that can cut torque (#426
+    # review Important 1): no fault clear, and the bus is released without the SDK's disconnect,
+    # which disables every motor.
+    assert not any(ev[0] in ("clear_error", "disconnect", "disable_all", "shutdown") for ev in log), log
+    assert ("close_bus", None) in log and arm._arm is None
 
 
 def test_mb_gripper_reading_that_is_not_a_position_is_unknown(monkeypatch, no_sleep,

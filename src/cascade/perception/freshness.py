@@ -87,15 +87,22 @@ def producer_clock(frame) -> tuple[tuple, float] | None:
 
     Every camera of one Isaac sim stamps its captures on that sim's physics
     loop clock, whatever camera or bridge port served them: one clock per
-    (robot_id, time_source). An OVRTX capture is on its source's snapshot
-    clock (source, producer epoch). So two cameras' captures on one clock are
+    (robot_id, time_source, bridge run). The run is the bridge's
+    `proprioception.producer_epoch` (a new uuid at every bridge start and
+    frame-history invalidation, scripts/isaac_bridge.py): a remote sim host
+    that rebooted starts its clock again under a new run (#425 review Minor
+    1); a frame without a usable one (an older bridge) keeps the clock of
+    every such frame. An OVRTX capture is on its source's snapshot clock
+    (source, producer epoch). So two cameras' captures on one clock are
     ordered by their stamps; captures on different clocks are not. Raises
     ValueError for a capture `capture_marker` refuses."""
     marker = capture_marker(frame)
     if marker["channel"] != "producer_capture":
         return None
     if marker["backend"] == "isaac":
-        return ("isaac", marker["robot_id"], marker["clock"]), marker["t"]
+        run = frame.capture["proprioception"].get("producer_epoch")
+        run = run if isinstance(run, str) and run else None
+        return ("isaac", marker["robot_id"], marker["clock"], run), marker["t"]
     return ("ovrtx", marker["source"], marker["epoch"], marker["clock"]), marker["t"]
 
 

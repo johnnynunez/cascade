@@ -7,6 +7,7 @@
 3. a control step without an action is refused (no state-only pass);
 4. a malformed message mid-segment latches the stop and the bridge is answered (no hang);
 5. the navigation limit is asymmetric per the training data (no backward walking);
+6. the agent-episode script defaults to the launch default brain.
 """
 from __future__ import annotations
 
@@ -467,3 +468,30 @@ def test_limits_round_trip_and_a_profile_without_the_torso_limit_is_refused():
     assert HumanoidGateLimits.from_profile(lim.as_dict()) == lim
     with pytest.raises(ValueError):
         HumanoidGateLimits.from_profile({k: v for k, v in LIMITS.items() if k != "torso_rpy_command_rad"})
+
+
+# ------------------------------------------------ 6. the episode script's default brain
+def test_agent_episode_defaults_to_the_launch_default_brain(tmp_path, monkeypatch):
+    import cascade.config as config
+
+    spec = importlib.util.spec_from_file_location("humanoid_agent_episode_under_test",
+                                                  REPO / "scripts" / "humanoid_agent_episode.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    seen = {}
+
+    class Stop(Exception):
+        pass
+
+    def load(robot, *, llm="mock", config_dir=None):
+        seen["llm"] = llm
+        raise Stop
+
+    monkeypatch.setattr(config, "load_robot_config", load)
+    with pytest.raises(Stop):
+        module.main(["--robot", "g1_arena_locomanip", "--prompt", "x", "--out", str(tmp_path / "out")])
+    assert seen["llm"] == "local_nemotron_bolt"
+    # the brain scripts/launch.sh resolves by default (--brain auto -> Nemotron 3.5 Bolt)
+    assert "nemotron-3.5-bolt" in (REPO / "configs" / "llm" / "local_nemotron_bolt.yaml").read_text()
+    launch = (REPO / "scripts" / "launch.sh").read_text()
+    assert 'BRAIN="auto"' in launch and "Nemotron 3.5 Bolt by default" in launch

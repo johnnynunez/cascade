@@ -110,7 +110,10 @@ def _compact(result, limit=30000):
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--robot", required=True)
-    ap.add_argument("--llm", default="local_qwen")
+    # The repository's default brain (Nemotron 3.5 Bolt), as scripts/launch.sh resolves
+    # `--brain auto` and scripts/booth_rehearsal.py defaults; any other brain is named explicitly.
+    ap.add_argument("--llm", default="local_nemotron_bolt",
+                    help="configs/llm profile of the brain (default: local_nemotron_bolt, the launch default)")
     ap.add_argument("--prompt", required=True)
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--config-dir", type=Path, default=None)

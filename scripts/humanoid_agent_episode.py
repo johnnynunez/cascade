@@ -113,7 +113,8 @@ def main(argv=None) -> int:
     # The repository's default brain (Nemotron 3.5 Bolt), as scripts/launch.sh resolves
     # `--brain auto` and scripts/booth_rehearsal.py defaults; any other brain is named explicitly.
     ap.add_argument("--llm", default="local_nemotron_bolt",
-                    help="configs/llm profile of the brain (default: local_nemotron_bolt, the launch default)")
+                    help="configs/llm profile of the brain (default: local_nemotron_bolt, the launch default; "
+                         "it talks to the LIVE local brain server on 127.0.0.1:8080, as local_qwen does)")
     ap.add_argument("--prompt", required=True)
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--config-dir", type=Path, default=None)

@@ -20,6 +20,7 @@ import copy
 import importlib.util
 import json
 import os
+import socket
 import threading
 from pathlib import Path
 
@@ -732,11 +733,90 @@ def test_agent_episode_defaults_to_the_launch_default_brain(tmp_path, monkeypatc
         seen["llm"] = llm
         raise Stop
 
+    attempts = []
+
+    def refuse(_sock, address):  # socket guard: this test never reaches a live port (the brain on :8080)
+        attempts.append(address)
+        raise OSError(f"test socket guard: connect to {address!r} refused")
+
+    monkeypatch.setattr(socket.socket, "connect", refuse)
+    monkeypatch.setattr(socket, "create_connection", lambda address, *a, **k: refuse(None, address))
     monkeypatch.setattr(config, "load_robot_config", load)
     with pytest.raises(Stop):
         module.main(["--robot", "g1_arena_locomanip", "--prompt", "x", "--out", str(tmp_path / "out")])
-    assert seen["llm"] == "local_nemotron_bolt"
+    assert seen["llm"] == "local_nemotron_bolt" and attempts == []
+    # the default brain is the LIVE local server; the script says so (owner convenience, kept)
+    assert "base_url: http://127.0.0.1:8080/v1" in (REPO / "configs" / "llm" / "local_nemotron_bolt.yaml").read_text()
+    assert "127.0.0.1:8080" in (REPO / "scripts" / "humanoid_agent_episode.py").read_text()
     # the brain scripts/launch.sh resolves by default (--brain auto -> Nemotron 3.5 Bolt)
     assert "nemotron-3.5-bolt" in (REPO / "configs" / "llm" / "local_nemotron_bolt.yaml").read_text()
     launch = (REPO / "scripts" / "launch.sh").read_text()
     assert 'BRAIN="auto"' in launch and "Nemotron 3.5 Bolt by default" in launch
+
+
+# --------------------------------- 7. offline replay of a recorded run's gate.jsonl (before a real run)
+def _replay_module():
+    spec = importlib.util.spec_from_file_location("replay_gate_jsonl_under_test", REPO / "scripts" / "replay_gate_jsonl.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _recorded_segment(tmp_path):
+    """A real record (domain + fake bridge): ``session.json`` and ``segments/001/gate.jsonl``."""
+    fake = FakeBridge(walk_script(6), final=state(99, box_pos=IN_BIN))
+    domain = hl.build(profile(fake.port), tmp_path / "carry", domain_id="carry")
+    assert domain.execute("carry_object", CARRY)["outcome"] == "confirmed"
+    domain.close()
+    return tmp_path / "carry" / "segments" / "001" / "gate.jsonl"
+
+
+def _doctor(path, edits):
+    lines = [json.loads(line) for line in path.read_text().splitlines()]
+    assert lines[0]["phase"] == "admission" and "action" not in lines[0]
+    for key, edit in edits.items():
+        step, phase = key if isinstance(key, tuple) else (key, "policy")
+        edit(next(line for line in lines if line["step"] == step and line["phase"] == phase)["action"])
+    path.write_text("".join(json.dumps(line) + "\n" for line in lines))
+
+
+def test_replay_reports_the_first_refused_step_per_channel(tmp_path, capsys):
+    path = _recorded_segment(tmp_path)
+    _doctor(path, {
+        # a leg (WBC) target 0.03 rad past its range: inside the MEASURED tolerance (0.05), past the
+        # COMMAND tolerance (0.02): refused (fail closed; the edge case the replay exists to find)
+        2: lambda a: a["joint_targets"].__setitem__(1, 2.5 + 0.03),
+        3: lambda a: a["nav"].__setitem__(0, -0.3),          # backward: past the shipped vx [-0.05, 0.45]
+        4: lambda a: a.update(torso_rpy=[0.6, 0.0, 0.0], nav=[-0.3, 0.0, 0.0]),  # waist roll range; backward again
+        5: lambda a: a["joint_targets"].__setitem__(2, "nan"),
+        # a finger target past its stop after those refusals: clamped (counted), never refused
+        (10_000, "hold"): lambda a: a["joint_targets"].__setitem__(4, -2.0),
+    })
+    module = _replay_module()
+    assert module.main([str(path), "--json"]) == 1
+    report = json.loads(capsys.readouterr().out)
+    first = {name: row["first"] and row["first"]["step"] for name, row in report["channels"].items()}
+    assert first == {"state_finite": 5, "command_joint_rad": None, "command_wbc_joint_rad": 2, "command_nav": 3,
+                     "command_base_height_m": None, "command_torso_rpy": 4}
+    assert report["channels"]["command_wbc_joint_rad"]["first"]["detail"] == "left_knee_joint"
+    assert {name: row["refused_steps"] for name, row in report["channels"].items()} == {
+        "state_finite": 1, "command_joint_rad": 0, "command_wbc_joint_rad": 1, "command_nav": 2,
+        "command_base_height_m": 0, "command_torso_rpy": 1}
+    assert report["actions"] == 8 and report["skipped"] == 1  # 6 policy + 2 hold steps; the admission line
+    assert report["finger_clamps"] == {"steps": 1, "targets": 1}  # each step judged on its own (no latch)
+    assert report["limits"]["source"] == "robot profile g1_arena_locomanip (domain carry)"
+
+
+def test_replay_of_a_clean_record_exits_zero_and_recorded_limits_are_selectable(tmp_path, capsys):
+    path = _recorded_segment(tmp_path)
+    module = _replay_module()
+    assert module.main([str(path)]) == 0
+    text = capsys.readouterr().out
+    assert "8 recorded actions" in text and "no channel refused" in text
+    _doctor(path, {3: lambda a: a["nav"].__setitem__(0, -0.3)})
+    assert module.main([str(path), "--json"]) == 1  # the shipped profile: backward walking refused
+    capsys.readouterr()
+    # the limits the run was recorded with (session.json; symmetric nav 0.45 in the fake profile)
+    assert module.main([str(path), "--json", "--recorded-limits"]) == 0
+    assert json.loads(capsys.readouterr().out)["limits"]["source"].startswith("recorded session")
+    assert module.main([str(tmp_path / "missing.jsonl")]) == 2

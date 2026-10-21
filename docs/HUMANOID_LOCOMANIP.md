@@ -31,6 +31,7 @@ results go in the PR, not here.
 | client | `src/cascade/skills/humanoid_bridge.py` | protocol, busy/fault handling |
 | bridge | `scripts/arena_locomanip_bridge.py` | runs in Arena's venv; owns env + GR00T client; applies an action only after `pass` |
 | episodes | `scripts/humanoid_agent_episode.py` | one operator request through the agent, recorded (`trace.json`) |
+| replay | `scripts/replay_gate_jsonl.py` | a recorded run's actions through today's gate, offline: first refused step per channel |
 
 ## One `carry_object(object, destination)` call
 
@@ -115,6 +116,22 @@ remote assets without the per-file freshness probe (Isaac Lab's offline path).
 checks (`check.humanoid`): object `in` a destination or `unmoved_tol_m`, robot `upright`, fastening
 `min_turns`/`max_turns` from the nut's axial advance; `expect_claim` for a request the agent must
 decline. Harness text may use the local names of namespaced tools; it may never name `reset_stop`.
+
+## Before a real Arena run
+
+- **Replay a recorded run.** `python scripts/replay_gate_jsonl.py <run>/domains/carry/segments/001/gate.jsonl`
+  checks every recorded proposed action with today's gate and the profile's limits (`--recorded-limits`:
+  the run's own, from `session.json`) and prints, per commanded channel, the first refused step
+  (`--json` for the full report; exit 1 when any channel refused). `gate.jsonl` records actions, not
+  measured states, so each action is paired with a neutral upright state: only commands decide. CPU
+  only; run it on an earlier recording before the first real run on new gate code.
+- **Leg target tolerance.** Leg targets (owned by the whole-body controller, but in the applied
+  action) get the command tolerance, range + 0.02 rad, while a MEASURED joint may sit up to 0.05 rad
+  past its range. A leg target 0.02-0.05 rad past its range is a STOP although the leg could stand
+  there. Kept at 0.02 (fail closed); the replay shows whether the policy's actions hit it.
+- **The episode script's brain.** `scripts/humanoid_agent_episode.py` without `--llm` uses
+  `local_nemotron_bolt` (the launch default brain): it talks to the live local brain server on
+  127.0.0.1:8080, as `local_qwen` does. Tests never reach it (fakes and a socket guard).
 
 ## Not validated / limits
 

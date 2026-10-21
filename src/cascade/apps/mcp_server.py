@@ -131,6 +131,7 @@ import copy
 import json
 import os
 import queue
+import signal
 import sys
 import threading
 import time
@@ -2494,86 +2495,173 @@ def _operator_reset_line(result) -> str:
             + ("; ".join(why) or "no reason given"))
 
 
+_NO_RESET = object()  # _worker_loop: no finished SIGUSR1 reset waits for its server.log line
+
+
+def _signal_name(signum) -> str:
+    try:
+        return signal.Signals(signum).name
+    except (ValueError, TypeError):
+        return f"signal {signum}"
+
+
+def _signals_behind(exc, signal_request) -> list[int]:
+    """The signals whose SignalRequests `exc` replaced on its way out, latest first. A second signal
+    that cuts a `finally` (queue.Queue.get's Condition.wait re-acquiring its lock) turns the first
+    SignalRequest into e.g. "RuntimeError: release unlocked lock"; the requests stay in its
+    `__context__` chain."""
+    signums, depth = [], 0
+    while exc is not None and depth < 16:
+        if isinstance(exc, signal_request):
+            signums.append(int(exc.signum))
+        exc, depth = exc.__context__, depth + 1
+    return signums
+
+
 def _worker_loop(server, signals, inbox, eof) -> int:
-    """The single serial worker: (frame, send) items in arrival order."""
-    import signal
+    """The single serial worker: (frame, send) items in arrival order.
+
+    A signal (StopSignals' SignalRequest) is handled INSIDE the loop's `try`: stop_now() first, then
+    for SIGUSR1 the operator reset (reset_now(); an fr3 drives home under it) and its server.log line,
+    then the one reply to the call it cut. A second signal meanwhile folds into it: SIGTERM always
+    wins (e-stop latch, teardown, receipt, 143); a later SIGINT / SIGUSR1 starts over with its own
+    stop. Never `signals.defer()` around reset_now: a SIGTERM must still cut a reset's motion.
+
+    The `except` clauses only record, with no call (a call is a bytecode boundary where a third
+    handler would raise outside the `try`), and across the one back edge outside the `try` the
+    handler only records (`signals._deferred`, the inline form of `signals.defer()`), for the
+    checkpoint at the top. A SIGTERM / SIGINT whose SignalRequest a cut `finally` replaced (and a
+    tool's error handling swallowed) is still taken from the handler's recorded `signals.signum`.
+    """
     from .signal_stop import SignalRequest
 
+    term, usr1 = int(signal.SIGTERM), int(getattr(signal, "SIGUSR1", -1))
+    pending = None          # the signal being handled: its stop (and reset, line, reply) not all done
+    owed = None             # (msg, send) of the call that signal cut, until its one reply is sent
+    reset_done = _NO_RESET  # a finished SIGUSR1 reset whose server.log line is not printed yet
+    reset_open = False      # a SIGUSR1 was taken whose reset_now() has not returned yet
+    reset_cut = None        # the signal that cut a SIGUSR1 reset before it finished
+    recorded = None         # the last SIGINT / SIGTERM the handler recorded that this loop handled
+    held = False            # signals._deferred raised across the back edge below
+    msg = send = None
     while True:
-        msg = None
-        send = None
         try:
-            signals.checkpoint()
-            try:
-                item = inbox.get(timeout=SIGNAL_WAKE_S)
-            except queue.Empty:
-                continue  # a wake (SIGNAL_WAKE_S): a signal whose wakeup was lost runs now
-            if item is eof:
-                break
-            msg, send = item
-            req_id = msg.get("id")
-            is_call = msg.get("method") == "tools/call"
-            with server._cancel_lock:
-                cancelled = req_id is not None and req_id in server._cancelled_ids
-                if cancelled:
-                    server._cancelled_ids.discard(req_id)
-                else:
-                    server._inflight = (
-                        req_id,
-                        (msg.get("params") or {}).get("name") if is_call else None,
-                    )
-            if cancelled:
-                # Complete the transport's waiting slot too. In HTTP mode a
-                # dropped frame leaves done.wait()/the SSE handler alive forever.
-                send(_response(req_id, _text_result(
-                    {"ok": False, "execution_ok": False, "cancelled": True,
-                     "error": "request cancelled before execution"}, is_error=True)))
-                continue  # client gave up before we started; never move
-            try:
-                stale_motion = False
-                arm_error = None
-                if server._bounded and is_call:
-                    motion_skills = server._motion_tools()
-
-                    with server._stop_lock:
-                        stale_motion = ((msg.get("params") or {}).get("name") in motion_skills
-                                        and msg.get("_mobile_stop_serial") != server._stop_serial)
-                elif is_call:
-                    server._dispatch_context.arm_receipt = (
-                        msg.get("_arm_stop_serial"), msg.get("_arm_stop_pending"),
-                    )
-                    arm_error = server._queued_arm_error((msg.get("params") or {}).get("name"))
-                if stale_motion or arm_error:
-                    resp = _response(req_id, _text_result(
-                        {"ok": False, "execution_ok": False,
-                         "error": arm_error or "queued motion invalidated by stop; re-issue a new command explicitly"},
-                        is_error=True))
-                else:
-                    resp = handle_message(server, msg)
-            finally:
-                server._dispatch_context.arm_receipt = None
+            if held:
+                held = False
+                signals._deferred -= 1
+            while True:
+                msg = None
+                send = None
+                signals.checkpoint()
+                latest = getattr(signals, "signum", None)
+                if latest is not None and latest != recorded and pending is None:
+                    pending = int(latest)  # its SignalRequest was swallowed on its way (see the docstring)
+                if pending is not None:
+                    server.stop_now()  # stop invalidation precedes the reset, logging and replies
+                    latest = getattr(signals, "signum", None)
+                    if latest == term:
+                        pending = term
+                    recorded = latest
+                    if reset_cut is not None:
+                        print(f"[cascade-mcp] SIGUSR1 operator reset interrupted by {_signal_name(reset_cut)} before it "
+                              f"finished; " + ("it starts over" if pending == usr1 else "the robot stays stopped"),
+                              file=sys.stderr, flush=True)
+                        reset_cut = None
+                    if reset_done is not _NO_RESET:
+                        line = _operator_reset_line(reset_done) + f"; then {_signal_name(pending)} stopped the robot again"
+                        reset_done = _NO_RESET
+                        print(line, file=sys.stderr, flush=True)
+                    if pending == term:
+                        return 128 + term
+                    if pending == usr1:
+                        # the operator's only feedback: cleared (and which stop) or refused (and why), in server.log
+                        reset_done = server.reset_now()
+                        reset_open = False
+                        line = _operator_reset_line(reset_done)
+                        reset_done = _NO_RESET
+                        print(line, file=sys.stderr, flush=True)
+                    if owed is not None:
+                        cut, reply, owed = owed[0], owed[1], None
+                        if isinstance(cut, dict) and cut.get("id") is not None and reply is not None:
+                            reply(_response(cut["id"], _text_result(
+                                {"ok": False, "execution_ok": False, "error": "interrupted by signal; re-issue explicitly"},
+                                is_error=True)))
+                    pending = None
+                    continue
+                try:
+                    item = inbox.get(timeout=SIGNAL_WAKE_S)
+                except queue.Empty:
+                    continue  # a wake (SIGNAL_WAKE_S): a signal whose wakeup was lost runs now
+                except Exception as exc:
+                    behind = _signals_behind(exc, SignalRequest)
+                    if not behind:
+                        raise
+                    take = term if term in behind else behind[0]
+                    if usr1 in behind and take != usr1:
+                        reset_cut = take  # the operator still reads that the reset did not run
+                    raise SignalRequest(take) from exc
+                if item is eof:
+                    return 0
+                msg, send = item
+                req_id = msg.get("id")
+                is_call = msg.get("method") == "tools/call"
                 with server._cancel_lock:
-                    server._inflight = None
-                    if req_id is not None:
-                        # a cancel that raced with completion is spent now
+                    cancelled = req_id is not None and req_id in server._cancelled_ids
+                    if cancelled:
                         server._cancelled_ids.discard(req_id)
-            if resp is not None:
-                send(resp)
+                    else:
+                        server._inflight = (
+                            req_id,
+                            (msg.get("params") or {}).get("name") if is_call else None,
+                        )
+                if cancelled:
+                    # Complete the transport's waiting slot too. In HTTP mode a
+                    # dropped frame leaves done.wait()/the SSE handler alive forever.
+                    send(_response(req_id, _text_result(
+                        {"ok": False, "execution_ok": False, "cancelled": True,
+                         "error": "request cancelled before execution"}, is_error=True)))
+                    continue  # client gave up before we started; never move
+                try:
+                    stale_motion = False
+                    arm_error = None
+                    if server._bounded and is_call:
+                        motion_skills = server._motion_tools()
+
+                        with server._stop_lock:
+                            stale_motion = ((msg.get("params") or {}).get("name") in motion_skills
+                                            and msg.get("_mobile_stop_serial") != server._stop_serial)
+                    elif is_call:
+                        server._dispatch_context.arm_receipt = (
+                            msg.get("_arm_stop_serial"), msg.get("_arm_stop_pending"),
+                        )
+                        arm_error = server._queued_arm_error((msg.get("params") or {}).get("name"))
+                    if stale_motion or arm_error:
+                        resp = _response(req_id, _text_result(
+                            {"ok": False, "execution_ok": False,
+                             "error": arm_error or "queued motion invalidated by stop; re-issue a new command explicitly"},
+                            is_error=True))
+                    else:
+                        resp = handle_message(server, msg)
+                finally:
+                    server._dispatch_context.arm_receipt = None
+                    with server._cancel_lock:
+                        server._inflight = None
+                        if req_id is not None:
+                            # a cancel that raced with completion is spent now
+                            server._cancelled_ids.discard(req_id)
+                if resp is not None:
+                    send(resp)
         except SignalRequest as request:
-            # All interrupted locks (including runtime._gate, _stop_lock,
-            # _cancel_lock and out_lock) have unwound. Never resume that
-            # tool call. Stop invalidation precedes reset/logging/replies.
-            server.stop_now()
-            if request.signum == signal.SIGTERM:
-                return 128 + signal.SIGTERM
-            if request.signum == getattr(signal, "SIGUSR1", None):
-                # the operator's only feedback: cleared (and which stop) or refused (and why), in server.log
-                print(_operator_reset_line(server.reset_now()), file=sys.stderr, flush=True)
-            if isinstance(msg, dict) and msg.get("id") is not None and send is not None:
-                send(_response(msg["id"], _text_result(
-                    {"ok": False, "execution_ok": False, "error": "interrupted by signal; re-issue explicitly"},
-                    is_error=True)))
-    return 0
+            # All interrupted locks (including runtime._gate, _stop_lock, _cancel_lock and out_lock) have
+            # unwound. Never resume that tool call. Record only, with no call (see the docstring).
+            signals._deferred += 1
+            held = True
+            if msg is not None:
+                owed = (msg, send)  # (None in the signal path: msg is cleared before it)
+            if reset_open:
+                reset_cut = request.signum
+            pending = request.signum  # SIGTERM still wins: the path re-reads the recorded signals.signum
+            reset_open = pending == usr1
 
 
 # ── Streamable HTTP transport (NemoClaw / OpenShell) ─────────────────────

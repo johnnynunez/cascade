@@ -286,6 +286,22 @@ def test_two_close_reads_of_a_folded_arm_connect_as_before(monkeypatch, no_sleep
     assert kinds[:mode].count("param_read") == 12 and kinds.count("clear_error") == 7
 
 
+def test_two_reads_that_disagree_near_rest_are_no_measurement():
+    """Both reads lie within the tolerance but 0.05 rad apart: one of them is a glitch, so the arm is
+    not measured (the agreement check, not the tolerance, refuses it)."""
+    park = [0.0] * 6
+    problem = arm_hold.rest_problem([0.0] * 6, park, 0.12, again=[0.0, 0.0, 0.05, 0.0, 0.0, 0.0])
+    assert problem is not None and "disagree" in problem and "joint 3" in problem, problem
+    assert arm_hold.rest_problem([0.0] * 6, park, 0.12, again=[0.0, 0.0, 0.019, 0.0, 0.0, 0.0]) is None
+
+
+def test_both_reads_must_be_within_the_tolerance():
+    q, again = [0.0, 0.0, 0.11, 0.0, 0.0, 0.0], [0.0, 0.0, 0.125, 0.0, 0.0, 0.0]  # agree; the second is out
+    for first, second in ((q, again), (again, q)):
+        problem = arm_hold.rest_problem(first, [0.0] * 6, 0.12, again=second)
+        assert problem is not None and "joint 3 is 0.125 rad from park_q" in problem, problem
+
+
 def test_the_startup_check_reads_every_joint_twice(monkeypatch, capsys):
     from test_rebot_gripper_reference import _check_script
 

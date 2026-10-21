@@ -420,7 +420,7 @@ class HumanoidSafetyGate:
                 self._state_rows(state, rows)
                 if acting:
                     self._action_rows(action, rows, clamps)
-        except (KeyError, TypeError, ValueError) as exc:
+        except (KeyError, TypeError, ValueError, OverflowError) as exc:  # Overflow: a JSON int too big for a float
             rows.append(GateRow("state_finite", None, 0.0, False, f"malformed step: {exc}"))
         failed = [r for r in rows if not r.ok]
         with self._lock:

@@ -2770,6 +2770,9 @@ def main(argv: list[str] | None = None) -> int:
 
     runtime = arm = None
     status = 0
+    # an arm connected on the operator's confirmation waits for their 'go':
+    # until they typed it, any exit leaves it powered and holding
+    let_go_pending = False
     with StopSignals() as signals:
         try:
             # Construction is passive (no command dispatch). Publish ownership
@@ -2780,10 +2783,12 @@ def main(argv: list[str] | None = None) -> int:
                     runtime.arm.stop()
                 # before any signal can start a teardown park
                 held = [] if mobile or composed else _hold_confirmed_connects(runtime)
+                let_go_pending = bool(held)
             signals.checkpoint()
             if held and not _let_go_or_hold(held):
                 status = STOPPED_HOLDING
             else:
+                let_go_pending = False
                 status = _run_demo(args, cfg, runtime, mobile)
         except SignalRequest:
             # Interrupted with-blocks have released their locks. Invalidate
@@ -2810,6 +2815,10 @@ def main(argv: list[str] | None = None) -> int:
                 if runtime is not None:
                     shutdown_runtime(runtime, arm)
         if signals.signum is not None:
+            if let_go_pending and signals.signum == signal.SIGINT:
+                # Ctrl+C at the 'go' prompt: nothing ran and the arm stays
+                # powered and holding, as after a 'no' (#435 review Minor 2)
+                return STOPPED_HOLDING
             return 0 if not mobile and signals.signum == signal.SIGINT else 128 + signals.signum
     return status
 

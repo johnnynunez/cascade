@@ -26,6 +26,7 @@ import io
 import json
 import os
 import select
+import signal
 import subprocess
 import sys
 import time
@@ -314,11 +315,11 @@ def test_calibrate_sweeps_nothing_on_a_go_it_did_not_read_at_the_terminal(monkey
 # ── the follow-up: the demo CLI's eager build ───────────────────────────────────────────────────────
 
 
-def _demo_cli(monkeypatch, tmp_path, *, answer):
+def _demo_cli(monkeypatch, tmp_path, *, answer, signal_in_run=None):
     """`python -m cascade.apps.demo --arm rebot_rs` over a reBot an earlier session left holding, with the
     operator's fresh confirmation: its EAGER build connects the arm on that confirmation. The agent run
-    (`_run_demo`) is a stub whose first act is a motion (move_home). `answer`: what the operator types at
-    the terminal (None: no terminal)."""
+    (`_run_demo`) is a stub whose first act is a motion (move_home), then raises `signal_in_run` if given.
+    `answer`: what the operator types at the terminal (None: no terminal; a callable: called instead)."""
     from test_confirmed_connect_holds import _commands, _mark_connects
 
     from cascade.apps import demo
@@ -346,12 +347,17 @@ def _demo_cli(monkeypatch, tmp_path, *, answer):
         n0 = len(log)
         out = runtime.execute("move_home", {})
         runs.append({"out": out, "commands": _commands(log[n0:])})
+        if signal_in_run is not None:
+            signal.raise_signal(signal_in_run)
         return 0
+
+    def at_terminal(prompt):
+        asked.append(prompt)
+        return answer() if callable(answer) else answer
 
     monkeypatch.setattr(demo, "_run_demo", run_demo)
     if answer is not None:
-        monkeypatch.setattr(arm_hold, "_answer_at_terminal", lambda prompt: asked.append(prompt) or answer,
-                            raising=False)
+        monkeypatch.setattr(arm_hold, "_answer_at_terminal", at_terminal, raising=False)
     arm_hold.confirm("holding the arm")
     n0 = len(log)
     rc = demo.main(["--arm", "rebot_rs", "--camera", "mock", "--llm", "mock", "--no-view", "--no-serve",
@@ -386,6 +392,32 @@ def test_the_demo_cli_runs_nothing_after_a_confirmed_eager_connect_without_go(mo
     assert "retry" not in marker["reason"], marker
     out = capsys.readouterr().out
     assert LET_GO in out and "HOLDING" in out, out
+
+
+@needs_pin
+@pytest.mark.parametrize(("signum", "rc"), [(signal.SIGINT, 3), (signal.SIGTERM, 128 + signal.SIGTERM)],
+                         ids=["SIGINT", "SIGTERM"])
+def test_a_signal_at_the_eager_go_prompt_never_reads_as_success(monkeypatch, tmp_path, no_sleep, capsys,  # noqa: F811
+                                                                 signum, rc):
+    """#435 review Minor 2: Ctrl+C at the prompt exited 0 with nothing run and the arm left powered and
+    holding, so an `up`-style wrapper read success. Now STOPPED_HOLDING (3), as a 'no'; SIGTERM keeps
+    143. Either way nothing moved and the hold is remembered."""
+    def interrupted():
+        signal.raise_signal(signum)
+        pytest.fail("the signal did not interrupt the prompt")
+
+    got, runs, asked, sent, _commands = _demo_cli(monkeypatch, tmp_path, answer=interrupted)
+    assert len(asked) == 1 and got == rc and runs == [], (got, runs)
+    assert _commands(sent) == [], f"written after the connect: {_commands(sent)}"
+    marker = arm_hold.read("can0")
+    assert marker is not None and marker["source"] == "teardown", marker
+
+
+@needs_pin
+def test_ctrl_c_after_the_go_still_exits_0_as_before(monkeypatch, tmp_path, no_sleep, capsys):  # noqa: F811
+    """Control: once the operator typed 'go', a Ctrl+C during the run is the CLI's ordinary stop (0)."""
+    got, runs, _asked, _sent, _commands = _demo_cli(monkeypatch, tmp_path, answer="go", signal_in_run=signal.SIGINT)
+    assert got == 0 and len(runs) == 1, (got, runs)
 
 
 def test_the_eager_let_go_skips_a_lazy_arm_and_an_unconfirmed_one(monkeypatch):

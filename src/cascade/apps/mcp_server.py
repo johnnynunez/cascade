@@ -2409,8 +2409,20 @@ def _admit(server, m: dict, send) -> bool:
     return False
 
 
+#: The longest the MCP server's main thread blocks in one wait (the serial
+#: worker's idle queue, a lock another thread holds) before it wakes. CPython
+#: runs a Python signal handler on the main thread at its next bytecode: a
+#: signal landing after the thread released the GIL and before its wait began
+#: only sets CPython's C-level flag, and a wait with no timeout never returns,
+#: so the handler never ran (#435 review: a SIGTERM there latched no e-stop,
+#: ran no teardown, and the server lived on until SIGKILL). Each wake runs
+#: that handler; a frame put on the queue still wakes the worker at once.
+SIGNAL_WAKE_S = 0.2
+
+
 def _worker_loop(server, signals, inbox, eof) -> int:
     """The single serial worker: (frame, send) items in arrival order."""
+    import queue
     import signal
     from .signal_stop import SignalRequest
 
@@ -2419,7 +2431,10 @@ def _worker_loop(server, signals, inbox, eof) -> int:
         send = None
         try:
             signals.checkpoint()
-            item = inbox.get()
+            try:
+                item = inbox.get(timeout=SIGNAL_WAKE_S)
+            except queue.Empty:
+                continue  # a wake (SIGNAL_WAKE_S): a signal whose wakeup was lost runs now
             if item is eof:
                 break
             msg, send = item

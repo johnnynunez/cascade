@@ -688,6 +688,10 @@ def cmd_calibrate(args, *, dry_run: bool) -> int:
                     # it. Nothing moved; the sweep starts once they let go.
                     state["moved"] = False
                     if wait_for_let_go(getattr(rig.raw_arm, "hold_key", None), ask=_prompt, log=print):
+                        # the LazyArm refuses every command until the operator says so
+                        let_go = getattr(type(rig.raw_arm), "let_go", None)
+                        if callable(let_go):
+                            let_go(rig.raw_arm)
                         samples = _sweep(rig, args, mode, poses, run_dir, state, dry_run)
                     else:
                         print("[calib] stopped before any motion: the arm stays connected and HOLDING")

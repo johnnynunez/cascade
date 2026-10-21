@@ -40,6 +40,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from ..control.arm_hold import ConnectedAndHolding
+
 CONFIRMED = "confirmed"
 REFUTED = "refuted"
 UNVERIFIED = "unverified"
@@ -254,6 +256,8 @@ class PostconditionChecker:
         try:
             held = self._holding()
             return None if held is None else bool(held)
+        except ConnectedAndHolding:
+            raise  # never best effort: the read connected the arm on an operator's confirmation
         except Exception:
             return None
 
@@ -1158,6 +1162,11 @@ class PostconditionChecker:
         try:
             v = self._gripper_frac()
             return None if v is None else float(v)
+        except ConnectedAndHolding:
+            # The jaw read woke a held arm on an operator's confirmation: that
+            # ends the call (control/arm_hold.py); swallowed here, the call
+            # went on with the arm connected (#431 review Important A).
+            raise
         except Exception:
             return None
 

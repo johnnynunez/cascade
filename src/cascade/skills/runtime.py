@@ -2624,7 +2624,7 @@ class SkillRuntime:
 
         kind = POSTCONDITIONS.get(name)
         if kind is None:
-            return self._execute_skill(name, args)
+            return self._held_on_confirmation_call(name, args)
         # Registry-only identity: do not probe/materialize a LazyArm for bookkeeping.
         try:
             selected = self._select_arm(args.get("arm"))
@@ -2637,10 +2637,52 @@ class SkillRuntime:
         observation = {"postcondition": None}
         result = None
         try:
-            result = self._execute_skill(name, args, _effect_observation=observation)
+            result = self._held_on_confirmation_call(name, args, _effect_observation=observation)
             return result
         finally:
             self._task_effects.finish(obligation, result, observation["postcondition"])
+
+    @staticmethod
+    def _lazy_of(arm):
+        """The LazyArm behind `arm` (itself, or a SafeArm's), or None. Instance
+        dicts only: never an attribute probe that could materialize one."""
+        from ..control.lazy_arm import LazyArm
+
+        for raw in (arm, (getattr(arm, "__dict__", None) or {}).get("_arm")):
+            if isinstance(raw, LazyArm):
+                return raw
+        return None
+
+    def _held_on_confirmation_call(self, name: str, args: dict, **kw) -> dict:
+        """`_execute_skill` under the rule that a connect made on an operator's
+        confirmation only connects and HOLDS (control/arm_hold.py; #431 review
+        Important A). The LazyArm refuses every command from that connect on;
+        here the agent is told: whatever the skill made of the connect's
+        answer (a best-effort read that swallowed it, a skill that then found
+        nothing to do), a motion call whose arm woke on a confirmation, or
+        found it woken so with nobody told, answers 'let go of the arm and
+        retry', and only that arm's NEXT motion call may move it."""
+        lazy = None
+        if name in _MOTION_SKILLS:
+            try:
+                selected = self._select_arm(args.get("arm"))
+            except SkillError:
+                selected = None  # _execute_skill answers an unknown arm
+            lazy = self._lazy_of(self._arm if selected is None else selected)
+            if lazy is not None:
+                lazy.next_call()
+        try:
+            result = self._execute_skill(name, args, **kw)
+        except ConnectedAndHolding as exc:
+            # raised before the skill's own handling (its pre-motion snapshot)
+            result = _connected_and_holding_result(exc)
+        if lazy is not None and lazy.holding_untold:
+            if not (isinstance(result, dict) and result.get("refused") == "connected_on_confirmation"):
+                from ..control.arm_hold import connected_and_holding
+
+                result = _connected_and_holding_result(connected_and_holding(lazy.hold_key))
+            lazy.told_to_let_go()
+        return result
 
     def _execute_skill(self, name: str, args: dict, *, _effect_observation=None) -> dict:
         """Existing actuator/checker/trace path; completion is owned by execute()."""
@@ -3046,8 +3088,7 @@ class SkillRuntime:
                 # with their hands on it: this call's motion was not sent; the
                 # next call moves (#426 fix-round re-review Minor 5).
                 refused_by = type(e).__name__
-                result = {"ok": False, "error": f"ConnectedAndHolding: {e}", "refused": "connected_on_confirmation",
-                          "hint": "the arm is connected and holding where it was; nothing moved"}
+                result = _connected_and_holding_result(e)
                 _with_retrace_result(result, e)
             except Exception as e:  # camera dropouts, CAN loss, ... : the agent
                 # loop must survive and report, not crash mid-task.
@@ -11275,6 +11316,15 @@ def _with_retrace_result(result: dict, exc: BaseException) -> None:
     kept = getattr(exc, "retrace_result", None)
     if isinstance(kept, dict):
         result.update(kept)
+
+
+def _connected_and_holding_result(exc: BaseException) -> dict:
+    """A call answered by a connect made on an operator's confirmation
+    (control/arm_hold.py `ConnectedAndHolding`): the arm is connected and
+    holds where it was, with their hands on it; nothing moved."""
+    return {"ok": False, "outcome": OUTCOME_FAILED, "error": f"ConnectedAndHolding: {exc}",
+            "refused": "connected_on_confirmation",
+            "hint": "the arm is connected and holding where it was; nothing moved"}
 
 
 def _keep_decided_failure(exc: BaseException, failure: str | None) -> None:

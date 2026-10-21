@@ -20,8 +20,10 @@ with the motors enabled. Every process reads it:
   they support the arm. The confirmation is used, and the marker cleared, only when that connect
   succeeds; a connect that fails (the bus is down) keeps both, so a retry within the window may use
   the same confirmation. A connect that went ahead on a confirmation only connects and HOLDS: the
-  motion that triggered it is not sent (`ConnectedAndHolding`, raised by the LazyArm; the CLIs ask the
-  operator to let go and type 'go'), and the next call moves;
+  motion that triggered it is not sent (`ConnectedAndHolding`, raised by the LazyArm, which then
+  refuses every command, arm and jaw, until the agent was answered 'let go of the arm and retry'
+  and its next motion call starts; the CLIs and the startup check ask the operator to let go and
+  type 'go'), and the next call moves;
 - with no marker, the same connect still measures the arm first, with parameter reads only (no frame
   that can change a motor's torque), before its mode write and fault clear: an arm that is not folded
   at rest may be held by motors an earlier process left ENABLED with no marker (a killed process, an

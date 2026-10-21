@@ -582,6 +582,10 @@ def test_a_lazy_connect_on_a_confirmation_moves_nothing_until_the_next_call(monk
     assert kinds.count("clear_error") == 7 and TARGET not in kinds, "connected; the triggering motion was not sent"
     assert arm_hold.read("can0") is None and arm_hold.pending_confirmations() == []
     n0 = len(log)
+    with pytest.raises(arm_hold.ConnectedAndHolding):
+        lazy.send_joint_target(q)  # nobody has told the operator to let go yet (#431 review Important A)
+    lazy.told_to_let_go()  # the caller answered 'let go of the arm and retry'
+    lazy.next_call()
     lazy.send_joint_target(q)  # the next call moves
     assert [e[0] for e in log[n0:]].count(TARGET) == 1 and "clear_error" not in [e[0] for e in log[n0:]], log[n0:]
 
@@ -734,3 +738,35 @@ def test_calibrate_on_a_confirmation_holds_when_the_operator_does_not_go_on(monk
     marker = arm_hold.read("can0")
     assert marker is not None and marker["source"] == "calibrate", marker
     assert "POWERED and HOLDING" in capsys.readouterr().err
+
+
+@needs_pin
+@pytest.mark.parametrize("answer", ["go", "no"])
+def test_calibrate_over_a_lazy_arm_moves_only_once_the_operator_says_go(monkeypatch, tmp_path, capsys, answer):
+    """The real LazyArm: after its confirmed connect it refuses every command until the operator lets go
+    (#431 review Important A). Calibrate's 'go' says so; without it the sweep never moves."""
+    from cascade.calibration import cli
+    from cascade.control.lazy_arm import LazyArm
+    from cascade.control.mock_arm import MockArm
+    from cascade.safety.harness import SafeArm
+
+    monkeypatch.setattr(MockArm, "hold_key", property(lambda self: "can0"))
+    made, answers = {}, iter([answer])
+
+    def build(cfg, args):
+        dr = cli.dry_run_rig(args.arm, cfg.camera.extrinsics.mode, noise_px=0.3, seed=0)
+        dr.raw_arm.connected_on_confirmation = True  # what a reBot connect on a confirmation reports
+        lazy = LazyArm(lambda: dr.raw_arm, n_joints=dr.raw_arm.n_joints, profile_type="rebot_rs", hold_key="can0")
+        safe = SafeArm(lazy, dr.safe_arm.harness, motion_planner=dr.safe_arm.motion_planner)
+        made["mock"] = dr.raw_arm
+        return cli.Rig(safe_arm=safe, raw_arm=lazy, kin=dr.kin, camera=dr.camera, home_q=dr.home_q,
+                       ee_frame=dr.ee_frame, camera_serial=cfg.camera.get("serial", ""))
+
+    monkeypatch.setattr(cli, "build_rig", build)
+    monkeypatch.setattr(cli, "_prompt", lambda msg="": next(answers))
+    rc = cli.main(["--camera", "d455f_scene", "--arm", "rebot_rs", "--yes", "--settle-time", "0",
+                   "--stable-frames", "2", "--out", str(tmp_path / "out.json"), "--run-dir", str(tmp_path / "run")])
+    if answer == "go":
+        assert rc == 0 and made["mock"].commands, "the sweep ran after 'go'"
+    else:
+        assert rc == 1 and made["mock"].commands == [], "stopped before any motion"

@@ -42,8 +42,15 @@ results go in the PR, not here.
    Only the operator clears it, and no agent route can: `reset_stop` is not on the agent's tool
    list, the composed runtime refuses it without `operator=True`, and the MCP and fleet MCP
    servers neither list nor accept it for a robot behind this gate (an MCP host is an agent).
-   Operator channels: SIGUSR1 to the MCP server (`pkill -USR1 -f cascade.apps.mcp_server`, a shell
-   on the rig), the CLI console, `--operator-arm`, operator scripts (`operator=True`); without one
+   Operator channels: SIGUSR1 to this robot's MCP server only, `kill -USR1 <pid>` for that one server (PID from `pgrep -af 'cascade.apps.mcp_server|cascade-mcp'`, checking the robot on that line, or from the `runs/mcp_<pid>` directory name), from a
+   shell on the rig; the CLI console, `--operator-arm`, operator scripts (`operator=True`). Never
+   signal by pattern (`pkill -USR1 -f ...`): every cascade MCP server on the host resumes, which
+   clears an arm rig's latched e-stop (an fr3 also drives home). SIGUSR1 during a carry stops it
+   (0 policy steps after) and closes the bridge session, so that reset is refused until a restart.
+   Known limit: these channels are guarded by host access, not identity. An MCP host with a shell
+   on the rig running as the robot user (Hermes, Codex, Claude Code via `setup_agents.py`) can send
+   SIGUSR1 or restart the server, and a stdio host that starts a fresh server per session starts
+   unlatched; the booth agent inside OpenShell has no host shell. Without an operator channel
    (the fleet MCP has none), the stop stays latched until the operator restarts the server, which
    rebuilds the domain. A stop that closed the bridge session mid-segment (a garbled line, a local
    fault) stays latched until that restart: the domain refuses every reset. Harness² advice may

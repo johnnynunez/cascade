@@ -153,9 +153,10 @@ move on, win or lose (exit lines in §8). One `pick_and_place` per group, ever.
    Ctrl+C on the server (latches the e-stop, no free-fall). A stop during startup is applied
    when startup finishes.
 3. **Clearing a stop is staff-only**: `reset_stop` is hidden via `CASCADE_HIDE_TOOLS`. Staff
-   assesses, restages, then clears from a rig terminal with `pkill -USR1 -f
-   cascade.apps.mcp_server` (SIGUSR1 is the staff reset channel; a server restart also works
-   but loses the warm state).
+   assesses, restages, then clears from a rig terminal with `kill -USR1 <pid>` for that one server (PID from `pgrep -af 'cascade.apps.mcp_server|cascade-mcp'`, checking the robot on that line, or from the `runs/mcp_<pid>` directory name)
+   (SIGUSR1 is the staff reset channel; a server restart also works but loses the warm state).
+   Never `pkill -USR1 -f ...`: it resumes every cascade MCP server on the host, clearing
+   another robot's latched e-stop.
 4. **Never kill or disconnect with the arm loaded or raised.** Park first (*"go home"* =
    `move_to_rest`; wait for `safe_to_power_off: true`). An arm an earlier session left held
    answers `at: held`, `safe_to_power_off: false` (nothing is sent to it): support it, never

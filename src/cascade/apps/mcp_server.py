@@ -102,8 +102,10 @@ offers it), so park it first. A SIGTERM keeps latching the e-stop and holding ra
 halting and parking: no new motion after a stop signal (#424 review, the
 owner may revisit). SIGUSR1 clears the e-stop: that is the STAFF
 reset channel when reset_stop is hidden from attendees
-(`pkill -USR1 -f cascade.apps.mcp_server` requires shell access to the
-rig, which is exactly the staff/attendee boundary). A composed robot behind
+(`kill -USR1 <pid>` of this one server, PID from `pgrep -af` or the
+`runs/mcp_<pid>` directory; never `pkill -USR1 -f ...`, which resumes every
+cascade MCP server on the host, other robots' e-stops included; it requires
+shell access to the rig, which is exactly the staff/attendee boundary). A composed robot behind
 the humanoid safety gate (`robot_runtime.HUMANOID_GATE_KINDS`) never lists or
 accepts reset_stop at all: SIGUSR1 or a restart is the operator's only way.
 

@@ -173,6 +173,10 @@ NOT_FORWARDED: dict[str, tuple[str, str]] = {
                              "~/.cascade/arm_holds): every process on the host must read the same one, so the "
                              "server derives it from its HOME and a registration never pins a copy; tests point "
                              "it at a private directory"),
+    "CASCADE_REST_LOG": ("internal", "the file every reBot rest check appends its readings to (cascade.control."
+                         "arm_hold; default ~/.cascade/logs/rest_readings.jsonl), read by "
+                         "scripts/rest_tolerance_report.py: one per host, derived from HOME, never pinned by a "
+                         "registration; tests point it at a private file"),
 }
 
 

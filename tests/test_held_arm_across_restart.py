@@ -310,7 +310,7 @@ def test_the_startup_check_clears_a_hold_only_when_it_measures_the_arm_folded_at
         mod = _check_script()
         calls = []
         factory = _ArmFactory(SimpleNamespace(get_state=None))
-        monkeypatch.setattr(mod, "read_rest_pose", lambda q=q: q)
+        monkeypatch.setattr(mod, "read_rest_pose", lambda q=q: (list(q), list(q)))
         monkeypatch.setattr(mod, "run", lambda arm, park, **k: calls.append("run") or 0)
         monkeypatch.setattr(rs, "RebotRSArm", factory)
         assert mod.main(["--yes", "--reference-only"]) == code
@@ -324,14 +324,14 @@ def test_clear_if_at_rest_holds_its_own_tolerance_whatever_the_caller_checked():
     joint just past the tolerance, an unread joint, or a pose of the wrong length keeps the hold."""
     from cascade.control import arm_hold
 
-    park, tol = [0.0] * 6, 0.05
+    park, tol = [0.0] * 6, arm_hold.MARKER_CLEAR_TOL_RAD
     for q in ([0.0, 0.0, tol + 0.01, 0.0, 0.0, 0.0], [0.0, None, 0.0, 0.0, 0.0, 0.0], [0.0] * 5):
         arm_hold.record("can0", arm="0", reason="held")
-        assert arm_hold.clear_if_at_rest("can0", q, park, tol, log=lambda *_: None) is False, q
+        assert arm_hold.clear_if_at_rest("can0", q, park, again=q, log=lambda *_: None) is False, q
         assert arm_hold.read("can0") is not None, q
-    assert arm_hold.clear_if_at_rest("can0", [0.0, 0.0, tol - 0.01, 0.0, 0.0, 0.0], park, tol,
-                                     log=lambda *_: None) is True
-    assert arm_hold.read("can0") is None and arm_hold.clear_if_at_rest("can0", park, park, tol) is False
+    near = [0.0, 0.0, tol - 0.01, 0.0, 0.0, 0.0]
+    assert arm_hold.clear_if_at_rest("can0", near, park, again=near, log=lambda *_: None) is True
+    assert arm_hold.read("can0") is None and arm_hold.clear_if_at_rest("can0", park, park, again=park) is False
 
 
 # ── the teardown writes the marker, reads the confirmation at the cut, names its command ─

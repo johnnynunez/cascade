@@ -17,7 +17,7 @@ def runtime(*, watcher=None, camera=None, arm_rig=None):
 
 
 def fail(message):
-    def call():
+    def call(*_args, **_kwargs):  # an owner's stop/close takes the teardown's bound (timeout_s)
         raise RuntimeError(message)
     return call
 
@@ -56,7 +56,7 @@ def test_pending_owned_worker_is_not_clean_teardown():
     thread = threading.Thread(target=release.wait, daemon=True)
     thread.start()
     try:
-        result = demo.shutdown_runtime(runtime(watcher=SimpleNamespace(_thread=thread, stop=lambda: None)),
+        result = demo.shutdown_runtime(runtime(watcher=SimpleNamespace(_thread=thread, stop=lambda **_: None)),
                                        SimpleNamespace(disconnect=lambda: None))
         assert isinstance(result, dict)
         assert result['ok'] is False and result['pending_threads']

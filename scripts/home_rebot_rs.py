@@ -94,6 +94,30 @@ def _hold_key(safe) -> str | None:
     return key if isinstance(key, str) and key else None
 
 
+def _let_go_first(raw, safe, park, log) -> bool:
+    """A connect that went ahead on the operator's confirmation (an arm an
+    earlier session left held, or measured raised: cascade.control.arm_hold)
+    only HOLDS: the operator's hands are on the arm. Before the first motion
+    they let go and type 'go' at this terminal (whatever --yes said; never a
+    pipe nor an agent's environment: `arm_hold.wait_for_let_go`). An arm off its rest is
+    released at once by `home_and_back` instead, while they still support
+    it. False: they did not go on; the arm stays held and is remembered."""
+    if getattr(raw, "connected_on_confirmation", False) is not True:
+        return True
+    q0 = np.asarray(safe.get_state().q, dtype=float)
+    if float(np.max(np.abs(q0 - park))) > REST_TOL:
+        return True
+    from cascade.control import arm_hold
+
+    if arm_hold.wait_for_let_go(_hold_key(safe), log=log):
+        return True
+    log("[!] stopped before any motion: the arm stays connected and HOLDING where it is.")
+    arm_hold.remember(_hold_key(safe), arm="arm", source="home_rebot_rs.py", log=log,
+                      reason="arm-check (home_rebot_rs.py): connected on the operator's confirmation, then "
+                             "stopped before any motion: torque stays ON")
+    return False
+
+
 class CameraHeartbeat:
     """Feeds `harness.heartbeat()` from frames that ARRIVE, nothing else."""
 
@@ -339,9 +363,10 @@ def main(argv=None, *, build=None, make_camera=None) -> int:
             # Refused before any frame that can cut torque (#426 review
             # Minor 7: a clean message, not a traceback).
             log(f"[!] the arm was NOT connected: {e}")
-            log("[!] Support the arm. Folded at rest, `~/cascade-demo.sh up`'s startup check clears the "
-                "hold; or hold it, confirm at this terminal (python scripts/arm_hold.py confirm) and run "
-                "this again within 2 min.")
+            log("[!] Folded at rest (within 0.05 rad of park_q), `~/cascade-demo.sh up`'s startup check clears "
+                "the hold; or support the arm, confirm at this terminal (python scripts/arm_hold.py confirm: your "
+                "sudo password, then the phrase) and run this again within 2 min. It then connects and HOLDS: "
+                "let go and type 'go' before it moves.")
             return 3
         h = safe.harness
         if args.max_vel > h.limits.max_joint_vel:
@@ -357,6 +382,8 @@ def main(argv=None, *, build=None, make_camera=None) -> int:
                 "Nothing commanded; releasing.")
             safe.disconnect()
             return 1
+        if not _let_go_first(_raw, safe, park, log):
+            return 3
         # A dry run keeps real time (MockArm moves instantly), so the
         # watchdog feed is exercised for as long as the real run lasts.
         if args.contact_log:

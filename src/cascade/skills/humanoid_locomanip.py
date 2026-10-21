@@ -109,6 +109,7 @@ class LocomanipDomain:
         self.gate = HumanoidSafetyGate(self.limits)
         self._io = threading.Lock()  # one bridge conversation at a time
         self._segments = 0
+        self._session_closed: str | None = None  # why the bridge session was closed mid-segment
         bridge = profile["bridge"]
         self.client = client or connect_first_free(bridge["host"], bridge["ports"], wait_s=bridge["connect_wait_s"],
                                                    reply_timeout_s=bridge["reply_timeout_s"])
@@ -137,8 +138,13 @@ class LocomanipDomain:
                 "detail": "the bridge receives STOP at its next control step and holds"}
 
     def reset_stop(self):
-        self.gate.reset()
-        return {"ok": True}
+        if self._session_closed is not None:
+            # The bridge session ended mid-segment on a stream this side no longer trusted: nothing can
+            # run on it, so the stop stays latched until the operator rebuilds the domain (a restart).
+            return {"ok": False, "latched": True,
+                    "error": f"bridge session closed mid-segment ({self._session_closed}); the stop stays latched "
+                             f"until the operator restarts the robot runtime"}
+        return {"ok": True, "cleared": self.gate.reset()}  # the stop it cleared, for the operator's log
 
     def close(self):
         with self._io:
@@ -228,7 +234,8 @@ class LocomanipDomain:
         latched = self.gate.latched
         if latched is not None:
             return {**base, "ok": False, "execution_ok": False, "verified": False, "refused": True,
-                    "outcome": "refused", "error": f"humanoid safety stop latched ({latched}); explicit reset_stop required",
+                    "outcome": "refused",
+                    "error": f"stopped: ask the operator to clear the stop (humanoid safety stop latched: {latched})",
                     "postcondition": {"status": "unverified", "reason": "refused before motion"}}
         t0 = time.monotonic()
         wall = float(self.profile["segment_wall_s"])
@@ -238,10 +245,11 @@ class LocomanipDomain:
         first_stop = None
         steps = 0
         end = None
+        streaming = False  # True once the bridge runs the segment and waits on our gate replies
         try:
             with self._io:
                 start = self.client.request({"type": "observe"}, "state")["state"]
-                admission = self.gate.check(int(start.get("step", 0)), start)
+                admission = self.gate.admit(start.get("step", 0) if isinstance(start, dict) else None, start)
                 gate_log.write(json.dumps({"phase": "admission", **admission.as_dict()}) + "\n")
                 if not admission.passed:
                     return {**base, "ok": False, "execution_ok": False, "verified": False, "refused": True,
@@ -251,6 +259,7 @@ class LocomanipDomain:
                 self.client.send({"type": "segment", "id": self._segments, "object": obj, "destination": dest,
                                   "instruction": instruction, "max_steps": int(self.profile["max_steps"]),
                                   "rest_steps": int(self.profile["rest_steps"])})
+                streaming = True
                 while True:
                     msg = self.client.receive()
                     if msg["type"] == "segment_end":
@@ -260,9 +269,13 @@ class LocomanipDomain:
                         raise BridgeError(f"unexpected {msg['type']!r} during a segment")
                     if time.monotonic() - t0 > wall:
                         self.gate.estop(f"segment wall budget {wall:.0f} s exceeded")
-                    decision = self.gate.check(int(msg["i"]), msg["state"], msg.get("action"))
+                    # A malformed step (index, state or action; a step without an action) is a gate
+                    # STOP that latches, and the bridge is still answered: it switches to its hold
+                    # and ends the segment instead of waiting for a reply that never comes.
+                    state = msg.get("state")
+                    decision = self.gate.check(msg.get("i"), state, msg.get("action"))
                     # on pass the bridge applies the action with these finger targets replaced
-                    self.client.send({"type": "gate", "i": msg["i"], "verdict": "pass" if decision.passed else "stop",
+                    self.client.send({"type": "gate", "i": msg.get("i"), "verdict": "pass" if decision.passed else "stop",
                                       "reason": decision.reason,
                                       "clamp": [[c.index, c.applied] for c in decision.clamps]})
                     if decision.clamps:
@@ -274,7 +287,8 @@ class LocomanipDomain:
                             clamped["worst_joint"] = worst.joint
                     steps += 1
                     phase = msg.get("phase", "policy")
-                    gate_log.write(json.dumps({"phase": phase, "sim_time_s": msg["state"].get("sim_time_s"),
+                    gate_log.write(json.dumps({"phase": phase,
+                                               "sim_time_s": state.get("sim_time_s") if isinstance(state, dict) else None,
                                                **decision.as_dict(), "action": msg.get("action")}) + "\n")
                     for row in decision.rows:
                         if row.value is None:
@@ -286,6 +300,16 @@ class LocomanipDomain:
                             summary[row.name] = {"value": round(row.value, 4), "limit": row.limit, "step": decision.step}
                     if not decision.passed and first_stop is None:
                         first_stop = {"step": decision.step, "reason": decision.reason, "phase": phase}
+        except BaseException as exc:
+            if streaming:
+                # Mid-segment the bridge may be waiting for a gate reply on a stream this side no
+                # longer trusts (a malformed line, an unexpected message, a local fault): latch,
+                # then end the session (the bridge reads a close, never a pass), so nothing more
+                # is applied and the bridge is not left hanging.
+                self.gate.estop(f"segment aborted: {type(exc).__name__}: {exc}")
+                self._session_closed = f"{type(exc).__name__}: {exc}"
+                self.client.close()
+            raise
         finally:
             gate_log.close()
         final = end.get("final")

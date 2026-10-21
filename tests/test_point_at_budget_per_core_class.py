@@ -8,8 +8,9 @@ kept the faster core's budget: 3 of 52 heavy plans were refused under a toggling
 re-measure). Now:
 
 1. every budget check charges the planning thread's CPU since the last check by the class of the core it ran on
-   (`pointing._cpu`, sampled at both checks; the faster of the two counts): the budget is 3 s of the fastest class's
-   CPU, wherever the plan ran, and still never past the 8 s wall cap;
+   (`pointing._cpu`, sampled at both checks; the faster of the two counts, so a span is judged by its two ends,
+   `pointing.Budget`): the budget is 3 s of the fastest class's CPU as far as those samples tell, and still never
+   past the 8 s wall cap;
 2. a class's factor is measured once per process by a helper thread pinned to one of its cores
    (`core_speed.class_times`: an untimed warm-up, then the median of CLASS_RUNS runs); the planning thread is never
    timed, so a cold core after a sleep cannot stretch its budget. A class not measured in time counts as the
@@ -476,3 +477,161 @@ def test_measuring_the_classes_leaves_no_thread_behind(monkeypatch):
         pointing.Budget(3.0, wall=30.0)
     _join_probe_helpers()
     assert [t.name for t in threading.enumerate() if t.name == "core-speed-probe"] == []
+
+
+# ── 4. two first Budgets at once (#429 review Minor 3) ──────────────────────
+
+
+@needs_three_cores
+def test_a_second_first_budget_waits_for_the_class_search_in_flight(monkeypatch):
+    """#429 review Minor 3: two arms' first point_at at once. The second Budget's class search found the first one's
+    helper running and gave up, so that plan got no factor at all (`{}`: no stretch, 6/6 runs). It waits for the
+    search in flight (at most SEARCH_WAIT_S) and gets its answer: one search in all."""
+    from cascade import core_speed
+    from cascade.skills import pointing
+
+    cores = _Cores(monkeypatch)
+    monkeypatch.setattr(pointing, "SEARCH_WAIT_S", 30.0, raising=False)    # a loaded runner: no timeout here
+    in_search, release = threading.Event(), threading.Event()
+    real = cores.probe
+
+    def probe():
+        if threading.current_thread().name == "core-speed-probe" and not release.is_set():
+            in_search.set()
+            release.wait(10.0)                          # the first search stays in flight
+        return real()
+
+    monkeypatch.setattr(pointing, "_speed_probe_s", probe)
+    searches, real_times = [], core_speed.class_times
+
+    def class_times(*args, **kwargs):
+        searches.append(threading.current_thread().name)
+        return real_times(*args, **kwargs)
+
+    monkeypatch.setattr(core_speed, "class_times", class_times)
+    got = {}
+
+    def first_budget():
+        got[threading.current_thread().name] = pointing.Budget(3.0, wall=30.0).factors
+
+    a = threading.Thread(target=first_budget, name="plan-a", daemon=True)
+    b = threading.Thread(target=first_budget, name="plan-b", daemon=True)
+    try:
+        a.start()
+        assert in_search.wait(10.0), "test setup: the first search never started its helper"
+        b.start()
+        b.join(0.5)                                     # main: plan-b came back at once, with {}
+        release.set()
+        a.join(10.0)
+        b.join(10.0)
+    finally:
+        release.set()
+        _join_probe_helpers()
+
+    assert set(got) == {"plan-a", "plan-b"}, got
+    assert got["plan-a"][cores.core["slow"]] == pytest.approx(1.08 / 0.40), got
+    assert got["plan-b"] == got["plan-a"], got
+    assert searches == ["plan-a"], searches
+
+
+def test_a_first_budget_waits_for_a_search_in_flight_at_most_search_wait_s(monkeypatch):
+    """... and never longer than SEARCH_WAIT_S: past it, it plans with what is measured so far (here nothing: no
+    stretch) and starts no search of its own (one would find the first one's helper running anyway)."""
+    from cascade import core_speed
+    from cascade.skills import pointing
+
+    monkeypatch.setattr(pointing, "_CLASSES", {})
+    monkeypatch.setattr(pointing, "class_factors", _CLASS_FACTORS)
+    monkeypatch.setattr(pointing, "SEARCH_WAIT_S", 0.2, raising=False)
+    in_search, release = threading.Event(), threading.Event()
+    searches = []
+
+    def class_times(workload, *, skip=frozenset(), **_):
+        searches.append(threading.current_thread().name)
+        in_search.set()
+        release.wait(10.0)                              # the first search hangs (a stalled helper's join)
+        return core_speed.ClassTimes({(0,): 1e-3, (1,): 2.7e-3}, True)
+
+    monkeypatch.setattr(core_speed, "class_times", class_times)
+    got = {}
+
+    def call():
+        start = time.monotonic()
+        got[threading.current_thread().name] = (pointing.class_factors(), time.monotonic() - start)
+
+    a = threading.Thread(target=call, name="plan-a", daemon=True)
+    b = threading.Thread(target=call, name="plan-b", daemon=True)
+    try:
+        a.start()
+        assert in_search.wait(10.0), "test setup: the first search never started"
+        b.start()
+        b.join(5.0)
+        waited = not b.is_alive()
+    finally:
+        release.set()
+        a.join(10.0)
+        b.join(10.0)
+
+    assert waited, "the second call waited past SEARCH_WAIT_S for the search in flight"
+    factors, took = got["plan-b"]
+    assert factors == {} and 0.2 <= took < 5.0, got
+    assert searches == ["plan-a"], searches
+    assert got["plan-a"][0] == {0: 1.0, 1: pytest.approx(2.7)} and pointing.class_factors() == got["plan-a"][0]
+
+
+def test_the_shipped_search_wait_outlasts_one_search():
+    """A search runs at most SEARCH_S to start its helpers plus one helper's PER_CORE_S: the second first Budget
+    waits for its answer, never for its own timeout."""
+    from cascade import core_speed
+    from cascade.skills import pointing
+
+    assert pointing.SEARCH_WAIT_S >= core_speed.SEARCH_S + core_speed.PER_CORE_S
+    assert pointing.SEARCH_WAIT_S <= 2.0, "a bounded wait: it counts toward FRESH_PLAN_S"
+
+
+def test_a_class_search_that_raises_leaves_the_search_lock_free(monkeypatch):
+    """#430 review Minor 1: a search that fails (here `class_times` raises) must still release `_SEARCH`. Released only
+    on success, the lock stayed held for the life of the process: every later Budget waited SEARCH_WAIT_S for it and
+    planned with no factor at all. The error reaches its caller; the next Budget searches at once and gets its
+    factors."""
+    from cascade import core_speed
+    from cascade.skills import pointing
+
+    monkeypatch.setattr(pointing, "_CLASSES", {})
+    monkeypatch.setattr(pointing, "class_factors", _CLASS_FACTORS)
+    monkeypatch.setattr(pointing, "_SEARCH", threading.Lock())      # this test's own: a leak cannot outlive it
+    searches = []
+
+    def class_times(workload, *, skip=frozenset(), **_):
+        searches.append(skip)
+        if len(searches) == 1:
+            raise RuntimeError("the helper could not start")
+        return core_speed.ClassTimes({(0,): 1e-3, (1,): 2.7e-3}, True)
+
+    monkeypatch.setattr(core_speed, "class_times", class_times)
+    with pytest.raises(RuntimeError, match="the helper could not start"):
+        pointing.Budget(3.0, wall=30.0)
+    assert not pointing._SEARCH.locked(), "a failed search left the class-search lock held"
+    start = time.monotonic()
+    budget = pointing.Budget(3.0, wall=30.0)
+    took = time.monotonic() - start
+    assert len(searches) == 2, "the next Budget searched again at once"
+    assert budget.factors == {0: 1.0, 1: pytest.approx(2.7)}, budget.factors
+    assert took < pointing.SEARCH_WAIT_S, f"the next Budget waited {took:.2f} s for a lock no search held"
+    assert not pointing._SEARCH.locked()
+
+
+# ── 5. a Python without ctypes (#429 review Minor 5) ────────────────────────
+
+
+def test_a_python_without_ctypes_still_imports_and_knows_no_core(monkeypatch):
+    """`_libc_sched_getcpu` caught OSError / AttributeError / TypeError but not ImportError: on a Python built
+    without `_ctypes`, `cascade.skills.pointing` failed to import. There no core is known (-1: no stretch)."""
+    import sys
+
+    from cascade import core_speed
+
+    monkeypatch.setitem(sys.modules, "ctypes", None)        # `import ctypes` raises ImportError
+    assert core_speed._libc_sched_getcpu() is None
+    monkeypatch.setattr(core_speed, "_SCHED_GETCPU", None)
+    assert core_speed.current_cpu() == -1

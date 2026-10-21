@@ -170,13 +170,13 @@ PLAN_WALL_S = 8.0
 #: 6 of 32 so101_mock and 14 of 32 g1_mock rows ran past 3 s; none on an
 #: X925). The budget counts the planning thread's CPU in the fastest core
 #: class's time: CPU spent on a slower class counts at that class's speed
-#: (`class_factors`, each class timed once per process on its own core), so
-#: it is PLAN_BUDGET_S of the fastest class's CPU wherever the plan ran, and
-#: a factor never stretches it past PLAN_WALL_S. A class within this ratio of
-#: the fastest counts as it (timing noise). Any factor is capped at
-#: PLAN_WALL_S / PLAN_BUDGET_S = 2.67: one thread's CPU never outruns the
-#: wall clock (an A725 reads 2.7-2.8x on the factor's kernel, real plans
-#: 2.7-4.0x, `_speed_probe_s`).
+#: (`class_factors`, each class timed once per process on its own core), as
+#: far as the cores sampled at the budget checks tell (`Budget`: what that
+#: guarantees), and a factor never stretches it past PLAN_WALL_S. A class
+#: within this ratio of the fastest counts as it (timing noise). Any factor
+#: is capped at PLAN_WALL_S / PLAN_BUDGET_S = 2.67: one thread's CPU never
+#: outruns the wall clock (an A725 reads 2.7-2.8x on the factor's kernel,
+#: real plans 2.7-4.0x, `_speed_probe_s`).
 SLOWER_CORE_MIN = 1.25
 #: Up to PLAN_WALL_S can pass between the target's localization and the
 #: first command. When longer than this (s, wall, from the localization: the
@@ -231,6 +231,22 @@ _CLASSES: dict = {}
 #: measures the classes still missing: a search takes up to ~1.2 s, never on
 #: every call (#406 review Minor 1)
 SEARCH_AGAIN_S = 60.0
+#: one class search at a time: a call that finds another thread's search in
+#: flight waits for its answer (two arms' first point_at at once: the second
+#: one found the first one's helper running and planned with no factor at
+#: all, #429 review Minor 3), at most this long (s, wall): longer than one
+#: search runs (`core_speed.SEARCH_S` to start helpers, then one helper's
+#: `PER_CORE_S`); past it, that call plans with what is measured so far.
+#: A search that holds the lock longer (only a starved searching thread can:
+#: the shipped one holds it at most SEARCH_S + PER_CORE_S, ~1.2 s) costs
+#: EVERY call that finds the factors due in that window the full wait, each
+#: call its own SEARCH_WAIT_S, and each then plans without the factors still
+#: missing (no stretch; before #430 such a call returned at once, also
+#: without them: #430 review Minor 2). Bounded, and it counts only toward
+#: FRESH_PLAN_S (its clock starts at the localization: a long wait can only
+#: add a look again); the budget's CPU and wall clocks start after it
+SEARCH_WAIT_S = 1.5
+_SEARCH = threading.Lock()
 
 
 def _speed_probe_s() -> float:
@@ -265,18 +281,28 @@ def class_factors() -> dict:
     once per process, at the first call; a search that left a class out
     (#399 review Minor 1: never kept as measured) serves every call for
     SEARCH_AGAIN_S, then a call measures the classes still missing (never a
-    search on every call). A core of no measured class is not in the map
-    (`Budget` counts it as the fastest's: no stretch)."""
+    search on every call). One search at a time: a call that finds another
+    thread's search in flight waits for its answer, at most SEARCH_WAIT_S. A
+    core of no measured class is not in the map (`Budget` counts it as the
+    fastest's: no stretch)."""
     known = _CLASSES.setdefault("s", {})
-    searched = _CLASSES.get("searched")
-    if not _CLASSES.get("complete") and (searched is None or not _wall() - searched < SEARCH_AGAIN_S):
+
+    def due():
+        searched = _CLASSES.get("searched")
         # (a NaN clock searches again)
-        found = core_speed.class_times(lambda: _speed_probe_s(), skip=frozenset(known))
-        known.update(found.seconds)
-        if found.complete:
-            _CLASSES["complete"] = True
-        else:
-            _CLASSES["searched"] = _wall()
+        return not _CLASSES.get("complete") and (searched is None or not _wall() - searched < SEARCH_AGAIN_S)
+
+    if due() and _SEARCH.acquire(timeout=SEARCH_WAIT_S):
+        try:
+            if due():                       # the search this call waited for may have answered it
+                found = core_speed.class_times(lambda: _speed_probe_s(), skip=frozenset(known))
+                known.update(found.seconds)
+                if found.complete:
+                    _CLASSES["complete"] = True
+                else:
+                    _CLASSES["searched"] = _wall()
+        finally:
+            _SEARCH.release()
     measured = list(known.items())          # (another thread's search may add to it)
     if not measured:
         return {}
@@ -294,16 +320,30 @@ class Budget:
     the thread that made it has spent `seconds` (PLAN_BUDGET_S) of the host's
     fastest core class's CPU time since (`charged`), or `wall` seconds have
     passed (`_wall`, PLAN_WALL_S). Each check charges this thread's CPU time
-    since the last one (`_clock`) by the class of the core it ran on (`_cpu`,
-    sampled at both checks, milliseconds apart in a plan: the faster class of
-    the two counts, as that time may have run on either): divided by that
-    class's factor (`class_factors`, read once, here, before planning; never
-    above `wall` / `seconds`, so the CPU it allows never passes the wall cap;
-    1 for a core of no measured class or a factor that is not a finite number
-    >= 1). So the budget is the same wherever the plan ran and whatever core
-    the thread woke on (#425 review Important 1 and follow-up 2: one timing of
-    the planning thread's core before planning read 1.3-1.7x on an X925 after
-    the localization's wait, or an A725 the thread left within 60 ms, and a
+    since the last check (`_clock`) divided by the smaller of two factors:
+    that of the core sampled at the last check and that of the core sampled
+    now (`_cpu`; `class_factors`, read once, here, before planning; never
+    above `wall` / `seconds`, 8 / 3 = 2.67 as shipped; 1 for a core of no
+    measured class or a factor that is not a finite number >= 1).
+
+    What that guarantees (#429 review Minor 1). The core is sampled only at
+    the checks, so a span between two checks is judged by its two ends:
+    - an end on the fastest class charges the whole span as the fastest
+      class's CPU (conservative: A725 time in it counts as X925 time);
+    - both ends on a slower class charge it at that class's rate, also when
+      the thread ran on a faster class in between: an A725..X925..A725 span
+      undercharges its X925 time by up to 1 - 1/2.67 = 62.5 %;
+    - whatever the samples, the CPU the thread may spend never passes
+      `seconds` x its largest factor (8 s as shipped, `wall`), nor planning
+      `wall` of wall time.
+    Real plans check at most ~39 ms of CPU apart on an idle GB10 (~118 ms on
+    an A725 under a toggling load; a refused search ~210 ms), so a migration
+    can hide only inside such a span; one long uninterrupted span (a CPU spin
+    between two checks) is decided by its two end samples alone. The thread
+    itself is never timed, so a core it woke on cold cannot stretch its budget
+    (#425 review Important 1 and follow-up 2: one timing of the planning
+    thread's core before planning read 1.3-1.7x on an X925 after the
+    localization's wait, or an A725 the thread left within 60 ms; and a
     thread moved to a slower core mid-plan kept the faster core's budget).
     Read from another thread, whose CPU clock says nothing about this one,
     `seconds` counts wall time (the strict rule)."""

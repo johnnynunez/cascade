@@ -194,7 +194,7 @@ def build_rig(cfg, args) -> Rig:
                model_path=str(acfg.get("model", "")))
 
 
-def _cleanup(rig: Rig | None, *, park: bool) -> None:
+def _cleanup(rig: Rig | None, *, park: bool, hold: str | None = None, release: bool = True) -> None:
     """Runtime shutdown order: park through SafeArm (if the arm may have
     moved), then torque off, then release the camera. A fresh frame feeds
     the watchdog first -- only if one actually arrives; with a dead camera
@@ -203,7 +203,11 @@ def _cleanup(rig: Rig | None, *, park: bool) -> None:
     ._arms_to_hold`): torque off would drop it where it stopped. That hold is
     remembered like the runtime's (`apps.demo._record_holds`, a marker per
     held arm): the next calibrate, arm-check or start refuses to connect the
-    arm until an operator supports it and confirms (#426 review Important 1)."""
+    arm until an operator supports it and confirms (#426 review Important 1).
+    `hold`: keep the arm powered for this reason (it connected on the
+    operator's confirmation and they did not go on: nothing moved, it holds
+    where it is); `release=False`: the arm was never connected (its connect
+    refused), so there is nothing to park or release."""
     if rig is None:
         return
     from types import SimpleNamespace
@@ -212,7 +216,12 @@ def _cleanup(rig: Rig | None, *, park: bool) -> None:
     from ..perception.freshness import observed_at
 
     held = {}
-    if park:
+    if hold is not None:
+        held = {"arm": hold}
+        raws = {"arm": rig.raw_arm}
+        _announce_held(held, raws)
+        _record_holds(raws, held, source="calibrate")
+    elif park:
         try:
             frame = rig.camera.get_frame()
             rig.safe_arm.harness.heartbeat(at=observed_at(frame))
@@ -223,7 +232,7 @@ def _cleanup(rig: Rig | None, *, park: bool) -> None:
         raws = {"arm": rig.raw_arm}
         _announce_held(held, raws)
         _record_holds(raws, held, source="calibrate")
-    if not held:
+    if not held and release:
         try:
             rig.raw_arm.disconnect()
         except Exception as e:
@@ -626,7 +635,10 @@ def cmd_calibrate(args, *, dry_run: bool) -> int:
           "vetted by the safety harness; Ctrl+C = halt + park + torque off")
     print(f"[calib] trace -> {run_dir}; output -> {out}")
 
+    from ..control.arm_hold import ArmHeldError, ConnectedAndHolding, wait_for_let_go
+
     rig, samples, status, state = None, None, None, {"moved": False}
+    hold, release = None, True
     dry_truth = None
     surface = None
     with StopSignals() as signals:
@@ -668,7 +680,35 @@ def cmd_calibrate(args, *, dry_run: bool) -> int:
                     print("[calib] aborted by operator; nothing moved")
                     status = 1
             if status is None:
-                samples = _sweep(rig, args, mode, poses, run_dir, state, dry_run)
+                try:
+                    samples = _sweep(rig, args, mode, poses, run_dir, state, dry_run)
+                except ConnectedAndHolding:
+                    # The arm connected on the operator's confirmation at the
+                    # sweep's first motion and only HOLDS: their hands are on
+                    # it. Nothing moved; the sweep starts once they let go.
+                    state["moved"] = False
+                    # asked at the robot's own terminal, never through `_prompt` (stdin: a pipe)
+                    if wait_for_let_go(getattr(rig.raw_arm, "hold_key", None), log=print):
+                        # the LazyArm refuses every command until the operator says so
+                        let_go = getattr(type(rig.raw_arm), "let_go", None)
+                        if callable(let_go):
+                            let_go(rig.raw_arm)
+                        samples = _sweep(rig, args, mode, poses, run_dir, state, dry_run)
+                    else:
+                        print("[calib] stopped before any motion: the arm stays connected and HOLDING")
+                        hold = ("calibrate: connected on the operator's confirmation, then stopped before any "
+                                "motion")
+                        status = 1
+        except ArmHeldError as e:
+            # Refused before any frame that can cut torque (a held or raised
+            # arm): a clean message, not a traceback (#426 fix-round Minor 6).
+            # Nothing connected, so nothing to park or release.
+            print(f"[calib] the arm was NOT connected: {e}")
+            print("[calib] Folded at rest, `~/cascade-demo.sh up`'s startup check clears a hold; or support the "
+                  "arm, confirm at this terminal (python scripts/arm_hold.py confirm) and run this again within "
+                  "2 min. It then connects and HOLDS: let go and type 'go' before the sweep moves it.")
+            state["moved"], release = False, False
+            status = 3
         except SignalRequest as e:
             if rig is not None:
                 try:
@@ -682,7 +722,7 @@ def cmd_calibrate(args, *, dry_run: bool) -> int:
             status = 1
         finally:
             with signals.defer():
-                _cleanup(rig, park=state["moved"])
+                _cleanup(rig, park=state["moved"], hold=hold, release=release)
         if status is not None:
             return status
         try:

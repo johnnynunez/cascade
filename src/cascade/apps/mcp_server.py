@@ -102,8 +102,12 @@ offers it), so park it first. A SIGTERM keeps latching the e-stop and holding ra
 halting and parking: no new motion after a stop signal (#424 review, the
 owner may revisit). SIGUSR1 clears the e-stop: that is the STAFF
 reset channel when reset_stop is hidden from attendees
-(`pkill -USR1 -f cascade.apps.mcp_server` requires shell access to the
-rig, which is exactly the staff/attendee boundary).
+(`kill -USR1 <pid>` of this one server, PID from `pgrep -af` or the
+`runs/mcp_<pid>` directory; never `pkill -USR1 -f ...`, which resumes every
+cascade MCP server on the host, other robots' e-stops included; it requires
+shell access to the rig, which is exactly the staff/attendee boundary). A composed robot behind
+the humanoid safety gate (`robot_runtime.HUMANOID_GATE_KINDS`) never lists or
+accepts reset_stop at all: SIGUSR1 or a restart is the operator's only way.
 
 Read-only lane (opt-in, B46; `mcp.readonly_lane: true` in configs/demo.yaml or
 CASCADE_MCP_READONLY_LANE=1): everything above still holds -- one serial
@@ -127,6 +131,7 @@ import copy
 import json
 import os
 import queue
+import signal
 import sys
 import threading
 import time
@@ -134,6 +139,34 @@ from pathlib import Path
 
 PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
 SERVER_INFO = {"name": "cascade", "version": "0.1.0"}
+
+#: The longest the MCP server's main thread blocks in one wait (the serial
+#: worker's idle queue, a lock another thread holds) before it wakes. CPython
+#: runs a Python signal handler on the main thread at its next bytecode: a
+#: signal landing after the thread released the GIL and before its wait began
+#: only sets CPython's C-level flag, and a wait with no timeout never returns,
+#: so the handler never ran (#435 review: a SIGTERM there latched no e-stop,
+#: ran no teardown, and the server lived on until SIGKILL). Each wake runs
+#: that handler; a frame put on the queue still wakes the worker at once.
+SIGNAL_WAKE_S = 0.2
+#: The longest the teardown waits for an in-flight runtime build (the
+#: prewarm thread holds `_init_lock`) before it writes its receipt without
+#: tearing that runtime down. Generous (a cold start opens cameras and loads
+#: models); below systemd's default 90 s stop timeout.
+SHUTDOWN_BUILD_WAIT_S = 60.0
+
+
+def _wait_while_held(lock) -> None:
+    """Wait in short sleeps while another thread holds `lock` (the prewarm
+    build holds `_init_lock` for seconds). Never takes it: a sleep ends, so
+    on the main thread a signal whose wakeup was lost runs its handler now,
+    where an acquire without a timeout waited out the whole build (forever
+    for a build stuck in a camera open). Nor an acquire with one: a handler
+    raising right after it returned would leave the lock held. The `with`
+    that follows takes the lock at once."""
+    while lock.locked():
+        time.sleep(0.01)
+
 
 # task_done belongs to the built-in loop; MCP agents manage their own tasks.
 _EXCLUDED_TOOLS = {"task_done"}
@@ -690,6 +723,7 @@ class McpSkillServer:
             "call task_done with an honest", "give the user an honest")
 
     def _ensure_runtime(self, _poison: bool = True):
+        _wait_while_held(self._init_lock)  # a prewarm build in flight: see there
         with self._init_lock:
             if self._runtime is not None:
                 return self._runtime
@@ -859,12 +893,23 @@ class McpSkillServer:
         if self._readonly_lane is not None:
             self._readonly_lane.close()  # no lane call starts against a runtime being torn down
         # taking _init_lock waits out an in-flight prewarm build, so a
-        # runtime that finishes building after EOF is still torn down
-        with self._init_lock, contextlib.redirect_stdout(sys.stderr):
-            if self._runtime is not None:
-                from ..apps.demo import shutdown_runtime
+        # runtime that finishes building after EOF is still torn down; at most
+        # SHUTDOWN_BUILD_WAIT_S (a stop signal ends it sooner): a build that
+        # hangs must not keep the receipt from being written (#435 review)
+        built = self._wait_out_the_build()
+        try:
+            with contextlib.redirect_stdout(sys.stderr):
+                if built is not True:
+                    stages.append({"stage": "runtime", "ok": False, "complete": False, "errors": [
+                        {"type": "RuntimeBuildStillRunning",
+                         "message": f"the runtime was still being built ({built}); it was not torn down"}]})
+                elif self._runtime is not None:
+                    from ..apps.demo import shutdown_runtime
 
-                stages.append(teardown_step("runtime", lambda: self._teardown_exclusive(shutdown_runtime)))
+                    stages.append(teardown_step("runtime", lambda: self._teardown_exclusive(shutdown_runtime)))
+        finally:
+            if built is True:
+                self._init_lock.release()
         receipt = teardown_receipt(stages)
         receipt.update(pid=os.getpid(), runtime_built=self._runtime is not None)
         receipt = retain_teardown_attempt(previous, receipt)
@@ -881,6 +926,25 @@ class McpSkillServer:
             print(f"[cascade-mcp] teardown receipt could not be saved: {receipt}", file=sys.stderr)
         self._shutdown_receipt = copy.deepcopy(receipt)
         return receipt
+
+    def _wait_out_the_build(self):
+        """Take `_init_lock` for the teardown: True once held, else why not
+        (an in-flight build still holds it after SHUTDOWN_BUILD_WAIT_S, or a
+        stop signal arrived during the wait). A build never powers an arm
+        (the arms are lazy), so going on without it leaves nothing raised."""
+        if self._init_lock.acquire(blocking=False):
+            return True
+        from . import demo
+
+        print(f"[cascade-mcp] teardown: the runtime is still being built; waiting up to "
+              f"{SHUTDOWN_BUILD_WAIT_S:g} s for it to finish", file=sys.stderr, flush=True)
+        why = demo.wait_for_teardown(lambda poll_s: self._init_lock.acquire(timeout=poll_s),
+                                     bound_s=SHUTDOWN_BUILD_WAIT_S, signals=getattr(self, "_signals", None))
+        if why is None:
+            return True
+        print(f"[cascade-mcp] WARNING: teardown: the runtime build did not finish ({why}); going on "
+              "without tearing it down", file=sys.stderr, flush=True)
+        return why
 
     def _teardown_exclusive(self, shutdown_runtime) -> dict:
         """`shutdown_runtime` under `_exec_lock`: its park is a motion, and two
@@ -994,7 +1058,10 @@ class McpSkillServer:
                 return _text_result({"ok": False, "error": "runtime starting or input closed; reset refused"}, is_error=True)
             with self._stop_lock:
                 serial = self._stop_serial
-            result = rt.execute("reset_stop", dict(arguments or {}))
+            # The MCP reset_stop (and SIGUSR1) is an operator channel: a composed runtime refuses
+            # reset_stop from anything else (robotics.runtime.OPERATOR_TOOLS). Behind a humanoid gate
+            # the MCP tool call never gets here (_call_mobile_tool refuses it); SIGUSR1 still does.
+            result = rt.execute("reset_stop", dict(arguments or {}), **({"operator": True} if self._composed else {}))
             with self._stop_lock:
                 raced = serial != self._stop_serial
                 if result.get("ok") is True and not raced and not result.get("latched_domains"):
@@ -1276,7 +1343,10 @@ class McpSkillServer:
     def list_tools(self) -> list[dict]:
         if self._composed:
             from .robot_runtime import robot_tool_descriptors
-            candidates = [t.as_spec() for t in robot_tool_descriptors(self._get_mobile_config()).values()]
+            # The MCP host is the agent: behind a humanoid gate it is never offered reset_stop.
+            operator_only = self._operator_only_reset()
+            candidates = [t.as_spec() for t in robot_tool_descriptors(self._get_mobile_config()).values()
+                          if not (operator_only and t.name == "reset_stop")]
         elif self._mobile:
             from ..skills.mobile_runtime import tool_specs_for_profiles
 
@@ -1475,7 +1545,22 @@ class McpSkillServer:
             return _text_result(_agent_text({"ok": False, "error": str(exc)}), is_error=True)
         return self._image_result(runtime, frame, camera=camera)
 
+    def _operator_only_reset(self) -> bool:
+        """A composed robot with a domain behind the humanoid safety gate: only the operator clears its
+        stop (SIGUSR1 -> reset_now, or a restart), never the MCP host's ``reset_stop`` tool call."""
+        if not self._composed:
+            return False
+        from .robot_runtime import humanoid_gate_domains
+        return bool(humanoid_gate_domains(self._get_mobile_config()))
+
     def _call_mobile_tool(self, name, arguments):
+        if name == "reset_stop" and self._operator_only_reset():
+            from ..robotics.runtime import OPERATOR_ONLY_ERROR
+            rt = self._runtime
+            with self._stop_lock:
+                pending = self._stop_pending
+            latched = bool(pending or (rt is not None and rt.stopped))
+            return _text_result({"ok": False, "latched": latched, "error": OPERATOR_ONLY_ERROR}, is_error=True)
         allowed = {s["name"] for s in self.list_tools()}
         if name not in allowed:
             return _text_result({"ok": False, "error": f"unsupported mobile tool: {name!r}"}, is_error=True)
@@ -2342,8 +2427,14 @@ def _serve_stdio(server, signals):
             elif server._mobile or signals.signum is not None:
                 server.stop_now()
             reader_halt.set()
-            reader.join()
-            os.close(input_fd)
+            # bounded: it sees reader_halt within 0.05 s unless a frame's
+            # handling blocks; then its fd stays open (no reuse under it)
+            reader.join(TRANSPORT_STOP_S)
+            if reader.is_alive():
+                print(f"[cascade-mcp] WARNING: the stdin reader did not stop within {TRANSPORT_STOP_S:g} s",
+                      file=sys.stderr, flush=True)
+            else:
+                os.close(input_fd)
 
 
 def _admit(server, m: dict, send) -> bool:
@@ -2384,82 +2475,193 @@ def _admit(server, m: dict, send) -> bool:
     return False
 
 
+def _operator_reset_line(result) -> str:
+    """One server.log line for the SIGUSR1 operator reset: the stop it cleared, or why it was refused.
+    Never raises (it runs in the worker's signal path)."""
+    try:
+        payload = json.loads(result["content"][-1]["text"])
+        payload = payload if isinstance(payload, dict) else {"ok": False, "error": f"reset answered {payload!r}"}
+    except Exception as exc:  # noqa: BLE001
+        payload = {"ok": False, "error": f"unreadable reset result ({type(exc).__name__})"}
+    cleared = payload.get("ok") is True
+    domains = payload.get("domains") if isinstance(payload.get("domains"), dict) else {}
+    key = "cleared" if cleared else "error"
+    why = [f"{name}: {r[key]}" for name, r in domains.items() if isinstance(r, dict) and r.get(key)]
+    if cleared:
+        return "[cascade-mcp] SIGUSR1 operator reset: stop cleared" + (f" ({'; '.join(why)})" if why else "")
+    if payload.get("error"):
+        why.insert(0, str(payload["error"]))
+    return ("[cascade-mcp] SIGUSR1 operator reset REFUSED, the robot stays stopped: "
+            + ("; ".join(why) or "no reason given"))
+
+
+_NO_RESET = object()  # _worker_loop: no finished SIGUSR1 reset waits for its server.log line
+
+
+def _signal_name(signum) -> str:
+    try:
+        return signal.Signals(signum).name
+    except (ValueError, TypeError):
+        return f"signal {signum}"
+
+
+def _signals_behind(exc, signal_request) -> list[int]:
+    """The signals whose SignalRequests `exc` replaced on its way out, latest first. A second signal
+    that cuts a `finally` (queue.Queue.get's Condition.wait re-acquiring its lock) turns the first
+    SignalRequest into e.g. "RuntimeError: release unlocked lock"; the requests stay in its
+    `__context__` chain."""
+    signums, depth = [], 0
+    while exc is not None and depth < 16:
+        if isinstance(exc, signal_request):
+            signums.append(int(exc.signum))
+        exc, depth = exc.__context__, depth + 1
+    return signums
+
+
 def _worker_loop(server, signals, inbox, eof) -> int:
-    """The single serial worker: (frame, send) items in arrival order."""
-    import signal
+    """The single serial worker: (frame, send) items in arrival order.
+
+    A signal (StopSignals' SignalRequest) is handled INSIDE the loop's `try`: stop_now() first, then
+    for SIGUSR1 the operator reset (reset_now(); an fr3 drives home under it) and its server.log line,
+    then the one reply to the call it cut. A second signal meanwhile folds into it: SIGTERM always
+    wins (e-stop latch, teardown, receipt, 143); a later SIGINT / SIGUSR1 starts over with its own
+    stop. Never `signals.defer()` around reset_now: a SIGTERM must still cut a reset's motion.
+
+    The `except` clauses only record, with no call (a call is a bytecode boundary where a third
+    handler would raise outside the `try`), and across the one back edge outside the `try` the
+    handler only records (`signals._deferred`, the inline form of `signals.defer()`), for the
+    checkpoint at the top. A SIGTERM / SIGINT whose SignalRequest a cut `finally` replaced (and a
+    tool's error handling swallowed) is still taken from the handler's recorded `signals.signum`.
+    """
     from .signal_stop import SignalRequest
 
+    term, usr1 = int(signal.SIGTERM), int(getattr(signal, "SIGUSR1", -1))
+    pending = None          # the signal being handled: its stop (and reset, line, reply) not all done
+    owed = None             # (msg, send) of the call that signal cut, until its one reply is sent
+    reset_done = _NO_RESET  # a finished SIGUSR1 reset whose server.log line is not printed yet
+    reset_open = False      # a SIGUSR1 was taken whose reset_now() has not returned yet
+    reset_cut = None        # the signal that cut a SIGUSR1 reset before it finished
+    recorded = None         # the last SIGINT / SIGTERM the handler recorded that this loop handled
+    held = False            # signals._deferred raised across the back edge below
+    msg = send = None
     while True:
-        msg = None
-        send = None
         try:
-            signals.checkpoint()
-            item = inbox.get()
-            if item is eof:
-                break
-            msg, send = item
-            req_id = msg.get("id")
-            is_call = msg.get("method") == "tools/call"
-            with server._cancel_lock:
-                cancelled = req_id is not None and req_id in server._cancelled_ids
-                if cancelled:
-                    server._cancelled_ids.discard(req_id)
-                else:
-                    server._inflight = (
-                        req_id,
-                        (msg.get("params") or {}).get("name") if is_call else None,
-                    )
-            if cancelled:
-                # Complete the transport's waiting slot too. In HTTP mode a
-                # dropped frame leaves done.wait()/the SSE handler alive forever.
-                send(_response(req_id, _text_result(
-                    {"ok": False, "execution_ok": False, "cancelled": True,
-                     "error": "request cancelled before execution"}, is_error=True)))
-                continue  # client gave up before we started; never move
-            try:
-                stale_motion = False
-                arm_error = None
-                if server._bounded and is_call:
-                    motion_skills = server._motion_tools()
-
-                    with server._stop_lock:
-                        stale_motion = ((msg.get("params") or {}).get("name") in motion_skills
-                                        and msg.get("_mobile_stop_serial") != server._stop_serial)
-                elif is_call:
-                    server._dispatch_context.arm_receipt = (
-                        msg.get("_arm_stop_serial"), msg.get("_arm_stop_pending"),
-                    )
-                    arm_error = server._queued_arm_error((msg.get("params") or {}).get("name"))
-                if stale_motion or arm_error:
-                    resp = _response(req_id, _text_result(
-                        {"ok": False, "execution_ok": False,
-                         "error": arm_error or "queued motion invalidated by stop; re-issue a new command explicitly"},
-                        is_error=True))
-                else:
-                    resp = handle_message(server, msg)
-            finally:
-                server._dispatch_context.arm_receipt = None
+            if held:
+                held = False
+                signals._deferred -= 1
+            while True:
+                msg = None
+                send = None
+                signals.checkpoint()
+                latest = getattr(signals, "signum", None)
+                if latest is not None and latest != recorded and pending is None:
+                    pending = int(latest)  # its SignalRequest was swallowed on its way (see the docstring)
+                if pending is not None:
+                    server.stop_now()  # stop invalidation precedes the reset, logging and replies
+                    latest = getattr(signals, "signum", None)
+                    if latest == term:
+                        pending = term
+                    recorded = latest
+                    if reset_cut is not None:
+                        print(f"[cascade-mcp] SIGUSR1 operator reset interrupted by {_signal_name(reset_cut)} before it "
+                              f"finished; " + ("it starts over" if pending == usr1 else "the robot stays stopped"),
+                              file=sys.stderr, flush=True)
+                        reset_cut = None
+                    if reset_done is not _NO_RESET:
+                        line = _operator_reset_line(reset_done) + f"; then {_signal_name(pending)} stopped the robot again"
+                        reset_done = _NO_RESET
+                        print(line, file=sys.stderr, flush=True)
+                    if pending == term:
+                        return 128 + term
+                    if pending == usr1:
+                        # the operator's only feedback: cleared (and which stop) or refused (and why), in server.log
+                        reset_done = server.reset_now()
+                        reset_open = False
+                        line = _operator_reset_line(reset_done)
+                        reset_done = _NO_RESET
+                        print(line, file=sys.stderr, flush=True)
+                    if owed is not None:
+                        cut, reply, owed = owed[0], owed[1], None
+                        if isinstance(cut, dict) and cut.get("id") is not None and reply is not None:
+                            reply(_response(cut["id"], _text_result(
+                                {"ok": False, "execution_ok": False, "error": "interrupted by signal; re-issue explicitly"},
+                                is_error=True)))
+                    pending = None
+                    continue
+                try:
+                    item = inbox.get(timeout=SIGNAL_WAKE_S)
+                except queue.Empty:
+                    continue  # a wake (SIGNAL_WAKE_S): a signal whose wakeup was lost runs now
+                except Exception as exc:
+                    behind = _signals_behind(exc, SignalRequest)
+                    if not behind:
+                        raise
+                    take = term if term in behind else behind[0]
+                    if usr1 in behind and take != usr1:
+                        reset_cut = take  # the operator still reads that the reset did not run
+                    raise SignalRequest(take) from exc
+                if item is eof:
+                    return 0
+                msg, send = item
+                req_id = msg.get("id")
+                is_call = msg.get("method") == "tools/call"
                 with server._cancel_lock:
-                    server._inflight = None
-                    if req_id is not None:
-                        # a cancel that raced with completion is spent now
+                    cancelled = req_id is not None and req_id in server._cancelled_ids
+                    if cancelled:
                         server._cancelled_ids.discard(req_id)
-            if resp is not None:
-                send(resp)
+                    else:
+                        server._inflight = (
+                            req_id,
+                            (msg.get("params") or {}).get("name") if is_call else None,
+                        )
+                if cancelled:
+                    # Complete the transport's waiting slot too. In HTTP mode a
+                    # dropped frame leaves done.wait()/the SSE handler alive forever.
+                    send(_response(req_id, _text_result(
+                        {"ok": False, "execution_ok": False, "cancelled": True,
+                         "error": "request cancelled before execution"}, is_error=True)))
+                    continue  # client gave up before we started; never move
+                try:
+                    stale_motion = False
+                    arm_error = None
+                    if server._bounded and is_call:
+                        motion_skills = server._motion_tools()
+
+                        with server._stop_lock:
+                            stale_motion = ((msg.get("params") or {}).get("name") in motion_skills
+                                            and msg.get("_mobile_stop_serial") != server._stop_serial)
+                    elif is_call:
+                        server._dispatch_context.arm_receipt = (
+                            msg.get("_arm_stop_serial"), msg.get("_arm_stop_pending"),
+                        )
+                        arm_error = server._queued_arm_error((msg.get("params") or {}).get("name"))
+                    if stale_motion or arm_error:
+                        resp = _response(req_id, _text_result(
+                            {"ok": False, "execution_ok": False,
+                             "error": arm_error or "queued motion invalidated by stop; re-issue a new command explicitly"},
+                            is_error=True))
+                    else:
+                        resp = handle_message(server, msg)
+                finally:
+                    server._dispatch_context.arm_receipt = None
+                    with server._cancel_lock:
+                        server._inflight = None
+                        if req_id is not None:
+                            # a cancel that raced with completion is spent now
+                            server._cancelled_ids.discard(req_id)
+                if resp is not None:
+                    send(resp)
         except SignalRequest as request:
-            # All interrupted locks (including runtime._gate, _stop_lock,
-            # _cancel_lock and out_lock) have unwound. Never resume that
-            # tool call. Stop invalidation precedes reset/logging/replies.
-            server.stop_now()
-            if request.signum == signal.SIGTERM:
-                return 128 + signal.SIGTERM
-            if request.signum == getattr(signal, "SIGUSR1", None):
-                server.reset_now()
-            if isinstance(msg, dict) and msg.get("id") is not None and send is not None:
-                send(_response(msg["id"], _text_result(
-                    {"ok": False, "execution_ok": False, "error": "interrupted by signal; re-issue explicitly"},
-                    is_error=True)))
-    return 0
+            # All interrupted locks (including runtime._gate, _stop_lock, _cancel_lock and out_lock) have
+            # unwound. Never resume that tool call. Record only, with no call (see the docstring).
+            signals._deferred += 1
+            held = True
+            if msg is not None:
+                owed = (msg, send)  # (None in the signal path: msg is cleared before it)
+            if reset_open:
+                reset_cut = request.signum
+            pending = request.signum  # SIGTERM still wins: the path re-reads the recorded signals.signum
+            reset_open = pending == usr1
 
 
 # ── Streamable HTTP transport (NemoClaw / OpenShell) ─────────────────────
@@ -2474,6 +2676,42 @@ def _worker_loop(server, signals, inbox, eof) -> int:
 
 HTTP_MAX_BODY = 131_072      # OpenShell's managed-MCP request-body cap
 HTTP_MIN_TOKEN = 24          # characters of bearer secret
+#: How long an HTTPS connection may take to finish its TLS handshake. It runs
+#: on that connection's own thread, never in the listener's accept(): one
+#: client that connects and never sends its ClientHello used to stall the
+#: listener, so no other client (the stop channel included) was served and
+#: SIGTERM's listener shutdown waited until that socket closed (#435 review).
+HTTP_TLS_HANDSHAKE_S = 10.0
+#: The longest SIGTERM's teardown waits for the listener (or the stdio
+#: reader) to stop before it goes on; past it the thread is named in the log.
+TRANSPORT_STOP_S = 5.0
+
+
+def _tls_http_server(address, handler, ctx, *, handshake_s: float | None = None):
+    """A ThreadingHTTPServer on `address` that serves HTTPS with `ctx`, as the
+    robot endpoint's (robotics/endpoint.py `_TLSHTTPServer`, B71): the
+    listener only accepts; each connection's thread does its own handshake,
+    bounded by `handshake_s` (default HTTP_TLS_HANDSHAKE_S), and a connection
+    that does not finish it in time is closed. The request after it has no
+    timeout, exactly as before."""
+    from ..robotics.endpoint import _TLSHTTPServer
+
+    httpd = _TLSHTTPServer(address, handler)
+    httpd.tls_context = ctx
+    httpd.tls_handshake_timeout_s = HTTP_TLS_HANDSHAKE_S if handshake_s is None else float(handshake_s)
+    return httpd
+
+
+def _stop_listener(httpd, listener) -> None:
+    """`httpd.shutdown()` waits for serve_forever without a bound: ask from
+    a helper thread, wait at most TRANSPORT_STOP_S, then close the socket."""
+    stopper = threading.Thread(target=httpd.shutdown, daemon=True, name="cascade-mcp-http-stop")
+    stopper.start()
+    listener.join(TRANSPORT_STOP_S)
+    if listener.is_alive():
+        print(f"[cascade-mcp] WARNING: the HTTP listener did not stop within {TRANSPORT_STOP_S:g} s; "
+              "closing its socket anyway", file=sys.stderr, flush=True)
+    httpd.server_close()
 
 
 def _http_settings(args) -> dict:
@@ -2689,8 +2927,6 @@ def _serve_http(server, signals, *, host, port, path, token, cert=None, key=None
                     except OSError:
                         pass
 
-        httpd = ThreadingHTTPServer((host, port), Handler)
-        httpd.daemon_threads = True
         scheme = "http"
         if cert:
             import ssl
@@ -2698,8 +2934,11 @@ def _serve_http(server, signals, *, host, port, path, token, cert=None, key=None
             ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
             ctx.minimum_version = ssl.TLSVersion.TLSv1_2
             ctx.load_cert_chain(cert, key)
-            httpd.socket = ctx.wrap_socket(httpd.socket, server_side=True)
+            httpd = _tls_http_server((host, port), Handler, ctx)
             scheme = "https"
+        else:
+            httpd = ThreadingHTTPServer((host, port), Handler)
+            httpd.daemon_threads = True
         bound_port = httpd.server_address[1]
         print(f"[cascade-mcp] cascade MCP server on {scheme}://{host}:{bound_port}{path} "
               f"(log: {run_dir / 'server.log'})", file=sys.stderr, flush=True)
@@ -2718,9 +2957,7 @@ def _serve_http(server, signals, *, host, port, path, token, cert=None, key=None
         with signals.defer():
             server._close_admission()
             server.stop_now()
-            httpd.shutdown()
-            httpd.server_close()
-            listener.join(5)
+            _stop_listener(httpd, listener)
 
 
 if __name__ == "__main__":

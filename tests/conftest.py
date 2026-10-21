@@ -156,8 +156,13 @@ def _isolate_arm_holds(monkeypatch, tmp_path):
     (`cascade.control.arm_hold`, `~/.cascade/arm_holds`): a teardown that holds
     a torque-cutting arm writes one, and the next connect of that arm refuses
     over it. A shared directory would carry one test's hold into the next (and
-    into the live rig's)."""
+    into the live rig's). The same for the rest-readings log every reBot rest
+    check appends to (`~/.cascade/logs/rest_readings.jsonl`), and `confirm`
+    never reaches the host's real sudo in-process (`arm_hold.SUDO`: a path
+    that does not exist; subprocess tests set their own stub)."""
     monkeypatch.setenv("CASCADE_ARM_HOLD_DIR", str(tmp_path / "arm_holds"))
+    monkeypatch.setenv("CASCADE_REST_LOG", str(tmp_path / "rest_readings.jsonl"))
+    monkeypatch.setattr("cascade.control.arm_hold.SUDO", str(tmp_path / "no-real-sudo"), raising=False)
 
 
 @pytest.fixture(autouse=True)

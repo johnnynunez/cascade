@@ -761,19 +761,49 @@ def test_a_clock_that_is_only_re_sent_is_never_dropped_before_live_ones():
 
 
 def test_the_producer_clock_names_the_bridge_run():
-    """`freshness.producer_clock`: one Isaac clock per (robot, time source, bridge run); a frame without a usable
-    run (an older bridge, a test double) keeps the clock it had, and a malformed one never raises (the stream's pump
-    would drop the frame)."""
+    """`freshness.producer_clock`: one Isaac clock per (robot, time source, bridge run); a frame that sends no run
+    (an older bridge, a test double) keeps the clock of every such frame."""
     from cascade.perception.freshness import producer_clock
 
     one, two = producer_clock(_bridge_frame(10.0, "run-1")), producer_clock(_bridge_frame(10.0, "run-2"))
     assert one[0] != two[0] and one[1] == two[1] == 10.0
-    plain = producer_clock(_isaac_frame(10.0))
+    plain, again = producer_clock(_isaac_frame(10.0)), producer_clock(_isaac_frame(11.0))
+    assert plain[0] == again[0] and plain[0] not in (one[0], two[0])
+
+
+#: a `producer_epoch` that is there but is not a run's name (the bridge sends a non-empty uuid hex string)
+#: ("bytes": the run's name, but not a str: #430 review Minor 1, an epoch accepted as `(str, bytes)` passed every row)
+_MALFORMED_EPOCHS = {"empty": "", "int": 7, "list": ["run"], "dict": {"run": 1}, "none": None, "bool": True,
+                     "nan": math.nan, "float": 1.0, "bytes": b"run-1"}
+
+
+@pytest.mark.parametrize("bad", list(_MALFORMED_EPOCHS))
+def test_a_present_but_malformed_producer_epoch_is_refused_and_beats_no_watchdog(bad):
+    """#429 review Minor 2: a PRESENT but malformed `producer_epoch` fell back to the clock of the frames that send
+    none, so after valid-epoch frames a re-send of the same capture under it read as first received now (a fresh
+    heartbeat, a fresh look again). It is refused, as `backend_evidence` refuses it: `producer_clock` raises
+    ValueError, the stream's pump keeps going and leaves the frame unstamped and its record alone, and
+    `observed_at` is NaN (the perception watchdog ignores it: fail closed)."""
+    from cascade.perception.freshness import observed_at, producer_clock
+
     stream = CameraStream(camera=None, name="isaac")
-    for bad in ("", 7, ["run"], {"run": 1}, None, True):
-        frame = _bridge_frame(10.0, bad)
-        assert producer_clock(frame) == plain, bad
-        stream._note_first_receipt(frame)
+    first = _bridge_frame(10.0, "run-1")
+    first.t -= 8.0
+    stream._note_first_receipt(first)
+    record = dict(stream._first_receipts)
+    resent = _bridge_frame(10.0, _MALFORMED_EPOCHS[bad])
+    with pytest.raises(ValueError, match="producer_epoch"):
+        producer_clock(resent)
+    stream._note_first_receipt(resent)                      # never raises: the pump would drop the stream
+    assert resent.observed_t is None and math.isnan(observed_at(resent))
+    assert stream._first_receipts == record
+    h = _harness()
+    h._last_heartbeat = first.t
+    h.heartbeat(at=observed_at(resent))
+    assert h._last_heartbeat == first.t, "a malformed epoch's frame beats no watchdog"
+    valid = _bridge_frame(10.0, "run-1")                    # control: the same capture, its own run
+    stream._note_first_receipt(valid)
+    assert valid.observed_t == first.t and observed_at(valid) == first.t
 
 
 def test_local_frames_are_never_restamped():

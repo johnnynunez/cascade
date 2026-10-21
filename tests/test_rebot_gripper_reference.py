@@ -506,7 +506,7 @@ def test_the_check_refuses_before_any_torque_unless_the_arm_rests(clock, monkeyp
     jaw = clock(Jaw(0.0))
     factory = _ArmFactory(_rig_arm(jaw))
     mod = _check_script()
-    monkeypatch.setattr(mod, "read_rest_pose", lambda: q)
+    monkeypatch.setattr(mod, "read_rest_pose", lambda: (list(q), list(q)))
     monkeypatch.setattr(rs, "RebotRSArm", factory)
     assert mod.main(["--yes", *mode]) == 2
     assert factory.calls == [] and jaw.sent == []
@@ -518,7 +518,8 @@ def test_the_startup_check_connects_references_and_releases_torque(clock, monkey
     jaw = clock(Jaw(0.0, -TWO_PI))
     factory = _ArmFactory(_rig_arm(jaw))
     mod = _check_script()
-    monkeypatch.setattr(mod, "read_rest_pose", lambda: [0.001, 0.0, -0.002, 0.0, 0.0, 0.003])
+    rest = [0.001, 0.0, -0.002, 0.0, 0.0, 0.003]
+    monkeypatch.setattr(mod, "read_rest_pose", lambda: (list(rest), list(rest)))
     monkeypatch.setattr(rs, "RebotRSArm", factory)
     assert mod.main(["--yes", "--reference-only"]) == 0
     assert factory.calls == ["construct", "connect", "disconnect"]

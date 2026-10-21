@@ -270,8 +270,13 @@ class Bridge:
 
     # -- actions ------------------------------------------------------------------------------
     def split(self, action):
+        """The action as the channels CASCADE's gate checks. An action with any other width is
+        refused (raised, never applied): every value env.step receives is in one of these channels."""
         a = action[0].detach().cpu().tolist()
         n = len(self.joint_names)
+        if len(a) != n + 7:
+            raise RuntimeError(f"policy action has {len(a)} values; the gate checks exactly {n + 7} "
+                               f"({n} joint targets, nav 3, base height 1, torso rpy 3): refused, not applied")
         return {"joint_targets": rnd(a[:n], 4), "nav": rnd(a[n:n + 3], 4), "base_height": round(a[n + 3], 4),
                 "torso_rpy": rnd(a[n + 4:n + 7], 4)}
 

@@ -16,9 +16,14 @@ PER_CORE_S to be given its core (a loaded core may make it wait tens of ms); a
 class that did not answer in time is left out (`complete=False`), and its
 caller must not take its cores for measured. At most one helper runs at a
 time, process-wide: a late helper ends its search and stops after the run in
-hand. Without capacities (an x86 host) every core is a class of its own, in
-CPU-number order. Linux only (per-thread affinity, `sched_getcpu`); elsewhere
-no class is timed and no core is known, i.e. no core counts as slower.
+hand. Without capacities (an x86 host) the cores of one kind are a class
+(`_kinds`: one model and one maximum clock), the highest clock first: one
+helper per kind of core, not per core (#429 review Minor 4: ~18 ms per core,
+so a host of more than ~55 cores needed several searches of up to ~1.2 s,
+60 s apart); cores this host tells apart by neither are one class (no core
+counts as slower). Linux only (per-thread affinity, `sched_getcpu`);
+elsewhere no class is timed and no core is known, i.e. no core counts as
+slower.
 
 This lives outside `cascade.skills`: a helper thread here must run only the
 workload it is given, which must read no runtime state (a skill's arm frame is
@@ -49,8 +54,16 @@ PER_CORE_S = 0.2
 WARMUP_S = 0.015
 #: timed runs per class after the warm-up; their median is the class's time
 CLASS_RUNS = 5
-#: where Linux publishes each core's capacity (1024 = the host's fastest)
+#: where Linux publishes each core's capacity (1024 = the host's fastest),
+#: model (arm64: `regs/identification/midr_el1`) and maximum clock (`cpufreq/
+#: cpuinfo_max_freq`)
 SYSFS_CPU = "/sys/devices/system/cpu"
+#: ... and each logical core's model fields, one block per core (x86)
+PROC_CPUINFO = "/proc/cpuinfo"
+#: the /proc/cpuinfo fields that name a core's model (x86, arm64), never its
+#: clock now (`cpu MHz`) nor its place (`core id`, `apicid`)
+_MODEL_FIELDS = ("vendor_id", "cpu family", "model", "model name", "stepping", "CPU implementer",
+                 "CPU architecture", "CPU variant", "CPU part", "CPU revision")
 
 #: the helpers still running (one at most, #406 review Minor 2): a helper
 #: that has not answered in time ends its search, no search starts a helper
@@ -64,7 +77,7 @@ def _libc_sched_getcpu():
         import ctypes
 
         getcpu = ctypes.CDLL(None, use_errno=True).sched_getcpu
-    except (OSError, AttributeError, TypeError):
+    except (ImportError, OSError, AttributeError, TypeError):   # ImportError: a Python built without _ctypes
         return None
     getcpu.restype, getcpu.argtypes = ctypes.c_int, []
     return getcpu
@@ -106,6 +119,68 @@ def _capacities(cpus, root=SYSFS_CPU) -> dict | None:
     return out
 
 
+def _text(path) -> str | None:
+    try:
+        return Path(path).read_text().strip() or None
+    except (OSError, ValueError):
+        return None
+
+
+def _cpuinfo_models() -> dict:
+    """{cpu: its model fields (`_MODEL_FIELDS`, a tuple of (name, value))}
+    from PROC_CPUINFO; {} when it cannot be read."""
+    text = _text(PROC_CPUINFO)
+    out: dict = {}
+    for block in (text or "").split("\n\n"):
+        fields = {}
+        for line in block.splitlines():
+            name, colon, value = line.partition(":")
+            if colon:
+                fields[name.strip()] = value.strip()
+        try:
+            cpu = int(fields.get("processor", ""))
+        except ValueError:
+            continue
+        model = tuple((name, fields[name]) for name in _MODEL_FIELDS if name in fields)
+        if model:
+            out[cpu] = model
+    return out
+
+
+def _kinds(cpus) -> dict:
+    """{cpu: (its model, its maximum clock in kHz)} for every core in
+    `cpus`: the model from sysfs MIDR_EL1 (arm64), else /proc/cpuinfo's model
+    fields (x86's `model name`: one for an Intel hybrid's P- and E-cores,
+    told apart by their clock); the clock from cpufreq `cpuinfo_max_freq`.
+    None for what this host does not publish (a VM has no cpufreq).
+
+    One core's reading speaks for its whole kind, as for a `cpu_capacity`
+    class: `class_times` times a class's first pinnable core, cpu 0 for an
+    x86 P-kind (it serves interrupts and housekeeping, and its SMT sibling's
+    load slows its thread). A first core that reads slow stretches every
+    core of its kind (#430 review Minor 3: cpu 0 read 2.5x, so 7 fast
+    P-cores got 2.27, where timing each core stretched cpu 0 alone), never
+    past the cap (`pointing.Budget`: `wall` / `seconds`, 2.67 as shipped).
+    Timing a second core of each kind and keeping the faster removes that
+    (those cores 1.0) but adds one helper per kind to every process's first
+    call: 0.039 -> 0.075 s on the GB10 read by kind, so it is not done.
+    Hosts with `cpu_capacity` (the GB10 rig) never read kinds."""
+    models = None
+    out = {}
+    for cpu in cpus:
+        model = _text(Path(SYSFS_CPU, f"cpu{cpu}", "regs", "identification", "midr_el1"))
+        if model is None:
+            if models is None:
+                models = _cpuinfo_models()
+            model = models.get(cpu)
+        try:
+            clock = int(_text(Path(SYSFS_CPU, f"cpu{cpu}", "cpufreq", "cpuinfo_max_freq")) or "")
+        except ValueError:
+            clock = None
+        out[cpu] = (model, clock)
+    return out
+
+
 def _process_cpus() -> set:
     """Every core this process may run on: the main thread's affinity (the
     process's CPU set, as `taskset -p` reports it) and the caller's own."""
@@ -114,11 +189,16 @@ def _process_cpus() -> set:
 
 def _search_order(cpus) -> list:
     """`cpus` in capacity classes, the fastest class first, each class's
-    cores in CPU-number order; without capacities each core is a class of
-    its own, in CPU-number order."""
+    cores in CPU-number order; without capacities, in classes of one kind
+    (`_kinds`), the highest maximum clock first (an unknown one last), then
+    by their first core."""
     caps = _capacities(set(cpus))
     if caps is None:
-        return [[cpu] for cpu in sorted(cpus)]
+        kinds = _kinds(sorted(cpus))
+        groups: dict = {}
+        for cpu in sorted(cpus):
+            groups.setdefault(kinds[cpu], []).append(cpu)
+        return sorted(groups.values(), key=lambda cores: (-(kinds[cores[0]][1] or 0), cores[0]))
     classes: dict = {}
     for cpu in sorted(cpus):
         classes.setdefault(caps[cpu], []).append(cpu)

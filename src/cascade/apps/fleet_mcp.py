@@ -19,7 +19,9 @@ import time
 
 from .fleet import build_fleet, load_fleet
 from .mcp_server import PROTOCOL_VERSIONS, _response, _text_result
+from .robot_runtime import humanoid_gate_domains
 from .signal_stop import SignalRequest, StopSignals
+from ..robotics.runtime import OPERATOR_ONLY_ERROR
 
 
 MAX_FRAME_BYTES = 256 * 1024
@@ -64,6 +66,10 @@ class FleetMcpServer:
         if "reset_stop" in self.hidden:
             self.hidden.add("fleet.reset_stop")
         self.hidden.discard("fleet.stop")
+        # Robots behind the humanoid safety gate: only the operator clears their stop, never this
+        # server's agent (fleet.reset_stop refuses them; a fleet of only such robots never lists it).
+        self.operator_only_reset = frozenset(name for name, runtime in fleet.robots.items()
+                                             if humanoid_gate_domains(runtime))
         self._gate = threading.Lock()
         self._pending = {}
         self._jobs = queue.Queue(maxsize=max_pending)
@@ -108,6 +114,8 @@ class FleetMcpServer:
             if set(arguments) != {"robot_id"}:
                 raise ValueError("fleet.reset_stop requires only robot_id")
             self._member(arguments["robot_id"])
+            if arguments["robot_id"] in self.operator_only_reset:
+                raise ValueError(OPERATOR_ONLY_ERROR)
             return arguments["robot_id"], None
         if name != "fleet.execute" or set(arguments) != {"robot_id", "episode_id", "tool", "arguments"}:
             raise ValueError("fleet.execute requires exact robot_id, episode_id, tool and arguments")
@@ -164,7 +172,9 @@ class FleetMcpServer:
                 self.emit(_response(request_id, {}))
                 return
             if method == "tools/list":
-                self.emit(_response(request_id, {"tools": [copy.deepcopy(t) for t in TOOLS if t["name"] not in self.hidden]}))
+                listed = [t for t in TOOLS if t["name"] not in self.hidden and not (
+                    t["name"] == "fleet.reset_stop" and self.operator_only_reset == set(self.fleet.robots))]
+                self.emit(_response(request_id, {"tools": copy.deepcopy(listed)}))
                 return
             if method != "tools/call":
                 self.emit(_response(request_id, error={"code": -32601, "message": "method not found"}))

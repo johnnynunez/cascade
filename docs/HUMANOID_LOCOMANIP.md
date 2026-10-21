@@ -34,21 +34,44 @@ results go in the PR, not here.
 | N1.7 policy config | `scripts/arena_g1_locomanip_gr00t_n17.yaml` | Arena's policy YAML for N1.7 (action horizon / chunk 40) |
 | Newton compile fix | `scripts/arena_newton_compile_fix.py` | Arena-side, imported by the bridge on `--presets newton` (Galileo placeholder meshes) |
 | episodes | `scripts/humanoid_agent_episode.py` | one operator request through the agent, recorded (`trace.json`) |
+| replay | `scripts/replay_gate_jsonl.py` | a recorded run's actions through today's gate, offline: first refused step per channel |
 
 ## One `carry_object(object, destination)` call
 
 1. Arguments are enum-checked against the profile's `scene`; the instruction is
    `instruction_template` filled with the spoken labels (for brown box / blue bin it is the
    checkpoint's training instruction verbatim).
-2. A latched stop refuses the call (`refused`; `reset_stop` is an operator action and a locked
-   Harness² tool). The gate vets the measured start state (pre-motion admission).
+2. A latched stop refuses the call (`refused`: "stopped: ask the operator to clear the stop").
+   Only the operator clears it, and no agent route can: `reset_stop` is not on the agent's tool
+   list, the composed runtime refuses it without `operator=True`, and the MCP and fleet MCP
+   servers neither list nor accept it for a robot behind this gate (an MCP host is an agent).
+   Operator channels: SIGUSR1 to this robot's MCP server only, `kill -USR1 <pid>` for that one server (PID from `pgrep -af 'cascade.apps.mcp_server|cascade-mcp'`, checking the robot on that line, or from the `runs/mcp_<pid>` directory name), from a
+   shell on the rig; the CLI console, `--operator-arm`, operator scripts (`operator=True`). Never
+   signal by pattern (`pkill -USR1 -f ...`): every cascade MCP server on the host resumes, which
+   clears an arm rig's latched e-stop (an fr3 also drives home). SIGUSR1 during a carry stops it
+   (0 policy steps after) and closes the bridge session, so that reset is refused until a restart.
+   Each SIGUSR1 reset writes one line to that server's `server.log` (stderr): the stop it cleared, or
+   why it was refused.
+   Known limit: these channels are guarded by host access, not identity. An MCP host with a shell
+   on the rig running as the robot user (Hermes, Codex, Claude Code via `setup_agents.py`) can send
+   SIGUSR1 or restart the server, and a stdio host that starts a fresh server per session starts
+   unlatched; the booth agent inside OpenShell has no host shell. Without an operator channel
+   (the fleet MCP has none), the stop stays latched until the operator restarts the server, which
+   rebuilds the domain. A stop that closed the bridge session mid-segment (a garbled line, a local
+   fault) stays latched until that restart: the domain refuses every reset. Harness² advice may
+   never name `reset_stop`. The gate vets the measured start state (pre-motion admission).
 3. Per control step (50 Hz) the bridge sends the measured state and the policy's proposed action;
    the gate answers `pass` or `stop`. Gates: state finite, pelvis tilt <= 30 deg, pelvis height
    above ankle level >= 0.45 m, measured joints (fingers included) within articulation limits +
    0.05 rad, joint velocity <= limit, pelvis inside the workspace box, arm and waist targets within
-   limits + 0.02 rad (legs belong to the whole-body controller), navigation and base-height
-   commands within the checkpoint's training envelope (`dataset_statistics.json`) + margin.
+   limits + 0.02 rad, leg targets (owned by the whole-body controller, but in the applied action)
+   within limits + 0.02 rad, navigation and base-height commands within the checkpoint's training
+   envelope (`dataset_statistics.json`) + margin (vx is asymmetric: -0.05..0.45 m/s, the data has
+   no backward walking), torso roll/pitch/yaw commands within the G1 waist range.
    Finger targets are not a pass/stop criterion; they are clamped (see the finger rule below).
+   Every commanded channel is checked or refused: a step without an action, an action channel
+   the gate does not check, or any malformed step is a STOP that latches, and the bridge is still
+   answered (it holds and ends the segment); the bridge refuses a policy action of another width.
 4. The first STOP latches: the bridge switches to the hold command (zero navigation velocity,
    previous targets; the balance controller keeps running) and the result says `stopped`.
 5. Arena's own terminations end a segment WITHOUT resetting the scene (auto-reset is suspended
@@ -106,7 +129,7 @@ cd <IsaacLab-Arena> && .venv/bin/python <cascade>/scripts/arena_locomanip_bridge
    --enable_cameras --device cuda:0 --presets newton --bridge_offline_assets [--bridge_record_dir <dir>] \
    galileo_g1_locomanip_pick_and_place --object brown_box --embodiment g1_wbc_joint
 # 3. the brain (scripts/serve_qwen_vllm.sh), then an agent episode or the MCP server:
-CASCADE_ROBOT=g1_arena_locomanip python -m cascade.apps.mcp_server     # tools carry.*
+CASCADE_ROBOT=g1_arena_locomanip python -m cascade.apps.mcp_server     # tools carry.*; no reset_stop (SIGUSR1 / restart)
 python scripts/humanoid_agent_episode.py --robot g1_arena_locomanip --llm local_qwen --prompt "..." --out runs/...
 ```
 
@@ -125,6 +148,23 @@ probe (Isaac Lab's offline path).
 checks (`check.humanoid`): object `in` a destination or `unmoved_tol_m`, robot `upright`, fastening
 `min_turns`/`max_turns` from the nut's axial advance; `expect_claim` for a request the agent must
 decline. Harness text may use the local names of namespaced tools; it may never name `reset_stop`.
+
+## Before a real Arena run
+
+- **Replay a recorded run.** `python scripts/replay_gate_jsonl.py <run>/domains/carry/segments/001/gate.jsonl`
+  checks every recorded proposed action with today's gate and the profile's limits (`--recorded-limits`:
+  the run's own, from `session.json`) and prints, per commanded channel, the first refused step
+  (`--json` for the full report; exit 1 when any channel refused, 2 when no action was replayed or on
+  any error). `gate.jsonl` records actions, not measured states, so each action is paired with a
+  neutral upright state: only commands decide. CPU only; run it on an earlier recording before the
+  first real run on new gate code.
+- **Leg target tolerance.** Leg targets (owned by the whole-body controller, but in the applied
+  action) get the command tolerance, range + 0.02 rad, while a MEASURED joint may sit up to 0.05 rad
+  past its range. A leg target 0.02-0.05 rad past its range is a STOP although the leg could stand
+  there. Kept at 0.02 (fail closed); the replay shows whether the policy's actions hit it.
+- **The episode script's brain.** `scripts/humanoid_agent_episode.py` without `--llm` uses
+  `local_nemotron_bolt` (the launch default brain): it talks to the live local brain server on
+  127.0.0.1:8080, as `local_qwen` does. Tests never reach it (fakes and a socket guard).
 
 ## Not validated / limits
 

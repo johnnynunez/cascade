@@ -42,6 +42,14 @@ SAFETY MODEL -- read this before running:
   joints 1-3, rs-00 elsewhere). MIT gains are encoded on the model's scale,
   so one flat model for all seven mis-scales the rs-06 gains about 10x.
   Without the SDK config the jog refuses.
+- An arm an earlier session left POWERED and HOLDING (a hold marker,
+  cascade.control.arm_hold) is never touched without the operator: the mode
+  write and fault clear below cut its torque. Over a marker this script
+  refuses before it opens the bus unless the operator confirmed at this
+  terminal (scripts/arm_hold.py confirm), and then it asks for 'go' with the
+  arm supported even under --yes. That 'go' (like every 'supported' answer)
+  is typed at the robot's own terminal (/dev/tty), never piped, and never
+  asked in an agent's environment.
 
 The bus is exclusive (host id 0xFD): stop motorbridge-gateway and any
 LeRobot process first.
@@ -255,14 +263,24 @@ def main() -> int:
               "be vetted. Refusing to move.")
         return 1
 
+    refused, permit, held = _claim_hold(args.channel, dry_run=args.dry_run, script="jog_rebot_mb.py")
+    if refused is not None:
+        return refused
+    claim = {"permit": permit}
+
     from motorbridge import Controller, Mode
 
-    ctrl = Controller(channel=args.channel)
-    motors: dict[int, object] = {}
-    for mid in (*ARM_IDS, GRIPPER_ID):
-        motors[mid] = ctrl.add_robstride_motor(
-            motor_id=mid, feedback_id=HOST_ID, model=models[mid]
-        )
+    try:
+        ctrl = Controller(channel=args.channel)
+        motors: dict[int, object] = {}
+        for mid in (*ARM_IDS, GRIPPER_ID):
+            motors[mid] = ctrl.add_robstride_motor(
+                motor_id=mid, feedback_id=HOST_ID, model=models[mid]
+            )
+    except BaseException:
+        if permit is not None:
+            permit.failed()  # nothing was cut: the confirmation stays for a retry
+        raise
     # Bound before the try so the Ctrl+C handler can never raise NameError while
     # trying to soft-stop: an interrupt arriving during setup must still take the
     # re-assert-the-hold path, not crash out and leave the arm uncommanded.
@@ -365,12 +383,9 @@ def main() -> int:
             print("\n[dry-run] nothing was enabled or commanded.")
             return 0
 
-        if not args.yes:
-            print("\nThe arm will be ENERGIZED and will hold this pose. Confirm the arm is")
-            print("supported and clear of people, then type 'go' to proceed:")
-            if input("  > ").strip().lower() != "go":
-                print("[+] aborted, nothing was energized.")
-                return 0
+        if not _supported(held, yes=args.yes, intro="\nThe arm will be ENERGIZED and will hold this pose."):
+            print("[+] aborted, nothing was energized.")
+            return 0
 
         for mid, m in motors.items():
             m.ensure_mode(Mode.MIT)
@@ -381,6 +396,9 @@ def main() -> int:
         from cascade.control.robstride import clear_motor_faults
 
         clear_motor_faults(sorted(motors.items()))
+        if claim["permit"] is not None:  # its torque was cut on the operator's word: used
+            claim["permit"].connected()
+            claim["permit"] = None
         # Hold the captured pose on every joint BEFORE enabling, so the first
         # thing each motor does once energized is stay where it already is.
         _send_hold(motors, q_hold, gains)
@@ -389,16 +407,16 @@ def main() -> int:
         _send_hold(motors, q_hold, gains)
         time.sleep(0.3)
 
-        held = {}
+        measured = {}
         for mid, m in motors.items():
             x = _read(m, MECH_POS)
             if x is None:
-                held[mid] = q_hold[mid]
+                measured[mid] = q_hold[mid]
                 continue
             if not plausible_position(x, *_joint_limits(limits, mid)):
                 raise UnsafeReading(f"motor {mid} reported mechPos {x!r} while holding")
-            held[mid] = x
-        drift = max(abs(held[mid] - q_hold[mid]) for mid in motors)
+            measured[mid] = x
+        drift = max(abs(measured[mid] - q_hold[mid]) for mid in motors)
         print(f"\n[+] energized. max drift from the hold pose: {drift:.4f} rad")
         if drift > 0.05:
             print("[!] the arm sagged more than 50 mrad -- gains are too low for this "
@@ -496,6 +514,8 @@ def main() -> int:
                   "bus with scripts/diag_rebot_mb.py before re-running.")
         return 130
     finally:
+        if claim["permit"] is not None:  # never got to the torque cut: kept for a retry
+            claim["permit"].failed()
         try:
             ctrl.close_bus()
         finally:
@@ -508,6 +528,61 @@ def main() -> int:
 
                 arm_hold.remember(args.channel, arm="arm", source="jog_rebot_mb.py", log=print,
                                   reason="jog_rebot_mb.py left the motors enabled, holding the arm")
+
+
+def _claim_hold(channel: str, *, dry_run: bool, script: str):
+    """Before the bus opens: the hold marker of the arm on `channel`
+    (cascade.control.arm_hold). (exit code to refuse with, or None; the
+    operator's claimed confirmation, or None; the marker, or None). Over a
+    marker a real run needs a fresh confirmation (refused otherwise: exit 3,
+    nothing opened); a dry run only says so."""
+    from cascade.control import arm_hold
+
+    held = arm_hold.read(channel)
+    if held is None:
+        return None, None, None
+    print(f"[!] the arm on {channel} was left POWERED and HOLDING by an earlier session "
+          f"({held.get('reason')}): the mode write and fault clear cut its torque, and a raised "
+          "arm drops.")
+    if dry_run:
+        return None, None, held
+    try:
+        permit = arm_hold.check_connect(channel, driver=script)
+    except arm_hold.ArmHeldError as e:
+        print(f"[!] the arm was NOT connected (nothing was sent): {e}")
+        return 3, None, held
+    return None, permit, held
+
+
+def _supported(held, *, yes: bool, intro: str) -> bool:
+    """The 'supported, type go' prompt. `--yes` skips it only when no marker
+    names the arm held: over one, the operator answers it at the terminal.
+    The rules of `confirm` and the let-go (cascade.control.arm_hold): never
+    in an agent's or the robot server's environment; only in an interactive
+    session (stdin and stdout on a terminal); the answer read from the
+    controlling terminal (/dev/tty), never stdin: a piped 'go' is nobody
+    supporting the arm. True to go on; anything else (or nobody to ask)
+    is a no."""
+    if yes and held is None:
+        return True
+    from cascade.control import arm_hold
+
+    print(intro)
+    if held is not None:
+        print("The arm is HELD by an earlier session: its torque drops for a moment. Keep SUPPORTING it.")
+    if arm_hold.agent_environment() is not None:
+        print("[!] not asked: this runs in an agent's (or the robot server's) environment. Only the operator "
+              "confirms the arm is supported, at a terminal on the robot host.")
+        return False
+    try:
+        answer = arm_hold._answer_at_terminal(
+            "Confirm the arm is supported and clear of people, then type 'go' to proceed:\n  > ")
+    except arm_hold.NoTerminal as exc:
+        print(f"[!] not asked: {exc}. The operator types 'go' at the robot's own terminal, never through a pipe.")
+        return False
+    except (EOFError, OSError):
+        return False
+    return str(answer or "").strip().lower() == "go"
 
 
 def _send_hold(motors, q_hold, gains) -> None:

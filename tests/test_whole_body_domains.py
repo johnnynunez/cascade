@@ -446,18 +446,20 @@ def test_global_stop_latches_every_domain_and_reset_is_explicit_per_domain(tmp_p
         assert rt.stopped
         for tool, args in (("manipulation.open_gripper", {}), ("locomotion.walk_velocity", walk)):
             result = rt.execute(tool, args)
-            assert result["ok"] is False and "reset_stop(domain=" in result["error"], result
-        blanket = rt.execute("reset_stop", {})
+            # the agent cannot call reset_stop (operator only): the refusal never names it
+            assert result["ok"] is False and "stopped: ask the operator to clear the stop" in result["error"], result
+            assert "reset_stop" not in result["error"] and repr(tool.split(".")[0]) in result["error"], result
+        blanket = rt.execute("reset_stop", {}, operator=True)
         assert blanket["ok"] is False and "per-domain" in blanket["error"] and rt.stopped
-        arm = rt.execute("reset_stop", {"domain": "manipulation"})
+        arm = rt.execute("reset_stop", {"domain": "manipulation"}, operator=True)
         assert arm["ok"] is True and arm["latched_domains"] == ["locomotion"], arm
         assert rt.stopped  # the base is still latched
         assert rt.execute("manipulation.open_gripper", {})["whole_body"]["world_frame"]["status"] == "consistent"
         assert "locomotion" in rt.execute("locomotion.walk_velocity", walk)["error"]
-        base = rt.execute("reset_stop", {"domain": "locomotion"})
+        base = rt.execute("reset_stop", {"domain": "locomotion"}, operator=True)
         assert base["ok"] is True and base["latched_domains"] == [] and not rt.stopped
         assert rt.execute("locomotion.walk_velocity", walk)["execution_ok"] is True
-        bad = rt.execute("reset_stop", {"domain": "sensing"})
+        bad = rt.execute("reset_stop", {"domain": "sensing"}, operator=True)
         assert bad["ok"] is False
     finally:
         assert rt.close()["ok"]
@@ -643,8 +645,8 @@ def test_mixed_mock_without_contract_keeps_global_reset_and_has_no_coordination_
             vars(raw).pop("get_state", None)
         assert "whole_body" not in opened and "active command" not in str(opened.get("error"))
         assert rt.execute("emergency_stop", {})["latched"]
-        assert not rt.execute("reset_stop", {"domain": "manipulation"})["ok"]  # unknown argument here
-        reset = rt.execute("reset_stop", {})
+        assert not rt.execute("reset_stop", {"domain": "manipulation"}, operator=True)["ok"]  # unknown argument here
+        reset = rt.execute("reset_stop", {}, operator=True)
         assert reset["ok"] and set(reset["domains"]) == {"manipulation", "locomotion", "sensing"}
         assert not rt.stopped
     finally:

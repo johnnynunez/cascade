@@ -143,8 +143,7 @@ class LocomanipDomain:
             return {"ok": False, "latched": True,
                     "error": f"bridge session closed mid-segment ({self._session_closed}); the stop stays latched "
                              f"until the operator restarts the robot runtime"}
-        self.gate.reset()
-        return {"ok": True}
+        return {"ok": True, "cleared": self.gate.reset()}  # the stop it cleared, for the operator's log
 
     def close(self):
         with self._io:

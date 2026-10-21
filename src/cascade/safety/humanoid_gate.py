@@ -306,9 +306,11 @@ class HumanoidSafetyGate:
         with self._lock:
             self._latched = self._latched or str(reason)
 
-    def reset(self) -> None:
+    def reset(self) -> str | None:
+        """Clear the latch; returns the stop it cleared (None: nothing was latched)."""
         with self._lock:
-            self._latched = None
+            cleared, self._latched = self._latched, None
+        return cleared
 
     # -- checks ---------------------------------------------------------------------------
     def _state_rows(self, state: dict, rows: list[GateRow]) -> None:
@@ -420,7 +422,7 @@ class HumanoidSafetyGate:
                 self._state_rows(state, rows)
                 if acting:
                     self._action_rows(action, rows, clamps)
-        except (KeyError, TypeError, ValueError) as exc:
+        except (KeyError, TypeError, ValueError, OverflowError) as exc:  # Overflow: a JSON int too big for a float
             rows.append(GateRow("state_finite", None, 0.0, False, f"malformed step: {exc}"))
         failed = [r for r in rows if not r.ok]
         with self._lock:

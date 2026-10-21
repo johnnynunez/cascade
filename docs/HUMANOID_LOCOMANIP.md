@@ -47,6 +47,8 @@ results go in the PR, not here.
    signal by pattern (`pkill -USR1 -f ...`): every cascade MCP server on the host resumes, which
    clears an arm rig's latched e-stop (an fr3 also drives home). SIGUSR1 during a carry stops it
    (0 policy steps after) and closes the bridge session, so that reset is refused until a restart.
+   Each SIGUSR1 reset writes one line to that server's `server.log` (stderr): the stop it cleared, or
+   why it was refused.
    Known limit: these channels are guarded by host access, not identity. An MCP host with a shell
    on the rig running as the robot user (Hermes, Codex, Claude Code via `setup_agents.py`) can send
    SIGUSR1 or restart the server, and a stdio host that starts a fresh server per session starts
@@ -129,9 +131,10 @@ decline. Harness text may use the local names of namespaced tools; it may never 
 - **Replay a recorded run.** `python scripts/replay_gate_jsonl.py <run>/domains/carry/segments/001/gate.jsonl`
   checks every recorded proposed action with today's gate and the profile's limits (`--recorded-limits`:
   the run's own, from `session.json`) and prints, per commanded channel, the first refused step
-  (`--json` for the full report; exit 1 when any channel refused). `gate.jsonl` records actions, not
-  measured states, so each action is paired with a neutral upright state: only commands decide. CPU
-  only; run it on an earlier recording before the first real run on new gate code.
+  (`--json` for the full report; exit 1 when any channel refused, 2 when no action was replayed or on
+  any error). `gate.jsonl` records actions, not measured states, so each action is paired with a
+  neutral upright state: only commands decide. CPU only; run it on an earlier recording before the
+  first real run on new gate code.
 - **Leg target tolerance.** Leg targets (owned by the whole-body controller, but in the applied
   action) get the command tolerance, range + 0.02 rad, while a MEASURED joint may sit up to 0.05 rad
   past its range. A leg target 0.02-0.05 rad past its range is a STOP although the leg could stand

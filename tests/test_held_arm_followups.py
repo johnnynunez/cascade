@@ -553,6 +553,18 @@ def test_the_report_never_learns_a_refused_row(monkeypatch):
     assert out["refused"] == 1 and out["refused_rows"][0]["verdict"].startswith("joint 3 is 0.100 rad"), out
 
 
+def test_the_report_never_learns_a_rest_verdict_its_own_row_contradicts():
+    """A row that says 'rest' but lies beyond the tolerance it applied (hand-edited, or an older logger):
+    never learned (it would raise the spread past the value that row claims to have passed)."""
+    import rest_tolerance_report as report
+
+    good = {"q": [0.0] * 6, "again": [0.0] * 6, "park": [0.0] * 6, "marker": False, "tol_rad": 0.05, "verdict": "rest"}
+    bad = dict(good, q=[0.0, 0.0, 0.10, 0, 0, 0], again=[0.0, 0.0, 0.10, 0, 0, 0])
+    out = report.analyse([good] * 10 + [bad], margin=0.02, min_samples=10)
+    assert out["samples"] == 10 and out["ignored"] == 1 and out["max_dev_rad"] == 0.0, out
+    assert out["current_rad"] == 0.05, "no current given: the tolerance the latest logged check applied"
+
+
 def test_the_report_never_advises_loosening_the_current_value(monkeypatch):
     """#431 re-review: every start passed at 0.05 with up to 0.035 off; + the 0.02 margin main said
     'set 0.06', above the value that let them all pass. The report never recommends above it."""

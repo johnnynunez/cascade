@@ -284,8 +284,36 @@ def test_the_jaw_pre_snapshot_never_swallows_the_answer():
     def jaw():
         raise arm_hold.connected_and_holding("can0")
 
-    checker = PostconditionChecker(object_pose=lambda label: None, gripper_frac=jaw, holding=jaw)
-    with pytest.raises(arm_hold.ConnectedAndHolding):
-        checker.snapshot(None, "open_gripper")
+    for kw in ({"gripper_frac": jaw}, {"holding": jaw}):
+        checker = PostconditionChecker(object_pose=lambda label: None, **kw)
+        with pytest.raises(arm_hold.ConnectedAndHolding):
+            checker.snapshot(None, "open_gripper")
     quiet = PostconditionChecker(object_pose=lambda label: None, gripper_frac=lambda: 1 / 0, holding=lambda: 1 / 0)
     assert quiet.snapshot(None, "open_gripper") == {}, "any other failed read is still best effort"
+
+
+@needs_pin
+@pytest.mark.parametrize("backend", ["rebot_rs", "rebot_rs_mb"])
+def test_whatever_swallows_the_answer_the_call_still_answers_let_go(monkeypatch, tmp_path, no_sleep, backend):  # noqa: F811
+    """Any best-effort path that eats the connect's answer (here the whole pre-snapshot): the skill then
+    finds nothing to hand over, and the call still answers 'let go', not 'not holding anything'."""
+    from cascade.apps.demo import shutdown_runtime
+
+    rt, arm, log = _runtime(monkeypatch, tmp_path, backend)
+    try:
+        snapshot = rt.effects.snapshot
+
+        def swallowing(*a, **k):
+            try:
+                return snapshot(*a, **k)
+            except arm_hold.ConnectedAndHolding:
+                return {}
+
+        monkeypatch.setattr(rt.effects, "snapshot", swallowing)
+        arm_hold.confirm("holding the arm")
+        n0 = len(log)
+        out = rt.execute("handover", {})
+        assert _commands(log[n0:]) == [] and rt.arm.raw.connected, log[n0:]
+        assert out.get("refused") == "connected_on_confirmation" and out["error"].startswith(LET_GO), out
+    finally:
+        shutdown_runtime(rt, arm)

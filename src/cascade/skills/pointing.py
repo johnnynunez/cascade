@@ -236,7 +236,15 @@ SEARCH_AGAIN_S = 60.0
 #: one found the first one's helper running and planned with no factor at
 #: all, #429 review Minor 3), at most this long (s, wall): longer than one
 #: search runs (`core_speed.SEARCH_S` to start helpers, then one helper's
-#: `PER_CORE_S`); past it, that call plans with what is measured so far
+#: `PER_CORE_S`); past it, that call plans with what is measured so far.
+#: A search that holds the lock longer (only a starved searching thread can:
+#: the shipped one holds it at most SEARCH_S + PER_CORE_S, ~1.2 s) costs
+#: EVERY call that finds the factors due in that window the full wait, each
+#: call its own SEARCH_WAIT_S, and each then plans without the factors still
+#: missing (no stretch; before #430 such a call returned at once, also
+#: without them: #430 review Minor 2). Bounded, and it counts only toward
+#: FRESH_PLAN_S (its clock starts at the localization: a long wait can only
+#: add a look again); the budget's CPU and wall clocks start after it
 SEARCH_WAIT_S = 1.5
 _SEARCH = threading.Lock()
 

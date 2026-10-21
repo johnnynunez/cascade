@@ -53,7 +53,10 @@ robot server's environment (`AGENT_ENV`, never named in the refusal).
 The limit of all this: the markers and confirmations are files of the robot's user. Any process
 running as that user can delete a marker or write a confirmation file directly; the checks above
 stop accidents and an agent that only uses the commands it is given. The boundary against an agent
-is the OpenShell sandbox, where the booth agent has no host shell.
+is the OpenShell sandbox, where the booth agent has no host shell. The operator's sudo password is
+the one factor an agent lacks: never give it to Hermes or any agent on a robot host (no
+`SUDO_PASSWORD` in `~/.hermes/.env` or any agent's environment; Hermes offers to store one when a
+sudo fails headless). With it, an agent's shell passes `sudo -k -v` and can confirm.
 
 An SO-101's connect writes no torque-off (`FeetechArm.connect`): it is never refused, but its hold is
 reported until a parked torque-off clears it.
@@ -107,7 +110,14 @@ REST_LOG_MAX_BYTES = 256 * 1024
 #: The operator's sudo, by absolute path (never looked up on PATH, where a
 #: stand-in could come first). `confirm` needs its PASSWORD (`sudo -k -v`).
 SUDO = "/usr/bin/sudo"
-SUDO_PROMPT = "[cascade] your sudo password (the operator's own; an agent has none): "
+SUDO_PROMPT = "[cascade] your own sudo password (never give it to an agent): "
+#: What the confirm dialog says first, and `confirm --help`: the sudo password
+#: is the one factor an agent lacks (#431 re-review Minor 2).
+NEVER_TO_AN_AGENT = ("never give it to Hermes or any agent on this host (no SUDO_PASSWORD in ~/.hermes/.env or "
+                     "any agent's environment): with it, an agent can confirm")
+CONFIRM_HELP = (f"you are supporting the arm: the next connect (or a teardown's torque cut) may go ahead, once, "
+                f"within {CONFIRM_TTL_S:.0f} s. Interactive: your own sudo password (a password-protected sudo; "
+                f"{NEVER_TO_AN_AGENT}), then you type the phrase at the prompt")
 #: `list`'s exit status when an arm is held, or when it cannot tell.
 LIST_HELD_RC = 3
 #: The marker's bus key for each torque-cutting backend: (config key, the
@@ -832,7 +842,7 @@ def _confirm_at_terminal(key: str | None) -> int:
         print(f"REFUSED: no controlling terminal ({exc}). Nothing was written.", file=sys.stderr)
         return 2
     with tty_in, tty_out:
-        tty_out.write("Only the operator confirms: first your own sudo password (an agent has none).\n")
+        tty_out.write(f"Only the operator confirms: first your own sudo password; {NEVER_TO_AN_AGENT}.\n")
         tty_out.flush()
         problem = _sudo_refusal()
         if problem is not None:
@@ -859,10 +869,7 @@ def main(argv=None) -> int:
     sub = parser.add_subparsers(dest="cmd", required=True)
     sub.add_parser("list", help="the arms an earlier session left powered and holding (exit 0: none; "
                                 f"{LIST_HELD_RC}: held, or it cannot tell)")
-    confirm_text = ("you are supporting the arm: the next connect (or a teardown's torque cut) may go ahead, once, "
-                    f"within {CONFIRM_TTL_S:.0f} s. Interactive: your own sudo password (a password-protected "
-                    "sudo), then you type the phrase at the prompt")
-    p_confirm = sub.add_parser("confirm", help=confirm_text, description=confirm_text)
+    p_confirm = sub.add_parser("confirm", help=CONFIRM_HELP, description=CONFIRM_HELP)
     p_confirm.add_argument("--arm", default=None, help="the held arm's bus (can0, /dev/ttyACM0); default: any")
     sub.add_parser("revoke", help="drop every pending confirmation")
     args = parser.parse_args(argv)

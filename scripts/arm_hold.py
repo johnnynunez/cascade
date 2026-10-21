@@ -18,7 +18,9 @@ moves. The same confirmation, given right before a robot-server or demo CLI stop
 teardown cut the torque of an arm its park left raised.
 
 The files are the robot user's: any process running as that user can still delete a marker or
-write a confirmation directly. The boundary against an agent is the OpenShell sandbox.
+write a confirmation directly. The boundary against an agent is the OpenShell sandbox. Your sudo
+password is the one factor an agent lacks: never give it to Hermes or any agent on a robot host (no
+`SUDO_PASSWORD` in `~/.hermes/.env` or any agent's environment): with it, an agent can confirm.
 """
 
 from __future__ import annotations

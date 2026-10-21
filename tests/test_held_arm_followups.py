@@ -178,9 +178,20 @@ def test_confirm_asks_for_the_operators_sudo_password_then_the_phrase(tmp_path):
     code, out = _dialog(_clean_env(), stub, [(PASSWORD_PROMPT, "operator-pw"), (PHRASE_PROMPT, "holding the arm")])
     assert code == 0 and "confirmed: you are supporting the arm" in out, out
     assert len(arm_hold.pending_confirmations()) == 1
+    # #431 re-review Minor 2: the password is the one factor an agent lacks; the dialog says to keep it so
+    assert "never give it to Hermes or any agent" in out and "SUDO_PASSWORD" in out, out
     lines = calls.read_text().splitlines()
     assert len(lines) == 2 and "-n" in lines[0].split() and "-k" in lines[0].split(), lines
     assert {"-k", "-v"} <= set(lines[1].split()) and "-n" not in lines[1].split(), lines
+
+
+def test_the_docs_say_never_to_give_an_agent_the_sudo_password():
+    """#431 re-review Minor 2: Hermes offers to store `SUDO_PASSWORD` in ~/.hermes/.env when a sudo
+    fails headless; on a robot host that hands an agent the one factor it lacks."""
+    for where, text in (("runbook", (REPO / "docs" / "BOOTH_RUNBOOK.md").read_text()),
+                        ("arm_hold", arm_hold.__doc__), ("scripts/arm_hold.py", (REPO / "scripts" / "arm_hold.py").read_text()),
+                        ("confirm --help", arm_hold.CONFIRM_HELP)):
+        assert "SUDO_PASSWORD" in text and "~/.hermes/.env" in text, where
 
 
 @pytest.mark.parametrize("typed", ["wrong-password", "holding the arm"], ids=["wrong", "phrase_as_password"])
@@ -259,6 +270,52 @@ def test_the_startup_check_keeps_a_marker_unless_every_joint_is_within_005(monke
     else:
         assert arm_hold.read("can0") is None and "hold cleared" in out, out
         assert [e[0] for e in log].count("clear_error") == 7
+
+
+@pytest.mark.parametrize("answer", ["go", "no", None], ids=["go", "no", "eof"])
+def test_the_startup_check_on_a_confirmation_moves_the_gripper_only_after_the_operator_lets_go(
+        monkeypatch, no_sleep, capsys, answer):  # noqa: F811
+    """#431 re-review Minor 1: a marker the 0.05 rule kept (the arm 0.08 off park, within the rig's
+    0.12) and the operator's confirmation: the connect went ahead and the gripper reference ran right
+    after it, the jaw closing with their hands on the arm, then the torque was released. Now it asks
+    them to let go and type 'go' first; anything else stops there with the arm held (remembered)."""
+    from test_rebot_gripper_reference import _check_script
+
+    import cascade.control.rebot_rs_arm as rs
+
+    log, _make = _bus(monkeypatch, "rebot_rs", {3: 0.08})
+    arm_hold.record("can0", arm="0", reason="the shutdown park stopped 0.08 rad short of park_q")
+    arm_hold.confirm("holding the arm")
+    mod = _check_script()
+    q = [0.0, 0.0, 0.08, 0.0, 0.0, 0.0]
+    monkeypatch.setattr(mod, "read_rest_pose", lambda: (list(q), list(q)))
+    ran, asked = [], []
+    monkeypatch.setattr(mod, "run", lambda arm, park, **k: ran.append(len(asked)) or 0)
+    real = rs.RebotRSArm
+    monkeypatch.setattr(rs, "RebotRSArm", lambda cfg: real(Cfg({"hw_yaml": "rebotarm_rs.yaml", "n_joints": 6})))
+
+    def ask(prompt=""):
+        asked.append(prompt)
+        if answer is None:
+            raise EOFError
+        return answer
+
+    monkeypatch.setattr(builtins, "input", ask)
+    code = mod.main(["--yes", "--reference-only"])
+    out = capsys.readouterr().out
+    kinds = [e[0] for e in log]
+    assert kinds.count("clear_error") == 7, "connected on the confirmation"
+    assert len(asked) == 1 and "let go of the arm" in asked[0].lower(), asked
+    assert "connected and holding; let go of the arm and retry" in out, out
+    if answer == "go":
+        assert code == 0 and ran == [1], "the gripper check ran after 'go'"
+        assert "disconnect" in kinds and arm_hold.read("can0") is None
+    else:
+        assert code == 3 and ran == [], "nothing moved"
+        assert "disconnect" not in kinds, "the arm stays held"
+        marker = arm_hold.read("can0")
+        assert marker is not None and marker["source"] == "check_rebot_gripper.py", marker
+        assert "HOLDING" in out, out
 
 
 # ── Important 2 (b) / Minor 2: every joint read twice, the reads must agree ───────────────────────

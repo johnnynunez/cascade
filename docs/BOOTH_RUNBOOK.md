@@ -175,10 +175,14 @@ move on, win or lose (exit lines in §8). One `pick_and_place` per group, ever.
       `~/cascade-demo.sh confirm-held`): it asks for **your sudo password** (sudo must be
       password-protected; NOPASSWD is refused), then for the phrase. Valid 2 min, used by the
       next connect that succeeds; it refuses without a terminal or in an agent's shell. The
-      agent cannot confirm: it asks you.
+      agent cannot confirm: it asks you. **Never give Hermes or any agent your sudo password**
+      on a robot host (no `SUDO_PASSWORD` in `~/.hermes/.env` or any agent's environment;
+      Hermes offers to store one when a sudo fails headless): it is the one factor an agent
+      lacks, and with it an agent can confirm.
    3. Retry within 2 min: the connect drops its torque while you hold it, then **holds the arm
       where it is and moves nothing** ("connected and holding; let go of the arm and retry"; the
-      arm-check and calibrate ask you to type `go`). Let go, then retry: that call moves.
+      arm-check, calibrate and `up`'s startup check ask you to type `go`). Let go, then retry:
+      that call moves.
    Folded at rest within 0.05 rad of `park_q` (the server's own torque-release tolerance),
    `~/cascade-demo.sh up`'s startup check clears the hold by itself; farther off the hold stays
    and `up` stops until you confirm.

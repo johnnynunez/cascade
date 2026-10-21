@@ -1,5 +1,7 @@
 """#434 re-review minors (CPU only, fake bridges on ephemeral ports, no live port).
 
+2. SIGUSR1, the operator's reset channel, reports in server.log (stderr): the stop it cleared and why it was
+   latched, or that the reset was refused and why (the worker used to discard ``reset_now``'s result);
 4. the fleet's stopped-robot refusal names no tool, like the composed runtime's;
 5. ``scripts/replay_gate_jsonl.py`` exit codes: 0 = actions replayed and none refused, 1 = a channel refused,
    2 = no action replayed (empty or admission-only record) or any error, never a traceback;
@@ -10,16 +12,19 @@ from __future__ import annotations
 import json
 import os
 import queue
+import signal
 import socket
 import subprocess
 import sys
+import threading
+import time
 
 import pytest
 
 from cascade.skills import humanoid_locomanip as hl
 
-from test_humanoid_gate_hardening import (CARRY, REPO, ScriptedBridge, _recorded_segment, _replay_module,
-                                          composed_runtime)
+from test_humanoid_gate_hardening import (CARRY, REPO, ScriptedBridge, _mcp_server, _payload, _recorded_segment,
+                                          _replay_module, composed_runtime)
 from test_humanoid_locomanip import IN_BIN, FakeBridge, action, make_gate, profile, state, walk_script
 
 HUGE = 10 ** 400  # a JSON integer float() cannot hold: OverflowError
@@ -172,3 +177,187 @@ def test_replay_exit_code_for_any_error_is_2_in_a_real_process(tmp_path):
                           capture_output=True, text=True, timeout=120, env=env, cwd=str(tmp_path))
     assert proc.returncode == 2, (proc.returncode, proc.stderr[-400:])
     assert "Traceback" not in proc.stderr and proc.stderr.startswith("replay_gate_jsonl: ")
+
+
+# -------------------------------------------------- 2. SIGUSR1 tells the operator what it did
+def _signal_worker(server, script):
+    """The MCP server's real serial worker on the main thread inside the real StopSignals(staff_reset=True);
+    ``script(feed, responses, resets)`` runs on another thread and sends the signal from there."""
+    from cascade.apps.mcp_server import _admit, _worker_loop
+    from cascade.apps.signal_stop import StopSignals
+
+    assert threading.current_thread() is threading.main_thread()
+    inbox, eof, responses, resets, errors = queue.Queue(), object(), {}, [], []
+    real_reset = server.reset_now
+
+    def recording_reset(*a, **k):
+        out = real_reset(*a, **k)
+        resets.append(_payload(out))
+        return out
+
+    server.reset_now = recording_reset
+
+    def send(resp):
+        responses[resp.get("id")] = resp
+
+    def feed(frame):
+        if not _admit(server, frame, send):
+            inbox.put((frame, send))
+
+    def run():
+        try:
+            script(feed, responses, resets)
+        except BaseException as exc:  # noqa: BLE001 -- reported by the assertion below
+            errors.append(f"{type(exc).__name__}: {exc}")
+        finally:
+            inbox.put(eof)
+
+    with StopSignals(staff_reset=True) as signals:
+        server._signals = signals
+        thread = threading.Thread(target=run, daemon=True)
+        thread.start()
+        rc = _worker_loop(server, signals, inbox, eof)
+        thread.join(15)
+    assert rc == 0 and errors == [] and not thread.is_alive()
+
+
+def _wait(pred, timeout=10.0):
+    deadline = time.monotonic() + timeout
+    while not pred() and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert pred()
+
+
+def _call(ident, name, args):
+    return {"jsonrpc": "2.0", "id": ident, "method": "tools/call", "params": {"name": name, "arguments": args}}
+
+
+def _sigusr1_then_list(feed, responses, resets, ident):
+    """Send SIGUSR1 from this (non-main) thread, then queue a tools/list behind it: its answer proves the
+    worker finished the signal's stop + reset + log line."""
+    n = len(resets)
+    os.kill(os.getpid(), signal.SIGUSR1)
+    _wait(lambda: len(resets) > n)
+    feed({"jsonrpc": "2.0", "id": ident, "method": "tools/list"})
+    _wait(lambda: ident in responses)
+
+
+def _usr1_lines(err):
+    return [line for line in err.splitlines() if "SIGUSR1" in line]
+
+
+@pytest.mark.parametrize("stop", ["emergency_stop", "gate_stop"])
+def test_sigusr1_logs_the_stop_it_cleared(tmp_path, monkeypatch, capsys, stop):
+    fake = FakeBridge(walk_script(6, tilt_at=3) if stop == "gate_stop" else walk_script(2),
+                      final=state(99, box_pos=IN_BIN))
+    server = _mcp_server(fake, tmp_path, monkeypatch)
+    rows = {}
+
+    def script(feed, responses, resets):
+        feed(_call(1, "carry.describe_scene", {}))
+        _wait(lambda: 1 in responses)
+        feed(_call(2, "emergency_stop" if stop == "emergency_stop" else "carry.carry_object",
+                   {} if stop == "emergency_stop" else CARRY))
+        _wait(lambda: 2 in responses)
+        rows["latched"] = server._runtime.domains["carry"].runtime.gate.latched
+        _sigusr1_then_list(feed, responses, resets, 3)
+        rows["resets"] = list(resets)
+        rows["after"] = server._runtime.domains["carry"].runtime.gate.latched
+
+    try:
+        capsys.readouterr()
+        _signal_worker(server, script)
+        err = capsys.readouterr().err
+    finally:
+        server.shutdown()
+    reason = "emergency stop requested" if stop == "emergency_stop" else "pelvis_tilt_deg"
+    assert rows["latched"] is not None and reason in rows["latched"]
+    assert [r["ok"] for r in rows["resets"]] == [True] and rows["after"] is None
+    lines = _usr1_lines(err)
+    assert len(lines) == 1, err[-800:]
+    assert lines[0].startswith("[cascade-mcp] SIGUSR1 operator reset: stop cleared")
+    assert f"carry: {rows['latched']}" in lines[0] and reason in lines[0]
+
+
+def test_sigusr1_logs_why_the_reset_was_refused_and_the_stop_stays_latched(tmp_path, monkeypatch, capsys):
+    fake = ScriptedBridge(walk_script(5), lambda i, s: "this is not json" if i == 2 else s,
+                          final=state(99, box_pos=IN_BIN))
+    server = _mcp_server(fake, tmp_path, monkeypatch)
+    rows = {}
+
+    def script(feed, responses, resets):
+        feed(_call(1, "carry.describe_scene", {}))
+        _wait(lambda: 1 in responses)
+        feed(_call(2, "carry.carry_object", CARRY))
+        _wait(lambda: 2 in responses)
+        _sigusr1_then_list(feed, responses, resets, 3)
+        rows["resets"] = list(resets)
+        domain = server._runtime.domains["carry"].runtime
+        rows["after"] = (domain.gate.latched, domain._session_closed, server._runtime.stopped)
+
+    try:
+        capsys.readouterr()
+        _signal_worker(server, script)
+        err = capsys.readouterr().err
+    finally:
+        server.shutdown()
+    assert [r["ok"] for r in rows["resets"]] == [False]
+    latched, closed, stopped = rows["after"]
+    assert latched is not None and closed is not None and stopped
+    lines = _usr1_lines(err)
+    assert len(lines) == 1, err[-800:]
+    assert lines[0].startswith("[cascade-mcp] SIGUSR1 operator reset REFUSED, the robot stays stopped: ")
+    assert "carry: bridge session closed mid-segment" in lines[0] and "restarts the robot runtime" in lines[0]
+
+
+def test_sigusr1_before_the_runtime_exists_logs_the_refusal(tmp_path, monkeypatch, capsys):
+    fake = FakeBridge(walk_script(2))
+    server = _mcp_server(fake, tmp_path, monkeypatch)
+    rows = {}
+
+    def script(feed, responses, resets):
+        feed({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})  # the worker loop is running (no build)
+        _wait(lambda: 1 in responses)
+        _sigusr1_then_list(feed, responses, resets, 2)
+        rows["resets"] = list(resets)
+
+    try:
+        capsys.readouterr()
+        _signal_worker(server, script)
+        err = capsys.readouterr().err
+    finally:
+        server.shutdown()
+    assert [r["ok"] for r in rows["resets"]] == [False] and server._runtime is None and fake.segments == []
+    assert _usr1_lines(err) == ["[cascade-mcp] SIGUSR1 operator reset REFUSED, the robot stays stopped: "
+                                "runtime starting or input closed; reset refused"]
+
+
+@pytest.mark.parametrize("result, says", [
+    (None, "unreadable reset result (TypeError)"),
+    ({"content": []}, "unreadable reset result (IndexError)"),
+    ({"content": [{"text": "not json"}]}, "unreadable reset result (JSONDecodeError)"),
+    ({"content": [{"text": "[1]"}]}, "reset answered [1]"),
+    ({"content": [{"text": json.dumps({"ok": False, "domains": {"a": "x", "b": {"error": "e"}, "c": {"ok": True}}})}]},
+     "b: e"),
+    ({"content": [{"text": json.dumps({"ok": False})}]}, "no reason given"),
+])
+def test_the_operator_reset_line_never_raises_and_always_says_refused_or_cleared(result, says):
+    from cascade.apps.mcp_server import _operator_reset_line
+
+    line = _operator_reset_line(result)
+    assert line == "[cascade-mcp] SIGUSR1 operator reset REFUSED, the robot stays stopped: " + says
+    ok = {"content": [{"text": json.dumps({"ok": True, "domains": {"a": "x", "b": {"ok": True, "cleared": None}}})}]}
+    assert _operator_reset_line(ok) == "[cascade-mcp] SIGUSR1 operator reset: stop cleared"
+
+
+def test_the_reset_receipt_names_the_stop_it_cleared(tmp_path):
+    fake = FakeBridge(walk_script(2))
+    runtime = composed_runtime(fake, tmp_path)
+    try:
+        runtime.execute("emergency_stop", {})
+        reset = runtime.execute("reset_stop", {}, operator=True)
+        assert reset["ok"] is True and reset["domains"]["carry"] == {"ok": True, "cleared": "emergency stop requested"}
+        again = runtime.execute("reset_stop", {}, operator=True)  # nothing latched: nothing cleared
+        assert again["ok"] is True and again["domains"]["carry"] == {"ok": True, "cleared": None}
+    finally:
+        runtime.close()

@@ -306,9 +306,11 @@ class HumanoidSafetyGate:
         with self._lock:
             self._latched = self._latched or str(reason)
 
-    def reset(self) -> None:
+    def reset(self) -> str | None:
+        """Clear the latch; returns the stop it cleared (None: nothing was latched)."""
         with self._lock:
-            self._latched = None
+            cleared, self._latched = self._latched, None
+        return cleared
 
     # -- checks ---------------------------------------------------------------------------
     def _state_rows(self, state: dict, rows: list[GateRow]) -> None:

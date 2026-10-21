@@ -2742,10 +2742,15 @@ def main(argv: list[str] | None = None) -> int:
             # before acting on a first signal so cleanup cannot lose resources.
             with signals.defer():
                 runtime, arm = build_runtime(cfg, run_dir, view=view, serve=not args.no_serve)
-            if os.environ.get("CASCADE_START_STOPPED") == "1" and not mobile and not composed:
-                runtime.arm.stop()
+                if os.environ.get("CASCADE_START_STOPPED") == "1" and not mobile and not composed:
+                    runtime.arm.stop()
+                # before any signal can start a teardown park
+                held = [] if mobile or composed else _hold_confirmed_connects(runtime)
             signals.checkpoint()
-            status = _run_demo(args, cfg, runtime, mobile)
+            if held and not _let_go_or_hold(held):
+                status = STOPPED_HOLDING
+            else:
+                status = _run_demo(args, cfg, runtime, mobile)
         except SignalRequest:
             # Interrupted with-blocks have released their locks. Invalidate
             # before any logging/teardown. Torque-off backends retain their
@@ -2773,6 +2778,55 @@ def main(argv: list[str] | None = None) -> int:
         if signals.signum is not None:
             return 0 if not mobile and signals.signum == signal.SIGINT else 128 + signals.signum
     return status
+
+
+#: The demo CLI's exit status when an arm connected on the operator's
+#: confirmation and they did not let go and type 'go': nothing ran, the arm
+#: stays POWERED and HOLDING (as the startup check's exit 3).
+STOPPED_HOLDING = 3
+
+
+def _hold_confirmed_connects(runtime) -> list:
+    """The demo CLI builds its arms EAGERLY. A reBot connect over a held or
+    raised arm that went ahead on the operator's confirmation
+    (control/arm_hold.py) only HOLDS, their hands on the arm, and an eager
+    backend has no LazyArm latch to refuse the first motion (#431 re-review
+    follow-up). Latch the e-stop of every such arm now, before the agent,
+    the dashboard or a teardown park can move it: (SafeArm, raw backend,
+    latched here) for `_let_go_or_hold`. A LazyArm keeps its own latch and
+    is never probed (that would materialize it)."""
+    out = []
+    for _stage, _name, safe in _park_stages(runtime):
+        raw = getattr(safe, "raw", None) if safe is not None else None
+        if raw is None or isinstance(raw, LazyArm):
+            continue
+        if getattr(raw, "connected_on_confirmation", False) is True:
+            harness = safe.harness
+            latched_here = not harness.estopped
+            if latched_here:
+                harness.estop("connected on the operator's confirmation: holding until they let go")
+            out.append((safe, raw, latched_here))
+    return out
+
+
+def _let_go_or_hold(held) -> bool:
+    """Ask the operator to let go of every arm `_hold_confirmed_connects`
+    latched and type 'go' (`arm_hold.wait_for_let_go`: at this terminal,
+    never a pipe nor an agent's environment). 'go': the e-stops latched
+    there are reset and the demo runs. Anything else: they stay latched, so
+    nothing moves (the teardown's park included), and the teardown leaves
+    each arm powered and holding, remembered for the next process."""
+    from ..control import arm_hold
+
+    for _safe, raw, _latched in held:
+        if not arm_hold.wait_for_let_go(_hold_key(raw), log=print):
+            print("[cascade] stopped before any motion: the arm stays connected and HOLDING where it is (its "
+                  "e-stop latched); nothing ran.", flush=True)
+            return False
+    for safe, _raw, latched_here in held:
+        if latched_here:
+            safe.harness.reset_estop()
+    return True
 
 
 def _run_demo(args, cfg, runtime, mobile):

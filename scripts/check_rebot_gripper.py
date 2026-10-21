@@ -21,7 +21,9 @@ the gripper moves:
    went ahead on the operator's confirmation (a hold the 0.05 rule kept:
    `~/cascade-demo.sh confirm-held`, then `up`) only HOLDS, their hands on
    the arm: nothing moves, the jaw included, until they let go and type
-   'go' at this terminal; anything else stops here with the arm held.
+   'go' at this terminal (its controlling terminal, in an interactive
+   session, never a pipe nor an agent's shell: cascade.control.arm_hold
+   `wait_for_let_go`); anything else stops here with the arm held.
 3. Print the gripper motor's RAW reading, its power-on frame.
 4. Reference: close slowly to the closed stop and fix the turn offset.
 5. Open to `open_pos` (ramped, watched), close with the torque close,
@@ -38,8 +40,8 @@ first grasp.
 Any GripperFault stops the run, with the gripper holding where it stopped.
 Ctrl-C does the same. Exit codes: 0 OK, 1 gripper fault, 2 refused (arm not
 folded at rest, unreadable, or no --yes), 3 connected on the operator's
-confirmation and stopped before anything moved (no 'go'): the arm stays
-POWERED and HOLDING (remembered).
+confirmation and stopped before anything moved (no 'go' typed at this
+terminal): the arm stays POWERED and HOLDING (remembered).
 
     python scripts/check_rebot_gripper.py --yes                   # operator at the e-stop
     python scripts/check_rebot_gripper.py --yes --reference-only  # startup check
@@ -198,7 +200,8 @@ def main(argv=None) -> int:
         if getattr(arm, "connected_on_confirmation", False) is True and not arm_hold.wait_for_let_go(key):
             # The connect went ahead on the operator's confirmation (a hold the
             # 0.05 rule kept): it only HOLDS, their hands on the arm. Nothing
-            # moves, the jaw included, until they let go and type 'go'.
+            # moves, the jaw included, until they let go and type 'go' at
+            # this terminal (never a pipe, never an agent's environment).
             print("[!] stopped before the gripper check: the arm stays connected and HOLDING where it is.")
             code = STOPPED_HOLDING
         else:
@@ -216,7 +219,7 @@ def main(argv=None) -> int:
             arm_hold.remember(arm.hold_key, arm="arm", source="check_rebot_gripper.py", log=print,
                               reason="the startup check measured it off its rest after connecting: torque stays ON"
                               if code == 2 else "the startup check connected it on the operator's confirmation; "
-                                                "they did not let go and type 'go': torque stays ON")
+                                                "no 'go' was typed at its terminal: torque stays ON")
     return code
 
 

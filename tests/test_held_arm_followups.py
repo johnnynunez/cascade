@@ -65,6 +65,16 @@ def _private_stores(tmp_path):
     pinned()
 
 
+@pytest.fixture(autouse=True)
+def _operator_shell(monkeypatch):
+    """In-process, the tests are the operator's own shell, whoever runs them: the let-go (and `confirm`)
+    refuse in an agent's environment (`arm_hold.AGENT_ENV`), and an agent may run this suite. A test
+    that needs an agent's environment sets it."""
+    for name in list(os.environ):
+        if name in arm_hold.AGENT_ENV or name.startswith(arm_hold.AGENT_ENV_PREFIXES):
+            monkeypatch.delenv(name)
+
+
 def _reads(monkeypatch, log, table):
     """mechPos parameter reads, logged. `table`: joint -> a value, or a list served in order (its last
     value repeats); None = no answer."""
@@ -300,7 +310,7 @@ def test_the_startup_check_on_a_confirmation_moves_the_gripper_only_after_the_op
             raise EOFError
         return answer
 
-    monkeypatch.setattr(builtins, "input", ask)
+    monkeypatch.setattr(arm_hold, "_answer_at_terminal", ask)  # typed at the robot's terminal
     code = mod.main(["--yes", "--reference-only"])
     out = capsys.readouterr().out
     kinds = [e[0] for e in log]
@@ -807,7 +817,10 @@ def test_an_mcp_motion_on_a_confirmation_connects_holds_and_asks_to_let_go(monke
         shutdown_runtime(rt, arm)
 
 
-def _confirmed_arm_check(monkeypatch, answer):
+def _confirmed_arm_check(monkeypatch, answer, *, at="terminal"):
+    """The arm-check over an arm that connected on a confirmation. `answer`: what the operator types
+    (None: end of input) `at` the robot's terminal (`arm_hold._answer_at_terminal`), or on stdin
+    (`input()`: a pipe, which must never count)."""
     from test_home_rebot_rs import RIG_REST, FakeCamera, _builder, _main
 
     from cascade.control.mock_arm import MockArm
@@ -826,7 +839,10 @@ def _confirmed_arm_check(monkeypatch, answer):
             raise EOFError
         return answer
 
-    monkeypatch.setattr(builtins, "input", ask)
+    if at == "terminal":
+        monkeypatch.setattr(arm_hold, "_answer_at_terminal", ask, raising=False)
+    else:
+        monkeypatch.setattr(builtins, "input", ask)
     return _main(["--yes", "--hold-s", "0"], build, FakeCamera()), events
 
 
@@ -850,9 +866,11 @@ def test_the_arm_check_on_a_confirmation_holds_when_the_operator_does_not_go_on(
 # ── Minors 5 and 6: calibrate ─────────────────────────────────────────────────────────────────────
 
 
-def _calibrate(monkeypatch, tmp_path, first_error, answers=()):
+def _calibrate(monkeypatch, tmp_path, first_error, answers=(), *, at="terminal"):
     """cli.main over the dry-run rig whose FIRST arm read raises `first_error` (what the LazyArm's
-    connect raises at the first sweep motion)."""
+    connect raises at the first sweep motion). `answers`: what the operator types, in order, `at` the
+    robot's terminal (`arm_hold._answer_at_terminal`: recorded as ("tty", prompt)) or through
+    calibrate's own `_prompt` (stdin: recorded as ("prompt", msg)); the other one answers nothing."""
     from cascade.calibration import cli
     from cascade.control.mock_arm import MockArm
 
@@ -880,7 +898,12 @@ def _calibrate(monkeypatch, tmp_path, first_error, answers=()):
 
     monkeypatch.setattr(cli, "build_rig", build)
     it = iter(answers)
-    monkeypatch.setattr(cli, "_prompt", lambda msg="": calls.append(("prompt", msg)) or next(it))
+    if at == "terminal":
+        monkeypatch.setattr(arm_hold, "_answer_at_terminal", lambda msg: calls.append(("tty", msg)) or next(it),
+                            raising=False)
+        monkeypatch.setattr(cli, "_prompt", lambda msg="": calls.append(("prompt", msg)) or "")
+    else:
+        monkeypatch.setattr(cli, "_prompt", lambda msg="": calls.append(("prompt", msg)) or next(it))
     rc = cli.main(["--camera", "d455f_scene", "--arm", "rebot_rs", "--yes", "--settle-time", "0",
                    "--stable-frames", "2", "--out", str(tmp_path / "out.json"), "--run-dir", str(tmp_path / "run")])
     return rc, made["rig"], calls
@@ -900,7 +923,7 @@ def test_calibrate_over_a_raised_arm_prints_a_clean_refusal(monkeypatch, tmp_pat
 def test_calibrate_on_a_confirmation_sweeps_only_after_the_operator_lets_go(monkeypatch, tmp_path, capsys):
     rc, rig, calls = _calibrate(monkeypatch, tmp_path, arm_hold.connected_and_holding("can0"), answers=["go"])
     prompts = [c for c in calls if isinstance(c, tuple)]
-    assert len(prompts) == 1 and "let go of the arm" in prompts[0][1].lower(), calls
+    assert len(prompts) == 1 and prompts[0][0] == "tty" and "let go of the arm" in prompts[0][1].lower(), calls
     assert rig.raw_arm.commands, "the sweep ran after 'go'"
     assert rc == 0 and calls[-1] == "disconnect", (rc, calls)
 
@@ -937,7 +960,8 @@ def test_calibrate_over_a_lazy_arm_moves_only_once_the_operator_says_go(monkeypa
                        ee_frame=dr.ee_frame, camera_serial=cfg.camera.get("serial", ""))
 
     monkeypatch.setattr(cli, "build_rig", build)
-    monkeypatch.setattr(cli, "_prompt", lambda msg="": next(answers))
+    monkeypatch.setattr(arm_hold, "_answer_at_terminal", lambda msg: next(answers))  # the robot's terminal
+    monkeypatch.setattr(cli, "_prompt", lambda msg="": pytest.fail(f"asked on stdin: {msg}"))
     rc = cli.main(["--camera", "d455f_scene", "--arm", "rebot_rs", "--yes", "--settle-time", "0",
                    "--stable-frames", "2", "--out", str(tmp_path / "out.json"), "--run-dir", str(tmp_path / "run")])
     if answer == "go":

@@ -23,7 +23,8 @@ with the motors enabled. Every process reads it:
   motion that triggered it is not sent (`ConnectedAndHolding`, raised by the LazyArm, which then
   refuses every command, arm and jaw, until the agent was answered 'let go of the arm and retry'
   and its next motion call starts; the CLIs and the startup check ask the operator to let go and
-  type 'go'), and the next call moves;
+  type 'go' at the robot's own terminal, under `confirm`'s rules: `wait_for_let_go`), and the next
+  call moves;
 - with no marker, the same connect still measures the arm first, with parameter reads only (no frame
   that can change a motor's torque), before its mode write and fault clear: an arm that is not folded
   at rest may be held by motors an earlier process left ENABLED with no marker (a killed process, an
@@ -659,19 +660,72 @@ def connected_and_holding(key: str | None) -> ConnectedAndHolding:
         "nothing. Ask the operator to let go of the arm, then retry this call once.")
 
 
-def wait_for_let_go(key: str | None, *, ask=None, log=print) -> bool:
+#: What the operator types at the robot's terminal once they let go of the
+#: arm (`wait_for_let_go`).
+LET_GO_WORD = "go"
+LET_GO_PROMPT = ("    Let go of the arm, then type 'go' to start moving it (anything else stops here; the arm stays "
+                 "held) > ")
+
+
+class NoTerminal(OSError):
+    """Nobody can be asked at a terminal: not an interactive session, or no
+    controlling terminal to open."""
+
+
+def _interactive() -> bool:
+    """stdin and stdout on a terminal: an interactive session."""
+    try:
+        return sys.stdin.isatty() and sys.stdout.isatty()
+    except (AttributeError, ValueError):
+        return False
+
+
+def _answer_at_terminal(prompt: str) -> str:
+    """`prompt` written to this process's controlling terminal (/dev/tty)
+    and the line typed there; never stdin, which a pipe can fill. Raises
+    NoTerminal outside an interactive session (stdin and stdout on a
+    terminal) or when the controlling terminal cannot be opened."""
+    if not _interactive():
+        raise NoTerminal("no interactive terminal (stdin and stdout on a terminal)")
+    try:
+        tty_in = open("/dev/tty", encoding="utf-8")  # noqa: SIM115 -- closed below
+    except OSError as exc:
+        raise NoTerminal(f"no controlling terminal ({exc})") from exc
+    with tty_in:
+        try:
+            tty_out = open("/dev/tty", "w", encoding="utf-8")  # noqa: SIM115 -- closed below
+        except OSError as exc:
+            raise NoTerminal(f"no controlling terminal ({exc})") from exc
+        with tty_out:
+            tty_out.write(prompt)
+            tty_out.flush()
+            return tty_in.readline()
+
+
+def wait_for_let_go(key: str | None, *, log=print) -> bool:
     """A command-line tool whose connect went ahead on the operator's
-    confirmation: says it holds and asks the operator, at the terminal, to
-    let go and type 'go' before its first motion (whatever `--yes` said).
-    True to go on; anything else (or no terminal) means stop, holding."""
+    confirmation: says it holds and asks the operator to let go and type
+    'go' before its first motion (whatever `--yes` said). The rules of
+    `confirm` (#431 re-review Important 1): never in an agent's or the robot
+    server's environment (`AGENT_ENV`, never named); only in an interactive
+    session (stdin and stdout on a terminal); the answer read from the
+    controlling terminal (/dev/tty), never stdin: a piped 'go' is nobody
+    letting go. True to go on; anything else (or nobody to ask) means stop,
+    holding."""
     log(f"[+] {LET_GO}: {'the arm on ' + key if key else 'the arm'} connected on your confirmation and HOLDS "
         "where it is; nothing has moved yet.")
+    if agent_environment() is not None:
+        log("[!] not asked: this runs in an agent's (or the robot server's) environment. Only the operator lets go "
+            "and types 'go', at a terminal on the robot host.")
+        return False
     try:
-        answer = (ask or input)("    Let go of the arm, then type 'go' to start moving it (anything else stops "
-                                "here; the arm stays held) > ")
+        answer = _answer_at_terminal(LET_GO_PROMPT)
+    except NoTerminal as exc:
+        log(f"[!] not asked: {exc}. The operator types 'go' at the robot's own terminal, never through a pipe.")
+        return False
     except (EOFError, KeyboardInterrupt, OSError):
         answer = ""
-    return str(answer or "").strip().lower() == "go"
+    return str(answer or "").strip().lower() == LET_GO_WORD
 
 
 def check_connect(key: str | None, *, driver: str) -> Permit | None:
@@ -827,11 +881,7 @@ def _confirm_at_terminal(key: str | None) -> int:
         print("REFUSED: this runs in an agent's (or the robot server's) environment. Only the operator "
               "confirms, at a terminal on the robot host. Nothing was written.", file=sys.stderr)
         return 2
-    try:
-        interactive = sys.stdin.isatty() and sys.stdout.isatty()
-    except (AttributeError, ValueError):
-        interactive = False
-    if not interactive:
+    if not _interactive():
         print("REFUSED: confirm needs an interactive terminal (stdin and stdout on a terminal): the operator "
               "types the phrase there. Nothing was written.", file=sys.stderr)
         return 2

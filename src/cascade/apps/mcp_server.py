@@ -2579,34 +2579,18 @@ TRANSPORT_STOP_S = 5.0
 
 
 def _tls_http_server(address, handler, ctx, *, handshake_s: float | None = None):
-    """A ThreadingHTTPServer on `address` that serves HTTPS with `ctx`: the
+    """A ThreadingHTTPServer on `address` that serves HTTPS with `ctx`, as the
+    robot endpoint's (robotics/endpoint.py `_TLSHTTPServer`, B71): the
     listener only accepts; each connection's thread does its own handshake,
     bounded by `handshake_s` (default HTTP_TLS_HANDSHAKE_S), and a connection
-    that does not finish it in time is closed."""
-    from http.server import ThreadingHTTPServer
+    that does not finish it in time is closed. The request after it has no
+    timeout, exactly as before."""
+    from ..robotics.endpoint import _TLSHTTPServer
 
-    bound = HTTP_TLS_HANDSHAKE_S if handshake_s is None else float(handshake_s)
-
-    class TlsServer(ThreadingHTTPServer):
-        daemon_threads = True
-
-        def finish_request(self, request, client_address):
-            try:
-                request.settimeout(bound)
-                conn = ctx.wrap_socket(request, server_side=True)  # the handshake, on this thread
-            except TimeoutError:
-                print(f"[cascade-mcp] https {client_address[0]}: no TLS handshake within {bound:g} s; "
-                      "connection closed", file=sys.stderr)
-                return
-            except (OSError, ValueError):
-                return  # not TLS, or it went away: as a failed accept() always was
-            try:
-                conn.settimeout(None)  # then exactly as before: no timeout on the request itself
-                super().finish_request(conn, client_address)
-            finally:
-                self.shutdown_request(conn)
-
-    return TlsServer(address, handler)
+    httpd = _TLSHTTPServer(address, handler)
+    httpd.tls_context = ctx
+    httpd.tls_handshake_timeout_s = HTTP_TLS_HANDSHAKE_S if handshake_s is None else float(handshake_s)
+    return httpd
 
 
 def _stop_listener(httpd, listener) -> None:

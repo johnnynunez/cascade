@@ -45,9 +45,28 @@ class LazyArm(ArmBase):
                 self._arm = arm
                 woke = True
             arm = self._arm
-        if woke and self._on_materialize is not None:
-            self._on_materialize()
+        if woke:
+            self._woke(arm)
         return arm
+
+    def _woke(self, arm) -> None:
+        """After the materializing connect: the hook, then -- when that
+        connect went ahead on an operator's confirmation (a held or raised
+        reBot, `control/arm_hold.py`) -- end the call that woke it: the arm
+        is connected and HOLDS with the operator's hands on it, so the motion
+        is not sent, whatever the hook said. The next call moves."""
+        hook_error = None
+        if self._on_materialize is not None:
+            try:
+                self._on_materialize()
+            except BaseException as exc:  # noqa: BLE001 -- re-raised below unless the hold answers first
+                hook_error = exc
+        if getattr(arm, "connected_on_confirmation", False) is True:
+            from .arm_hold import connected_and_holding
+
+            raise connected_and_holding(self.hold_key) from hook_error
+        if hook_error is not None:
+            raise hook_error
 
     @property
     def connected(self) -> bool:

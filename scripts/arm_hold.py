@@ -5,15 +5,20 @@ POWERED and HOLDING remembers it, and the next connect of that arm refuses until
 confirms, at that moment, at a terminal on the robot host, that they support it:
 
     python scripts/arm_hold.py list      # exit 0: nothing held; 3: an arm is held, or it cannot tell
-    python scripts/arm_hold.py confirm   # you type the phrase at the prompt; valid 120 s, once
+    python scripts/arm_hold.py confirm   # your sudo password, then the phrase; valid 120 s, once
     python scripts/arm_hold.py confirm --arm can0
     python scripts/arm_hold.py revoke    # drop every pending confirmation
 
-`confirm` reads the phrase from the controlling terminal and refuses without one, or in an agent's
-or the robot server's environment: only the operator confirms. Then retry the motion (or the
-arm-check / calibrate): its connect cuts the torque while you hold the arm. The same
-confirmation, given right before a robot-server or demo CLI stop, lets that teardown cut the
-torque of an arm its park left raised.
+`confirm` asks for YOUR sudo password first (`sudo -k -v`: a sudo that needs no password is
+refused), then reads the phrase from the controlling terminal; it refuses without one, or in an
+agent's or the robot server's environment: only the operator confirms. Then retry the motion (or
+the arm-check / calibrate): its connect cuts the torque while you hold the arm, then HOLDS it and
+moves nothing ("connected and holding; let go of the arm and retry"): let go, and the next call
+moves. The same confirmation, given right before a robot-server or demo CLI stop, lets that
+teardown cut the torque of an arm its park left raised.
+
+The files are the robot user's: any process running as that user can still delete a marker or
+write a confirmation directly. The boundary against an agent is the OpenShell sandbox.
 """
 
 from __future__ import annotations

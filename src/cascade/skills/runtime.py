@@ -10,7 +10,7 @@ instead of crashing the loop.
 from __future__ import annotations
 
 from ..control import motion_evidence
-from ..control.arm_hold import ArmHeldError
+from ..control.arm_hold import ArmHeldError, ConnectedAndHolding
 from ..control.jaw_stages import closing_stages, opens_past
 
 import contextlib
@@ -3040,6 +3040,14 @@ class SkillRuntime:
                 refused_by = type(e).__name__
                 result = {"ok": False, "error": f"ArmHeldError: {e}", "refused": "arm_held",
                           "hint": "nothing was sent to the arm; only the operator can release this hold"}
+                _with_retrace_result(result, e)
+            except ConnectedAndHolding as e:
+                # The arm connected on the operator's confirmation and holds,
+                # with their hands on it: this call's motion was not sent; the
+                # next call moves (#426 fix-round re-review Minor 5).
+                refused_by = type(e).__name__
+                result = {"ok": False, "error": f"ConnectedAndHolding: {e}", "refused": "connected_on_confirmation",
+                          "hint": "the arm is connected and holding where it was; nothing moved"}
                 _with_retrace_result(result, e)
             except Exception as e:  # camera dropouts, CAN loss, ... : the agent
                 # loop must survive and report, not crash mid-task.

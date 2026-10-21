@@ -94,8 +94,13 @@ server-side and keep moving". `ping` is also answered from the reader so
 host keepalives don't starve behind a motion. SIGINT latches the e-stop too
 (freeze, no free-fall); a second SIGINT exits. Teardown cuts torque (so101,
 the RS arms) only on an arm its park brought to rest: an e-stopped or
-refused park leaves the arm powered and holding, said in server.log, so park
-it first (`apps.demo.TORQUE_OFF_CONFIRM_ENV`). SIGUSR1 clears the e-stop: that is the STAFF
+refused park leaves the arm powered and holding, said in server.log, and a
+hold marker makes the next start refuse to connect it until an operator
+confirms at the robot's terminal (`cascade.control.arm_hold`,
+`scripts/arm_hold.py confirm`, interactive; no tool and no agent-facing text
+offers it), so park it first. A SIGTERM keeps latching the e-stop and holding rather than
+halting and parking: no new motion after a stop signal (#424 review, the
+owner may revisit). SIGUSR1 clears the e-stop: that is the STAFF
 reset channel when reset_stop is hidden from attendees
 (`pkill -USR1 -f cascade.apps.mcp_server` requires shell access to the
 rig, which is exactly the staff/attendee boundary).
@@ -181,8 +186,11 @@ _EXTRA_TOOLS = [
         "description": (
             "Read tracked objects, MCP session state and cached camera statistics. "
             "session_state.agent_status is last activity text, not a startup or "
-            "health check. arm_connected means this session opened its control "
-            "connection; false is normal before first control use. Perception "
+            "health check. arm_connected means the arm is powered: this session "
+            "opened its control connection, or an earlier session left it powered "
+            "and holding (then arm_held names it and its next motion is refused "
+            "until the operator confirms at the robot; never say it is safe to "
+            "power off). false is normal before first control use. Perception "
             "counters describe this session's detection and belief updates. This "
             "does not query simulator health, arm pose or gripper contents. "
             "tracked_holding is session history, not a current contact measurement. "
@@ -880,23 +888,47 @@ class McpSkillServer:
         a concurrent motion's end_motion() could hide this one's start). Every
         other arm motion in this server runs under the lock (a tool call, the
         dashboard's reflex chat and resume, a program). Admission is closed
-        already, so nothing new starts; a motion still running is halted
-        first (the operator's halt, not the e-stop: it ends at its next
-        waypoint and the park may still run) and its call waited for."""
-        if not self._exec_lock.acquire(blocking=False):
-            rt = self._runtime
-            rig = getattr(rt, "arm_rig", None)
-            for safe in (list(rig) if rig is not None else [getattr(rt, "arm", None)]):
-                harness = getattr(safe, "__dict__", {}).get("harness")  # never a backend probe
+        already, so nothing new starts, and every arm now refuses a motion
+        any other thread begins (`SafetyHarness.close_for_teardown`): a chat
+        step that starts after the halt sends nothing (#424 review Minor 2).
+        A motion still running is halted first (the operator's halt, not the
+        e-stop: it ends at its next waypoint and the park may still run) and
+        its call waited for, at most `demo.TEARDOWN_WAIT_S`. Past that bound,
+        or when a stop signal arrives during the wait (deferred, or a second
+        one raising KeyboardInterrupt), the e-stop latches: motion stops, the
+        arm keeps its torque and holds, the park is skipped, and the teardown
+        still finishes with its receipt (#424 review follow-up 3, Minor 1)."""
+        from . import demo
+
+        rt = self._runtime
+        rig = getattr(rt, "arm_rig", None)
+        harnesses = []
+        for safe in (list(rig) if rig is not None else [getattr(rt, "arm", None)]):
+            harness = getattr(safe, "__dict__", {}).get("harness")  # never a backend probe
+            if harness is not None:
+                harnesses.append(harness)
+                if callable(getattr(harness, "close_for_teardown", None)):
+                    harness.close_for_teardown("server shutting down")
+        acquired = self._exec_lock.acquire(blocking=False)
+        if not acquired:
+            for harness in harnesses:
                 if callable(getattr(harness, "halt", None)):
                     harness.halt("server shutting down")
-            print("[cascade-mcp] teardown: halted the motion still running; waiting for its call to end "
-                  "before the park", file=sys.stderr)
-            self._exec_lock.acquire()
+            print(f"[cascade-mcp] teardown: halted the motion still running; waiting up to "
+                  f"{demo.TEARDOWN_WAIT_S:g} s for its call to end before the park", file=sys.stderr)
+            why = demo.wait_for_teardown(lambda poll_s: self._exec_lock.acquire(timeout=poll_s),
+                                         bound_s=demo.TEARDOWN_WAIT_S, signals=getattr(self, "_signals", None))
+            acquired = why is None
+            if not acquired:
+                try:
+                    self.stop_now()  # the server's own latch (stop_pending, serial), then every arm's
+                finally:
+                    demo._latch_teardown_estop(rt, why, log_prefix="[cascade-mcp]")
         try:
             return shutdown_runtime(self._runtime, self._arm)
         finally:
-            self._exec_lock.release()
+            if acquired:
+                self._exec_lock.release()
 
     # ── out-of-band stop/reset (called from the stdin thread / signals) ──
 

@@ -151,6 +151,16 @@ def _isolate_persistent_beliefs(monkeypatch, tmp_path):
 
 
 @pytest.fixture(autouse=True)
+def _isolate_arm_holds(monkeypatch, tmp_path):
+    """No test may read or write the host's held-arm markers
+    (`cascade.control.arm_hold`, `~/.cascade/arm_holds`): a teardown that holds
+    a torque-cutting arm writes one, and the next connect of that arm refuses
+    over it. A shared directory would carry one test's hold into the next (and
+    into the live rig's)."""
+    monkeypatch.setenv("CASCADE_ARM_HOLD_DIR", str(tmp_path / "arm_holds"))
+
+
+@pytest.fixture(autouse=True)
 def _isolate_episodic_memory(monkeypatch, tmp_path):
     """Same isolation for the persisted VISUAL index (B43).
 

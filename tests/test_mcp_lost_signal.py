@@ -172,6 +172,67 @@ def test_a_queued_frame_is_served_at_once_not_at_the_next_wake(monkeypatch):
     assert sorted(lags)[2] < mcp_server.SIGNAL_WAKE_S / 2, lags
 
 
+def _main_thread_in(function: str, module: str, timeout_s: float = 10.0) -> bool:
+    main = threading.main_thread().ident
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        frame = sys._current_frames().get(main)
+        while frame is not None:
+            if frame.f_code.co_name == function and frame.f_globals.get("__name__") == module:
+                return True
+            frame = frame.f_back
+        time.sleep(0.01)
+    return False
+
+
+def test_a_sigterm_while_the_first_call_waits_for_the_prewarm_build_is_handled(monkeypatch, tmp_path):
+    """The worker's first tool call waits for the prewarm build (`_init_lock`). Main: a lock acquire
+    with no timeout, so a SIGTERM whose wakeup was lost waited out the whole build (forever, for a
+    build stuck in a camera open). Now the call waits in short sleeps and the signal runs at once."""
+    from cascade.apps import demo, mcp_server
+    from cascade.apps.signal_stop import SignalRequest, StopSignals
+
+    monkeypatch.setenv("CASCADE_RUN_DIR", str(tmp_path))
+    monkeypatch.setattr(demo, "build_runtime", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("no build here")))
+    server = mcp_server.McpSkillServer()
+    stops = []
+    monkeypatch.setattr(server, "stop_now", lambda **_kw: stops.append(time.monotonic()))
+    building, release = threading.Event(), threading.Event()
+
+    def build():  # the prewarm build, in flight
+        with server._init_lock:
+            building.set()
+            release.wait(RESCUE_S)
+
+    def trip():
+        assert _main_thread_in("_ensure_runtime", "cascade.apps.mcp_server")
+        time.sleep(0.3)
+        signal.pthread_kill(threading.get_ident(), signal.SIGTERM)
+
+    builder = threading.Thread(target=build, daemon=True)
+    builder.start()
+    assert building.wait(5)
+    inbox, eof, replies = queue.Queue(), object(), []
+    inbox.put(({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                "params": {"name": "world_state", "arguments": {}}}, replies.append))
+    with StopSignals(staff_reset=True) as signals:
+        server._signals = signals
+        t0 = time.monotonic()
+        helper = threading.Thread(target=trip, daemon=True)
+        helper.start()
+        try:
+            code = mcp_server._worker_loop(server, signals, inbox, eof)
+        except SignalRequest as late:
+            code = f"late {late.signum}"
+        finally:
+            took = time.monotonic() - t0
+            release.set()
+            builder.join(5)
+            helper.join(5)
+    assert code == 128 + signal.SIGTERM and len(stops) == 1, (code, stops)
+    assert took < 2.0, f"the SIGTERM waited {took:.1f} s for the build"
+
+
 # ── the real server process: stdio, HTTP and HTTPS ──────────────────────────────────────────────────
 
 #: Runs the server's `__main__` as `python -m` does, beside a helper thread that, once the test

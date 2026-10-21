@@ -694,6 +694,7 @@ class McpSkillServer:
             "call task_done with an honest", "give the user an honest")
 
     def _ensure_runtime(self, _poison: bool = True):
+        _wait_while_held(self._init_lock)  # a prewarm build in flight: see there
         with self._init_lock:
             if self._runtime is not None:
                 return self._runtime
@@ -2459,6 +2460,18 @@ SIGNAL_WAKE_S = 0.2
 #: tearing that runtime down. Generous (a cold start opens cameras and loads
 #: models); below systemd's default 90 s stop timeout.
 SHUTDOWN_BUILD_WAIT_S = 60.0
+
+
+def _wait_while_held(lock) -> None:
+    """Wait in short sleeps while another thread holds `lock` (the prewarm
+    build holds `_init_lock` for seconds). Never takes it: a sleep ends, so
+    on the main thread a signal whose wakeup was lost runs its handler now,
+    where an acquire without a timeout waited out the whole build (forever
+    for a build stuck in a camera open). Nor an acquire with one: a handler
+    raising right after it returned would leave the lock held. The `with`
+    that follows takes the lock at once."""
+    while lock.locked():
+        time.sleep(0.01)
 
 
 def _worker_loop(server, signals, inbox, eof) -> int:

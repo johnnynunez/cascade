@@ -167,14 +167,29 @@ move on, win or lose (exit lines in §8). One `pick_and_place` per group, ever.
    `arm-check` or `calibrate`.** The hold is remembered (`python scripts/arm_hold.py list`):
    /state shows `arm_held`, and the next connect of the reBot sends nothing and fails with
    `left POWERED and HOLDING`. A reBot that measures raised with no hold recorded (a killed
-   process) is refused the same way, after parameter reads only. To go on:
-   1. Hold the arm (or lower it to rest).
+   process) is refused the same way, after parameter reads only (every joint read twice; the
+   refusal names the joints that are off). To go on:
+   1. Hold the arm. (With NO hold recorded, lowering it to rest is enough: e-stop, fold it by
+      hand, retry; no confirmation.)
    2. At a terminal on the robot host, run `python scripts/arm_hold.py confirm` (or
-      `~/cascade-demo.sh confirm-held`) and type the phrase it asks for. Valid 2 min, used by
-      the next connect that succeeds; it refuses without a terminal or in an agent's shell.
-      The agent cannot confirm: it asks you.
-   3. Retry within 2 min: the connect drops its torque while you hold it.
-   Folded at rest, `~/cascade-demo.sh up`'s startup check clears the hold by itself.
+      `~/cascade-demo.sh confirm-held`): it asks for **your sudo password** (sudo must be
+      password-protected; NOPASSWD is refused), then for the phrase. Valid 2 min, used by the
+      next connect that succeeds; it refuses without a terminal or in an agent's shell. The
+      agent cannot confirm: it asks you.
+   3. Retry within 2 min: the connect drops its torque while you hold it, then **holds the arm
+      where it is and moves nothing** ("connected and holding; let go of the arm and retry"; the
+      arm-check and calibrate ask you to type `go`). Let go, then retry: that call moves.
+   Folded at rest within 0.05 rad of `park_q` (the server's own torque-release tolerance),
+   `~/cascade-demo.sh up`'s startup check clears the hold by itself; farther off the hold stays
+   and `up` stops until you confirm.
+
+   Limits, by design: the hold files are the robot user's, so any process running as that user
+   can delete a marker or write a confirmation. The checks stop accidents and an agent that only
+   uses its tools; the boundary against an agent is the OpenShell sandbox (the booth agent has
+   no host shell). Every start logs the folded arm's joint readings to
+   `~/.cascade/logs/rest_readings.jsonl`; after enough cold starts,
+   `python scripts/rest_tolerance_report.py` recommends this rig's `rest_check_tol_rad` (the arm
+   profile's no-marker tolerance, 0.12 rad until measured).
 6. Attendees never reach into the workspace while the arm is powered; the host stages.
 
 ## 7. Reset between groups (target: 60 s of hands, run during Q&A)

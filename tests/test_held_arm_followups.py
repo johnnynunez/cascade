@@ -560,6 +560,7 @@ def test_the_report_never_learns_a_refused_row(monkeypatch):
     out = _report_json("--current", "0.05")
     assert out["samples"] == 30 and out["max_dev_rad"] == pytest.approx(0.01, abs=1e-6), out
     assert out["recommended_rad"] == 0.05 and "0.12" not in out["advice"], out
+    assert out["advice"].startswith("keep rest_check_tol_rad: 0.05: it fits"), out  # equal: keep, never 'set'
     assert out["refused"] == 1 and out["refused_rows"][0]["verdict"].startswith("joint 3 is 0.100 rad"), out
 
 
@@ -572,7 +573,7 @@ def test_the_report_never_learns_a_rest_verdict_its_own_row_contradicts():
     bad = dict(good, q=[0.0, 0.0, 0.10, 0, 0, 0], again=[0.0, 0.0, 0.10, 0, 0, 0])
     out = report.analyse([good] * 10 + [bad], margin=0.02, min_samples=10)
     assert out["samples"] == 10 and out["ignored"] == 1 and out["max_dev_rad"] == 0.0, out
-    assert out["current_rad"] == 0.05, "no current given: the tolerance the latest logged check applied"
+    assert out["current_rad"] == 0.05, "no current given: the tightest tolerance a logged check applied"
 
 
 def test_the_report_never_advises_loosening_the_current_value(monkeypatch):
@@ -594,6 +595,94 @@ def test_the_report_reads_the_current_value_from_the_profile(monkeypatch):
         _up(clock, _q(0.01))
     out = _report_json()
     assert out["current_rad"] == 0.12 and out["recommended_rad"] == 0.05, out  # the shipped rebot_rs.yaml
+
+
+def _profiles(monkeypatch, **tols):
+    """`load_demo_config` with each named arm profile's rest_check_tol_rad set (a value) or failing to
+    load (an Exception)."""
+    import cascade.config as config
+
+    real = config.load_demo_config
+
+    def load(**kw):
+        tol = tols.get(kw.get("arm"))
+        if isinstance(tol, Exception):
+            raise tol
+        cfg = real(**kw)
+        if tol is not None:
+            cfg.arm._data["rest_check_tol_rad"] = tol
+        return cfg
+
+    monkeypatch.setattr(config, "load_demo_config", load)
+
+
+def _report_in_process(capsys, *argv) -> dict:
+    import rest_tolerance_report as report
+
+    assert report.main(["--log", str(arm_hold.rest_log_path()), "--json", *argv]) == 0
+    return json.loads(capsys.readouterr().out)
+
+
+def test_the_report_never_loosens_either_profile_it_advises(monkeypatch, capsys):
+    """r431b Minor 4: the advice names both reBot profiles (rebot_rs.yaml, rebot_rs_mb.yaml) but the current
+    value came from rebot_rs.yaml alone: with rebot_rs_mb at 0.05 and rebot_rs at 0.12, 20 starts 0.06 off
+    said 'set 0.08' in both files, loosening rebot_rs_mb. The current value is the tighter one."""
+    clock = _clock(monkeypatch)
+    for _ in range(20):
+        _up(clock, _q(0.06))
+    _profiles(monkeypatch, rebot_rs=0.12, rebot_rs_mb=0.05)
+    out = _report_in_process(capsys)
+    assert out["current_rad"] == 0.05 and out["recommended_rad"] is None, out
+    assert out["advice"].startswith("keep rest_check_tol_rad: 0.05") and "0.08" not in out["advice"], out
+    _profiles(monkeypatch, rebot_rs=0.10, rebot_rs_mb=0.11)
+    tighter = _report_in_process(capsys)
+    assert tighter["current_rad"] == 0.10 and tighter["recommended_rad"] == 0.08, tighter
+    assert "set rest_check_tol_rad: 0.08" in tighter["advice"], tighter  # below both: tightens both
+
+
+def test_a_profile_that_cannot_be_read_never_loosens_it(monkeypatch, capsys):
+    """One profile fails to load: its value is unknown, so the current value is the tighter of the profile
+    that loads and every tolerance a logged check applied (never the latest row alone, which may come from
+    the looser profile)."""
+    clock = _clock(monkeypatch)
+    _up(clock, _q(0.01), tol=0.05)  # a start under a profile at 0.05
+    for _ in range(20):
+        _up(clock, _q(0.06))  # later starts at 0.12
+    _profiles(monkeypatch, rebot_rs=0.12, rebot_rs_mb=ValueError("rebot_rs_mb.yaml: broken"))
+    out = _report_in_process(capsys)
+    assert out["current_rad"] == 0.05 and out["recommended_rad"] is None, out
+    assert "set" not in out["advice"], out
+
+
+def test_with_no_current_value_the_report_takes_the_tightest_logged_one():
+    import rest_tolerance_report as report
+
+    row = {"q": [0.0] * 6, "again": [0.0] * 6, "park": [0.0] * 6, "marker": False, "verdict": "rest"}
+    out = report.analyse([dict(row, tol_rad=0.05)] + [dict(row, tol_rad=0.12)] * 10, margin=0.02, min_samples=10)
+    assert out["current_rad"] == 0.05, out
+
+
+def test_a_clock_that_steps_back_starts_a_new_start(monkeypatch):
+    """Starts are told apart by time; a wall clock set back (NTP, a host without a battery-backed clock)
+    makes a later start's rows EARLIER than the last one: each is still its own start."""
+    clock = _clock(monkeypatch)
+    t0 = clock.t
+    for i in range(20):
+        clock.t = t0 - 3600.0 * i
+        _up(clock, _q(0.01))
+    out = _report_json("--current", "0.12")
+    assert out["samples"] == 20 and out["readings"] == 40, out
+
+
+def test_a_row_that_does_not_say_whether_a_marker_was_on_file_is_never_learned():
+    """An older logger's row (no `marker` key) may come from a held arm, which reads wherever it is held."""
+    import rest_tolerance_report as report
+
+    good = {"q": [0.0] * 6, "again": [0.0] * 6, "park": [0.0] * 6, "marker": False, "tol_rad": 0.12, "verdict": "rest"}
+    old = {k: v for k, v in good.items() if k != "marker"}
+    old.update(q=[0.0, 0.0, 0.04, 0, 0, 0], again=[0.0, 0.0, 0.04, 0, 0, 0])
+    out = report.analyse([good] * 10 + [old], margin=0.02, min_samples=10)
+    assert out["samples"] == 10 and out["ignored"] == 1 and out["max_dev_rad"] == 0.0, out
 
 
 @pytest.mark.parametrize(("ups", "enough"), [(19, False), (20, True)])

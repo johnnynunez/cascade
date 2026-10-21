@@ -78,6 +78,28 @@ def test_the_hold_marker_is_written_before_the_teardown_waits_for_any_owner(fast
     assert [e for e in events if e[0] == "torque_off"] == [], "still held: no torque cut"
 
 
+def test_a_hold_decision_that_fails_after_the_park_never_cuts_torque(fast, monkeypatch, capsys):  # noqa: F811
+    """The decision right after the park raises (a broken marker store, a runtime that cannot say its
+    arms): the arms stage decides again, and when it raises there too, nothing is disconnected, as on
+    main. The e-stopped so101 keeps its torque."""
+    events = []
+    arm = feetech(events, fresh=True)
+    arm.stop()
+    calls = []
+
+    def broken(*_a, **_k):
+        calls.append(1)
+        raise RuntimeError("cannot tell which arms are held")
+
+    monkeypatch.setattr(demo, "_arms_to_hold", broken)
+    receipt = shutdown_runtime(runtime_for(arm), arm.raw)
+    assert len(calls) == 2, "decided after the park, then again before the disconnect"
+    arms = next(s for s in receipt["stages"] if s["stage"] == "arms")
+    assert arms["ok"] is False and "cannot tell which arms are held" in str(arms), arms
+    assert [e for e in events if e[0] == "torque_off"] == [] and arm.raw._connected is True
+    assert "retried before the disconnect" in capsys.readouterr().err
+
+
 def test_every_owner_wait_of_the_teardown_is_bounded(fast):  # noqa: F811
     events, record = [], []
     arm = feetech(events, fresh=True)

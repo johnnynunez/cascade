@@ -233,6 +233,26 @@ def test_a_sigterm_while_the_first_call_waits_for_the_prewarm_build_is_handled(m
     assert took < 2.0, f"the SIGTERM waited {took:.1f} s for the build"
 
 
+def test_the_teardown_waits_for_a_listener_that_never_stops_only_so_long(monkeypatch):
+    """`httpd.shutdown()` waits for serve_forever without a bound: the teardown asks from a helper
+    thread, waits TRANSPORT_STOP_S, then closes the socket and goes on."""
+    from cascade.apps import mcp_server
+
+    monkeypatch.setattr(mcp_server, "TRANSPORT_STOP_S", 0.3)
+    stuck, closed = threading.Event(), []
+    httpd = SimpleNamespace(shutdown=lambda: stuck.wait(30), server_close=lambda: closed.append(1))
+    listener = threading.Thread(target=stuck.wait, args=(30,), daemon=True)
+    listener.start()
+    t0 = time.monotonic()
+    try:
+        mcp_server._stop_listener(httpd, listener)
+        took = time.monotonic() - t0
+    finally:
+        stuck.set()
+        listener.join(5)
+    assert 0.25 <= took < 2.0 and closed == [1], (took, closed)
+
+
 # ── the real server process: stdio, HTTP and HTTPS ──────────────────────────────────────────────────
 
 #: Runs the server's `__main__` as `python -m` does, beside a helper thread that, once the test
@@ -386,3 +406,46 @@ def test_a_sigterm_the_main_thread_never_woke_for_still_stops_and_tears_down(tmp
     receipt = json.loads((tmp_path / "run" / "teardown.json").read_text())
     assert receipt["ok"] is True and receipt["complete"] is True, receipt
     assert receipt["runtime_built"] is (transport == "stdio-built"), receipt
+
+
+#: The server's main() with the stdin reader stuck after EOF: `server.input_closed()` (called by the
+#: reader once stdin closes) never returns, so it never queues the worker's EOF and never ends.
+_STUCK_READER = r'''
+import sys, threading
+sys.argv = ["cascade.apps.mcp_server"]
+import cascade.apps.mcp_server as m
+m.McpSkillServer.input_closed = lambda self: threading.Event().wait()
+sys.exit(m.main())
+'''
+
+
+@pytest.mark.skipif(not has_pinocchio(), reason="pinocchio not available")
+def test_a_stdin_reader_that_never_ends_does_not_hold_up_the_teardown(tmp_path):
+    """Main joined the stdio reader without a bound: a reader stuck in a frame's handling kept the
+    SIGTERM teardown from ever writing its receipt. Now it waits TRANSPORT_STOP_S, says so, and goes on."""
+    proc = subprocess.Popen([sys.executable, "-c", _STUCK_READER], cwd=REPO,
+                            env=_env(tmp_path), stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        proc.stdin.write((json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize",
+                                      "params": {"protocolVersion": "2025-06-18", "capabilities": {}}}) + "\n").encode())
+        proc.stdin.flush()
+        assert json.loads(_readline(proc, 120))["id"] == 1
+        proc.stdin.close()  # EOF: the reader's input_closed() never returns
+        time.sleep(0.5)
+        t0 = time.monotonic()
+        proc.send_signal(signal.SIGTERM)
+        try:
+            rc = proc.wait(timeout=20)
+        except subprocess.TimeoutExpired:
+            pytest.fail("the teardown waited for the stuck stdin reader")
+        took = time.monotonic() - t0
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait(10)
+        err = proc.stderr.read().decode(errors="replace")
+        proc.stdout.close()
+        proc.stderr.close()
+    assert rc == 128 + signal.SIGTERM and took < 15, (rc, took, err[-1500:])
+    assert "the stdin reader did not stop" in err, err[-1500:]
+    assert json.loads((tmp_path / "run" / "teardown.json").read_text())["ok"] is True

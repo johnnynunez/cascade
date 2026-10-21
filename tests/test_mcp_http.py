@@ -37,6 +37,9 @@ ACCEPT_BOTH = "application/json, text/event-stream"
 class HttpMcp:
     """One server subprocess in --http mode plus a minimal MCP HTTP client."""
 
+    #: close()'s wait after SIGTERM (None: demo.TEARDOWN_WAIT_S plus a margin)
+    sigterm_bound_s: float | None = None
+
     def __init__(self, tmp_path: Path, *, token: str | None = TOKEN, bind: str = "127.0.0.1:0",
                  extra_args=(), extra_env: dict | None = None, tls: ssl.SSLContext | None = None):
         env = dict(os.environ)
@@ -133,13 +136,41 @@ class HttpMcp:
         return self
 
     def close(self):
+        """SIGTERM, as systemd stops it. A server still running past its teardown's bound
+        (demo.TEARDOWN_WAIT_S) plus a margin ignored the signal: that fails the test loudly. A
+        silent kill here once hid a lost SIGTERM (#435 review: the server never latched, never
+        tore down)."""
         if self.proc.poll() is None:
+            from cascade.apps.demo import TEARDOWN_WAIT_S
+
+            bound = TEARDOWN_WAIT_S + 10.0 if self.sigterm_bound_s is None else self.sigterm_bound_s
             self.proc.send_signal(signal.SIGTERM)
             try:
-                self.proc.wait(timeout=20)
+                self.proc.wait(timeout=bound)
             except subprocess.TimeoutExpired:
                 self.proc.kill()
                 self.proc.wait(timeout=10)
+                pytest.fail(f"the server ignored SIGTERM for {bound:g} s (its teardown waits at most "
+                            f"{TEARDOWN_WAIT_S:g} s); killed it")
+
+
+def test_close_fails_loudly_when_the_server_ignores_sigterm():
+    """A server still up past its teardown's bound ignored SIGTERM: close() kills it and fails the
+    test. Main killed it silently, which hid a lost SIGTERM."""
+    s = HttpMcp.__new__(HttpMcp)
+    s.sigterm_bound_s = 0.5
+    s.proc = subprocess.Popen([sys.executable, "-c", "import signal, time; signal.signal(signal.SIGTERM, "
+                               "signal.SIG_IGN); print('ready', flush=True); time.sleep(120)"],
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        assert s.proc.stdout.readline().strip() == "ready"
+        with pytest.raises(pytest.fail.Exception, match="ignored SIGTERM"):
+            s.close()
+        assert s.proc.poll() is not None, "left running"
+    finally:
+        if s.proc.poll() is None:
+            s.proc.kill()
+            s.proc.wait(10)
 
 
 def _decode(headers: dict, body: str) -> dict:

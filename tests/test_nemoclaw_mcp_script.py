@@ -178,6 +178,7 @@ def test_serve_answers_mcp_over_tls_verified_by_the_private_ca(tmp_path):
     mod = _load()
     argv = mod.server_argv(host, 0, d) + ["--http-port-file", str(port_file)]
     proc = subprocess.Popen(argv, cwd=REPO, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    conn = None
     try:
         deadline = time.monotonic() + 60
         while not (port_file.exists() and port_file.read_text().strip()):
@@ -201,5 +202,48 @@ def test_serve_answers_mcp_over_tls_verified_by_the_private_ca(tmp_path):
         assert msg["result"]["serverInfo"]["name"]
         assert token not in " ".join(argv)
     finally:
+        _terminate(proc, conn)
+
+
+def _terminate(proc, conn=None, *, bound_s: float | None = None):
+    """SIGTERM, as systemd stops the server. One that ignores it past its teardown's bound
+    (demo.TEARDOWN_WAIT_S plus a margin) is killed, never left running (a CI job once reaped
+    this server as an orphan 48 min later, #435 review), and fails the test loudly."""
+    if bound_s is None:
+        from cascade.apps.demo import TEARDOWN_WAIT_S
+
+        bound_s = TEARDOWN_WAIT_S + 10.0
+    try:
         proc.terminate()
-        proc.wait(timeout=20)
+        proc.wait(timeout=bound_s)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait(timeout=10)
+        pytest.fail(f"the server ignored SIGTERM for {bound_s:g} s; killed it")
+    finally:
+        if conn is not None:
+            conn.close()
+        for stream in (proc.stdout, proc.stderr):
+            if stream is not None:
+                stream.close()
+
+
+def _ignores_sigterm():
+    """A child that ignores SIGTERM (as the server did when its handler never ran)."""
+    proc = subprocess.Popen([sys.executable, "-c", "import signal, sys, time; signal.signal(signal.SIGTERM, "
+                             "signal.SIG_IGN); print('ready', flush=True); time.sleep(120)"],
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    assert proc.stdout.readline().strip() == "ready"
+    return proc
+
+
+def test_a_server_that_ignores_sigterm_is_killed_and_fails_the_test():
+    proc = _ignores_sigterm()
+    try:
+        with pytest.raises(pytest.fail.Exception, match="ignored SIGTERM"):
+            _terminate(proc, bound_s=0.5)
+        assert proc.poll() is not None, "left running"
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait(10)

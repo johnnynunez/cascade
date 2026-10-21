@@ -2409,6 +2409,26 @@ def _admit(server, m: dict, send) -> bool:
     return False
 
 
+def _operator_reset_line(result) -> str:
+    """One server.log line for the SIGUSR1 operator reset: the stop it cleared, or why it was refused.
+    Never raises (it runs in the worker's signal path)."""
+    try:
+        payload = json.loads(result["content"][-1]["text"])
+        payload = payload if isinstance(payload, dict) else {"ok": False, "error": f"reset answered {payload!r}"}
+    except Exception as exc:  # noqa: BLE001
+        payload = {"ok": False, "error": f"unreadable reset result ({type(exc).__name__})"}
+    cleared = payload.get("ok") is True
+    domains = payload.get("domains") if isinstance(payload.get("domains"), dict) else {}
+    key = "cleared" if cleared else "error"
+    why = [f"{name}: {r[key]}" for name, r in domains.items() if isinstance(r, dict) and r.get(key)]
+    if cleared:
+        return "[cascade-mcp] SIGUSR1 operator reset: stop cleared" + (f" ({'; '.join(why)})" if why else "")
+    if payload.get("error"):
+        why.insert(0, str(payload["error"]))
+    return ("[cascade-mcp] SIGUSR1 operator reset REFUSED, the robot stays stopped: "
+            + ("; ".join(why) or "no reason given"))
+
+
 def _worker_loop(server, signals, inbox, eof) -> int:
     """The single serial worker: (frame, send) items in arrival order."""
     import signal
@@ -2479,7 +2499,8 @@ def _worker_loop(server, signals, inbox, eof) -> int:
             if request.signum == signal.SIGTERM:
                 return 128 + signal.SIGTERM
             if request.signum == getattr(signal, "SIGUSR1", None):
-                server.reset_now()
+                # the operator's only feedback: cleared (and which stop) or refused (and why), in server.log
+                print(_operator_reset_line(server.reset_now()), file=sys.stderr, flush=True)
             if isinstance(msg, dict) and msg.get("id") is not None and send is not None:
                 send(_response(msg["id"], _text_result(
                     {"ok": False, "execution_ok": False, "error": "interrupted by signal; re-issue explicitly"},

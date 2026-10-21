@@ -112,7 +112,8 @@ class FleetRuntime:
                 raise ValueError("fleet closed")
             if robot_id in self._blocked and descriptor is not None and (
                     descriptor.effect in {"motion", "control"} or name == "task_done"):
-                return {"robot_id": robot_id, "ok": False, "error": "robot stopped; explicit reset_stop required"}
+                # the composed runtime's wording: names no tool (reset_stop is operator-only on a humanoid)
+                return {"robot_id": robot_id, "ok": False, "error": "robot stopped: ask the operator to clear the stop"}
             generation = runtime.cancellation_token if expected_generation is None else expected_generation
         # Preserve the member's last-moment generation/deadline check. A stop
         # between selecting this token and entering execute invalidates dispatch.

@@ -529,9 +529,9 @@ class _ClosableDetector:
 
 
 def test_a_failed_watcher_stop_still_closes_the_detector_at_shutdown(tmp_path, monkeypatch):
-    """Normal shutdown has no bound: a watcher.stop() that raises is recorded
-    in its stage and the detector is closed anyway, as before the failed-build
-    teardown existed. Only a BOUNDED teardown leaves the detector open to a
+    """Normal shutdown: a watcher.stop() that raises is recorded in its stage
+    and the detector is closed anyway, as before the failed-build teardown
+    existed. Only a failed build's teardown leaves the detector open to a
     watcher that is still inside it."""
     pytest.importorskip("pinocchio")
     from cascade.apps import demo

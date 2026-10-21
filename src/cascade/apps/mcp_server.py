@@ -863,12 +863,23 @@ class McpSkillServer:
         if self._readonly_lane is not None:
             self._readonly_lane.close()  # no lane call starts against a runtime being torn down
         # taking _init_lock waits out an in-flight prewarm build, so a
-        # runtime that finishes building after EOF is still torn down
-        with self._init_lock, contextlib.redirect_stdout(sys.stderr):
-            if self._runtime is not None:
-                from ..apps.demo import shutdown_runtime
+        # runtime that finishes building after EOF is still torn down; at most
+        # SHUTDOWN_BUILD_WAIT_S (a stop signal ends it sooner): a build that
+        # hangs must not keep the receipt from being written (#435 review)
+        built = self._wait_out_the_build()
+        try:
+            with contextlib.redirect_stdout(sys.stderr):
+                if built is not True:
+                    stages.append({"stage": "runtime", "ok": False, "complete": False, "errors": [
+                        {"type": "RuntimeBuildStillRunning",
+                         "message": f"the runtime was still being built ({built}); it was not torn down"}]})
+                elif self._runtime is not None:
+                    from ..apps.demo import shutdown_runtime
 
-                stages.append(teardown_step("runtime", lambda: self._teardown_exclusive(shutdown_runtime)))
+                    stages.append(teardown_step("runtime", lambda: self._teardown_exclusive(shutdown_runtime)))
+        finally:
+            if built is True:
+                self._init_lock.release()
         receipt = teardown_receipt(stages)
         receipt.update(pid=os.getpid(), runtime_built=self._runtime is not None)
         receipt = retain_teardown_attempt(previous, receipt)
@@ -885,6 +896,25 @@ class McpSkillServer:
             print(f"[cascade-mcp] teardown receipt could not be saved: {receipt}", file=sys.stderr)
         self._shutdown_receipt = copy.deepcopy(receipt)
         return receipt
+
+    def _wait_out_the_build(self):
+        """Take `_init_lock` for the teardown: True once held, else why not
+        (an in-flight build still holds it after SHUTDOWN_BUILD_WAIT_S, or a
+        stop signal arrived during the wait). A build never powers an arm
+        (the arms are lazy), so going on without it leaves nothing raised."""
+        if self._init_lock.acquire(blocking=False):
+            return True
+        from . import demo
+
+        print(f"[cascade-mcp] teardown: the runtime is still being built; waiting up to "
+              f"{SHUTDOWN_BUILD_WAIT_S:g} s for it to finish", file=sys.stderr, flush=True)
+        why = demo.wait_for_teardown(lambda poll_s: self._init_lock.acquire(timeout=poll_s),
+                                     bound_s=SHUTDOWN_BUILD_WAIT_S, signals=getattr(self, "_signals", None))
+        if why is None:
+            return True
+        print(f"[cascade-mcp] WARNING: teardown: the runtime build did not finish ({why}); going on "
+              "without tearing it down", file=sys.stderr, flush=True)
+        return why
 
     def _teardown_exclusive(self, shutdown_runtime) -> dict:
         """`shutdown_runtime` under `_exec_lock`: its park is a motion, and two
@@ -2424,6 +2454,11 @@ def _admit(server, m: dict, send) -> bool:
 #: ran no teardown, and the server lived on until SIGKILL). Each wake runs
 #: that handler; a frame put on the queue still wakes the worker at once.
 SIGNAL_WAKE_S = 0.2
+#: The longest the teardown waits for an in-flight runtime build (the
+#: prewarm thread holds `_init_lock`) before it writes its receipt without
+#: tearing that runtime down. Generous (a cold start opens cameras and loads
+#: models); below systemd's default 90 s stop timeout.
+SHUTDOWN_BUILD_WAIT_S = 60.0
 
 
 def _worker_loop(server, signals, inbox, eof) -> int:

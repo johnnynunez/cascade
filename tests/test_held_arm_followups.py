@@ -65,6 +65,16 @@ def _private_stores(tmp_path):
     pinned()
 
 
+@pytest.fixture(autouse=True)
+def _operator_shell(monkeypatch):
+    """In-process, the tests are the operator's own shell, whoever runs them: the let-go (and `confirm`)
+    refuse in an agent's environment (`arm_hold.AGENT_ENV`), and an agent may run this suite. A test
+    that needs an agent's environment sets it."""
+    for name in list(os.environ):
+        if name in arm_hold.AGENT_ENV or name.startswith(arm_hold.AGENT_ENV_PREFIXES):
+            monkeypatch.delenv(name)
+
+
 def _reads(monkeypatch, log, table):
     """mechPos parameter reads, logged. `table`: joint -> a value, or a list served in order (its last
     value repeats); None = no answer."""
@@ -300,7 +310,7 @@ def test_the_startup_check_on_a_confirmation_moves_the_gripper_only_after_the_op
             raise EOFError
         return answer
 
-    monkeypatch.setattr(builtins, "input", ask)
+    monkeypatch.setattr(arm_hold, "_answer_at_terminal", ask)  # typed at the robot's terminal
     code = mod.main(["--yes", "--reference-only"])
     out = capsys.readouterr().out
     kinds = [e[0] for e in log]
@@ -550,6 +560,7 @@ def test_the_report_never_learns_a_refused_row(monkeypatch):
     out = _report_json("--current", "0.05")
     assert out["samples"] == 30 and out["max_dev_rad"] == pytest.approx(0.01, abs=1e-6), out
     assert out["recommended_rad"] == 0.05 and "0.12" not in out["advice"], out
+    assert out["advice"].startswith("keep rest_check_tol_rad: 0.05: it fits"), out  # equal: keep, never 'set'
     assert out["refused"] == 1 and out["refused_rows"][0]["verdict"].startswith("joint 3 is 0.100 rad"), out
 
 
@@ -562,7 +573,7 @@ def test_the_report_never_learns_a_rest_verdict_its_own_row_contradicts():
     bad = dict(good, q=[0.0, 0.0, 0.10, 0, 0, 0], again=[0.0, 0.0, 0.10, 0, 0, 0])
     out = report.analyse([good] * 10 + [bad], margin=0.02, min_samples=10)
     assert out["samples"] == 10 and out["ignored"] == 1 and out["max_dev_rad"] == 0.0, out
-    assert out["current_rad"] == 0.05, "no current given: the tolerance the latest logged check applied"
+    assert out["current_rad"] == 0.05, "no current given: the tightest tolerance a logged check applied"
 
 
 def test_the_report_never_advises_loosening_the_current_value(monkeypatch):
@@ -584,6 +595,94 @@ def test_the_report_reads_the_current_value_from_the_profile(monkeypatch):
         _up(clock, _q(0.01))
     out = _report_json()
     assert out["current_rad"] == 0.12 and out["recommended_rad"] == 0.05, out  # the shipped rebot_rs.yaml
+
+
+def _profiles(monkeypatch, **tols):
+    """`load_demo_config` with each named arm profile's rest_check_tol_rad set (a value) or failing to
+    load (an Exception)."""
+    import cascade.config as config
+
+    real = config.load_demo_config
+
+    def load(**kw):
+        tol = tols.get(kw.get("arm"))
+        if isinstance(tol, Exception):
+            raise tol
+        cfg = real(**kw)
+        if tol is not None:
+            cfg.arm._data["rest_check_tol_rad"] = tol
+        return cfg
+
+    monkeypatch.setattr(config, "load_demo_config", load)
+
+
+def _report_in_process(capsys, *argv) -> dict:
+    import rest_tolerance_report as report
+
+    assert report.main(["--log", str(arm_hold.rest_log_path()), "--json", *argv]) == 0
+    return json.loads(capsys.readouterr().out)
+
+
+def test_the_report_never_loosens_either_profile_it_advises(monkeypatch, capsys):
+    """r431b Minor 4: the advice names both reBot profiles (rebot_rs.yaml, rebot_rs_mb.yaml) but the current
+    value came from rebot_rs.yaml alone: with rebot_rs_mb at 0.05 and rebot_rs at 0.12, 20 starts 0.06 off
+    said 'set 0.08' in both files, loosening rebot_rs_mb. The current value is the tighter one."""
+    clock = _clock(monkeypatch)
+    for _ in range(20):
+        _up(clock, _q(0.06))
+    _profiles(monkeypatch, rebot_rs=0.12, rebot_rs_mb=0.05)
+    out = _report_in_process(capsys)
+    assert out["current_rad"] == 0.05 and out["recommended_rad"] is None, out
+    assert out["advice"].startswith("keep rest_check_tol_rad: 0.05") and "0.08" not in out["advice"], out
+    _profiles(monkeypatch, rebot_rs=0.10, rebot_rs_mb=0.11)
+    tighter = _report_in_process(capsys)
+    assert tighter["current_rad"] == 0.10 and tighter["recommended_rad"] == 0.08, tighter
+    assert "set rest_check_tol_rad: 0.08" in tighter["advice"], tighter  # below both: tightens both
+
+
+def test_a_profile_that_cannot_be_read_never_loosens_it(monkeypatch, capsys):
+    """One profile fails to load: its value is unknown, so the current value is the tighter of the profile
+    that loads and every tolerance a logged check applied (never the latest row alone, which may come from
+    the looser profile)."""
+    clock = _clock(monkeypatch)
+    _up(clock, _q(0.01), tol=0.05)  # a start under a profile at 0.05
+    for _ in range(20):
+        _up(clock, _q(0.06))  # later starts at 0.12
+    _profiles(monkeypatch, rebot_rs=0.12, rebot_rs_mb=ValueError("rebot_rs_mb.yaml: broken"))
+    out = _report_in_process(capsys)
+    assert out["current_rad"] == 0.05 and out["recommended_rad"] is None, out
+    assert "set" not in out["advice"], out
+
+
+def test_with_no_current_value_the_report_takes_the_tightest_logged_one():
+    import rest_tolerance_report as report
+
+    row = {"q": [0.0] * 6, "again": [0.0] * 6, "park": [0.0] * 6, "marker": False, "verdict": "rest"}
+    out = report.analyse([dict(row, tol_rad=0.05)] + [dict(row, tol_rad=0.12)] * 10, margin=0.02, min_samples=10)
+    assert out["current_rad"] == 0.05, out
+
+
+def test_a_clock_that_steps_back_starts_a_new_start(monkeypatch):
+    """Starts are told apart by time; a wall clock set back (NTP, a host without a battery-backed clock)
+    makes a later start's rows EARLIER than the last one: each is still its own start."""
+    clock = _clock(monkeypatch)
+    t0 = clock.t
+    for i in range(20):
+        clock.t = t0 - 3600.0 * i
+        _up(clock, _q(0.01))
+    out = _report_json("--current", "0.12")
+    assert out["samples"] == 20 and out["readings"] == 40, out
+
+
+def test_a_row_that_does_not_say_whether_a_marker_was_on_file_is_never_learned():
+    """An older logger's row (no `marker` key) may come from a held arm, which reads wherever it is held."""
+    import rest_tolerance_report as report
+
+    good = {"q": [0.0] * 6, "again": [0.0] * 6, "park": [0.0] * 6, "marker": False, "tol_rad": 0.12, "verdict": "rest"}
+    old = {k: v for k, v in good.items() if k != "marker"}
+    old.update(q=[0.0, 0.0, 0.04, 0, 0, 0], again=[0.0, 0.0, 0.04, 0, 0, 0])
+    out = report.analyse([good] * 10 + [old], margin=0.02, min_samples=10)
+    assert out["samples"] == 10 and out["ignored"] == 1 and out["max_dev_rad"] == 0.0, out
 
 
 @pytest.mark.parametrize(("ups", "enough"), [(19, False), (20, True)])
@@ -807,7 +906,10 @@ def test_an_mcp_motion_on_a_confirmation_connects_holds_and_asks_to_let_go(monke
         shutdown_runtime(rt, arm)
 
 
-def _confirmed_arm_check(monkeypatch, answer):
+def _confirmed_arm_check(monkeypatch, answer, *, at="terminal"):
+    """The arm-check over an arm that connected on a confirmation. `answer`: what the operator types
+    (None: end of input) `at` the robot's terminal (`arm_hold._answer_at_terminal`), or on stdin
+    (`input()`: a pipe, which must never count)."""
     from test_home_rebot_rs import RIG_REST, FakeCamera, _builder, _main
 
     from cascade.control.mock_arm import MockArm
@@ -826,7 +928,10 @@ def _confirmed_arm_check(monkeypatch, answer):
             raise EOFError
         return answer
 
-    monkeypatch.setattr(builtins, "input", ask)
+    if at == "terminal":
+        monkeypatch.setattr(arm_hold, "_answer_at_terminal", ask, raising=False)
+    else:
+        monkeypatch.setattr(builtins, "input", ask)
     return _main(["--yes", "--hold-s", "0"], build, FakeCamera()), events
 
 
@@ -850,9 +955,11 @@ def test_the_arm_check_on_a_confirmation_holds_when_the_operator_does_not_go_on(
 # ── Minors 5 and 6: calibrate ─────────────────────────────────────────────────────────────────────
 
 
-def _calibrate(monkeypatch, tmp_path, first_error, answers=()):
+def _calibrate(monkeypatch, tmp_path, first_error, answers=(), *, at="terminal"):
     """cli.main over the dry-run rig whose FIRST arm read raises `first_error` (what the LazyArm's
-    connect raises at the first sweep motion)."""
+    connect raises at the first sweep motion). `answers`: what the operator types, in order, `at` the
+    robot's terminal (`arm_hold._answer_at_terminal`: recorded as ("tty", prompt)) or through
+    calibrate's own `_prompt` (stdin: recorded as ("prompt", msg)); the other one answers nothing."""
     from cascade.calibration import cli
     from cascade.control.mock_arm import MockArm
 
@@ -880,7 +987,12 @@ def _calibrate(monkeypatch, tmp_path, first_error, answers=()):
 
     monkeypatch.setattr(cli, "build_rig", build)
     it = iter(answers)
-    monkeypatch.setattr(cli, "_prompt", lambda msg="": calls.append(("prompt", msg)) or next(it))
+    if at == "terminal":
+        monkeypatch.setattr(arm_hold, "_answer_at_terminal", lambda msg: calls.append(("tty", msg)) or next(it),
+                            raising=False)
+        monkeypatch.setattr(cli, "_prompt", lambda msg="": calls.append(("prompt", msg)) or "")
+    else:
+        monkeypatch.setattr(cli, "_prompt", lambda msg="": calls.append(("prompt", msg)) or next(it))
     rc = cli.main(["--camera", "d455f_scene", "--arm", "rebot_rs", "--yes", "--settle-time", "0",
                    "--stable-frames", "2", "--out", str(tmp_path / "out.json"), "--run-dir", str(tmp_path / "run")])
     return rc, made["rig"], calls
@@ -900,7 +1012,7 @@ def test_calibrate_over_a_raised_arm_prints_a_clean_refusal(monkeypatch, tmp_pat
 def test_calibrate_on_a_confirmation_sweeps_only_after_the_operator_lets_go(monkeypatch, tmp_path, capsys):
     rc, rig, calls = _calibrate(monkeypatch, tmp_path, arm_hold.connected_and_holding("can0"), answers=["go"])
     prompts = [c for c in calls if isinstance(c, tuple)]
-    assert len(prompts) == 1 and "let go of the arm" in prompts[0][1].lower(), calls
+    assert len(prompts) == 1 and prompts[0][0] == "tty" and "let go of the arm" in prompts[0][1].lower(), calls
     assert rig.raw_arm.commands, "the sweep ran after 'go'"
     assert rc == 0 and calls[-1] == "disconnect", (rc, calls)
 
@@ -937,7 +1049,8 @@ def test_calibrate_over_a_lazy_arm_moves_only_once_the_operator_says_go(monkeypa
                        ee_frame=dr.ee_frame, camera_serial=cfg.camera.get("serial", ""))
 
     monkeypatch.setattr(cli, "build_rig", build)
-    monkeypatch.setattr(cli, "_prompt", lambda msg="": next(answers))
+    monkeypatch.setattr(arm_hold, "_answer_at_terminal", lambda msg: next(answers))  # the robot's terminal
+    monkeypatch.setattr(cli, "_prompt", lambda msg="": pytest.fail(f"asked on stdin: {msg}"))
     rc = cli.main(["--camera", "d455f_scene", "--arm", "rebot_rs", "--yes", "--settle-time", "0",
                    "--stable-frames", "2", "--out", str(tmp_path / "out.json"), "--run-dir", str(tmp_path / "run")])
     if answer == "go":

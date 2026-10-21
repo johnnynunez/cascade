@@ -98,7 +98,8 @@ def _let_go_first(raw, safe, park, log) -> bool:
     """A connect that went ahead on the operator's confirmation (an arm an
     earlier session left held, or measured raised: cascade.control.arm_hold)
     only HOLDS: the operator's hands are on the arm. Before the first motion
-    they let go and type 'go' (whatever --yes said). An arm off its rest is
+    they let go and type 'go' at this terminal (whatever --yes said; never a
+    pipe nor an agent's environment: `arm_hold.wait_for_let_go`). An arm off its rest is
     released at once by `home_and_back` instead, while they still support
     it. False: they did not go on; the arm stays held and is remembered."""
     if getattr(raw, "connected_on_confirmation", False) is not True:

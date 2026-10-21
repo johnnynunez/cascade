@@ -182,8 +182,9 @@ move on, win or lose (exit lines in §8). One `pick_and_place` per group, ever.
       lacks, and with it an agent can confirm.
    3. Retry within 2 min: the connect drops its torque while you hold it, then **holds the arm
       where it is and moves nothing** ("connected and holding; let go of the arm and retry"; the
-      arm-check, calibrate and `up`'s startup check ask you to type `go`). Let go, then retry:
-      that call moves.
+      arm-check, calibrate, `up`'s startup check and the demo CLI ask you to type `go` at that
+      terminal, which, like the confirmation, never counts through a pipe or in an agent's shell:
+      they then stop with the arm held). Let go, then retry: that call moves.
    Folded at rest within 0.05 rad of `park_q` (the server's own torque-release tolerance),
    `~/cascade-demo.sh up`'s startup check clears the hold by itself; farther off the hold stays
    and `up` stops until you confirm.

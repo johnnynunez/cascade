@@ -687,7 +687,8 @@ def cmd_calibrate(args, *, dry_run: bool) -> int:
                     # sweep's first motion and only HOLDS: their hands are on
                     # it. Nothing moved; the sweep starts once they let go.
                     state["moved"] = False
-                    if wait_for_let_go(getattr(rig.raw_arm, "hold_key", None), ask=_prompt, log=print):
+                    # asked at the robot's own terminal, never through `_prompt` (stdin: a pipe)
+                    if wait_for_let_go(getattr(rig.raw_arm, "hold_key", None), log=print):
                         # the LazyArm refuses every command until the operator says so
                         let_go = getattr(type(rig.raw_arm), "let_go", None)
                         if callable(let_go):

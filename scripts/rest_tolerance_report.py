@@ -20,7 +20,8 @@ allows. It only ever TIGHTENS:
   seconds, and the robot server's first connect later; rows of one bus less than START_GAP_S apart
   are one start, counted once at its largest deviation;
 - it recommends max(0.05, the largest |q - park_q| seen + a margin), rounded up to 0.01 rad, and
-  never above the current value (`--current`, else the profile's): it never advises loosening. 0.05
+  never above the current value (`--current`, else the TIGHTER of the two profiles it advises,
+  rebot_rs and rebot_rs_mb: one arm, one bus): it never advises loosening either. 0.05
   rad is the robot server's own torque-release tolerance: an arm it released is within it, so a
   tighter value only adds refusals;
 - it recommends nothing until it has `--min-samples` starts (never fewer than MIN_SAMPLES_FLOOR).
@@ -54,6 +55,9 @@ MIN_SAMPLES_FLOOR = 10
 START_GAP_S = 600.0
 #: The refused rows shown (the latest).
 SHOW_REFUSED = 10
+#: The arm profiles whose rest_check_tol_rad this report advises: the rig's two reBot transports (one
+#: arm, one bus). The current value is the tightest of them, so the advice never loosens one.
+PROFILES = ("rebot_rs", "rebot_rs_mb")
 
 
 def _rows(path: Path) -> list[dict]:
@@ -136,12 +140,10 @@ def _starts(rows) -> list[list[dict]]:
 
 
 def _current_from(rows) -> float | None:
-    """The tolerance the latest check applied (the running value when no profile says it)."""
-    for row in reversed(rows):
-        tol = _tolerance(row.get("tol_rad"))
-        if tol is not None:
-            return tol
-    return None
+    """The tightest tolerance a logged check applied (the running value when no profile says it): never
+    the latest row alone, which may come from the looser of the two profiles."""
+    tols = [tol for tol in (_tolerance(row.get("tol_rad")) for row in rows) if tol is not None]
+    return min(tols) if tols else None
 
 
 def _refused_row(row) -> dict:
@@ -165,7 +167,7 @@ def check_options(*, margin: float, min_samples: int, current: float | None) -> 
 
 def analyse(rows, *, margin: float, min_samples: int, current: float | None = None) -> dict:
     """The report over logged rest rows (see the module docstring). `current`: the rig's
-    rest_check_tol_rad now (None: the tolerance the latest logged check applied, else the ceiling).
+    rest_check_tol_rad now (None: the tightest tolerance a logged check applied, else the ceiling).
     Raises ValueError for options that would weaken the advice (`check_options`)."""
     check_options(margin=margin, min_samples=min_samples, current=current)
     rows = list(rows)
@@ -223,14 +225,28 @@ def analyse(rows, *, margin: float, min_samples: int, current: float | None = No
     return out
 
 
-def _profile_tolerance() -> tuple[float | None, str]:
-    try:
-        from cascade.config import load_demo_config
+def _profile_tolerance(rows=()) -> tuple[float | None, str]:
+    """The current value: the tightest rest_check_tol_rad of PROFILES (#431 re-review Minor 4: the advice
+    names both files, so a value read from one alone could loosen the other). A profile that cannot be
+    read: the tightest of those that can and of every tolerance a logged check applied (`rows`)."""
+    found, unknown = {}, []
+    for name in PROFILES:
+        try:
+            from cascade.config import load_demo_config
 
-        tol = arm_hold.rest_tolerance(load_demo_config(camera="mock", arm="rebot_rs", llm="mock").arm)
-        return tol, f"{tol:g} rad (configs/arms/rebot_rs.yaml)"
-    except Exception as exc:  # noqa: BLE001 -- a report: say it and go on
-        return None, f"unknown ({exc}): the latest logged check's"
+            found[f"configs/arms/{name}.yaml"] = arm_hold.rest_tolerance(
+                load_demo_config(camera="mock", arm=name, llm="mock").arm)
+        except Exception as exc:  # noqa: BLE001 -- a report: say it and go on
+            unknown.append(f"{name}.yaml unreadable ({exc})")
+    values = dict(found)
+    logged = _current_from(rows) if unknown else None
+    if logged is not None:
+        values["the tightest logged check"] = logged
+    if not values:
+        return None, f"unknown ({'; '.join(unknown)}): the tightest logged check's"
+    where = min(values, key=values.get)
+    parts = [f"{k} {v:g}" for k, v in values.items()] + unknown
+    return values[where], f"{values[where]:g} rad ({where}; the tightest of: {', '.join(parts)})"
 
 
 def _option(convert, name: str):
@@ -255,15 +271,15 @@ def main(argv=None) -> int:
                     help=f"starts needed before a recommendation (default {MIN_SAMPLES}, at least "
                          f"{MIN_SAMPLES_FLOOR})")
     ap.add_argument("--current", type=_option(float, "current"), default=None,
-                    help="the rig's rest_check_tol_rad now (default: the rebot_rs profile's); never "
-                         "recommended above")
+                    help="the rig's rest_check_tol_rad now (default: the tighter of the rebot_rs and rebot_rs_mb "
+                         "profiles'); never recommended above")
     ap.add_argument("--json", action="store_true", help="machine-readable output")
     args = ap.parse_args(argv)
     path = Path(args.log).expanduser() if args.log else arm_hold.rest_log_path()
+    rows = _rows(path)
     current, where = (args.current, f"{args.current:g} rad (--current)") if args.current is not None \
-        else _profile_tolerance()
-    report = {"log": str(path), **analyse(_rows(path), margin=args.margin, min_samples=args.min_samples,
-                                          current=current)}
+        else _profile_tolerance(rows)
+    report = {"log": str(path), **analyse(rows, margin=args.margin, min_samples=args.min_samples, current=current)}
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
         return 0

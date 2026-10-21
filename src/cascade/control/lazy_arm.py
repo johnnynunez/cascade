@@ -15,11 +15,13 @@ from .arm_base import ArmBase
 
 
 class LazyArm(ArmBase):
-    #: What a caller may still reach on the backend while a confirmed connect
-    #: holds (`holding_on_confirmation`): reads and stops. Every other
-    #: callable is a command (the jaw included) and refuses.
-    PASSES_WHILE_HOLDING = frozenset({"read_positions_for_monitor", "contact_joint_reader", "body_mask_q",
-                                      "body_mask_state", "hard_estop"})
+    #: The backend extras (reached through `__getattr__`) a caller may still
+    #: call while a confirmed connect holds (`holding_on_confirmation`): its
+    #: body-mask reads and its torque-off. Every other callable extra is a
+    #: command (the jaw included) and refuses. ArmBase's own reads (the
+    #: contact monitor's `read_positions_for_monitor`, `contact_joint_reader`)
+    #: are LazyArm methods and never get here.
+    PASSES_WHILE_HOLDING = frozenset({"body_mask_q", "body_mask_state", "hard_estop"})
 
     def __init__(self, factory, n_joints: int = 6, profile_type: str | None = None,
                  on_materialize=None, hold_key: str | None = None):

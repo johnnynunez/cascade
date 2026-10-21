@@ -135,14 +135,8 @@ class RobotRuntime:
         schema = descriptor.parameters
         if set(schema.get("required", ())) - args.keys():
             raise ValueError("missing required tool arguments")
-        unknown = set(args) - schema.get("properties", {}).keys()
-        if unknown:
-            # Name the offending keys and the accepted ones: a brain that only reads "unknown tool
-            # arguments" repeats the same call (observed: Qwen3.8 adding {"action": ...} to a
-            # no-argument tool until its step budget ran out). The refusal itself is unchanged.
-            accepted = sorted(schema.get("properties", {}))
-            raise ValueError(f"unknown tool arguments {sorted(unknown)}; {descriptor.name} accepts "
-                             + (", ".join(accepted) if accepted else "no arguments (call it with {})"))
+        if set(args) - schema.get("properties", {}).keys():
+            raise ValueError("unknown tool arguments")
         descriptor.validate_arguments(args)
 
     def execute(self, name, args=None, *, expected_generation=None, deadline_monotonic_s=None):

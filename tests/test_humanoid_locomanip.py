@@ -519,26 +519,3 @@ def test_bridge_observer_cameras_are_never_moved_during_an_episode():
     module = _bridge_module()
     for _, eye, target in module.observer_views():
         assert len(eye) == 3 and len(target) == 3
-
-
-def test_unknown_tool_arguments_are_refused_with_the_offending_and_accepted_names():
-    """The refusal is unchanged; its message names the extra keys and what the tool accepts, so a
-    brain can correct the call instead of repeating it (Qwen3.8 added {"action": ...} to the
-    no-argument describe_scene until its step budget ran out)."""
-    from cascade.robotics.contracts import ToolDescriptor
-    from cascade.robotics.runtime import RobotRuntime
-
-    specs = {s["name"]: s for s in hl.tool_specs(profile(1))}
-
-    def descriptor(name):
-        s = specs[name]
-        return ToolDescriptor(f"carry.{name}", s["description"], s["parameters"], "carry", name, effect="read")
-
-    with pytest.raises(ValueError, match=r"unknown tool arguments \['action'\]; carry.describe_scene accepts "
-                                         r"no arguments"):
-        RobotRuntime._arguments(descriptor("describe_scene"), {"action": "observe"})
-    with pytest.raises(ValueError, match=r"unknown tool arguments \['action'\]; carry.carry_object accepts "
-                                         r"destination, object"):
-        RobotRuntime._arguments(descriptor("carry_object"), {"action": "observe", "object": "brown_box",
-                                                               "destination": "blue_sorting_bin"})
-    RobotRuntime._arguments(descriptor("describe_scene"), {})

@@ -6,6 +6,7 @@
    targets, unknown action channels; the bridge refuses an action of another width);
 3. a control step without an action is refused (no state-only pass);
 4. a malformed message mid-segment latches the stop and the bridge is answered (no hang);
+5. the navigation limit is asymmetric per the training data (no backward walking);
 """
 from __future__ import annotations
 
@@ -441,7 +442,16 @@ def test_emergency_stop_mid_segment_latches_at_the_next_control_step(tmp_path):
     domain.close()
 
 
-# ---------------------------------------------- limits: command ranges
+# ------------------------------------------- 5. navigation limit asymmetric per the training data
+@pytest.mark.parametrize("vx, ok", [(-0.45, False), (-0.06, False), (-0.05, True), (0.0, True), (0.45, True),
+                                    (0.46, False)])
+def test_shipped_navigation_limit_is_asymmetric_per_the_training_data(vx, ok):
+    d = shipped_gate().check(1, state(1), action(nav=(vx, 0.0, 0.0)))
+    assert d.passed is ok
+    if not ok:
+        assert d.reason.startswith("command_nav")
+
+
 @pytest.mark.parametrize("value", [[[0.0, 0.4], 0.2, 0.45], [[-0.1, 0.0], 0.2, 0.45], [[-0.1], 0.2, 0.45],
                                    [[-0.1, 0.4, 0.5], 0.2, 0.45], [0.45, 0.2], [-0.45, 0.2, 0.45]])
 def test_command_ranges_must_hold_zero_strictly_inside(value):

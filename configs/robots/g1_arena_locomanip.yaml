@@ -31,8 +31,10 @@ domains:
       max_joint_velocity_fraction: 1.0    # |qd| / articulation velocity limit
       workspace_xy_m: [[-1.5, -2.6], [1.5, 1.2]]
       # GR00T commands outside the checkpoint's training-data envelope (dataset_statistics.json:
-      # vx 0..0.4, vy -0.128..0.158, wz -0.4..0.1 m/s, rad/s; base height 0.6..0.75 m), plus margin
-      max_nav_command: [0.45, 0.2, 0.45]
+      # vx 0..0.4, vy -0.128..0.158, wz -0.4..0.1 m/s, rad/s; base height 0.6..0.75 m), plus margin.
+      # Per axis [min, max]: forward vx 0.4 + 0.05; backward vx is not in the data (min 0), so it
+      # gets only the same 0.05 margin, never the forward magnitude. vy and wz keep their limits.
+      max_nav_command: [[-0.05, 0.45], [-0.2, 0.2], [-0.45, 0.45]]
       base_height_command_m: [0.55, 0.8]
       # Torso orientation command (roll, pitch, yaw), checked like every other commanded channel.
       # No training statistics are recorded for it here, so the bound is what the G1 waist can

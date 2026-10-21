@@ -994,7 +994,9 @@ class McpSkillServer:
                 return _text_result({"ok": False, "error": "runtime starting or input closed; reset refused"}, is_error=True)
             with self._stop_lock:
                 serial = self._stop_serial
-            result = rt.execute("reset_stop", dict(arguments or {}))
+            # The MCP reset_stop (and SIGUSR1) is an operator channel: a composed runtime refuses
+            # reset_stop from anything else (robotics.runtime.OPERATOR_TOOLS).
+            result = rt.execute("reset_stop", dict(arguments or {}), **({"operator": True} if self._composed else {}))
             with self._stop_lock:
                 raced = serial != self._stop_serial
                 if result.get("ok") is True and not raced and not result.get("latched_domains"):

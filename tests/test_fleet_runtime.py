@@ -81,7 +81,8 @@ def test_twelve_simultaneous_actions_keep_catalog_trace_and_debt_per_robot(tmp_p
         for i, (name, (rt, domain)) in enumerate(pairs.items()):
             assert domain.calls == [("move", {"distance": i / 100})]
             assert catalog[name]["resources"][0]["robot_id"] == name
-            assert {t["name"] for t in catalog[name]["tools"]} == set(rt.tool_descriptors)
+            # the catalog is the agent-facing list: operator tools (reset_stop) are not on it
+            assert {t["name"] for t in catalog[name]["tools"]} == set(rt.tool_descriptors) - {"reset_stop"}
             assert fleet.unverified_actions()[name] == ["locomotion.move"]  # synthetic is never physical proof
             assert (tmp_path / name / "trace.jsonl").is_file()
         pairs["duck00"][0].begin_task()

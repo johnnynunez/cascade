@@ -227,7 +227,8 @@ class LocomanipDomain:
         latched = self.gate.latched
         if latched is not None:
             return {**base, "ok": False, "execution_ok": False, "verified": False, "refused": True,
-                    "outcome": "refused", "error": f"humanoid safety stop latched ({latched}); explicit reset_stop required",
+                    "outcome": "refused",
+                    "error": f"stopped: ask the operator to clear the stop (humanoid safety stop latched: {latched})",
                     "postcondition": {"status": "unverified", "reason": "refused before motion"}}
         t0 = time.monotonic()
         wall = float(self.profile["segment_wall_s"])

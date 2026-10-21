@@ -140,7 +140,11 @@ def run_mobile_interactive(runtime, run_task, print_report, *, input_stream=None
                     if text in {"stop", "emergency_stop", "stop_navigation"}:
                         invalidate()
                     elif text == "reset_stop":
-                        runtime.execute("reset_stop", {})
+                        # the human at this console is the operator (a composed runtime refuses
+                        # reset_stop from anyone else; the mobile runtime keeps its own reset)
+                        runtime.execute("reset_stop", {}, **({"operator": True}
+                                                             if getattr(runtime, "robot_mode", None) == "composed"
+                                                             else {}))
                     else:
                         with gate:
                             serial = generation

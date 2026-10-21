@@ -37,8 +37,11 @@ results go in the PR, not here.
 1. Arguments are enum-checked against the profile's `scene`; the instruction is
    `instruction_template` filled with the spoken labels (for brown box / blue bin it is the
    checkpoint's training instruction verbatim).
-2. A latched stop refuses the call (`refused`; `reset_stop` is an operator action and a locked
-   Harness² tool). The gate vets the measured start state (pre-motion admission).
+2. A latched stop refuses the call (`refused`: "stopped: ask the operator to clear the stop").
+   Only the operator clears it: `reset_stop` is not on the agent's tool list, the composed
+   runtime refuses it without `operator=True` (MCP `reset_stop` / SIGUSR1, the CLI console,
+   `--operator-arm`), and Harness² advice may never name it. The gate vets the measured start
+   state (pre-motion admission).
 3. Per control step (50 Hz) the bridge sends the measured state and the policy's proposed action;
    the gate answers `pass` or `stop`. Gates: state finite, pelvis tilt <= 30 deg, pelvis height
    above ankle level >= 0.45 m, measured joints (fingers included) within articulation limits +

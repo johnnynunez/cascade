@@ -34,7 +34,9 @@ Inspected source: [`c8d04e2199b86abbbb301bb22cec0effd83c4e63`](https://github.co
    provides the embodiment's actuation and safety path; the adapter approves no raw tensors and
    supplies no whole-body controller.
 3. **Stop:** the external owner implements `stop()` and `reset_stop()` (which must return literal
-   `True`). Generation/latch checks surround action computation; cancellation raises and stops the
+   `True`). Only an operator clears a stop: `execute_skill("reset_stop", {}, operator=True)`;
+   without `operator=True` the composed runtime refuses it, so a policy never can.
+   Generation/latch checks surround action computation; cancellation raises and stops the
    owner and never invents a zero action for a biped; `reset(env_ids)` alone cannot clear a stop.
    The rollout must abort on an adapter exception, and the action consumer owns cancellation at the
    final `env.step` (a returned tensor cannot be revoked).

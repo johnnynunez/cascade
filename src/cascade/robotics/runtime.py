@@ -24,6 +24,13 @@ cancelled command, or infer a grasp, camera, navigation map or whole-body contro
 Use task_done(success=false) for refuted or unverified requested outcomes.
 """
 
+#: Tools only an operator may call. They are never on the agent's tool list (``tool_specs``,
+#: what AgentOrchestrator offers), and ``execute`` refuses them unless the caller passes
+#: ``operator=True``, an argument an agent's tool call (a name and JSON arguments) cannot carry.
+#: Operator channels: the MCP server's reset_stop / SIGUSR1, the CLI console, ``--operator-arm``.
+OPERATOR_TOOLS = frozenset({"reset_stop"})
+OPERATOR_ONLY_ERROR = "reset_stop is an operator action, not an agent tool: ask the operator to clear the stop"
+
 
 def _global_tools(reset_domains=None):
     """Global tools. ``reset_domains`` (whole-body robots only) makes reset per-domain."""
@@ -82,7 +89,9 @@ class RobotRuntime:
                     if resource not in owned or self.resources.require(resource).writer_id is None:
                         raise ValueError("tool writes must be owned command resources of its domain")
                 self.tool_descriptors[descriptor.name] = descriptor
-        self.tool_specs = [t.as_spec() for t in self.tool_descriptors.values()]
+        # The agent-facing list: operator tools (reset_stop) stay in tool_descriptors for the
+        # operator path through execute(operator=True), never in the list an agent is offered.
+        self.tool_specs = [t.as_spec() for t in self.tool_descriptors.values() if t.name not in OPERATOR_TOOLS]
         self.motion_skills = frozenset(n for n, t in self.tool_descriptors.items() if t.effect == "motion")
         self.stop_skills = frozenset(n for n, t in self.tool_descriptors.items() if t.effect == "stop")
         self._gate = threading.Lock()
@@ -139,16 +148,19 @@ class RobotRuntime:
             raise ValueError("unknown tool arguments")
         descriptor.validate_arguments(args)
 
-    def execute(self, name, args=None, *, expected_generation=None, deadline_monotonic_s=None):
+    def execute(self, name, args=None, *, expected_generation=None, deadline_monotonic_s=None, operator=False):
         """Admit a local episode token/deadline under the coordinator lock.
 
         This is not a real-time guarantee. Actuating domain owners retain their
         last-moment backend generation/lease/deadline checks. A provider's clock
         must never be used for this local monotonic deadline.
+
+        ``operator=True`` marks an operator request (``OPERATOR_TOOLS``); an agent's
+        tool call never sets it, so the agent can never clear a latched stop.
         """
         started = time.monotonic()
         result = self._execute(name, args, expected_generation=expected_generation,
-                               deadline_monotonic_s=deadline_monotonic_s)
+                               deadline_monotonic_s=deadline_monotonic_s, operator=operator)
         self._record_tool_result(name, args, result, started_monotonic_s=started)
         return result
 
@@ -163,7 +175,7 @@ class RobotRuntime:
                 self.trace.record(name, args or {}, result, (time.monotonic() - started_monotonic_s) * 1000,
                                   tier=self.current_tier, context={"robot_mode": "composed", "task": self.current_task})
 
-    def _execute(self, name, args=None, *, expected_generation=None, deadline_monotonic_s=None):
+    def _execute(self, name, args=None, *, expected_generation=None, deadline_monotonic_s=None, operator=False):
         args = {} if args is None else args
         descriptor = None
         task_id = None
@@ -173,6 +185,8 @@ class RobotRuntime:
             descriptor = self.tool_descriptors.get(name)
             if descriptor is None:
                 raise ValueError(f"unsupported robot tool: {name!r}")
+            if name in OPERATOR_TOOLS and operator is not True:
+                raise ValueError(OPERATOR_ONLY_ERROR)
             if (name == "reset_stop" and self._whole_body is not None
                     and isinstance(args, dict) and "domain" not in args):
                 raise ValueError("whole-body robots require an explicit per-domain reset_stop(domain=...)")

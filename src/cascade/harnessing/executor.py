@@ -278,7 +278,9 @@ class CascadeExecutor:
     #: prepared model identity and device); None: the repository's configs/
     config_dir: str | None = None
     #: the OPERATOR clears a startup stop latch (`reset_stop`) once after the build, as the
-    #: fastening validation does; the agent never resets a stop (a locked harness tool)
+    #: fastening validation does, through the operator path (`execute(..., operator=True)`). The
+    #: agent never resets a stop: reset_stop is not on a composed robot's agent tool list, the
+    #: runtime refuses it without `operator=True`, and Harness² advice may never name it
     operator_arm: bool = False
 
     def worker_kwargs(self) -> dict:
@@ -318,7 +320,7 @@ class CascadeExecutor:
             with _file_lock(self.build_lock):
                 runtime, arm = build_runtime(cfg, out_dir / "run")
             if self.operator_arm:
-                armed = runtime.execute("reset_stop", {})
+                armed = runtime.execute("reset_stop", {}, operator=True)
                 if not isinstance(armed, dict) or armed.get("ok") is not True:
                     raise RuntimeError(f"operator reset_stop after the build failed: {armed!r}")
             if self.runtime_hook is not None:

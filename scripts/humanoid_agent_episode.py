@@ -155,7 +155,8 @@ def main(argv=None) -> int:
 
     operator = []
     if args.operator_arm:
-        operator.append({"t": round(clock(), 3), "action": "reset_stop", "result": runtime.execute("reset_stop", {})})
+        operator.append({"t": round(clock(), 3), "action": "reset_stop",
+                         "result": runtime.execute("reset_stop", {}, operator=True)})
     runtime.execute = timed_execute
     llm = TimedLLM(make_llm(cfg.llm), clock)
     trace = {"robot": args.robot, "prompt": args.prompt, "brain": brain_identity(cfg.llm), "llm_profile": args.llm,

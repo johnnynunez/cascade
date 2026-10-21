@@ -223,12 +223,14 @@ This adapter does not claim that arbitrary action tensors are SafeArm-approved.
         self._check_generation()
         return action
 
-    def execute_skill(self, name: str, args: dict):
+    def execute_skill(self, name: str, args: dict, *, operator: bool = False):
+        """Call a CASCADE tool. ``operator=True`` marks an operator request (``reset_stop``): the
+        composed runtime refuses an operator tool without it, so a policy can never clear a stop."""
         if self._closed:
             raise RuntimeError("Arena policy adapter is closed")
         if name not in self.runtime.tool_descriptors:
             raise ValueError(f"unavailable CASCADE tool: {name}")
-        result = self.runtime.execute(name, args)
+        result = self.runtime.execute(name, args, **({"operator": True} if operator is True else {}))
         if name == "reset_stop":
             # The registered owner participates in runtime.reset_stop itself.
             # A failed aggregate reset must not leave another owner enabled.

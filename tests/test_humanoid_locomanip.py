@@ -352,7 +352,8 @@ def test_gate_stop_halts_the_policy_and_latches(tmp_path):
     assert fake.applied == 3 and fake.verdicts[:4] == ["pass", "pass", "pass", "stop"]
     assert out["postcondition"]["status"] in {"refuted", "unverified"}
     again = domain.execute("carry_object", {"object": "brown_box", "destination": "blue_sorting_bin"})
-    assert again["refused"] and "reset_stop" in again["error"] and len(fake.segments) == 1
+    assert again["refused"] and len(fake.segments) == 1
+    assert again["error"].startswith("stopped: ask the operator to clear the stop") and "reset_stop" not in again["error"]
     domain.reset_stop()
     fake.current = state(50)
     fake.script = walk_script(2)

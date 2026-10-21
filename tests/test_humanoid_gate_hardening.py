@@ -2,19 +2,37 @@
 
 1. the agent can never clear a latched stop: ``reset_stop`` is not on a composed robot's agent
    tool list and the runtime refuses it without ``operator=True`` (operator channels keep it);
+2. every commanded channel is checked or refused (torso orientation, whole-body-controller leg
+   targets, unknown action channels; the bridge refuses an action of another width);
+3. a control step without an action is refused (no state-only pass);
+4. a malformed message mid-segment latches the stop and the bridge is answered (no hang);
 """
 from __future__ import annotations
 
+import copy
+import importlib.util
 import json
 import os
+import threading
+from pathlib import Path
 
 import pytest
 
+from cascade.safety.humanoid_gate import HumanoidGateLimits, HumanoidSafetyGate, JointModel
 from cascade.skills import humanoid_locomanip as hl
 
-from test_humanoid_locomanip import IN_BIN, FakeBridge, state, walk_script
+from test_humanoid_locomanip import (IN_BIN, JOINT_MODEL, LIMITS, FakeBridge, action, make_gate, profile, state,
+                                     walk_script)
 
+REPO = Path(__file__).resolve().parents[1]
 CARRY = {"object": "brown_box", "destination": "blue_sorting_bin"}
+
+
+def shipped_gate():
+    from cascade.config import load_robot_config
+
+    safety = load_robot_config("g1_arena_locomanip").as_dict()["domains"]["carry"]["safety"]
+    return HumanoidSafetyGate(HumanoidGateLimits.from_profile(safety), JointModel.from_dict(JOINT_MODEL))
 
 
 def composed_runtime(fake, tmp_path):
@@ -163,3 +181,279 @@ def test_harness2_operator_arm_keeps_its_operator_reset(tmp_path, monkeypatch):
     rollout = ex.run(AgentHarness(), TaskSpec("c1", "look", "g1_carry", max_steps=3), "base1", tmp_path / "r")
     assert rollout.error is None, rollout.error
     assert rollout.ended_by == "task_done"
+
+
+# ------------------------------------------- 2. every commanded channel is checked or refused
+@pytest.mark.parametrize("torso, ok", [
+    ([3.0, -3.0, 3.0], False),            # 3 rad: passed the gate before
+    ([0.53, 0.0, 0.0], False),            # roll past the waist range (0.52)
+    ([0.0, -0.53, 0.0], False),
+    ([0.0, 0.0, 2.62], False),            # yaw past the waist yaw range (2.618)
+    ([0.5, -0.5, 2.6], True),
+    ([0.0, 0.0, 0.0], True),
+])
+def test_torso_orientation_command_is_limited_from_the_profile(torso, ok):
+    act = action(nav=(0.2, 0.0, 0.0))
+    act["torso_rpy"] = torso
+    d = shipped_gate().check(1, state(1), act)
+    assert d.passed is ok
+    if not ok:
+        assert d.reason.startswith("command_torso_rpy") and [r.name for r in d.rows if not r.ok] == ["command_torso_rpy"]
+
+
+def test_knee_target_far_out_of_range_stops():
+    d = shipped_gate().check(1, state(1), action(targets=[0.0, 25.0, 0.0, 0.0, 0.0]))  # 25 rad knee
+    assert d.verdict == "STOP" and d.reason.startswith("command_wbc_joint_rad") and "left_knee_joint" in d.reason
+
+
+@pytest.mark.parametrize("mutate, word", [
+    (lambda a: a.update(extra=[1e9]), "'extra'"),           # a channel the gate does not check
+    (lambda a: a.update(mode="walk"), "'mode'"),            # even a non-numeric one
+    (lambda a: a.pop("torso_rpy"), "torso_rpy"),            # a channel missing
+])
+def test_action_channels_the_gate_does_not_check_are_refused(mutate, word):
+    act = action()
+    mutate(act)
+    d = make_gate().check(1, state(1), act)
+    assert d.verdict == "STOP" and "malformed step" in d.reason and word in d.reason
+
+
+def _bridge_module():
+    spec = importlib.util.spec_from_file_location("arena_locomanip_bridge_under_test",
+                                                  REPO / "scripts" / "arena_locomanip_bridge.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)  # stdlib only at import: Arena/torch load inside main()
+    return module
+
+
+class _Tensor:
+    def __init__(self, rows):
+        self.rows = rows
+
+    def __getitem__(self, i):
+        return _Tensor(self.rows[i])
+
+    def detach(self):
+        return self
+
+    def cpu(self):
+        return self
+
+    def tolist(self):
+        return list(self.rows)
+
+
+@pytest.mark.parametrize("extra, refused", [(0, False), (1, True), (-1, True)])
+def test_bridge_refuses_a_policy_action_of_another_width(extra, refused):
+    bridge = _bridge_module().Bridge.__new__(_bridge_module().Bridge)
+    bridge.joint_names = ["a", "b", "c"]
+    width = 3 + 7 + extra
+    action = _Tensor([[0.1 * k for k in range(width)]])
+    if refused:
+        with pytest.raises(RuntimeError, match="refused, not applied"):
+            bridge.split(action)
+    else:
+        out = bridge.split(action)
+        assert set(out) == {"joint_targets", "nav", "base_height", "torso_rpy"} and len(out["joint_targets"]) == 3
+
+
+# --------------------------------------------------- 3. a control step without an action is refused
+def test_policy_step_without_an_action_is_refused_by_the_gate():
+    d = make_gate().check(1, state(1), None)
+    assert d.verdict == "STOP" and "without a proposed action" in d.reason
+    assert make_gate().admit(0, state(0)).passed  # pre-motion admission: the measured state alone
+
+
+class OwnActionBridge(FakeBridge):
+    """At step ``k`` the bridge sends no action and, on ``pass``, would apply its own."""
+
+    def __init__(self, script, k, **kw):
+        super().__init__(script, **kw)
+        self.k, self.own_applied = k, 0
+
+    def _segment(self, msg, f, send):
+        for i, (st, act) in enumerate(self.script):
+            step = {"type": "step", "i": i, "phase": "policy", "state": st}
+            if i != self.k:
+                step["action"] = act
+            send(step)
+            reply = json.loads(f.readline())
+            self.verdicts.append(reply["verdict"])
+            if reply["verdict"] != "pass":
+                break
+            self.applied += 1
+            self.own_applied += i == self.k
+        for k in range(self.rest):
+            send({"type": "step", "i": 10_000 + k, "phase": "hold", "state": self.current, "action": action(nav=(0, 0, 0))})
+            self.verdicts.append(json.loads(f.readline())["verdict"])
+        send({"type": "segment_end", "reason": "gate_stop", "steps": self.applied, "sim_time_s": 1.0,
+              "final": self.current, "arena": None, "recording": None})
+
+
+def test_domain_refuses_a_policy_step_without_an_action(tmp_path):
+    fake = OwnActionBridge(walk_script(5), 2)
+    domain = hl.build(profile(fake.port), tmp_path, domain_id="carry")
+    out = domain.execute("carry_object", CARRY)
+    assert out["stopped"] and out["gate"]["first_stop"]["step"] == 2
+    assert fake.own_applied == 0 and fake.applied == 2 and fake.verdicts[:3] == ["pass", "pass", "stop"]
+    assert domain.gate.latched is not None
+    domain.close()
+
+
+# ----------------------------------- 4. a malformed message mid-segment latches and is answered
+class ScriptedBridge(FakeBridge):
+    """``bad(i, step) -> step | str | None``: replace step ``i`` (a str is sent as a raw line).
+    Records every line received after a raw line (the answer that un-blocks the bridge)."""
+
+    def __init__(self, script, bad, **kw):
+        super().__init__(script, **kw)
+        self.bad, self.after_raw = bad, []
+        self.answered = threading.Event()
+
+    def _segment(self, msg, f, send):
+        for i, (st, act) in enumerate(self.script):
+            step = self.bad(i, {"type": "step", "i": i, "phase": "policy", "state": st, "action": act})
+            if isinstance(step, str):
+                send_raw = getattr(self, "_raw")
+                send_raw(step)
+                line = f.readline()  # waits like the real bridge's conn.recv()
+                self.after_raw.append(json.loads(line) if line else None)
+                self.answered.set()
+                return
+            send(step)
+            reply = json.loads(f.readline())
+            self.verdicts.append(reply["verdict"])
+            if reply["verdict"] != "pass":
+                break
+            self.applied += 1
+        for k in range(self.rest):
+            send({"type": "step", "i": 10_000 + k, "phase": "hold", "state": self.current, "action": action(nav=(0, 0, 0))})
+            self.verdicts.append(json.loads(f.readline())["verdict"])
+        send({"type": "segment_end", "reason": "gate_stop", "steps": self.applied, "sim_time_s": 1.0,
+              "final": self.current, "arena": None, "recording": None})
+
+    def _serve(self):
+        while True:
+            conn, _ = self.sock.accept()
+            self._raw = lambda line: conn.sendall((line + "\n").encode())  # noqa: E731
+            f = conn.makefile("r")
+            send = lambda m: conn.sendall((json.dumps(m) + "\n").encode())  # noqa: E731
+            send(self.hello())
+            try:
+                for line in f:
+                    msg = json.loads(line)
+                    if msg["type"] == "session":
+                        send({"type": "ready", "state": self.current})
+                    elif msg["type"] == "observe":
+                        send({"type": "state", "state": self.current})
+                    elif msg["type"] == "segment":
+                        self.segments.append(msg)
+                        self._segment(msg, f, send)
+                    elif msg["type"] == "close":
+                        break
+            finally:
+                conn.close()
+
+
+def _bad_index(i, step):
+    if i == 2:
+        step = copy.deepcopy(step)
+        step["i"] = "x"
+    return step
+
+
+@pytest.mark.parametrize("bad", [
+    _bad_index,
+    lambda i, s: {k: v for k, v in s.items() if k != "state"} if i == 2 else s,        # no state
+    lambda i, s: dict(s, state=[1, 2, 3]) if i == 2 else s,                             # state not an object
+    lambda i, s: dict(s, action=[0.0] * 12) if i == 2 else s,                           # action not an object
+])
+def test_malformed_step_mid_segment_latches_and_the_bridge_is_answered(tmp_path, bad):
+    fake = ScriptedBridge(walk_script(5), bad, final=state(99, box_pos=IN_BIN))
+    domain = hl.build(profile(fake.port), tmp_path, domain_id="carry")
+    out = domain.execute("carry_object", CARRY)
+    assert domain.gate.latched is not None and "malformed step" in domain.gate.latched
+    assert out["stopped"] and out["outcome"] == "stopped", out
+    # answered: STOP at the malformed step, the hold steps ran, the segment ended
+    assert fake.verdicts == ["pass", "pass", "stop", "stop", "stop"] and fake.applied == 2
+    again = domain.execute("carry_object", CARRY)
+    assert again["refused"] and len(fake.segments) == 1
+    domain.close()
+
+
+@pytest.mark.parametrize("raw", ["this is not json", json.dumps([1, 2, 3]), json.dumps({"type": "observe"})])
+def test_garbled_message_mid_segment_latches_and_ends_the_bridge_session(tmp_path, raw):
+    fake = ScriptedBridge(walk_script(5), lambda i, s: raw if i == 2 else s)
+    domain = hl.build(profile(fake.port), tmp_path, domain_id="carry")
+    out = domain.execute("carry_object", CARRY)
+    assert out["ok"] is False and "bridge fault" in out["error"]
+    assert domain.gate.latched is not None and fake.applied == 2
+    # the bridge, blocked on its gate reply, reads a close (never a pass) before this side lets go
+    assert fake.answered.wait(5.0), "the bridge was left waiting for a gate reply"
+    assert fake.after_raw == [{"type": "close"}]
+    domain.close()
+
+
+def test_local_fault_mid_segment_latches_and_ends_the_bridge_session(tmp_path, monkeypatch):
+    fake = ScriptedBridge(walk_script(5), lambda i, s: s)
+    domain = hl.build(profile(fake.port), tmp_path, domain_id="carry")
+    real = domain.gate.check
+
+    def check(step, st, act):
+        if step == 2:
+            raise RuntimeError("disk full")
+        return real(step, st, act)
+
+    monkeypatch.setattr(domain.gate, "check", check)
+    blocked = threading.Event()
+    original = fake._segment
+
+    def segment(msg, f, send):
+        try:
+            original(msg, f, send)
+        except Exception:  # noqa: BLE001 -- the fake reads the close as its gate reply
+            blocked.set()
+
+    fake._segment = segment
+    with pytest.raises(RuntimeError, match="disk full"):
+        domain.execute("carry_object", CARRY)
+    assert domain.gate.latched is not None and "disk full" in domain.gate.latched
+    assert blocked.wait(5.0), "the bridge was left waiting for a gate reply"
+    assert fake.applied == 2
+    domain.close()
+
+
+def test_emergency_stop_mid_segment_latches_at_the_next_control_step(tmp_path):
+    fake = ScriptedBridge(walk_script(6), lambda i, s: s, final=state(99, box_pos=IN_BIN))
+    domain = hl.build(profile(fake.port), tmp_path, domain_id="carry")
+    stop_before = fake.bad
+
+    def bad(i, s):
+        if i == 3:
+            domain.stop()  # the operator's stop from another thread, between two control steps
+        return stop_before(i, s)
+
+    fake.bad = bad
+    out = domain.execute("carry_object", CARRY)
+    assert out["stopped"] and out["gate"]["first_stop"] == {"step": 3, "reason": "emergency stop requested",
+                                                            "phase": "policy"}
+    assert fake.applied == 3 and fake.verdicts == ["pass", "pass", "pass", "stop", "stop", "stop"]
+    domain.close()
+
+
+# ---------------------------------------------- limits: command ranges
+@pytest.mark.parametrize("value", [[[0.0, 0.4], 0.2, 0.45], [[-0.1, 0.0], 0.2, 0.45], [[-0.1], 0.2, 0.45],
+                                   [[-0.1, 0.4, 0.5], 0.2, 0.45], [0.45, 0.2], [-0.45, 0.2, 0.45]])
+def test_command_ranges_must_hold_zero_strictly_inside(value):
+    with pytest.raises(ValueError):
+        HumanoidGateLimits.from_profile(dict(LIMITS, max_nav_command=value))
+    with pytest.raises(ValueError):
+        HumanoidGateLimits.from_profile(dict(LIMITS, torso_rpy_command_rad=value))
+
+
+def test_limits_round_trip_and_a_profile_without_the_torso_limit_is_refused():
+    lim = HumanoidGateLimits.from_profile(dict(LIMITS, max_nav_command=[[-0.05, 0.45], 0.2, [-0.3, 0.45]]))
+    assert lim.max_nav_command == ((-0.05, 0.45), (-0.2, 0.2), (-0.3, 0.45))
+    assert HumanoidGateLimits.from_profile(lim.as_dict()) == lim
+    with pytest.raises(ValueError):
+        HumanoidGateLimits.from_profile({k: v for k, v in LIMITS.items() if k != "torso_rpy_command_rad"})

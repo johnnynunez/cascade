@@ -46,9 +46,14 @@ results go in the PR, not here.
    the gate answers `pass` or `stop`. Gates: state finite, pelvis tilt <= 30 deg, pelvis height
    above ankle level >= 0.45 m, measured joints (fingers included) within articulation limits +
    0.05 rad, joint velocity <= limit, pelvis inside the workspace box, arm and waist targets within
-   limits + 0.02 rad (legs belong to the whole-body controller), navigation and base-height
-   commands within the checkpoint's training envelope (`dataset_statistics.json`) + margin.
+   limits + 0.02 rad, leg targets (owned by the whole-body controller, but in the applied action)
+   within limits + 0.02 rad, navigation and base-height commands within the checkpoint's training
+   envelope (`dataset_statistics.json`) + margin, torso roll/pitch/yaw commands within the G1
+   waist range.
    Finger targets are not a pass/stop criterion; they are clamped (see the finger rule below).
+   Every commanded channel is checked or refused: a step without an action, an action channel
+   the gate does not check, or any malformed step is a STOP that latches, and the bridge is still
+   answered (it holds and ends the segment); the bridge refuses a policy action of another width.
 4. The first STOP latches: the bridge switches to the hold command (zero navigation velocity,
    previous targets; the balance controller keeps running) and the result says `stopped`.
 5. Arena's own terminations end a segment WITHOUT resetting the scene (auto-reset is suspended

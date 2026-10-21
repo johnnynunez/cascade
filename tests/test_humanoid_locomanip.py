@@ -25,7 +25,7 @@ LIMITS = {"max_pelvis_tilt_deg": 30.0, "min_pelvis_height_m": 0.45, "joint_posit
           "max_joint_velocity_fraction": 1.0, "workspace_xy_m": [[-1.5, -2.6], [1.5, 1.2]],
           "max_nav_command": [0.45, 0.2, 0.45], "base_height_command_m": [0.55, 0.8],
           "command_joint_tolerance_rad": 0.02, "policy_joint_exclude": [".*_hip_.*", ".*_knee_.*", ".*_ankle_.*"],
-          "finger_joint_pattern": ".*_hand_.*"}
+          "finger_joint_pattern": ".*_hand_.*", "torso_rpy_command_rad": [0.52, 0.52, 2.618]}
 VERIFIER = {"max_object_speed_m_s": 0.05, "min_hand_clearance_m": 0.03, "z_tolerance_m": 0.03}
 JOINT_MODEL = {"names": JOINTS, "lower": [-2.0, 0.0, -3.0, -3.0, -1.5708], "upper": [2.0, 2.5, 2.5, 2.5, 0.0],
                "velocity": [20.0, 20.0, 30.0, 30.0, 12.0]}
@@ -68,8 +68,8 @@ def test_gate_passes_nominal_step_and_reports_every_gate():
     assert d.passed and d.verdict == "PASS"
     names = [r.name for r in d.rows]
     assert names == ["state_finite", "pelvis_tilt_deg", "pelvis_height_m", "joint_position_rad",
-                     "joint_velocity_frac", "workspace_m", "command_joint_rad", "command_nav",
-                     "command_base_height_m"]
+                     "joint_velocity_frac", "workspace_m", "command_joint_rad", "command_wbc_joint_rad",
+                     "command_nav", "command_base_height_m", "command_torso_rpy"]
     assert d.clamps == () and "clamps" not in d.as_dict()
 
 
@@ -90,9 +90,12 @@ def test_gate_stops_on_each_limit(kwargs, act, gate):
     assert [r.name for r in d.rows if not r.ok] == [gate]
 
 
-def test_gate_ignores_leg_targets_owned_by_the_whole_body_controller():
+def test_gate_limits_leg_targets_owned_by_the_whole_body_controller():
+    # legs are not policy targets, but they are in the action the bridge applies: limited, never forwarded unchecked
     d = make_gate().check(1, state(1), action(targets=[5.0, -5.0, 0.0, 0.0, 0.0]))
-    assert d.passed
+    assert d.verdict == "STOP" and d.reason.startswith("command_wbc_joint_rad 5.0 vs limit 0.02 (left_knee_joint)")
+    assert [r.name for r in d.rows if not r.ok] == ["command_wbc_joint_rad"]
+    assert make_gate().check(1, state(1), action(targets=[1.9, 2.5 + 0.015, 0.0, 0.0, 0.0])).passed
 
 
 @pytest.mark.parametrize("target, applied", [(0.3, 0.0), (5.0, 0.0), (-2.0, -1.5708)])

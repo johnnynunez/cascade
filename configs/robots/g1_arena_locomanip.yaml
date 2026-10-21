@@ -34,7 +34,12 @@ domains:
       # vx 0..0.4, vy -0.128..0.158, wz -0.4..0.1 m/s, rad/s; base height 0.6..0.75 m), plus margin
       max_nav_command: [0.45, 0.2, 0.45]
       base_height_command_m: [0.55, 0.8]
-      command_joint_tolerance_rad: 0.02      # arm and waist targets beyond their articulation range
+      # Torso orientation command (roll, pitch, yaw), checked like every other commanded channel.
+      # No training statistics are recorded for it here, so the bound is what the G1 waist can
+      # reach (assets/urdf/g1/g1_full.urdf: waist_roll/pitch +-0.52 rad, waist_yaw +-2.618 rad);
+      # roll/pitch 0.52 rad (29.8 deg) is also inside the 30 deg fall criterion above.
+      torso_rpy_command_rad: [0.52, 0.52, 2.618]
+      command_joint_tolerance_rad: 0.02      # arm, waist and leg targets beyond their articulation range
       # Finger joints (Dex3, matched by finger_joint_pattern) are position-limited by the
       # articulation itself: a finger target beyond a joint stop cannot move the finger past the
       # stop, it only adds drive force pressing the finger into its own stop. So the gate has NO
@@ -46,7 +51,9 @@ domains:
       # edited: beyond range + command_joint_tolerance_rad (0.02 rad, the joint margin of CASCADE's
       # fastening write guard, FasteningLimits.joint_margin_rad; set before any run) is a STOP.
       finger_joint_pattern: ".*_hand_.*"
-      policy_joint_exclude: [".*_hip_.*", ".*_knee_.*", ".*_ankle_.*"]   # legs: whole-body controller
+      # legs: owned by the whole-body controller, not policy targets; their targets are still in
+      # the applied action, so the gate limits them like arm targets (command_wbc_joint_rad)
+      policy_joint_exclude: [".*_hip_.*", ".*_knee_.*", ".*_ankle_.*"]
     verifier:
       max_object_speed_m_s: 0.05
       min_hand_clearance_m: 0.03

@@ -495,6 +495,10 @@ def test_next_action_keeps_the_operator_ask(monkeypatch, tmp_path, no_sleep):  #
         out = rt.execute("rotate_joint", {"joint": 1, "degrees": 5.0})
         assert out["ok"] is False and out["refused"] == "arm_held", out
         assert "ask the operator" in out["next_action"] and "(truncated" in out["next_action"], out["next_action"]
+        # move_to_rest's own held refusal (not an ArmHeldError): the same ask, first
+        out = rt.execute("move_to_rest", {})
+        assert out["refused"] == "arm_held" and out["error"].startswith(ASK), out["error"]
+        assert "an agent cannot confirm" in out["next_action"], out["next_action"]
     finally:
         shutdown_runtime(rt, arm)
 

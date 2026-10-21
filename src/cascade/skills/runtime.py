@@ -2661,14 +2661,18 @@ class SkillRuntime:
         answer (a best-effort read that swallowed it, a skill that then found
         nothing to do), a motion call whose arm woke on a confirmation, or
         found it woken so with nobody told, answers 'let go of the arm and
-        retry', and only that arm's NEXT motion call may move it."""
-        lazy = None
+        retry', and only that arm's NEXT motion call may move it. With that
+        arm's e-stop latched, the e-stop comes first (#431 re-review Minor 5):
+        nobody is told to let go yet, so once it is reset the next motion call
+        answers 'let go'."""
+        lazy = arm = None
         if name in _MOTION_SKILLS:
             try:
                 selected = self._select_arm(args.get("arm"))
             except SkillError:
                 selected = None  # _execute_skill answers an unknown arm
-            lazy = self._lazy_of(self._arm if selected is None else selected)
+            arm = self._arm if selected is None else selected
+            lazy = self._lazy_of(arm)
             if lazy is not None:
                 lazy.next_call()
         try:
@@ -2677,6 +2681,12 @@ class SkillRuntime:
             # raised before the skill's own handling (its pre-motion snapshot)
             result = _connected_and_holding_result(exc)
         if lazy is not None and lazy.holding_untold:
+            harness = (getattr(arm, "__dict__", None) or {}).get("harness")  # instance dicts only: no probe
+            if getattr(harness, "estopped", False) is True:
+                if not (isinstance(result, dict) and str(result.get("error", "")).startswith(_ESTOP_LATCHED)):
+                    result = {"ok": False, "outcome": OUTCOME_FAILED, "error": _ESTOP_LATCHED,
+                              "hint": "the arm is connected and holding where it was; nothing moved"}
+                return result
             if not (isinstance(result, dict) and result.get("refused") == "connected_on_confirmation"):
                 from ..control.arm_hold import connected_and_holding
 
@@ -11316,6 +11326,10 @@ def _with_retrace_result(result: dict, exc: BaseException) -> None:
     kept = getattr(exc, "retrace_result", None)
     if isinstance(kept, dict):
         result.update(kept)
+
+
+#: A motion call's answer while its arm's e-stop is latched.
+_ESTOP_LATCHED = "SafetyViolation: e-stop latched"
 
 
 def _connected_and_holding_result(exc: BaseException) -> dict:

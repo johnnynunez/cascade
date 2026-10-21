@@ -232,7 +232,8 @@ def test_a_swallowed_answer_still_refuses_every_command(monkeypatch, no_sleep, b
             command()
     assert _commands(log[n0:]) == [], log[n0:]
     assert lazy.holding_on_confirmation and lazy.get_state() is not None, "reads go through"
-    assert callable(lazy.read_positions_for_monitor) and callable(lazy.contact_joint_reader)
+    # (the contact monitor's reads are LazyArm's own ArmBase methods: they read through get_state)
+    assert np.asarray(lazy.read_positions_for_monitor()).shape == (6,) and lazy.contact_joint_reader() is None
     lazy.next_call()
     with pytest.raises(arm_hold.ConnectedAndHolding):
         lazy.send_joint_target(q)  # nobody was told yet: the next call is refused too
@@ -315,5 +316,131 @@ def test_whatever_swallows_the_answer_the_call_still_answers_let_go(monkeypatch,
         out = rt.execute("handover", {})
         assert _commands(log[n0:]) == [] and rt.arm.raw.connected, log[n0:]
         assert out.get("refused") == "connected_on_confirmation" and out["error"].startswith(LET_GO), out
+    finally:
+        shutdown_runtime(rt, arm)
+
+
+@pytest.mark.parametrize("backend", ["rebot_rs", "rebot_rs_mb"])
+def test_the_backends_reads_and_its_hard_estop_pass_while_a_confirmed_connect_holds(monkeypatch, no_sleep,  # noqa: F811
+                                                                                     backend):
+    """r431b Minor 3: the body-mask reads and the explicit torque-off (`hard_estop`, the operator's own
+    stop) are backend extras the latch lets through (`LazyArm.PASSES_WHILE_HOLDING`): an e-stop must never
+    be refused because someone is holding the arm."""
+    from cascade.control.rebot_rs_arm import RebotRSArm
+    from cascade.control.rebot_rs_mb_arm import RebotRSMotorBridgeArm
+
+    cls = RebotRSArm if backend == "rebot_rs" else RebotRSMotorBridgeArm
+    log, make = _bus(monkeypatch, backend)
+    stopped = []
+    monkeypatch.setattr(cls, "hard_estop", lambda self, _orig=cls.hard_estop: (stopped.append(1), _orig(self))[1])
+    arm_hold.record("can0", arm="0", reason="held")
+    arm_hold.confirm("holding the arm")
+    lazy = LazyArm(make, profile_type=backend, hold_key="can0")
+    with pytest.raises(arm_hold.ConnectedAndHolding):
+        lazy.get_state()
+    assert lazy.holding_untold
+    assert np.asarray(lazy.body_mask_q()).shape == (6,) and lazy.body_mask_state() is not None
+    lazy.hard_estop()
+    assert stopped == [1], "the torque-off reached the backend"
+    assert set(LazyArm.PASSES_WHILE_HOLDING) == {"body_mask_q", "body_mask_state", "hard_estop"}, \
+        "only backend extras: ArmBase methods (the contact monitor's reads) never reach __getattr__"
+
+
+# ── the told window, the motion-only guard, the e-stop first (r431b Minors 1, 2, 5) ───────────────
+
+
+@needs_pin
+@pytest.mark.parametrize("backend", ["rebot_rs", "rebot_rs_mb"])
+def test_between_the_let_go_answer_and_the_next_motion_call_nothing_moves(monkeypatch, tmp_path, no_sleep,  # noqa: F811
+                                                                         backend):
+    """r431b Minor 1: once the agent was answered 'let go', the operator may still hold the arm until the
+    agent's NEXT motion call starts. In that window every command still refuses: a direct LazyArm command,
+    and the exit park of a teardown (0 writes, no torque cut, the hold remembered for the next process,
+    under a reason that never asks anyone to retry: Minor 5)."""
+    from cascade.apps.demo import shutdown_runtime
+
+    rt, arm, log = _runtime(monkeypatch, tmp_path, backend)
+    try:
+        arm_hold.confirm("holding the arm")
+        first = rt.execute("move_home", {})
+        assert first.get("refused") == "connected_on_confirmation", first
+        lazy = rt.arm.raw
+        assert lazy.holding_on_confirmation and not lazy.holding_untold, "answered: the told window"
+        n0 = len(log)
+        for command in (lambda: lazy.send_joint_target(np.zeros(6)), lambda: lazy.set_gripper(0.5),
+                        lambda: lazy.stream_to(np.zeros(6), duration_s=0.1)):
+            with pytest.raises(arm_hold.ConnectedAndHolding):
+                command()
+        assert _commands(log[n0:]) == [], log[n0:]
+    finally:
+        n1 = len(log)
+        receipt = shutdown_runtime(rt, arm)
+    assert _commands(log[n1:]) == [], f"the teardown wrote {_commands(log[n1:])}"
+    assert receipt["torque_held"], receipt
+    marker = arm_hold.read("can0")
+    assert marker is not None and marker["source"] == "teardown", marker
+    assert "retry" not in marker["reason"] and "operator's confirmation" in marker["reason"], marker
+    assert "retry" not in arm_hold.refusal(marker, "can0").split(arm_hold.ASK_THE_OPERATOR)[1], \
+        "the next process's refusal asks only once, first"
+
+
+@needs_pin
+@pytest.mark.parametrize("backend", ["rebot_rs", "rebot_rs_mb"])
+def test_a_non_motion_call_neither_answers_nor_releases_the_let_go(monkeypatch, tmp_path, no_sleep, backend):  # noqa: F811
+    """r431b Minor 2: the dashboard calls execute('describe_scene') (apps/stream_server.py) whenever it
+    refreshes. Between a connect whose answer was swallowed and the agent's motion call, that read must
+    neither answer 'let go' (nobody reads the dashboard's answer) nor release the latch: the agent's
+    motion call still answers 'let go' with nothing written, and only the one after it moves."""
+    from cascade.apps.demo import shutdown_runtime
+
+    rt, arm, log = _runtime(monkeypatch, tmp_path, backend)
+    try:
+        arm_hold.confirm("holding the arm")
+        with pytest.raises(arm_hold.ConnectedAndHolding):
+            rt.arm.raw.get_state()  # a reader that swallowed the answer
+        scene = rt.execute("describe_scene", {})
+        assert scene.get("refused") is None and "ConnectedAndHolding" not in str(scene), scene
+        assert rt.arm.raw.holding_untold, "nobody was told yet"
+        n0 = len(log)
+        out = rt.execute("move_home", {})
+        assert _commands(log[n0:]) == [] and out.get("refused") == "connected_on_confirmation", out
+        n1 = len(log)
+        again = rt.execute("move_home", {})
+        assert again.get("refused") is None and _commands(log[n1:]), again
+    finally:
+        shutdown_runtime(rt, arm)
+
+
+@needs_pin
+@pytest.mark.parametrize("backend", ["rebot_rs", "rebot_rs_mb"])
+@pytest.mark.parametrize("phase", ["fresh", "untold"])
+def test_with_the_estop_latched_the_agent_reads_the_estop_first(monkeypatch, tmp_path, no_sleep, backend, phase):  # noqa: F811
+    """r431b Minor 5: with the e-stop latched, the call that woke the arm (or found it woken, untold)
+    answered 'let go of the arm and retry'; the e-stop came only at the retry. Now the e-stop comes first
+    and nobody is told to let go yet; once it is reset, the next motion call answers 'let go' (nothing
+    written), and the one after moves."""
+    from cascade.apps.demo import shutdown_runtime
+
+    rt, arm, log = _runtime(monkeypatch, tmp_path, backend)
+    try:
+        arm_hold.confirm("holding the arm")
+        if phase == "untold":
+            with pytest.raises(arm_hold.ConnectedAndHolding):
+                rt.arm.raw.get_state()
+        rt.arm.stop()  # the operator's e-stop
+        n0 = len(log)
+        out = rt.execute("move_home", {})
+        assert out["ok"] is False and out["error"].startswith("SafetyViolation: e-stop latched"), out
+        assert out.get("refused") is None and "let go" not in out["error"] + str(out.get("next_action")), out
+        assert _commands(log[n0:]) == [] and rt.arm.raw.connected and rt.arm.raw.holding_untold, out
+        rt.arm.raw.resume()
+        rt.arm.harness.reset_estop()
+        n1 = len(log)
+        told = rt.execute("move_home", {})
+        assert _commands(log[n1:]) == [] and told.get("refused") == "connected_on_confirmation", told
+        assert told["error"].startswith(LET_GO), told
+        n2 = len(log)
+        moved = rt.execute("move_home", {})
+        assert moved.get("refused") is None and _commands(log[n2:]), moved
     finally:
         shutdown_runtime(rt, arm)

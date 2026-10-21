@@ -1622,6 +1622,11 @@ def _unparked_reason(stage) -> str | None:
     if stage.get("ok") is True and stage.get("complete") is True:
         return None
     error = (stage.get("errors") or [{}])[0]
+    if error.get("type") == "ConnectedAndHolding":
+        # Never the agent's 'let go of the arm and retry' inside the next
+        # process's refusal, which says not to retry (#431 re-review Minor 5).
+        return ("it connected on the operator's confirmation and was still holding for them to let go, so the "
+                "shutdown park never moved it")
     return f"the shutdown park was refused ({error.get('type', 'Error')}: {error.get('message', '')})"
 
 

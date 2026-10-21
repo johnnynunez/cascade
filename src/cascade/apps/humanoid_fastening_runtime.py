@@ -58,7 +58,8 @@ def humanoid_description(domain_id, profile):
         metadata={'model_identity_sha256': profile['model_identity_sha256'], 'mounted_tool': True,
                   'preengaged_fastener': True, 'seating': False, 'pickup': False,
                   'embodiment': 'unitree_g1_29dof_dex3', 'turning_joint': 'right_wrist_roll_joint',
-                  'grasp': 'weld_equality', 'pelvis': 'fixed'}),), [TURN_SPEC]
+                  'turn': 'whole_arm_rotation_about_tool_axis', 'grasp': 'three_finger_contact',
+                  'grasp_fingers': ('thumb', 'index', 'middle'), 'pelvis': 'fixed'}),), [TURN_SPEC]
 
 
 def prepare_humanoid_model(profile, cache_dir):

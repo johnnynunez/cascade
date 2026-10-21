@@ -1,7 +1,9 @@
 # Unitree G1 humanoid loco-manipulation through CASCADE: a learned GR00T policy (served by its own
-# GR00T policy server) executes carry_object inside Isaac Lab-Arena's G1 box pick-and-place scene,
-# behind scripts/arena_locomanip_bridge.py (Arena's own Python environment; CASCADE never imports
-# Arena). CASCADE keeps the humanoid safety gate (every control step) and the independent verifier.
+# GR00T policy server; on Newton: GR00T N1.7 fine-tuned on Newton-generated demos, client
+# scripts/arena_gr00t_client.py) executes carry_object inside Isaac Lab-Arena's G1 box
+# pick-and-place scene, behind scripts/arena_locomanip_bridge.py (Arena's own Python environment;
+# CASCADE never imports Arena). CASCADE keeps the humanoid safety gate (every control step) and the
+# independent verifier.
 # docs/HUMANOID_LOCOMANIP.md: start order, protocol, limits and what is not validated.
 #
 # Start the GR00T server and one bridge per port first; build connects to the first idle bridge.

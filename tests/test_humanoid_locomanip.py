@@ -468,3 +468,58 @@ def test_mcp_server_exposes_and_runs_the_humanoid_tools(tmp_path, monkeypatch):
                      ["content"][-1]["text"])
     assert out["postcondition"]["status"] == "confirmed" and out["gate"]["verdict"] == "PASS"
     assert fake.verdicts == ["pass"] * 5
+
+
+def _bridge_module():
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "scripts" / "arena_locomanip_bridge.py"
+    spec = importlib.util.spec_from_file_location("arena_locomanip_bridge_under_test", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)  # stdlib only at import time; Arena is imported inside main()
+    return module
+
+
+class _IndexTablePolicy:
+    """Arena's stock GR00T client shape: fixed simulator joint index tables, no name-based sync."""
+
+    robot_state_joints_config = {"a": 0, "b": 1}
+
+
+class _NameSyncPolicy(_IndexTablePolicy):
+    def sync_joint_order(self, names):
+        self.robot_state_joints_config = {n: i for i, n in enumerate(names)}
+        return {"joints": len(names), "yaml_table_matches": False, "joints_at_other_indices": 2}
+
+
+@pytest.mark.parametrize("backend", ["newton", "physx"])
+def test_bridge_joint_order_is_synced_by_name_and_index_tables_are_refused_on_newton(backend):
+    module = _bridge_module()
+    bridge = module.Bridge.__new__(module.Bridge)
+    bridge.joint_names = ["b", "a"]
+    bridge.physics = {"backend": backend}
+    bridge.policy = _NameSyncPolicy()
+    assert bridge._sync_joint_order()["joints_at_other_indices"] == 2
+    assert bridge.policy.robot_state_joints_config == {"b": 0, "a": 1}
+    bridge.policy = _IndexTablePolicy()
+    if backend == "newton":
+        with pytest.raises(SystemExit, match="PhysX-order index table"):
+            bridge._sync_joint_order()
+    else:
+        assert bridge._sync_joint_order() is None
+    bridge.policy = object()  # a policy without joint tables is not touched
+    assert bridge._sync_joint_order() is None
+
+
+def test_bridge_observer_cameras_are_never_moved_during_an_episode():
+    """A camera moved every step changed Newton's closed loop (policies that succeed without it
+    scored ~0 with it): the bridge only has fixed observers, posed once in the scene config."""
+    from pathlib import Path
+
+    source = (Path(__file__).resolve().parents[1] / "scripts" / "arena_locomanip_bridge.py").read_text()
+    assert "set_world_poses" not in source
+    assert "_place_observer" not in source
+    module = _bridge_module()
+    for _, eye, target in module.observer_views():
+        assert len(eye) == 3 and len(target) == 3

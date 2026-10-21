@@ -30,6 +30,9 @@ results go in the PR, not here.
 | verifier | `src/cascade/skills/humanoid_verifier.py` | confirmed / refuted / unverified from the measured final state |
 | client | `src/cascade/skills/humanoid_bridge.py` | protocol, busy/fault handling |
 | bridge | `scripts/arena_locomanip_bridge.py` | runs in Arena's venv; owns env + GR00T client; applies an action only after `pass` |
+| GR00T client | `scripts/arena_gr00t_client.py` | Arena-side: joint tables by NAME (Newton order) + GR00T N1.7 reply decoding |
+| N1.7 policy config | `scripts/arena_g1_locomanip_gr00t_n17.yaml` | Arena's policy YAML for N1.7 (action horizon / chunk 40) |
+| Newton compile fix | `scripts/arena_newton_compile_fix.py` | Arena-side, imported by the bridge on `--presets newton` (Galileo placeholder meshes) |
 | episodes | `scripts/humanoid_agent_episode.py` | one operator request through the agent, recorded (`trace.json`) |
 | replay | `scripts/replay_gate_jsonl.py` | a recorded run's actions through today's gate, offline: first refused step per channel |
 
@@ -99,24 +102,44 @@ articulation, with no tunable tolerance:
   0.05 rad or exceeds its velocity limit still STOPs the segment;
 - arm and waist targets are never edited: beyond range + 0.02 rad is a STOP.
 
+## Newton rules for the bridge
+
+- **Joint order.** Newton orders the G1 articulation depth-first (left leg, right leg, waist, left
+  arm, left hand, right arm, right hand); PhysX breadth-first. Arena's G1 GR00T client maps joints
+  with a fixed PhysX-order index table, which on Newton feeds the policy scrambled proprioception
+  and writes arm targets to the wrong joints (no error, no success). `arena_gr00t_client` rebuilds
+  the tables by joint name from the live articulation; the bridge does that at start-up, reports it
+  in its hello (`policy.joint_order`, e.g. 40 of 43 joints at other indices on Newton) and refuses
+  a client with fixed index tables on Newton.
+- **Cameras.** Observer cameras exist only with `--bridge_record_dir`, are posed once in the scene
+  config and never moved. A camera moved every step (chase camera) changed the Newton closed loop
+  itself: the same GR00T N1.7 checkpoint scored 5/5 without it and 0/4 with it.
+- **GR00T N1.7.** The N1.7 server answers the N1.6 wire client with msgpack-numpy envelopes;
+  `Gr00tN17SimOrderRemotePolicy` decodes numeric arrays only.
+
 ## Start order
 
 ```bash
-# 1. GR00T policy server (its own venv), e.g. port 5555
+# 1. GR00T N1.7 policy server (its own venv), e.g. port 5555
 # 2. one bridge per port in the profile (8765, 8766, ...), Newton physics:
 cd <IsaacLab-Arena> && .venv/bin/python <cascade>/scripts/arena_locomanip_bridge.py --bridge_port 8765 \
-   --policy_type isaaclab_arena_gr00t.policy.gr00t_remote_closedloop_policy.Gr00tRemoteClosedloopPolicy \
-   --policy_config_yaml_path <policy yaml> --remote_host 127.0.0.1 --remote_port 5555 \
-   --enable_cameras --device cuda:0 --presets newton --bridge_offline_assets [--bridge_preload <module>] \
+   --policy_type arena_gr00t_client.Gr00tN17SimOrderRemotePolicy \
+   --policy_config_yaml_path <cascade>/scripts/arena_g1_locomanip_gr00t_n17.yaml \
+   --remote_host 127.0.0.1 --remote_port 5555 --policy_label "GR00T N1.7 ..." \
+   --enable_cameras --device cuda:0 --presets newton --bridge_offline_assets [--bridge_record_dir <dir>] \
    galileo_g1_locomanip_pick_and_place --object brown_box --embodiment g1_wbc_joint
 # 3. the brain (scripts/serve_qwen_vllm.sh), then an agent episode or the MCP server:
 CASCADE_ROBOT=g1_arena_locomanip python -m cascade.apps.mcp_server     # tools carry.*; no reset_stop (SIGUSR1 / restart)
 python scripts/humanoid_agent_episode.py --robot g1_arena_locomanip --llm local_qwen --prompt "..." --out runs/...
 ```
 
-`--bridge_preload` imports a module before the environment is built (Newton port patches for the
-Galileo scene live outside this repository). `--bridge_offline_assets` serves already-cached
-remote assets without the per-file freshness probe (Isaac Lab's offline path).
+On `--presets newton` the bridge imports `arena_newton_compile_fix` before the environment is
+built: MuJoCo rejects the Galileo room's zero-thickness wall/door placeholder meshes at compile
+time although Newton's own collision pipeline generates the contacts; failing placeholder meshes
+are thickened by 1 mm (logged) and MuJoCo's `balanceinertia` remedy is applied to the table body.
+`--bridge_preload` imports any further module before the environment is built.
+`--bridge_offline_assets` serves already-cached remote assets without the per-file freshness
+probe (Isaac Lab's offline path).
 
 ## Harness² on humanoid tasks
 
@@ -148,6 +171,11 @@ decline. Harness text may use the local names of namespaced tools; it may never 
 - Simulation only; no hardware, no physical admission.
 - The gate's limits are profile values (fall criteria, articulation limits, training envelope),
   not measured hardware limits. The workspace box is the scene's room interior.
+- The navigation envelope was taken from the first executor's (GR00T N1.6) training data and is
+  kept for the N1.7 Newton-demo checkpoint; N1.7's data reaches vy = -0.342 m/s where the gate
+  stops at |vy| > 0.2 m/s. Re-deriving it from the N1.7 statistics is a decision to take before a
+  new campaign, never after one.
 - Two robot profiles (Arena loco-manipulation, Newton fastening) are two simulated worlds; CASCADE
-  refuses composing two physical actuating domains without a whole-body contract, so the agent
-  runs one episode per robot.
+  refuses composing two physical actuating domains without a whole-body contract
+  (`describe_robot`: "mixed physical actuation needs validated shared-frame/control admission"),
+  so the agent runs one episode per robot; there is no single session doing both tasks.

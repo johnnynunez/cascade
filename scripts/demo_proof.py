@@ -282,15 +282,32 @@ def brain_endpoints() -> dict[str, tuple[str, str | None]]:
     }
 
 
+def _server_of(base: str) -> tuple:
+    """The server a base URL names, for comparing two spellings of it: scheme, host (a loopback alias as one),
+    port (the scheme's default when absent) and path without its trailing slash (#423 review Minor 4: a string
+    comparison told `http://localhost:8083/v1` from `http://127.0.0.1:8083/v1`). `urlsplit` lower-cases the scheme
+    and `hostname` itself."""
+    try:
+        parts = urlsplit(base.strip())
+        port = parts.port
+    except ValueError:
+        return ("unparsed", base)
+    scheme, host = parts.scheme, parts.hostname or ""
+    if host in ("localhost", "127.0.0.1", "::1"):
+        host = "loopback"
+    return scheme, host, port if port is not None else {"http": 80, "https": 443}.get(scheme), parts.path.rstrip("/")
+
+
 def probe_native(base: str, model: str) -> dict:
     """--probe-native: `probe_native_tools`. A keyed brain (KEYED_BRAINS) at its endpoint that refuses the probe
     (HTTP 401/403) when no key was named (neither CASCADE_MODEL_API_KEY nor CASCADE_MODEL_API_KEY_FILE) is probed
     again with the brain key file, as --check-brain sends it: a standalone probe of the SGLang brain needs no key
-    variable. Every other probe, and every probe that already sent a key, is unchanged (#421 review Minor 2)."""
+    variable. Every other probe, and every probe that already sent a key, is unchanged (#421 review Minor 2). The
+    endpoint is the brain's server however its URL is spelled (`_server_of`)."""
     try:
         return probe_native_tools(base, model)
     except Unauthorized as exc:
-        keyed = [name for name in KEYED_BRAINS if brain_endpoints()[name][0].rstrip("/") == base.rstrip("/")]
+        keyed = [name for name in KEYED_BRAINS if _server_of(brain_endpoints()[name][0]) == _server_of(base)]
         if not keyed or os.environ.get("CASCADE_MODEL_API_KEY") or os.environ.get("CASCADE_MODEL_API_KEY_FILE"):
             raise
         key_file = brain_key_file()

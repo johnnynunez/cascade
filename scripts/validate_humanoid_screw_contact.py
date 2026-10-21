@@ -19,6 +19,7 @@ import time
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / 'src'))
+from cascade.sim.humanoid_fastening import grip_row, stroke_grip_stats
 from cascade.sim.newton_humanoid_screw import SIMPLIFICATIONS, HumanoidThreadingScene
 from cascade.sim.threading_verification import ThreadContract, ThreadSample, verify_threading
 
@@ -37,13 +38,15 @@ def main():
     parser.add_argument('--rest', type=float, default=1.)
     parser.add_argument('--max-seconds', type=float, default=40.)
     parser.add_argument('--no-drive', action='store_true')
+    parser.add_argument('--fingers-open', action='store_true')
     args = parser.parse_args()
     if not math.isfinite(args.turns) or not 0 < args.turns <= 5:
         parser.error('--turns must be in (0, 5]')
     args.output.mkdir(parents=True, exist_ok=False)
     before = {n: hashlib.sha256((REPO / n).read_bytes()).hexdigest() for n in SOURCES}
     scene = HumanoidThreadingScene(args.assets, args.robot_asset, args.cache, device=args.device,
-                                   drive=not args.no_drive)
+                                   drive=not args.no_drive, grip=not args.fingers_open)
+    grip_rows = []
     names = {f.name for f in fields(ThreadSample)}
     samples, stopped_at, started = [], None, time.monotonic()
     with (args.output / 'samples.jsonl').open('w') as output:
@@ -57,6 +60,8 @@ def main():
             if stopped_at is None and scene._started_angle is not None and scene.turns_so_far() >= args.turns:
                 scene.stop()
                 stopped_at = {'time_s': scene.time_s, 'step': scene.step_id, 'turns': scene.turns_so_far()}
+            grip_rows.append(grip_row(row['phase'], row['time_s'], row, row['hand_phi_rad'],
+                                      -row['angle_rad'] / (2 * math.pi)))
             output.write(json.dumps(row, allow_nan=False) + '\n')
             if stopped_at is not None and scene.time_s - stopped_at['time_s'] >= args.rest:
                 break
@@ -73,14 +78,17 @@ def main():
                              'max_wrist_speed_rad_s': max(abs(r['wrist_roll_speed_rad_s']) for r in tail)},
                   maximum_nut_angular_speed_rad_s=scene._maximum_nut_angular_speed,
                   peak_nut_speed_by_phase=scene.peak_nut_speed_by_phase, no_drive=args.no_drive,
+                  fingers_open=args.fingers_open, grasp=scene.grasp, strokes_grip=stroke_grip_stats(grip_rows),
                   simplifications=SIMPLIFICATIONS, asset_hashes=scene.asset_hashes,
                   robot_asset_sha256=hashlib.sha256(args.robot_asset.read_bytes()).hexdigest(),
                   body_labels=list(scene.model.body_label), source_sha256=before, device=str(scene.model.device),
-                  controls='G1 joint position actuators, right wrist-roll torque and grasp weld state only',
-                  mechanism='free nut / fixed bolt SDF mesh contacts; hand-held six-flat socket driver')
+                  controls='G1 joint position actuators and the right wrist-roll torque only',
+                  mechanism='free nut / fixed bolt SDF mesh contacts; six-flat socket driver held by '
+                            'three-finger Dex3 contact (thumb, index, middle), no weld')
+    result['failed_grasp_strokes'] = sum(not s['grasp_ok'] for s in result['strokes_grip'])
     (args.output / 'summary.json').write_text(json.dumps(result, indent=2, allow_nan=False) + '\n')
     print(json.dumps({k: v for k, v in result.items() if k not in ('body_labels', 'source_sha256')}, indent=2), flush=True)
-    return 0 if result['threading_verified'] != args.no_drive else 1
+    return 0 if result['threading_verified'] != (args.no_drive or args.fingers_open) else 1
 
 
 if __name__ == '__main__':

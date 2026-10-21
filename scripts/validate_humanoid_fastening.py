@@ -1,8 +1,9 @@
 """Humanoid fastening episodes through the ordinary configuration/runtime route.
 
-A Unitree G1 (newton-assets 29-DoF + Dex3 MJCF) holds a hex driver and turns
-the pre-engaged Factory M20 nut by rolling its right wrist (with re-grips), in
-Newton with SDF thread contact. Each episode builds a fresh composed runtime
+A Unitree G1 (newton-assets 29-DoF + Dex3 MJCF) holds a vertical hex driver
+from above with a three-finger contact grasp (thumb opposing index + middle; no
+weld) and turns the pre-engaged Factory M20 nut by rotating the hand about the
+tool axis with the whole arm (with re-grips), in Newton with SDF thread contact. Each episode builds a fresh composed runtime
 from a robot profile (``kind: fastening``, recipe ``g1_wrist_driver_m20_v1``)
 via ``load_robot_config`` + ``build_robot_runtime`` and calls ``reset_stop``
 and ``fastening.turn_screw(turns=1, direction="tighten")`` through
@@ -18,7 +19,11 @@ scipy, trimesh), not cascade's ``.venv``::
 
 ``--episodes`` lists commands per episode (``2`` = two consecutive one-turn
 commands, additionally judged as one two-turn request by ``verify_threading``).
-``--no-drive`` is the negative control (exact zero wrist torque).
+``--no-drive`` is a negative control (exact zero wrist-roll torque);
+``--fingers-open`` is the grasp negative control: the hand performs the same
+turn with its fingers open, so nothing but contact could turn the driver.
+Every summary reports per-stroke thumb/index/middle normal forces, slip and
+transmitted torque (``stroke_grip_stats``).
 """
 import argparse
 import hashlib
@@ -91,6 +96,8 @@ def _summarize_command(result):
 
 def _stream_stats(directory, admissions):
     """Contact/torque statistics from the retained raw solves (no re-simulation)."""
+    from cascade.sim.humanoid_fastening import grip_row
+    grip_rows = []
     stats = {'solves': 0, 'max_abs_wrist_torque_nm': 0., 'max_thread_load_n': 0., 'max_tool_wall_load_n': 0.,
              'max_socket_floor_load_n': 0., 'max_nut_angular_speed_rad_s': 0., 'max_joint_speed_rad_s': 0.,
              'regrips': 0, 'strokes': 0, 'phases': {}}
@@ -109,8 +116,13 @@ def _stream_stats(directory, admissions):
         stats['strokes'] = max(stats['strokes'], raw['program']['strokes'])
         phase = raw['program']['phase']
         stats['phases'][phase] = stats['phases'].get(phase, 0) + 1
+        grip_rows.append(grip_row(phase, solve['simulation_time_s'], raw, raw['hand_phi_rad'],
+                                  raw['nut_turns_unwrapped']))
         if first is not None and solve['step'] > first:
             samples.append(solve)
+    from cascade.sim.humanoid_fastening import stroke_grip_stats
+    stats['strokes_grip'] = stroke_grip_stats(grip_rows)
+    stats['failed_grasp_strokes'] = sum(not s['grasp_ok'] for s in stats['strokes_grip'])
     return stats, samples
 
 
@@ -156,7 +168,8 @@ def run_episode(args, index, commands, digest, sources):
                                  turn_wall_s=c['turn_wall_s']) for c in calls],
                'verified_commands': sum(bool(c['result'].get('verified')) for c in calls),
                'stream': stats, 'closure_ok': bool(closure.get('ok')) if isinstance(closure, dict) else closure,
-               'model_identity_sha256': digest, 'source_sha256': sources, 'no_drive': args.no_drive}
+               'model_identity_sha256': digest, 'source_sha256': sources, 'no_drive': args.no_drive,
+               'fingers_open': args.fingers_open}
     if commands == 2 and len(calls) == 2:
         summary['two_turn_verify_threading'] = _two_turn_verdict(
             samples, {'fastener_id': 'factory_nut_m20_loose', 'fixture_id': 'fixed_factory_bolt_m20_loose'})
@@ -175,6 +188,7 @@ def main():
     parser.add_argument('--device', default='cuda:0')
     parser.add_argument('--episodes', default='1,1,2')
     parser.add_argument('--no-drive', action='store_true')
+    parser.add_argument('--fingers-open', action='store_true')
     args = parser.parse_args()
     episodes = [int(x) for x in args.episodes.split(',')]
     if not episodes or any(n not in (1, 2) for n in episodes):
@@ -184,6 +198,10 @@ def main():
     _write(args.output / 'source-before.json', sources)
     from cascade.apps.humanoid_fastening_runtime import prepare_humanoid_model
     from cascade.sim.newton_humanoid_screw import SIMPLIFICATIONS
+    if args.fingers_open:
+        # Grasp negative control only: the same turn program with the fingers open.
+        from cascade.sim.newton_humanoid_screw import HumanoidThreadingScene
+        HumanoidThreadingScene.grip_enabled = False
     if args.no_drive:
         # Negative control only: every wrist command is exact zero torque.
         from cascade.sim.newton_humanoid_screw import HumanoidThreadingScene
@@ -206,9 +224,9 @@ def main():
         raise RuntimeError('source changed during the physical experiment')
     _write(args.output / 'summary.json', {'simplifications': SIMPLIFICATIONS, 'episodes': results,
                                           'model_identity_sha256': digest, 'source_sha256': sources,
-                                          'no_drive': args.no_drive})
-    ok = all(r.get('verified_commands') == r.get('commands_requested') for r in results)
-    return 0 if ok != args.no_drive else 1
+                                          'no_drive': args.no_drive, 'fingers_open': args.fingers_open})
+    ok = all('error' not in r and r.get('verified_commands') == r.get('commands_requested') for r in results)
+    return 0 if ok != (args.no_drive or args.fingers_open) else 1
 
 
 if __name__ == '__main__':

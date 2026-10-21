@@ -1,29 +1,31 @@
-"""Unitree G1 humanoid turns a hand-held hex driver with its wrist (Newton, SDF thread contact).
+"""Unitree G1 humanoid turns a hand-held hex driver about its own axis (Newton, SDF thread contact).
 
 Optional standalone Newton experiment built on the same Factory M20 nut/bolt
 recipe as ``newton_screw_contact.ThreadingScene`` (SDF meshes, contact
 material, MJWarp solver settings, fixture at world (0.24, 0, 0) with +Z axis).
-The humanoid holds a socket driver whose axis is its forearm (wrist-roll) axis
-and tightens the free nut by rolling its right wrist, re-gripping between
-strokes because the wrist-roll range (+-1.97 rad) is shorter than one turn.
 
-After initialisation only robot joint actuator controls and the grasp state
-change. There is no nut drive, helical joint, external nut wrench, runtime
-body-pose write or kinematic tool motion: the nut turns and advances only
-through solved tool/nut and nut/bolt contacts driven by the wrist actuator.
+Grasp (a person holding a screwdriver from above): the driver stands vertical
+in the socket on the nut and the right Dex3 hand holds the top of its handle
+palm-down, the THUMB on one side and the INDEX and MIDDLE fingers wrapped
+around the opposite side. The hand holds the driver ONLY through solved
+finger/handle contacts with friction: no weld, attachment, equality
+constraint or driver pose write. The handle axis is the Dex3 palm normal
+through the grasp centre, 98 mm from the wrist, so no single G1 wrist joint is
+coaxial with it; the hand turns about the tool axis by a whole-arm motion
+(waist + shoulder + elbow + wrist) that follows an inverse-kinematics table of
+the hand rotation ``phi`` about the vertical tool axis. Strokes are limited by
+the arm's reachable rotation range, so the hand re-grips between strokes: it
+opens, rotates back around the handle and closes again while the driver stands
+in the socket.
 
-Declared simplifications (``SIMPLIFICATIONS``, also written into every summary):
-- pelvis fixed to the world: standing balance is not simulated;
-- the grasp is a weld equality between the right hand (``right_wrist_yaw_link``)
-  and the driver; a re-grip opens the fingers (weld off), rolls the wrist back,
-  closes them and re-enables the weld at the CURRENT relative hand/tool pose
-  (no pose correction); finger motion is cosmetic. Only the right hand keeps
-  its asset collision geometry (excluded against its own driver), so a hand
-  contact with the nut, bolt or table is a forbidden pair for the verifier;
-- gravity compensation is a feed-forward through the joint actuators
-  (MuJoCo ``actuatorgravcomp``) on every joint except the turning wrist roll;
-- the driver starts mounted on the pre-engaged nut (as in the SO-101 fixture);
-  pickup, initial engagement, seating and preload are not part of this scene.
+After initialisation only robot joint actuator controls change. Every joint is
+a position actuator except the right wrist roll, which is torque-controlled
+(host PD toward its table value) and is the domain's "spindle" channel: a stop
+is an exact-zero wrist-roll torque while every other joint holds its target.
+The nut turns and advances only through solved finger/handle, socket/nut and
+nut/bolt contacts.
+
+Declared simplifications (``SIMPLIFICATIONS``, also written into every summary).
 """
 from __future__ import annotations
 
@@ -39,38 +41,77 @@ import numpy as np
 G1_MJCF = 'unitree_g1/mjcf/g1_29dof_with_hand_rev_1_0.xml'
 ROBOT_ID = 'unitree_g1_29dof_dex3_wrist_driver'
 RECIPE = 'g1_wrist_driver_m20_v1'
+GRASP = 'three_finger_contact'
 SIMPLIFICATIONS = (
     'pelvis fixed to the world (standing balance not simulated)',
-    'grasp = weld between right hand and driver; re-grip re-welds at the current relative pose',
-    'only the right hand keeps collision geometry (excluded against its own driver); finger motion is cosmetic',
-    'gravity compensation feed-forward through the joint actuators (not on the turning wrist roll)',
-    'driver starts mounted on the pre-engaged nut (no pickup, engagement, seating or preload)',
+    'only the right hand keeps collision geometry (Dex3 asset meshes); the rest of the robot does not collide',
+    'gravity compensation feed-forward through the joint actuators (passive on the wrist roll)',
+    ('driver starts engaged on the pre-engaged nut with the fingers just open of the synthesized contact '
+     'posture (no pickup, engagement, seating or preload); it stands in the socket while the hand re-grips'),
 )
 ROLL_JOINT = 'right_wrist_roll_joint'
+# Joints of the whole-arm turn (IK table); the wrist roll among them is torque-controlled.
 IK_JOINTS = ('waist_yaw_joint', 'waist_roll_joint', 'waist_pitch_joint', 'right_shoulder_pitch_joint',
-             'right_shoulder_roll_joint', 'right_shoulder_yaw_joint', 'right_elbow_joint')
+             'right_shoulder_roll_joint', 'right_shoulder_yaw_joint', 'right_elbow_joint',
+             ROLL_JOINT, 'right_wrist_pitch_joint', 'right_wrist_yaw_joint')
 RIGHT_FINGERS = ('right_hand_thumb_0_joint', 'right_hand_thumb_1_joint', 'right_hand_thumb_2_joint',
                  'right_hand_index_0_joint', 'right_hand_index_1_joint',
                  'right_hand_middle_0_joint', 'right_hand_middle_1_joint')
-# Cosmetic Dex3 postures, 0.05 rad inside every joint limit.
-FINGERS_OPEN = (0., 0., -.05, .05, .05, .05, .05)
-FINGERS_CLOSED = (0., -.35, -.45, .55, .6, .55, .6)
+# Closing direction of every right-hand joint (thumb_0 abduction is held at 0).
+CLOSING_SIGN = {'right_hand_thumb_0_joint': 0, 'right_hand_thumb_1_joint': -1, 'right_hand_thumb_2_joint': -1,
+                'right_hand_index_0_joint': 1, 'right_hand_index_1_joint': 1,
+                'right_hand_middle_0_joint': 1, 'right_hand_middle_1_joint': 1}
+FINGER_LINKS = {'thumb': ('right_hand_thumb_0_link', 'right_hand_thumb_1_link', 'right_hand_thumb_2_link'),
+                'index': ('right_hand_index_0_link', 'right_hand_index_1_link'),
+                'middle': ('right_hand_middle_0_link', 'right_hand_middle_1_link'),
+                'palm': ('right_wrist_yaw_link',)}
+FINGER_JOINTS = {'thumb': ('right_hand_thumb_1_joint', 'right_hand_thumb_2_joint'),
+                 'index': ('right_hand_index_0_joint', 'right_hand_index_1_joint'),
+                 'middle': ('right_hand_middle_0_joint', 'right_hand_middle_1_joint')}
+# Grasp design in the right_wrist_yaw_link (hand) frame: +y is the palm normal,
+# the Dex3 index/middle bases sit at z = +-28.5 mm and the thumb at z = 0.
+HANDLE_RADIUS_M = .020     # 40 mm handle: index/middle inner faces are 31.2 mm apart, so a
+                           # narrower handle meets them only at their inner edges
+GRIP_X_M = .102            # tool axis offset along hand x (thumb at x 0.055-0.074, fingers from 0.112)
+HANDLE_TOP_M = .021        # handle top 3.7 mm below the palm face (hand y)
+HANDLE_LENGTH_M = .10
+SOCKET_Y_M = .201          # socket centre along the tool axis (hand y): 80 mm shaft below the handle
+GRIP_FRICTION = .8         # elastomer finger pads on a rubberised handle grip (MuJoCo max rule)
+GRIP_SQUEEZE_RAD = .07     # closing target at most this far past the MEASURED finger angle
+GRIP_REACH_RAD = .25       # closing goal past the synthesized contact (never reached on contact)
+OPEN_BACKOFF_RAD = .45     # open posture: contact posture backed off by this much
+OPEN_CLEARANCE_M = .004    # minimum hand/handle clearance required of the open posture
+INITIAL_BACKOFF_RAD = .015 # fingers start this far open of the synthesized contact posture ...
+INITIAL_SQUEEZE_RAD = .015 # ... with targets this far past it (light initial grip; a command re-grips)
+FINGER_RATE_RAD_S = 1.     # rate limit of finger targets (finger kv 0.7: following lag <= 0.07 rad)
+TOUCH_M = .0003            # synthesis: a link touches when its convex-hull distance <= 0.3 mm
+# Robot placement: pelvis fixed at this world position (fixture at (0.24, 0, 0)).
+PELVIS_WORLD_M = (-.05, .20, .369)
+# Whole-arm turn table: seed solution at PHI_SEED (sampled search, docs) and continuation limits.
+PHI_SEED = .356
+IK_SEED = (.3538, .2164, .2206, -.2167, .0099, -1.0134, .831, -1.8519, -.0277, -1.0172)
+TABLE_STEP_RAD = .02
+DESCENT_TABLE_M = .006     # follower table depth (two turns advance the nut 5 mm)
+TABLE_MAX_DQ_DPHI = 1.8    # stop the table where any joint would move faster than this per rad of phi
+STROKE_MARGIN_RAD = .1     # stroke limits inside the table ends
 # Held (never re-commanded) posture of the other joints; legs straight, pelvis fixed.
 HELD_POSE = {'left_shoulder_pitch_joint': .25, 'left_shoulder_roll_joint': .25, 'left_elbow_joint': .9,
              'left_hand_thumb_1_joint': .2, 'left_hand_thumb_2_joint': .3,
              'left_hand_index_0_joint': -.3, 'left_hand_index_1_joint': -.3,
-             'left_hand_middle_0_joint': -.3, 'left_hand_middle_1_joint': -.3,
-             'right_wrist_pitch_joint': 0., 'right_wrist_yaw_joint': 0.}
-# Right-hand links that keep their asset collision geometry: any loaded contact of
-# them with the nut, bolt or table is a forbidden pair for the fastening verifier.
+             'left_hand_middle_0_joint': -.3, 'left_hand_middle_1_joint': -.3}
+# Right-hand links with their asset collision meshes: loaded contacts with the
+# driver handle are the grasp; with the nut, bolt or table they are forbidden.
 HAND_COLLIDERS = ('right_wrist_yaw_link', 'right_hand_thumb_0_link', 'right_hand_thumb_1_link',
                   'right_hand_thumb_2_link', 'right_hand_middle_0_link', 'right_hand_middle_1_link',
                   'right_hand_index_0_link', 'right_hand_index_1_link')
-# IK seed found by a sampled search with a vertical right forearm (docs).
-IK_SEED = (.201, .237, .211, -.745, -.981, 2.294, .684)
 
 
 def _gains(joint):
+    """Position-actuator gains (kp N m/rad, kv N m s/rad)."""
+    if joint.startswith('right_hand_thumb'):
+        return 16., .7   # squeeze 16 * 0.07 = 1.12 N m (actuator cap 1.4 N m)
+    if joint.startswith(('right_hand_index', 'right_hand_middle')):
+        return 10., .7   # squeeze 10 * 0.07 = 0.7 N m each: the two fingers balance the thumb
     if 'hand' in joint:
         return 5., .1
     if 'wrist' in joint:
@@ -78,6 +119,26 @@ def _gains(joint):
     if 'shoulder' in joint or 'elbow' in joint:
         return 150., 4.
     return 300., 8.
+
+
+def grip_target(goal, measured, sign, squeeze=GRIP_SQUEEZE_RAD):
+    """Closing target clamped to ``squeeze`` past the measured angle (force-limited closing).
+
+    A free finger is driven toward ``goal``; a finger stopped by contact gets a
+    target exactly ``squeeze`` beyond where it is, so it presses with
+    kp * squeeze and its following error never exceeds ``squeeze``.
+    """
+    if sign == 0:
+        return float(goal)
+    reach = sign * (goal - measured)
+    return float(measured + sign * min(reach, squeeze)) if reach > 0 else float(goal)
+
+
+def hand_rotation(phi):
+    """Palm-down hand orientation rotated by phi clockwise (tightening) about world -z."""
+    x = np.array([math.cos(-phi), math.sin(-phi), 0.])
+    y = np.array([0., 0., -1.])
+    return np.column_stack([x, y, np.cross(x, y)])
 
 
 def quat_wxyz(r):
@@ -104,10 +165,11 @@ def rot_xyzw(q):
 
 
 class WristDriverProgram:
-    """Pure wrist routine: stroke (gripped), settle, release, roll back, settle, re-grip.
+    """Pure turn routine: stroke (gripped), settle, release, rotate back, settle, re-grip.
 
-    Inputs are the MEASURED wrist-roll angle/speed and whether the commanded
-    fingers reached their posture; outputs are the wrist reference and the hand
+    ``roll`` is the hand rotation phi about the tool axis (whole-arm turn).
+    Inputs are the MEASURED phi/speed and whether the commanded fingers
+    reached their posture; outputs are the phi reference and the hand
     posture. It never reads or writes the nut, and it has no completion claim:
     the caller (verifier/domain) decides when the turn is done and stops it.
     """
@@ -129,12 +191,17 @@ class WristDriverProgram:
         self.events.append((round(time_s, 6), phase))
 
     def start(self, roll, time_s):
-        """A new command resumes from the measured wrist angle; it never jumps."""
+        """A new command resumes from the measured angle; it never jumps.
+
+        Every command starts with a full re-grip from the open hand (release,
+        rotate back to the stroke start, close until contact): the guard
+        re-anchors every target on the measured joints at admission, and a
+        squeeze re-applied from an already-loaded contact snapped the thumb
+        (13-14 rad/s measured) where closing from open stayed below 1.4 rad/s.
+        """
         self.roll_ref = float(roll)
-        if self.hand == 'closed':
-            self._set('stroke' if roll < self.roll_high - .05 else 'settle_stroke', time_s)
-        else:
-            self._set('return', time_s)
+        self._set('release' if self.hand == 'closed' else 'return', time_s)
+        self.hand = 'open'
 
     def halt(self, time_s):
         if self.phase != 'stopped':
@@ -173,23 +240,20 @@ class WristDriverProgram:
 class HumanoidThreadingScene:
     pitch_m = .0025
     frame_dt = 1 / 60
-    motor_limit_nm = 1.          # wrist-roll torque cap of this task (G1 actuator: 25 N m)
-    # Stroke speed: measured contact-supported travel (one turn, standalone, 2 runs each)
-    # 0.92/0.94 at 1.0 rad/s, 0.89/0.93 at 1.5, 0.80-0.85 at 2.0: the hand is ~50x the
-    # nut's inertia, so a faster wall makes the nut chatter inside the 0.3 mm socket clearance.
-    stroke_speed_rad_s = 1.
-    return_speed_rad_s = 3.
-    roll_kp, roll_kd = 6., .15   # host PD of the turning wrist roll, torque-limited
-    roll_low, roll_high = -1.62, 1.62
+    motor_limit_nm = 1.          # wrist-roll (spindle channel) torque cap of this task (actuator: 25 N m)
+    stroke_speed_rad_s = 1.      # hand rotation about the tool axis while gripping
+    return_speed_rad_s = 1.5     # open-hand rotation back (joint speeds <= 1.5 * max dq/dphi)
+    roll_kp, roll_kd = 10., .3   # host PD of the wrist roll toward its table value, torque-limited
     max_joint_speed_rad_s = 1.5  # rate limit of every position target (fingers, arm follower)
-    socket_x_m = .30             # driver socket centre along the hand x axis (wrist_yaw_link)
     fixture_center_xy_m = (.24, 0.)
-    pelvis_world_m = (.04, .28, .369)
+    pelvis_world_m = PELVIS_WORLD_M
     initial_nut_z = .069
     floor_gap_m = .001           # socket floor above the nut face at engagement
     fixture_recipe = 'factory_m20_fixed_axis_v1'
 
-    def __init__(self, assets, robot_asset, cache, *, device='cuda:0', drive=True,
+    grip_enabled = True          # False only for the fingers-open negative control
+
+    def __init__(self, assets, robot_asset, cache, *, device='cuda:0', drive=True, grip=None,
                  thread_friction=.1, socket_clearance_m=.0003, substeps=10, follow_nut=True):
         import mujoco
         import newton
@@ -203,7 +267,8 @@ class HumanoidThreadingScene:
             raise ValueError('substeps must be an integer in [1, 100]')
         if not math.isfinite(thread_friction) or thread_friction <= 0:
             raise ValueError('thread friction must be finite and positive')
-        self.substeps, self.drive, self.follow_nut = substeps, drive, follow_nut
+        grip = self.grip_enabled if grip is None else grip
+        self.substeps, self.drive, self.grip, self.follow_nut = substeps, drive, bool(grip), follow_nut
         self.thread_friction, self.socket_clearance_m = float(thread_friction), float(socket_clearance_m)
         self.dt = self.frame_dt / substeps
         manifest = json.loads((self.assets / 'manifest.json').read_text())
@@ -220,31 +285,34 @@ class HumanoidThreadingScene:
         self._thread_contacts = self._tool_contacts = self._floor_contacts = 0
         self._thread_force = self._tool_force = 0.
         self._roll_torque = self._roll_command = 0.
+        self.grip_state = {'normal_force_n': {k: 0. for k in FINGER_LINKS}, 'contacts': {k: 0 for k in FINGER_LINKS},
+                           'torque_nm': 0., 'net_force_n': 0., 'relative_angle_rad': 0.}
+        self._relative_last = self._relative_unwrapped = None
+        self._phi_last = self._phi_unwrapped = None
         self._center_xy = np.array(self.fixture_center_xy_m)
         self.fixture_position = np.r_[self._center_xy, 0.]
-        self.grasp_enabled = True
-        self.program = WristDriverProgram(roll_low=self.roll_low, roll_high=self.roll_high,
-            stroke_speed=self.stroke_speed_rad_s, return_speed=self.return_speed_rad_s)
         wp.init()
         wp.set_device(device)
 
         self.robot_xml = self._robot_xml()
         self._setup_ik(self.robot_xml)
-        self.entry = self._ik(np.r_[self._center_xy, self.initial_nut_z], np.array(IK_SEED))
-        self.bottom = self._ik(np.r_[self._center_xy, self.initial_nut_z - .012], self.entry)
-        # Socket yaw at the initial wrist roll fixes the nut yaw (flats facing the walls).
-        hand_r = self._fk(self.entry, self.roll_low)[1]
-        tool_r = hand_r @ self.tool_in_hand_rotation
+        self._build_turn_tables()
+        self.program = WristDriverProgram(roll_low=self.stroke_low, roll_high=self.stroke_high,
+            stroke_speed=self.stroke_speed_rad_s, return_speed=self.return_speed_rad_s)
+        self.entry = self.arm_target(self.stroke_low, self.initial_nut_z)
+        self.grasp = self._synthesize_grasp()
+        # Socket yaw at the initial hand pose fixes the nut yaw (flats facing the walls).
+        tool_r = self._fk(self.entry)[1] @ self.tool_in_hand_rotation
         nut_yaw = math.atan2(tool_r[1, 0], tool_r[0, 0])
         self._last_angle = self._unwrapped = nut_yaw
 
         builder = newton.ModelBuilder()
         newton.solvers.SolverMuJoCo.register_custom_attributes(builder)
         builder.default_shape_cfg.gap = 0.
-        setattr(newton, 'use_coord_layout_targets', True)
+        newton.use_coord_layout_targets = True
         self.scene_xml = self._scene_xml(self.robot_xml, socket_clearance_m)
         builder.add_mjcf(self.scene_xml, ctrl_direct=True, parse_visuals=True, parse_meshes=True,
-                         enable_self_collisions=False, collapse_fixed_joints=False,
+                         enable_self_collisions=True, collapse_fixed_joints=False,
                          convert_mjc_equality_constraints=False)
         actuators = [node.attrib['name'] for node in ET.fromstring(self.scene_xml).find('actuator')]
         self._actuators = {name: i for i, name in enumerate(actuators)}
@@ -294,12 +362,14 @@ class HumanoidThreadingScene:
         self.q_index = np.array([self._qstart[self.joints[n]] for n in self.joint_names])
         self.qd_index = np.array([self._qdstart[self.joints[n]] for n in self.joint_names])
         self.ctrl_index = np.array([self._actuators[n] for n in self.joint_names])
+        self._finger_index = np.array([self.joint_names.index(n) for n in RIGHT_FINGERS])
+        self._arm_index = np.array([self.joint_names.index(n) for n in IK_JOINTS if n != ROLL_JOINT])
         self._roll_q_index = int(self._qstart[self.joints[ROLL_JOINT]])
         self._roll_qd_index = int(self._qdstart[self.joints[ROLL_JOINT]])
         self.targets = self._initial_targets()
         q = self.model.joint_q.numpy()
-        q[self.q_index] = self.targets
-        q[self._roll_q_index] = self.roll_low
+        q[self.q_index] = self._initial_positions()
+        q[self._roll_q_index] = self.entry[IK_JOINTS.index(ROLL_JOINT)]
         start = self._qstart[self.joints['driver_free']]
         q[start:start + 7] = self._initial_tool_pose()
         self.model.joint_q.assign(q)  # Initial condition only, before the first solve.
@@ -316,26 +386,43 @@ class HumanoidThreadingScene:
         self.apply_controls(self.targets, 0.)
         shape_map = self.solver.mjc_geom_to_newton_shape.numpy()[0]
         labels = self._names(self.model.shape_label)
-        self.shape = {name: labels[name] for name in ('nut', 'bolt', 'socket_floor', 'bench')}
+        self.shape = {name: labels[name] for name in ('nut', 'bolt', 'socket_floor', 'bench', 'driver_handle')}
         self.shape.update({f'socket_wall_{i}': labels[f'socket_wall_{i}'] for i in range(6)})
         self.nut_geom = int(np.flatnonzero(shape_map == labels['nut'])[0])
         self.bolt_geom = int(np.flatnonzero(shape_map == labels['bolt'])[0])
+        self.handle_geom = int(np.flatnonzero(shape_map == labels['driver_handle'])[0])
         self.socket_geoms = {int(np.flatnonzero(shape_map == labels[f'socket_wall_{i}'])[0]) for i in range(6)}
         self.floor_geom = int(np.flatnonzero(shape_map == labels['socket_floor'])[0])
+        # Every colliding shape of a right-hand link, by finger: the grasp contacts.
+        shape_body = self.model.shape_body.numpy()
+        flags = self.model.shape_flags.numpy()
+        collide = int(newton.ShapeFlags.COLLIDE_SHAPES)
+        self.grip_shapes, self.grip_geoms = {}, {}
+        for finger, links in FINGER_LINKS.items():
+            bodies = {self.bodies[link] for link in links}
+            shapes = [s for s in range(len(shape_body)) if shape_body[s] in bodies and flags[s] & collide]
+            self.grip_shapes[finger] = tuple(shapes)
+            for s in shapes:
+                for g in np.flatnonzero(shape_map == s):
+                    self.grip_geoms[int(g)] = finger
+        if not all(self.grip_shapes.values()):
+            raise RuntimeError('a grasping finger has no collision shape')
         dof_map = self.solver.mjc_dof_to_newton_dof.numpy()[0]
         self.roll_dof = int(np.flatnonzero(dof_map == self._roll_qd_index)[0])
         self.native_dofs = np.array([int(np.flatnonzero(dof_map == i)[0]) for i in self.qd_index])
-        if self.model.mujoco.equality_constraint_count != 1:
-            raise RuntimeError('expected exactly one grasp weld equality')
+        if self.model.mujoco.equality_constraint_count != 0:
+            raise RuntimeError('the contact grasp has no equality constraint')
         self.lower = self.model.joint_limit_lower.numpy()[self.qd_index]
         self.upper = self.model.joint_limit_upper.numpy()[self.qd_index]
         self.effort_caps = np.array([float(self._joint_limit(n)) for n in self.joint_names])
+        self._read_contacts()
 
     # ------------------------------------------------------------------ authoring
     @property
     def tool_in_hand_rotation(self):
-        # Driver +z (towards the handle) is hand -x; driver x is hand +y.
-        return np.array([[0., 0., -1.], [1., 0., 0.], [0., -1., 0.]])
+        # Driver +z (towards the handle) is the hand -y (palm normal, up); driver x is hand x.
+        x, z = np.array([1., 0., 0.]), np.array([0., -1., 0.])
+        return np.column_stack([x, np.cross(z, x), z])
 
     @staticmethod
     def _names(labels):
@@ -365,6 +452,9 @@ class HumanoidThreadingScene:
                     geom.set('group', '1')
                 elif body.get('name') not in HAND_COLLIDERS:
                     body.remove(geom)        # only the right hand keeps its collision geometry
+                else:                        # Dex3 collision meshes: elastomer pad friction
+                    geom.set('friction', f'{GRIP_FRICTION} 0 0')
+                    geom.set('solref', '.004 1')
         actuator = root.find('actuator')
         for node in list(actuator):
             actuator.remove(node)
@@ -384,17 +474,25 @@ class HumanoidThreadingScene:
                           forcerange=f'{limit[0]} {limit[1]}')
         return ET.tostring(root, encoding='unicode')
 
+    def _handle_z(self):
+        """Handle centre along the driver +z axis (the socket centre is the driver origin)."""
+        return SOCKET_Y_M - HANDLE_TOP_M - HANDLE_LENGTH_M / 2
+
     def _scene_xml(self, robot_xml, clearance):
         root = ET.fromstring(robot_xml)
         world = root.find('worldbody')
         tool = ET.SubElement(world, 'body', name='driver', pos='0 0 1')
         ET.SubElement(tool, 'freejoint', name='driver_free')
-        ET.SubElement(tool, 'inertial', pos='0 0 .07', mass='.15', diaginertia='.00025 .00025 .00002')
-        no_contact = dict(contype='0', conaffinity='0', group='1', mass='0')
-        ET.SubElement(tool, 'geom', name='driver_handle', type='cylinder', size='.014 .0375',
-                      pos=f'0 0 {self.socket_x_m - .1625}', rgba='.85 .25 .1 1', **no_contact)
-        ET.SubElement(tool, 'geom', name='driver_shaft', type='cylinder', size='.005 .03',
-                      pos='0 0 .07', rgba='.75 .76 .8 1', **no_contact)
+        ET.SubElement(tool, 'inertial', pos='0 0 .09', mass='.18', diaginertia='.0006 .0006 .00004')
+        no_contact = {'contype': '0', 'conaffinity': '0', 'group': '1', 'mass': '0'}
+        # Handle: the only driver part the hand touches (rubberised grip).
+        ET.SubElement(tool, 'geom', name='driver_handle', type='cylinder',
+                      size=f'{HANDLE_RADIUS_M} {HANDLE_LENGTH_M / 2}', pos=f'0 0 {self._handle_z()}',
+                      rgba='.95 .78 .1 1', contype='1', conaffinity='1', friction=f'{GRIP_FRICTION} 0 0',
+                      solref='.004 1', mass='0')
+        shaft_top = self._handle_z() - HANDLE_LENGTH_M / 2
+        ET.SubElement(tool, 'geom', name='driver_shaft', type='cylinder', size=f'.005 {(shaft_top - .04) / 2}',
+                      pos=f'0 0 {(shaft_top + .04) / 2}', rgba='.75 .76 .8 1', **no_contact)
         ET.SubElement(tool, 'geom', name='driver_socket_case', type='cylinder', size='.021 .0075',
                       pos='0 0 .0325', rgba='.55 .58 .62 1', **no_contact)
         for i in range(6):
@@ -405,21 +503,20 @@ class HumanoidThreadingScene:
                           quat=f'{math.cos(a/2)} 0 0 {math.sin(a/2)}', size='.003 .010 .010',
                           rgba='.6 .65 .72 1', contype='1', conaffinity='1',
                           friction='.3 0 0', solref='.003 1', mass='0', group='2')
-        # Socket floor just above the nut face; it only carries the released driver
-        # axially. Frictionless (MJWarp minimum) so turning torque reaches the nut
-        # through the hex walls alone, never through face friction.
+        # Socket floor just above the nut face; it carries the driver axially (also
+        # while the hand is open). Frictionless (MJWarp minimum) so turning torque
+        # reaches the nut through the hex walls alone, never through face friction.
         ET.SubElement(tool, 'geom', name='socket_floor', type='cylinder', size='.021 .0075',
                       pos=f'0 0 {.008 + self.floor_gap_m + .0075}', rgba='.55 .58 .62 1', contype='1',
                       conaffinity='1', friction='1e-5 0 0', solref='.003 1', mass='0', group='2')
+        # Self-collisions stay on so the hand meets the driver handle; the hand links
+        # never collide with each other (the rest of the robot has no collision geometry).
         contact = root.find('contact')
         if contact is None:
             contact = ET.SubElement(root, 'contact')
-        for body in HAND_COLLIDERS:           # the held driver never collides with its own hand
-            ET.SubElement(contact, 'exclude', body1=body, body2='driver')
-        quat = quat_wxyz(self.tool_in_hand_rotation)
-        equality = ET.SubElement(root, 'equality')
-        ET.SubElement(equality, 'weld', name='grasp', body1='right_wrist_yaw_link', body2='driver',
-                      relpose=' '.join(f'{v:.9g}' for v in (self.socket_x_m, 0., 0., *quat)), solref='.004 1')
+        for i, first in enumerate(HAND_COLLIDERS):
+            for second in HAND_COLLIDERS[i + 1:]:
+                ET.SubElement(contact, 'exclude', body1=first, body2=second)
         return ET.tostring(root, encoding='unicode')
 
     def _setup_ik(self, robot_xml):
@@ -429,73 +526,224 @@ class HumanoidThreadingScene:
         self.ik_hand = self.ik_model.body('right_wrist_yaw_link').id
         self.ik_indices = np.array([int(self.ik_model.joint(n).qposadr[0]) for n in IK_JOINTS])
         self.ik_ranges = np.array([self.ik_model.joint(n).range for n in IK_JOINTS])
-        self.ik_roll = int(self.ik_model.joint(ROLL_JOINT).qposadr[0])
         self.ik_static = {int(self.ik_model.joint(n).qposadr[0]): v for n, v in HELD_POSE.items()}
 
-    def _fk(self, q, roll=0.):
+    def _fk(self, q):
         d = self.ik_data
         d.qpos[:] = 0.
         for index, value in self.ik_static.items():
             d.qpos[index] = value
         d.qpos[self.ik_indices] = q
-        d.qpos[self.ik_roll] = roll
         self.mujoco.mj_kinematics(self.ik_model, d)
         return d.xpos[self.ik_hand].copy(), d.xmat[self.ik_hand].reshape(3, 3).copy()
 
-    def _ik(self, target, seed):
-        half = (self.ik_ranges[:, 1] - self.ik_ranges[:, 0]) / 2
+    def _socket(self, q):
+        p, r = self._fk(q)
+        return p + r @ np.array([GRIP_X_M, SOCKET_Y_M, 0.]), r
+
+    def _ik(self, phi, nut_z, seed, regularization):
+        """Arm pose with the palm-down hand rotated by phi and the socket on the nut axis."""
+        bounds = (self.ik_ranges[:, 0] + .06, self.ik_ranges[:, 1] - .06)
+        target, rotation = np.r_[self._center_xy, nut_z], hand_rotation(phi)
 
         def residual(q):
-            p, r = self._fk(q)
-            socket = p + r[:, 0] * self.socket_x_m
-            return np.r_[(socket - target) * 10, (r[:, 0] - [0., 0., -1.]) * 3,
-                         .002 * (q - np.asarray(IK_SEED)) / half]
-        result = self.least_squares(residual, seed, bounds=(self.ik_ranges[:, 0] + .05,
-                                    self.ik_ranges[:, 1] - .05), max_nfev=400, ftol=1e-12, xtol=1e-12, gtol=1e-12)
-        p, r = self._fk(result.x)
-        if np.linalg.norm(p + r[:, 0] * self.socket_x_m - target) > 2e-5 or r[2, 0] > -.99999:
-            raise ValueError('socket centre is not reachable with a vertical G1 forearm')
-        return result.x
+            socket, r = self._socket(q)
+            return np.r_[(socket - target) * 20, (r - rotation).ravel() * 2., regularization * (q - seed)]
+        result = self.least_squares(residual, seed, bounds=bounds, max_nfev=200, xtol=1e-10, ftol=1e-10)
+        socket, r = self._socket(result.x)
+        error = max(float(np.linalg.norm(socket - target)), .01 * float(np.linalg.norm(r - rotation)))
+        return result.x, error
+
+    def _build_turn_tables(self):
+        """IK tables q(phi) at the initial nut height and 6 mm lower, by continuation from IK_SEED."""
+        seed, error = self._ik(PHI_SEED, self.initial_nut_z, np.array(IK_SEED), .02)
+        if error > 2e-5:
+            raise ValueError('the palm-down grasp pose is not reachable from the seed')
+        rows = {0: seed}
+        for direction in (1, -1):
+            q, i = seed, 0
+            while abs(i) < 400:
+                i += direction
+                nxt, error = self._ik(PHI_SEED + i * TABLE_STEP_RAD, self.initial_nut_z, q, .3)
+                if error > 2e-5 or np.max(np.abs(nxt - q)) > TABLE_MAX_DQ_DPHI * TABLE_STEP_RAD:
+                    break
+                rows[i] = q = nxt
+        keys = sorted(rows)
+        self.phi_grid = PHI_SEED + np.array(keys) * TABLE_STEP_RAD
+        self.table_top = np.array([rows[k] for k in keys])
+        # The nut descends 2.5 mm per turn; the follower interpolates to a table 6 mm lower.
+        # Keep the contiguous phi interval (around the seed) where both tables solve.
+        bottom, valid = [], []
+        for phi, q in zip(self.phi_grid, self.table_top):
+            nxt, error = self._ik(phi, self.initial_nut_z - DESCENT_TABLE_M, q, .02)
+            bottom.append(nxt)
+            valid.append(error <= 2e-5 and np.max(np.abs(nxt - q)) < .2)
+        centre = keys.index(0)
+        lo = hi = centre
+        while lo > 0 and valid[lo - 1]:
+            lo -= 1
+        while hi < len(valid) - 1 and valid[hi + 1]:
+            hi += 1
+        if not valid[centre]:
+            raise ValueError('the nut descent is not reachable at the seed pose')
+        self.phi_grid = self.phi_grid[lo:hi + 1]
+        self.table_top = self.table_top[lo:hi + 1]
+        self.table_bottom = np.array(bottom[lo:hi + 1])
+        self.stroke_low = float(self.phi_grid[0] + STROKE_MARGIN_RAD)
+        self.stroke_high = float(self.phi_grid[-1] - STROKE_MARGIN_RAD)
+        if self.stroke_high - self.stroke_low < math.pi / 2:
+            raise ValueError('turn table shorter than a quarter turn')
+        steps = np.abs(np.diff(self.table_top, axis=0)).max(0) / TABLE_STEP_RAD
+        self.max_dq_dphi = float(steps.max())
+        self.table_sha256 = hashlib.sha256(np.round(np.r_[self.table_top.ravel(), self.table_bottom.ravel()],
+                                                    9).tobytes()).hexdigest()
+
+    # ------------------------------------------------------------------ grasp synthesis
+    def _synthesis_model(self):
+        """CPU copy of the robot with the handle fixed in the hand at its gripped pose."""
+        root = ET.fromstring(self.robot_xml)
+        hand = root.find(".//body[@name='right_wrist_yaw_link']")
+        q = (math.cos(math.pi / 4), -math.sin(math.pi / 4), 0., 0.)   # cylinder z -> hand y
+        ET.SubElement(hand, 'geom', name='synthesis_handle', type='cylinder',
+                      size=f'{HANDLE_RADIUS_M} {HANDLE_LENGTH_M / 2}',
+                      pos=f'{GRIP_X_M} {HANDLE_TOP_M + HANDLE_LENGTH_M / 2} 0',
+                      quat=' '.join(map(str, q)), contype='0', conaffinity='0')
+        model = self.mujoco.MjModel.from_xml_string(ET.tostring(root, encoding='unicode'))
+        return model, self.mujoco.MjData(model)
+
+    def _synthesize_grasp(self):
+        """Close each finger until it touches the handle (convex-hull distance, CPU MuJoCo).
+
+        Thumb (thumb_1/thumb_2), index and middle: curl both joints together until a
+        link touches, then the distal joint alone until the distal link touches.
+        Returns the contact posture, the closing goal past contact and an open
+        posture with verified clearance, all for ``RIGHT_FINGERS``.
+        """
+        mj = self.mujoco
+        m, d = self._synthesis_model()
+        handle = m.geom('synthesis_handle').id
+        fromto = np.zeros(6)
+        geoms = {link: [g for g in range(m.ngeom) if m.geom_contype[g] and m.body(int(m.geom_bodyid[g])).name == link]
+                 for f in FINGER_LINKS for link in FINGER_LINKS[f]}
+        ik = [int(m.joint(n).qposadr[0]) for n in IK_JOINTS]
+
+        def distance(values, links):
+            d.qpos[:] = 0.
+            for index, value in self.ik_static.items():
+                d.qpos[index] = value
+            d.qpos[ik] = self.entry
+            for name, value in values.items():
+                d.qpos[m.joint(name).qposadr[0]] = value
+            mj.mj_kinematics(m, d)
+            mj.mj_collision(m, d)
+            return [min(mj.mj_geomDistance(m, d, g, handle, .05, fromto) for g in geoms[link]) for link in links]
+
+        posture = {'right_hand_thumb_0_joint': 0.}
+        for finger, (proximal, distal) in FINGER_JOINTS.items():
+            sign = CLOSING_SIGN[proximal]
+            lo = [m.joint(j).range[0] + .03 for j in (proximal, distal)]
+            hi = [m.joint(j).range[1] - .03 for j in (proximal, distal)]
+            q = [float(np.clip(0., lo[0], hi[0])), float(np.clip(0., lo[1], hi[1]))]
+            links = FINGER_LINKS[finger]
+            step = .002
+            while min(distance({**posture, proximal: q[0], distal: q[1]}, links)) > TOUCH_M:
+                n = [q[0] + sign * step, q[1] + sign * step]
+                if not all(lo[k] <= n[k] <= hi[k] for k in range(2)):
+                    break
+                q = n
+            while distance({**posture, proximal: q[0], distal: q[1]}, links)[-1] > TOUCH_M \
+                    and lo[1] <= q[1] + sign * step <= hi[1]:
+                q[1] += sign * step
+            if min(distance({**posture, proximal: q[0], distal: q[1]}, links)) > TOUCH_M:
+                raise ValueError(f'{finger} does not reach the handle')
+            posture.update({proximal: q[0], distal: q[1]})
+        lower = {n: float(m.joint(n).range[0]) + .03 for n in RIGHT_FINGERS}
+        upper = {n: float(m.joint(n).range[1]) - .03 for n in RIGHT_FINGERS}
+        goal = {n: float(np.clip(posture[n] + CLOSING_SIGN[n] * GRIP_REACH_RAD, lower[n], upper[n]))
+                for n in RIGHT_FINGERS}
+        opened = {n: float(np.clip(posture[n] - CLOSING_SIGN[n] * OPEN_BACKOFF_RAD, lower[n], upper[n]))
+                  for n in RIGHT_FINGERS}
+        links = [link for f in ('thumb', 'index', 'middle') for link in FINGER_LINKS[f]]
+        clearance = min(distance(opened, links))
+        contact = {f: [round(1000 * v, 3) for v in distance(posture, FINGER_LINKS[f])] for f in FINGER_LINKS}
+        if clearance < OPEN_CLEARANCE_M or contact['palm'][0] < 1.:
+            raise ValueError(f'open hand clears the handle by only {clearance * 1000:.2f} mm')
+        return {'contact': {n: round(posture[n], 6) for n in RIGHT_FINGERS},
+                'goal': {n: round(goal[n], 6) for n in RIGHT_FINGERS},
+                'open': {n: round(opened[n], 6) for n in RIGHT_FINGERS},
+                'open_clearance_m': round(float(clearance), 6), 'contact_link_distance_mm': contact}
+
+    def _initial_fingers(self):
+        # Same initial condition with or without ``grip``: the fingers-open negative
+        # control differs only in what its command does (it never closes the hand).
+        return {n: self.grasp['contact'][n] - CLOSING_SIGN[n] * INITIAL_BACKOFF_RAD for n in RIGHT_FINGERS}
 
     def _initial_targets(self):
+        targets = self._initial_positions()
+        for name in RIGHT_FINGERS:
+            index = self.joint_names.index(name)
+            targets[index] = self.grasp['contact'][name] + CLOSING_SIGN[name] * INITIAL_SQUEEZE_RAD
+        return targets
+
+    def _initial_positions(self):
         values = dict(zip(IK_JOINTS, map(float, self.entry)))
         values.update(HELD_POSE)
-        values.update(zip(RIGHT_FINGERS, FINGERS_CLOSED))
+        values.update(self._initial_fingers())
         return np.array([values.get(name, 0.) for name in self.joint_names])
 
     def _initial_tool_pose(self):
-        p, hand_r = self._fk(self.entry, self.roll_low)
-        position = p + hand_r[:, 0] * self.socket_x_m
+        position, hand_r = self._socket(self.entry)
         w, x, y, z = quat_wxyz(hand_r @ self.tool_in_hand_rotation)
         return np.r_[position, x, y, z, w]
 
     # ------------------------------------------------------------------ control primitives
-    def arm_target(self, nut_z):
-        """IK follower of the measured nut height (keeps the socket depth); no pose writes."""
+    def arm_target(self, phi, nut_z):
+        """Table pose for hand rotation phi; follows the measured nut height (no pose writes)."""
+        phi = float(np.clip(phi, self.phi_grid[0], self.phi_grid[-1]))
+        top = np.array([np.interp(phi, self.phi_grid, self.table_top[:, j]) for j in range(len(IK_JOINTS))])
         if not self.follow_nut:
-            return self.entry
-        fraction = float(np.clip((self.initial_nut_z - nut_z) / .012, 0., 1.))
-        return self.entry * (1 - fraction) + self.bottom * fraction
+            return top
+        bottom = np.array([np.interp(phi, self.phi_grid, self.table_bottom[:, j]) for j in range(len(IK_JOINTS))])
+        fraction = float(np.clip((self.initial_nut_z - nut_z) / DESCENT_TABLE_M, 0., 1.))
+        return top * (1 - fraction) + bottom * fraction
 
-    def desired_targets(self, nut_z, hand):
+    def desired_targets(self, phi_ref, nut_z, hand, measured):
+        """Arm table pose + finger posture; a closing finger is clamped past its MEASURED angle."""
         values = dict(zip(self.joint_names, self.targets))
-        values.update(zip(IK_JOINTS, map(float, self.arm_target(nut_z))))
-        values.update(zip(RIGHT_FINGERS, FINGERS_CLOSED if hand == 'closed' else FINGERS_OPEN))
+        arm = dict(zip(IK_JOINTS, map(float, self.arm_target(phi_ref, nut_z))))
+        arm.pop(ROLL_JOINT)
+        values.update(arm)
+        current = dict(zip(self.joint_names, measured))
+        if hand == 'closed' and self.grip:
+            values.update({n: grip_target(self.grasp['goal'][n], current[n], CLOSING_SIGN[n]) for n in RIGHT_FINGERS})
+        else:
+            values.update(self.grasp['open'])
         return np.array([values[name] for name in self.joint_names])
 
-    def fingers_at(self, targets, hand):
-        index = [self.joint_names.index(n) for n in RIGHT_FINGERS]
-        posture = FINGERS_CLOSED if hand == 'closed' else FINGERS_OPEN
-        return bool(np.array_equal(np.asarray(targets)[index], np.asarray(posture)))
-
-    def wrist_torque(self, roll_ref, roll, roll_speed):
-        torque = self.roll_kp * (roll_ref - roll) - self.roll_kd * roll_speed
+    def wrist_torque(self, roll_target, roll, roll_speed):
+        torque = self.roll_kp * (roll_target - roll) - self.roll_kd * roll_speed
         return float(np.clip(torque, -self.motor_limit_nm, self.motor_limit_nm))
 
     def roll_state(self):
         q = self.state.joint_q.numpy()
         qd = self.state.joint_qd.numpy()
         return float(q[self._roll_q_index]), float(qd[self._roll_qd_index])
+
+    def phi_state(self):
+        """Measured hand rotation about the tool axis (clockwise from above) and its rate."""
+        pose = self.state.body_q.numpy()[self.hand_body]
+        x = rot_xyzw(pose[3:])[:, 0]
+        angle = -math.atan2(x[1], x[0])
+        if self._phi_last is None:
+            self._phi_unwrapped = angle + 2 * math.pi * round((self.phi_grid.mean() - angle) / (2 * math.pi))
+        else:
+            self._phi_unwrapped += math.atan2(math.sin(angle - self._phi_last), math.cos(angle - self._phi_last))
+        self._phi_last = angle
+        rate = -float(self.state.body_qd.numpy()[self.hand_body, 5])
+        return float(self._phi_unwrapped), rate
+
+    def measured_joints(self):
+        return self.state.joint_q.numpy()[self.q_index].astype(float)
 
     def apply_controls(self, targets, roll_torque):
         ctrl = self.control.mujoco.ctrl.numpy()
@@ -504,27 +752,6 @@ class HumanoidThreadingScene:
         self.control.mujoco.ctrl.assign(ctrl)
         self.targets = np.array(targets, dtype=float)
         self._roll_command = float(roll_torque)
-        # The grasp follows the commanded hand: welded only while the fingers are closed.
-        self.set_grasp(self.fingers_at(self.targets, 'closed'))
-
-    def set_grasp(self, on):
-        if on == self.grasp_enabled:
-            return
-        if on:
-            # Re-grip where the hand is now: weld relpose := current hand->driver transform.
-            body_q = self.state.body_q.numpy()
-            hand, tool = body_q[self.hand_body], body_q[self.tool_body]
-            rh = rot_xyzw(hand[3:])
-            rel_p = rh.T @ (tool[:3] - hand[:3])
-            w, x, y, z = quat_wxyz(rh.T @ rot_xyzw(tool[3:]))
-            relpose = self.model.mujoco.equality_constraint_relpose.numpy()
-            relpose[0] = np.r_[rel_p, x, y, z, w]
-            self.model.mujoco.equality_constraint_relpose.assign(relpose)
-        enabled = self.model.mujoco.equality_constraint_enabled.numpy()
-        enabled[0] = on
-        self.model.mujoco.equality_constraint_enabled.assign(enabled)
-        self.solver.notify_model_changed(self.newton.ModelFlags.CONSTRAINT_PROPERTIES)
-        self.grasp_enabled = on
 
     def solve(self):
         """Exactly one physics solve of ``self.dt``; no state writes."""
@@ -562,27 +789,65 @@ class HumanoidThreadingScene:
         addresses = data.contact.efc_address.numpy()[:count, 0]
         forces = data.efc.force.numpy()[0]
         thread, tool, floor, thread_force, tool_force = 0, 0, 0, 0., 0.
-        for pair, address in zip(geoms, addresses, strict=True):
+        poses = self.state.body_q.numpy()
+        tool_pose = poses[self.tool_body]
+        tool_r = rot_xyzw(tool_pose[3:])
+        tighten = -tool_r[:, 2]                 # driver axis pointing to the nut: tightening sense
+        grip = {k: 0. for k in FINGER_LINKS}
+        grip_n = {k: 0 for k in FINGER_LINKS}
+        grip_torque, net = 0., np.zeros(3)
+        positions = frames = None
+        for index, (pair, address) in enumerate(zip(geoms, addresses, strict=True)):
             if address < 0 or forces[address] <= 1e-6:
                 continue
-            pair = set(map(int, pair))
+            a, b = int(pair[0]), int(pair[1])
+            pair = {a, b}
             if pair == {self.nut_geom, self.bolt_geom}:
                 thread += 1; thread_force += float(forces[address])
             elif self.nut_geom in pair and pair.intersection(self.socket_geoms):
                 tool += 1; tool_force += float(forces[address])
             elif pair == {self.nut_geom, self.floor_geom}:
                 floor += 1
+            elif self.handle_geom in pair and (a in self.grip_geoms or b in self.grip_geoms):
+                if positions is None:
+                    positions = data.contact.pos.numpy()[:count]
+                    frames = data.contact.frame.numpy()[:count]
+                finger = self.grip_geoms[a if a in self.grip_geoms else b]
+                grip[finger] += float(forces[address])
+                grip_n[finger] += 1
+                # Contact frame row 0 is the normal from geom 0 to geom 1; the solved
+                # force (normal, two friction rows of the elliptic cone) acts on geom 1.
+                local = forces[address:address + 3]
+                force = frames[index].reshape(3, 3).T @ local
+                on_handle = force if b == self.handle_geom else -force
+                net += on_handle
+                arm = positions[index] - tool_pose[:3]
+                grip_torque += float(np.cross(arm, on_handle) @ tighten)
         self._thread_contacts, self._tool_contacts, self._floor_contacts = thread, tool, floor
         self._thread_force, self._tool_force = thread_force, tool_force
+        # Relative rotation of the driver in the hand about the driver axis (slip/re-grip).
+        hand_r = rot_xyzw(poses[self.hand_body][3:])
+        reference = hand_r[:, 0]                # hand x is perpendicular to the tool axis
+        x_tool = tool_r[:, 0]
+        angle = math.atan2(np.cross(reference, x_tool) @ tighten, reference @ x_tool)
+        if self._relative_last is None:
+            self._relative_unwrapped = angle
+        else:
+            self._relative_unwrapped += math.atan2(math.sin(angle - self._relative_last),
+                                                   math.cos(angle - self._relative_last))
+        self._relative_last = angle
+        self.grip_state = {'normal_force_n': grip, 'contacts': grip_n, 'torque_nm': grip_torque,
+                           'net_force_n': float(np.linalg.norm(net)),
+                           'relative_angle_rad': float(self._relative_unwrapped)}
 
     # ------------------------------------------------------------------ standalone episode loop
     def command(self, direction='tighten', turns=1.):
         if direction != 'tighten' or not math.isfinite(turns) or turns <= 0:
-            raise ValueError('this wrist program implements finite positive tightening only')
+            raise ValueError('this turn program implements finite positive tightening only')
         self.requested_turns = turns
         self._started_angle = self._unwrapped
         self._active = True
-        self.program.start(self.roll_state()[0], self.time_s)
+        self.program.start(self.phi_state()[0], self.time_s)
 
     def stop(self):
         """Latch: hold every position target, exact zero wrist-roll torque from the next solve."""
@@ -595,19 +860,23 @@ class HumanoidThreadingScene:
         return -(self._unwrapped - self._started_angle) / (2 * math.pi)
 
     def plan(self):
-        """One control decision from measured state; returns (targets, wrist torque)."""
+        """One control decision from measured state; returns (targets, wrist-roll torque)."""
+        phi, phi_rate = self.phi_state()
         roll, roll_speed = self.roll_state()
         nut_z = float(self.state.body_q.numpy()[self.nut_body, 2])
+        measured = self.measured_joints()
         hand = self.program.hand
-        fingers_done = self.fingers_at(self.targets, hand)
-        roll_ref, hand = self.program.advance(self.dt, roll, roll_speed, fingers_done, self.time_s)
-        desired = self.desired_targets(nut_z, hand)
-        step = self.max_joint_speed_rad_s * self.dt
+        before = self.desired_targets(self.program.roll_ref, nut_z, hand, measured)
+        fingers_done = bool(np.all(np.abs(before[self._finger_index] - self.targets[self._finger_index]) <= 1e-3))
+        phi_ref, hand = self.program.advance(self.dt, phi, phi_rate, fingers_done, self.time_s)
+        desired = self.desired_targets(phi_ref, nut_z, hand, measured)
+        step = np.full(len(self.joint_names), self.max_joint_speed_rad_s * self.dt)
+        step[self._finger_index] = FINGER_RATE_RAD_S * self.dt
         targets = self.targets + np.clip(desired - self.targets, -step, step)
-        # Snap exactly onto the posture once within one rate step (exact equality gates the grasp).
         close = np.abs(desired - self.targets) <= step
         targets[close] = desired[close]
-        torque = self.wrist_torque(roll_ref, roll, roll_speed) if self.drive else 0.
+        roll_target = float(self.arm_target(phi_ref, nut_z)[IK_JOINTS.index(ROLL_JOINT)])
+        torque = self.wrist_torque(roll_target, roll, roll_speed) if self.drive else 0.
         return targets, torque
 
     def step(self):
@@ -615,14 +884,23 @@ class HumanoidThreadingScene:
             if self._active:
                 targets, torque = self.plan()
             else:
-                targets, torque = self.targets, 0.   # stopped/idle: exact zero wrist effort
+                targets, torque = self.targets, 0.   # stopped/idle: exact zero wrist-roll effort
             self.apply_controls(targets, torque)
             self.solve()
+
+    def grip_record(self):
+        g = self.grip_state
+        return {'grip_normal_force_n': dict(g['normal_force_n']), 'grip_contacts': dict(g['contacts']),
+                'grip_torque_nm': g['torque_nm'], 'grip_net_force_n': g['net_force_n'],
+                'hand_driver_angle_rad': g['relative_angle_rad'],
+                'finger_targets_rad': [float(v) for v in self.targets[self._finger_index]],
+                'finger_positions_rad': [float(v) for v in self.measured_joints()[self._finger_index]]}
 
     def observe(self):
         poses = self.state.body_q.numpy()
         nut = poses[self.nut_body]
         roll, roll_speed = self.roll_state()
+        phi, phi_rate = self.phi_state()
         return {'epoch': self.epoch, 'step': self.step_id, 'time_s': self.time_s,
                 'fastener_id': 'factory_nut_m20_loose', 'fixture_id': 'fixed_factory_bolt_m20_loose',
                 'fastener_position_m': nut[:3].tolist(), 'fastener_quaternion_xyzw': nut[3:].tolist(),
@@ -632,9 +910,10 @@ class HumanoidThreadingScene:
                 'angle_rad': self._unwrapped, 'axial_position_m': float(nut[2]), 'pitch_m': self.pitch_m,
                 'thread_contact_force_n': self._thread_force, 'tool_contact_force_n': self._tool_force,
                 'wrist_roll_rad': roll, 'wrist_roll_speed_rad_s': roll_speed,
-                'wrist_roll_reference_rad': self.program.roll_ref, 'wrist_roll_command_nm': self._roll_command,
-                'wrist_roll_torque_nm': self._roll_torque, 'grasp_weld_enabled': self.grasp_enabled,
+                'hand_phi_rad': phi, 'hand_phi_rate_rad_s': phi_rate,
+                'hand_phi_reference_rad': self.program.roll_ref, 'wrist_roll_command_nm': self._roll_command,
+                'wrist_roll_torque_nm': self._roll_torque, 'hand': self.program.hand,
                 'phase': self.program.phase, 'strokes': self.program.strokes, 'regrips': self.program.regrips,
-                'body_poses_xyzw': poses.tolist(),
+                **self.grip_record(), 'body_poses_xyzw': poses.tolist(),
                 'maximum_nut_angular_speed_rad_s': self._maximum_nut_angular_speed,
                 'motor_active': self._active}

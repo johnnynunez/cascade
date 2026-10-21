@@ -139,6 +139,34 @@ from pathlib import Path
 PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
 SERVER_INFO = {"name": "cascade", "version": "0.1.0"}
 
+#: The longest the MCP server's main thread blocks in one wait (the serial
+#: worker's idle queue, a lock another thread holds) before it wakes. CPython
+#: runs a Python signal handler on the main thread at its next bytecode: a
+#: signal landing after the thread released the GIL and before its wait began
+#: only sets CPython's C-level flag, and a wait with no timeout never returns,
+#: so the handler never ran (#435 review: a SIGTERM there latched no e-stop,
+#: ran no teardown, and the server lived on until SIGKILL). Each wake runs
+#: that handler; a frame put on the queue still wakes the worker at once.
+SIGNAL_WAKE_S = 0.2
+#: The longest the teardown waits for an in-flight runtime build (the
+#: prewarm thread holds `_init_lock`) before it writes its receipt without
+#: tearing that runtime down. Generous (a cold start opens cameras and loads
+#: models); below systemd's default 90 s stop timeout.
+SHUTDOWN_BUILD_WAIT_S = 60.0
+
+
+def _wait_while_held(lock) -> None:
+    """Wait in short sleeps while another thread holds `lock` (the prewarm
+    build holds `_init_lock` for seconds). Never takes it: a sleep ends, so
+    on the main thread a signal whose wakeup was lost runs its handler now,
+    where an acquire without a timeout waited out the whole build (forever
+    for a build stuck in a camera open). Nor an acquire with one: a handler
+    raising right after it returned would leave the lock held. The `with`
+    that follows takes the lock at once."""
+    while lock.locked():
+        time.sleep(0.01)
+
+
 # task_done belongs to the built-in loop; MCP agents manage their own tasks.
 _EXCLUDED_TOOLS = {"task_done"}
 
@@ -2446,37 +2474,8 @@ def _admit(server, m: dict, send) -> bool:
     return False
 
 
-#: The longest the MCP server's main thread blocks in one wait (the serial
-#: worker's idle queue, a lock another thread holds) before it wakes. CPython
-#: runs a Python signal handler on the main thread at its next bytecode: a
-#: signal landing after the thread released the GIL and before its wait began
-#: only sets CPython's C-level flag, and a wait with no timeout never returns,
-#: so the handler never ran (#435 review: a SIGTERM there latched no e-stop,
-#: ran no teardown, and the server lived on until SIGKILL). Each wake runs
-#: that handler; a frame put on the queue still wakes the worker at once.
-SIGNAL_WAKE_S = 0.2
-#: The longest the teardown waits for an in-flight runtime build (the
-#: prewarm thread holds `_init_lock`) before it writes its receipt without
-#: tearing that runtime down. Generous (a cold start opens cameras and loads
-#: models); below systemd's default 90 s stop timeout.
-SHUTDOWN_BUILD_WAIT_S = 60.0
-
-
-def _wait_while_held(lock) -> None:
-    """Wait in short sleeps while another thread holds `lock` (the prewarm
-    build holds `_init_lock` for seconds). Never takes it: a sleep ends, so
-    on the main thread a signal whose wakeup was lost runs its handler now,
-    where an acquire without a timeout waited out the whole build (forever
-    for a build stuck in a camera open). Nor an acquire with one: a handler
-    raising right after it returned would leave the lock held. The `with`
-    that follows takes the lock at once."""
-    while lock.locked():
-        time.sleep(0.01)
-
-
 def _worker_loop(server, signals, inbox, eof) -> int:
     """The single serial worker: (frame, send) items in arrival order."""
-    import queue
     import signal
     from .signal_stop import SignalRequest
 

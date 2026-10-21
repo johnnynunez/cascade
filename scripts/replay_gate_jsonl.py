@@ -27,7 +27,9 @@ range. A whole-body-controller leg target 0.02-0.05 rad past its range is refuse
 could physically stand there. That is deliberate (fail closed: 0.02 stays); this replay shows whether
 the policy's actions hit it.
 
-Exit status: 0 = no channel refused, 1 = at least one refused step, 2 = unusable input.
+Exit status: 0 = recorded actions replayed and no channel refused, 1 = at least one refused step,
+2 = no action replayed (an empty or admission-only record: nothing was checked) or any error (one line
+on stderr, never a traceback, never the code of a refusal).
 CPU only; no simulator, bridge, model or network.
 """
 from __future__ import annotations
@@ -46,6 +48,8 @@ from cascade.safety.humanoid_gate import HumanoidGateLimits, HumanoidSafetyGate,
 #: the gate rows that judge the proposed action (``state_finite``: malformed or non-finite)
 CHANNELS = ("state_finite", "command_joint_rad", "command_wbc_joint_rad", "command_nav", "command_base_height_m",
             "command_torso_rpy")
+#: an empty or admission-only record: exit 2, never the all-clear of exit 0
+NOTHING_REPLAYED = "no recorded action replayed: nothing was checked"
 
 
 def neutral_state(step: int, limits: HumanoidGateLimits, joints: JointModel) -> dict:
@@ -122,7 +126,8 @@ def _text(report: dict) -> str:
     clamps = report["finger_clamps"]
     out.append(f"  finger targets clamped (not a refusal): {clamps['targets']} in {clamps['steps']} steps")
     refused = [name for name, entry in report["channels"].items() if entry["first"] is not None]
-    out.append(f"refused channels: {', '.join(refused)}" if refused else "no channel refused")
+    out.append(f"refused channels: {', '.join(refused)}" if refused else
+               "no channel refused" if report["actions"] else NOTHING_REPLAYED)
     return "\n".join(out)
 
 
@@ -142,13 +147,21 @@ def main(argv=None) -> int:
         session = json.loads(args.session.read_text())
         joints = JointModel.from_dict(session["hello"]["joints"])
         limits, source = _limits(args, session)
-    except (OSError, KeyError, ValueError, TypeError) as exc:
+    except Exception as exc:  # noqa: BLE001 -- any input fault is exit 2: 1 means a refusal, never a traceback
         print(f"replay_gate_jsonl: unusable input: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 2
-    report = replay(lines, limits, joints)
-    report["limits"] = {"source": source, **limits.as_dict()}
-    report["gate_jsonl"], report["session"] = str(args.gate_jsonl), str(args.session)
-    print(json.dumps(report, indent=1) if args.json else _text(report))
+    try:
+        report = replay(lines, limits, joints)
+        report["limits"] = {"source": source, **limits.as_dict()}
+        report["gate_jsonl"], report["session"] = str(args.gate_jsonl), str(args.session)
+        text = json.dumps(report, indent=1) if args.json else _text(report)
+    except Exception as exc:  # noqa: BLE001 -- same contract while replaying
+        print(f"replay_gate_jsonl: replay failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 2
+    print(text)
+    if not report["actions"]:
+        print(f"replay_gate_jsonl: {NOTHING_REPLAYED}", file=sys.stderr)
+        return 2
     return 1 if any(entry["first"] is not None for entry in report["channels"].values()) else 0
 
 

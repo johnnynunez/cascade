@@ -1,19 +1,25 @@
 """#434 re-review minors (CPU only, fake bridges on ephemeral ports, no live port).
 
 4. the fleet's stopped-robot refusal names no tool, like the composed runtime's;
+5. ``scripts/replay_gate_jsonl.py`` exit codes: 0 = actions replayed and none refused, 1 = a channel refused,
+   2 = no action replayed (empty or admission-only record) or any error, never a traceback;
 6. a JSON integer too big for a float (``float()`` raises OverflowError) is a STOP row, not an exception.
 """
 from __future__ import annotations
 
 import json
+import os
 import queue
 import socket
+import subprocess
+import sys
 
 import pytest
 
 from cascade.skills import humanoid_locomanip as hl
 
-from test_humanoid_gate_hardening import CARRY, ScriptedBridge, composed_runtime
+from test_humanoid_gate_hardening import (CARRY, REPO, ScriptedBridge, _recorded_segment, _replay_module,
+                                          composed_runtime)
 from test_humanoid_locomanip import IN_BIN, FakeBridge, action, make_gate, profile, state, walk_script
 
 HUGE = 10 ** 400  # a JSON integer float() cannot hold: OverflowError
@@ -110,3 +116,59 @@ def test_the_fleet_refusal_for_a_stopped_robot_matches_the_runtime_and_names_no_
         assert fake.segments == [] and humanoid.domains["carry"].runtime.gate.latched is not None
     finally:
         assert server.close()["complete"]
+
+
+# --------------------------------------------------------------------- 5. replay exit codes
+def _session_beside(path):
+    return path.parent.parent.parent / "session.json"
+
+
+@pytest.mark.parametrize("keep", ["empty", "blank_lines", "admission_only"])
+def test_replay_of_a_record_without_an_action_exits_2_never_a_false_all_clear(tmp_path, capsys, keep):
+    path = _recorded_segment(tmp_path)
+    lines = path.read_text().splitlines()
+    path.write_text({"empty": "", "blank_lines": "\n\n", "admission_only": lines[0] + "\n"}[keep])
+    assert _session_beside(path).exists()
+    module = _replay_module()
+    assert module.main([str(path)]) == 2
+    captured = capsys.readouterr()
+    assert "0 recorded actions replayed" in captured.out and "no channel refused" not in captured.out
+    assert "no recorded action replayed: nothing was checked" in captured.out + captured.err
+    assert module.main([str(path), "--json"]) == 2
+    assert json.loads(capsys.readouterr().out)["actions"] == 0
+
+
+def test_replay_of_a_huge_integer_action_is_a_refusal_not_a_crash(tmp_path, capsys):
+    path = _recorded_segment(tmp_path)
+    lines = [json.loads(line) for line in path.read_text().splitlines()]
+    next(line for line in lines if line.get("step") == 3 and line.get("phase") == "policy")["action"]["nav"][0] = HUGE
+    path.write_text("".join(json.dumps(line) + "\n" for line in lines))
+    assert _replay_module().main([str(path), "--json"]) == 1
+    report = json.loads(capsys.readouterr().out)
+    assert report["channels"]["state_finite"]["first"]["step"] == 3
+    assert report["channels"]["state_finite"]["refused_steps"] == 1
+
+
+def test_replay_reports_an_error_inside_the_replay_as_exit_2_without_a_traceback(tmp_path, capsys, monkeypatch):
+    path = _recorded_segment(tmp_path)
+    module = _replay_module()
+
+    def broken(*_a, **_k):
+        raise RuntimeError("replay broke")
+
+    monkeypatch.setattr(module, "replay", broken)
+    assert module.main([str(path)]) == 2
+    err = capsys.readouterr().err
+    assert "RuntimeError: replay broke" in err and "Traceback" not in err
+
+
+def test_replay_exit_code_for_any_error_is_2_in_a_real_process(tmp_path):
+    """The script's own exit status (``sys.exit(main())``): input the JSON decoder cannot even nest exits 2
+    with one line on stderr, never 1 (the code of a refusal) with a traceback."""
+    path = _recorded_segment(tmp_path)
+    path.write_text("[" * 100_000 + "\n")
+    env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
+    proc = subprocess.run([sys.executable, str(REPO / "scripts" / "replay_gate_jsonl.py"), str(path)],
+                          capture_output=True, text=True, timeout=120, env=env, cwd=str(tmp_path))
+    assert proc.returncode == 2, (proc.returncode, proc.stderr[-400:])
+    assert "Traceback" not in proc.stderr and proc.stderr.startswith("replay_gate_jsonl: ")

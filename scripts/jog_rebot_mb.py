@@ -47,7 +47,9 @@ SAFETY MODEL -- read this before running:
   write and fault clear below cut its torque. Over a marker this script
   refuses before it opens the bus unless the operator confirmed at this
   terminal (scripts/arm_hold.py confirm), and then it asks for 'go' with the
-  arm supported even under --yes.
+  arm supported even under --yes. That 'go' (like every 'supported' answer)
+  is typed at the robot's own terminal (/dev/tty), never piped, and never
+  asked in an agent's environment.
 
 The bus is exclusive (host id 0xFD): stop motorbridge-gateway and any
 LeRobot process first.
@@ -554,17 +556,33 @@ def _claim_hold(channel: str, *, dry_run: bool, script: str):
 
 def _supported(held, *, yes: bool, intro: str) -> bool:
     """The 'supported, type go' prompt. `--yes` skips it only when no marker
-    names the arm held: over one, the operator answers it at the terminal."""
+    names the arm held: over one, the operator answers it at the terminal.
+    The rules of `confirm` and the let-go (cascade.control.arm_hold): never
+    in an agent's or the robot server's environment; only in an interactive
+    session (stdin and stdout on a terminal); the answer read from the
+    controlling terminal (/dev/tty), never stdin: a piped 'go' is nobody
+    supporting the arm. True to go on; anything else (or nobody to ask)
+    is a no."""
     if yes and held is None:
         return True
+    from cascade.control import arm_hold
+
     print(intro)
     if held is not None:
         print("The arm is HELD by an earlier session: its torque drops for a moment. Keep SUPPORTING it.")
-    print("Confirm the arm is supported and clear of people, then type 'go' to proceed:")
-    try:
-        return input("  > ").strip().lower() == "go"
-    except EOFError:
+    if arm_hold.agent_environment() is not None:
+        print("[!] not asked: this runs in an agent's (or the robot server's) environment. Only the operator "
+              "confirms the arm is supported, at a terminal on the robot host.")
         return False
+    try:
+        answer = arm_hold._answer_at_terminal(
+            "Confirm the arm is supported and clear of people, then type 'go' to proceed:\n  > ")
+    except arm_hold.NoTerminal as exc:
+        print(f"[!] not asked: {exc}. The operator types 'go' at the robot's own terminal, never through a pipe.")
+        return False
+    except (EOFError, OSError):
+        return False
+    return str(answer or "").strip().lower() == "go"
 
 
 def _send_hold(motors, q_hold, gains) -> None:

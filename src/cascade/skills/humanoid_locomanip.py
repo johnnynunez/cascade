@@ -109,6 +109,7 @@ class LocomanipDomain:
         self.gate = HumanoidSafetyGate(self.limits)
         self._io = threading.Lock()  # one bridge conversation at a time
         self._segments = 0
+        self._session_closed: str | None = None  # why the bridge session was closed mid-segment
         bridge = profile["bridge"]
         self.client = client or connect_first_free(bridge["host"], bridge["ports"], wait_s=bridge["connect_wait_s"],
                                                    reply_timeout_s=bridge["reply_timeout_s"])
@@ -136,6 +137,12 @@ class LocomanipDomain:
                 "detail": "the bridge receives STOP at its next control step and holds"}
 
     def reset_stop(self):
+        if self._session_closed is not None:
+            # The bridge session ended mid-segment on a stream this side no longer trusted: nothing can
+            # run on it, so the stop stays latched until the operator rebuilds the domain (a restart).
+            return {"ok": False, "latched": True,
+                    "error": f"bridge session closed mid-segment ({self._session_closed}); the stop stays latched "
+                             f"until the operator restarts the robot runtime"}
         self.gate.reset()
         return {"ok": True}
 
@@ -300,6 +307,7 @@ class LocomanipDomain:
                 # then end the session (the bridge reads a close, never a pass), so nothing more
                 # is applied and the bridge is not left hanging.
                 self.gate.estop(f"segment aborted: {type(exc).__name__}: {exc}")
+                self._session_closed = f"{type(exc).__name__}: {exc}"
                 self.client.close()
             raise
         finally:

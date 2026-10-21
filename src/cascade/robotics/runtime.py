@@ -222,10 +222,10 @@ class RobotRuntime:
                     raise ValueError("another robot operation is active")
                 if descriptor.effect in {"motion", "control"} and self._whole_body is not None:
                     if descriptor.domain in self._latched_domains:
-                        raise ValueError(f"domain {descriptor.domain!r} stopped; explicit "
-                                         f"reset_stop(domain={descriptor.domain!r}) required")
+                        # reset_stop is operator-only (OPERATOR_TOOLS): the refusal names no tool
+                        raise ValueError(f"domain {descriptor.domain!r} stopped: ask the operator to clear the stop")
                 elif descriptor.effect in {"motion", "control"} and self._latched:
-                    raise ValueError("robot stopped; explicit reset_stop required")
+                    raise ValueError("robot stopped: ask the operator to clear the stop")
                 self._active = True
                 self._drained.clear()
                 generation, task_id = self._generation, self._task_id

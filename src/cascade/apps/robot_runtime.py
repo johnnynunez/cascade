@@ -225,6 +225,23 @@ def robot_tool_descriptors(cfg):
                                 *(t for d in domains.values() for t in d.tool_descriptors))}
 
 
+#: Domain kinds behind the humanoid safety gate (``cascade.safety.humanoid_gate``). On a robot with
+#: such a domain only the operator clears a stop, never through a tool an agent can reach: the MCP
+#: and fleet MCP servers neither list nor accept ``reset_stop`` for it (the operator's channels:
+#: SIGUSR1 to the MCP server, the CLI console, operator scripts, or a restart that rebuilds the domain).
+HUMANOID_GATE_KINDS = frozenset({"humanoid_locomanip"})
+
+
+def humanoid_gate_domains(robot) -> list[str]:
+    """Domains of a composed robot (its profile ``Cfg``, or a built ``RobotRuntime``) behind the humanoid gate."""
+    if isinstance(robot, Cfg):
+        profiles = robot.domains.as_dict()
+    else:  # a built RobotRuntime: its domain adapters keep their profiles
+        profiles = {name: getattr(domain, "profile", None) for name, domain in robot.domains.items()}
+    return sorted(name for name, profile in profiles.items()
+                  if isinstance(profile, dict) and profile.get("kind") in HUMANOID_GATE_KINDS)
+
+
 def build_robot_runtime(cfg, run_dir, *, navigation_bindings=None, **_kwargs):
     from ..agent.trace import TraceLogger
     from ..memory.episodic import EpisodicMemory

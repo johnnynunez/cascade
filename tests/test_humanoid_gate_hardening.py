@@ -8,6 +8,11 @@
 4. a malformed message mid-segment latches the stop and the bridge is answered (no hang);
 5. the navigation limit is asymmetric per the training data (no backward walking);
 6. the agent-episode script defaults to the launch default brain.
+
+Review fix round: the MCP and fleet MCP servers never offer or accept ``reset_stop`` for a robot behind
+the humanoid gate (the operator clears it with SIGUSR1 or a restart); refusals never name a tool; a
+mid-segment session close keeps the stop latched until the domain is rebuilt; a non-numeric value or a
+NaN never passes; ``scripts/replay_gate_jsonl.py`` replays a recorded run's actions offline.
 """
 from __future__ import annotations
 
@@ -122,25 +127,189 @@ def test_the_operator_clears_the_stop_and_the_robot_runs_again(tmp_path):
         runtime.close()
 
 
-def test_mcp_reset_stop_stays_the_operator_channel_for_composed_robots(tmp_path, monkeypatch):
+def _mcp_server(fake, tmp_path, monkeypatch, robot="g1_arena_locomanip"):
     from cascade.apps.mcp_server import McpSkillServer
     from cascade.skills import humanoid_bridge
 
-    fake = FakeBridge(walk_script(2), final=state(99, box_pos=IN_BIN))
     monkeypatch.delenv("CASCADE_BASE", raising=False)
-    monkeypatch.setenv("CASCADE_ROBOT", "g1_arena_locomanip")
+    monkeypatch.delenv("CASCADE_HIDE_TOOLS", raising=False)
+    monkeypatch.setenv("CASCADE_ROBOT", robot)
     monkeypatch.setenv("CASCADE_RUN_DIR", str(tmp_path))
-    monkeypatch.setattr(hl, "connect_first_free", lambda host, ports, **kw: humanoid_bridge.BridgeClient(
-        host, fake.port, **{k: v for k, v in kw.items() if k == "reply_timeout_s"}))
-    server = McpSkillServer()
-    assert "reset_stop" in {t["name"] for t in server.list_tools()}  # MCP catalog unchanged
-    call = lambda name, args: json.loads(server.call_tool(name, args)["content"][-1]["text"])  # noqa: E731
-    assert call("carry.describe_scene", {})["ok"]
-    call("emergency_stop", {})
-    assert server._runtime.domains["carry"].runtime.gate.latched is not None
-    assert call("reset_stop", {})["ok"] is True
-    assert server._runtime.domains["carry"].runtime.gate.latched is None
-    assert call("carry.carry_object", CARRY)["outcome"] == "confirmed"
+    monkeypatch.setenv("CASCADE_STREAM", "0")
+    if fake is not None:
+        monkeypatch.setattr(hl, "connect_first_free", lambda host, ports, **kw: humanoid_bridge.BridgeClient(
+            host, fake.port, **{k: v for k, v in kw.items() if k == "reply_timeout_s"}))
+    return McpSkillServer()
+
+
+def _payload(result):
+    return json.loads(result["content"][-1]["text"])
+
+
+@pytest.mark.parametrize("args", [{}, {"domain": "carry"}])
+def test_the_mcp_agent_can_never_clear_a_humanoid_stop(tmp_path, monkeypatch, args):
+    """The MCP host IS the agent: on a robot behind the humanoid gate the MCP server neither lists nor
+    accepts reset_stop. The operator's channel (SIGUSR1 -> reset_now, a shell on the rig) still clears it."""
+    from cascade.robotics.runtime import OPERATOR_ONLY_ERROR
+
+    fake = FakeBridge(walk_script(2), final=state(99, box_pos=IN_BIN))
+    server = _mcp_server(fake, tmp_path, monkeypatch)
+    try:
+        assert "reset_stop" not in {t["name"] for t in server.list_tools()}
+        call = lambda name, a: _payload(server.call_tool(name, a))  # noqa: E731
+        assert call("carry.describe_scene", {})["ok"]
+        call("emergency_stop", {})
+        gate = server._runtime.domains["carry"].runtime.gate
+        assert gate.latched is not None
+        refused = server.call_tool("reset_stop", args)
+        assert refused["isError"] and {k: _payload(refused).get(k) for k in ("ok", "latched", "error")} == {
+            "ok": False, "latched": True, "error": OPERATOR_ONLY_ERROR}
+        assert gate.latched is not None and server._runtime.stopped and server._stop_pending  # still latched
+        carry = call("carry.carry_object", CARRY)
+        assert carry["ok"] is False and fake.segments == []
+        assert "ask the operator to clear the stop" in carry["error"] and "reset_stop" not in carry["error"]
+        # the operator: SIGUSR1 (the staff channel; no MCP tool reaches it) -> reset_now
+        assert _payload(server.reset_now())["ok"] is True
+        assert gate.latched is None and not server._runtime.stopped
+        assert call("carry.carry_object", CARRY)["outcome"] == "confirmed"
+    finally:
+        receipt = server.shutdown()  # closes the server's runtime (the bridge session included)
+    assert receipt["ok"] and receipt["complete"], receipt
+
+
+@pytest.mark.parametrize("robot", ["fixed_so101_mock", "wheeled_lift_sensors"])
+def test_composed_robots_without_the_humanoid_gate_keep_the_mcp_reset_stop(tmp_path, monkeypatch, robot):
+    server = _mcp_server(None, tmp_path, monkeypatch, robot)
+    assert "reset_stop" in {t["name"] for t in server.list_tools()}
+    out = _payload(server.call_tool("reset_stop", {}))  # routed to reset_now: no runtime yet
+    assert out["ok"] is False and out["error"] == "runtime starting or input closed; reset refused"
+
+
+def test_the_arm_mcp_catalog_keeps_reset_stop(monkeypatch):
+    from cascade.apps.mcp_server import McpSkillServer
+
+    for key in ("CASCADE_ROBOT", "CASCADE_BASE", "CASCADE_HIDE_TOOLS"):
+        monkeypatch.delenv(key, raising=False)
+    assert "reset_stop" in {t["name"] for t in McpSkillServer().list_tools()}
+
+
+def _fleet(tmp_path, *runtimes):
+    from cascade.apps.fleet_mcp import FleetMcpServer
+    from cascade.robotics.fleet import FleetRuntime
+    import queue
+
+    output = queue.Queue()
+    server = FleetMcpServer(FleetRuntime(dict(runtimes)), output.put, max_workers=2)
+    rpc = lambda ident, name, args=None: {"jsonrpc": "2.0", "id": ident, "method": name if name.startswith("tools/") else  # noqa: E731
+                                          "tools/call", "params": {} if name.startswith("tools/") else
+                                          {"name": name, "arguments": {} if args is None else args}}
+    return server, output, rpc
+
+
+def test_the_fleet_mcp_agent_can_never_clear_a_humanoid_stop(tmp_path):
+    fake = FakeBridge(walk_script(2))
+    humanoid = composed_runtime(fake, tmp_path / "g1")
+    robot = humanoid.cfg.robot_id
+    server, output, rpc = _fleet(tmp_path, (robot, humanoid))
+    try:
+        server.accept(rpc(1, "tools/list"))
+        assert "fleet.reset_stop" not in {t["name"] for t in output.get(timeout=5)["result"]["tools"]}
+        server.accept(rpc(2, "fleet.stop", {"robot_id": robot}))
+        assert json.loads(output.get(timeout=5)["result"]["content"][-1]["text"])["ok"]
+        server.accept(rpc(3, "fleet.reset_stop", {"robot_id": robot}))
+        out = json.loads(output.get(timeout=5)["result"]["content"][-1]["text"])
+        assert out["ok"] is False and "operator action, not an agent tool" in out["error"]
+        assert humanoid.stopped and humanoid.domains["carry"].runtime.gate.latched is not None
+    finally:
+        assert server.close()["complete"]
+
+
+def test_a_mixed_fleet_keeps_fleet_reset_stop_for_its_other_robots(tmp_path):
+    from test_fleet_runtime import member
+
+    fake = FakeBridge(walk_script(2))
+    humanoid = composed_runtime(fake, tmp_path / "g1")
+    duck, _ = member("duck", tmp_path)
+    robot = humanoid.cfg.robot_id
+    server, output, rpc = _fleet(tmp_path, (robot, humanoid), ("duck", duck))
+    try:
+        server.accept(rpc(1, "tools/list"))
+        assert "fleet.reset_stop" in {t["name"] for t in output.get(timeout=5)["result"]["tools"]}
+        server.accept(rpc(2, "fleet.stop"))
+        assert json.loads(output.get(timeout=5)["result"]["content"][-1]["text"])["ok"]
+        server.accept(rpc(3, "fleet.reset_stop", {"robot_id": robot}))
+        refused = json.loads(output.get(timeout=5)["result"]["content"][-1]["text"])
+        assert refused["ok"] is False and "operator action, not an agent tool" in refused["error"]
+        server.accept(rpc(4, "fleet.reset_stop", {"robot_id": "duck"}))
+        assert json.loads(output.get(timeout=5)["result"]["content"][-1]["text"])["ok"] is True
+        assert humanoid.stopped and not duck.stopped
+    finally:
+        assert server.close()["complete"]
+
+
+def test_composed_refusals_never_name_a_tool_the_agent_cannot_call(tmp_path):
+    fake = FakeBridge(walk_script(2))
+    runtime = composed_runtime(fake, tmp_path)
+    try:
+        runtime.execute("emergency_stop", {})
+        out = runtime.execute("carry.carry_object", CARRY)
+        assert out == {"ok": False, "error": "ValueError: robot stopped: ask the operator to clear the stop"}
+    finally:
+        runtime.close()
+
+
+@pytest.mark.parametrize("fault", ["garbled", "local"])
+def test_after_a_mid_segment_session_close_the_stop_stays_latched_until_rebuilt(tmp_path, monkeypatch, fault):
+    fake = ScriptedBridge(walk_script(5), (lambda i, s: "this is not json" if i == 2 else s) if fault == "garbled"
+                          else (lambda i, s: s), final=state(99, box_pos=IN_BIN))
+    runtime = composed_runtime(fake, tmp_path)
+    domain = runtime.domains["carry"].runtime
+    if fault == "local":
+        real = domain.gate.check
+
+        def check(step, st, act):
+            if step == 2:
+                raise RuntimeError("disk full")
+            return real(step, st, act)
+
+        monkeypatch.setattr(domain.gate, "check", check)
+        original = fake._segment
+
+        def segment(msg, f, send):
+            try:
+                original(msg, f, send)
+            except Exception:  # noqa: BLE001 -- the fake reads the close as its gate reply
+                pass
+
+        fake._segment = segment
+    try:
+        runtime.execute("carry.carry_object", CARRY)
+        assert domain.gate.latched is not None and fake.applied == 2
+        reset = domain.reset_stop()
+        assert reset["ok"] is False and "restart" in reset["error"], reset
+        out = runtime.execute("reset_stop", {}, operator=True)  # the operator's reset is refused too
+        assert out["ok"] is False and runtime.stopped and domain.gate.latched is not None
+        carry = runtime.execute("carry.carry_object", CARRY)
+        assert carry["ok"] is False and len(fake.segments) == 1 and fake.applied == 2
+    finally:
+        runtime.close()
+
+
+def test_operator_scripts_pass_the_operator_flag_to_reset_stop():
+    """Every direct ``<runtime>.execute("reset_stop", ...)`` in scripts/ and the evidence harnesses is an
+    operator call and passes ``operator=True`` (a composed runtime refuses it otherwise)."""
+    import ast
+
+    calls = []
+    for path in sorted([*(REPO / "scripts").rglob("*.py"), *(REPO / "docs" / "evidence").rglob("*.py")]):
+        for node in ast.walk(ast.parse(path.read_text(), str(path))):
+            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "execute"
+                    and node.args and isinstance(node.args[0], ast.Constant) and node.args[0].value == "reset_stop"):
+                operator = {k.arg: k.value for k in node.keywords}.get("operator")
+                calls.append((f"{path.relative_to(REPO)}:{node.lineno}",
+                              isinstance(operator, ast.Constant) and operator.value is True))
+    assert len(calls) >= 4, calls
+    assert [where for where, ok in calls if not ok] == []
 
 
 def test_operator_console_reset_passes_the_operator_flag_on_composed_runtimes():

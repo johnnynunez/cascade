@@ -446,7 +446,9 @@ def test_global_stop_latches_every_domain_and_reset_is_explicit_per_domain(tmp_p
         assert rt.stopped
         for tool, args in (("manipulation.open_gripper", {}), ("locomotion.walk_velocity", walk)):
             result = rt.execute(tool, args)
-            assert result["ok"] is False and "reset_stop(domain=" in result["error"], result
+            # the agent cannot call reset_stop (operator only): the refusal never names it
+            assert result["ok"] is False and "stopped: ask the operator to clear the stop" in result["error"], result
+            assert "reset_stop" not in result["error"] and repr(tool.split(".")[0]) in result["error"], result
         blanket = rt.execute("reset_stop", {}, operator=True)
         assert blanket["ok"] is False and "per-domain" in blanket["error"] and rt.stopped
         arm = rt.execute("reset_stop", {"domain": "manipulation"}, operator=True)

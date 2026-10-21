@@ -104,7 +104,7 @@ def block(cfg, run, label, turns, report, reset_on_latch=False):
     rows = []
     try:
         before = H.state_row(runtime)
-        reset = runtime.execute('reset_stop', {})
+        reset = runtime.execute('reset_stop', {}, operator=True)  # this harness is the operator (#434)
         report.setdefault('resets', {})[label] = H.compact(reset)
         if reset.get('ok') is not True:
             raise RuntimeError(f'reset_stop refused before block {label}: {H.compact(reset)}')
@@ -114,7 +114,7 @@ def block(cfg, run, label, turns, report, reset_on_latch=False):
             if latched and reset_on_latch:
                 # the previous turn ended in a fail-closed latched stop (e.g. the 3 s command deadline):
                 # the staff reset channel clears it so this trial is independent; recorded per turn.
-                r = runtime.execute('reset_stop', {})
+                r = runtime.execute('reset_stop', {}, operator=True)
                 report.setdefault('per_turn_resets', []).append({'before': f'{label}-{i+1}', 'ok': r.get('ok')})
                 time.sleep(PAUSE_S)
             row, res = turn_row(runtime, angle, f'{label}-{i+1}-{angle:+.1f}', run, 'runtime')

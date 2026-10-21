@@ -38,10 +38,15 @@ results go in the PR, not here.
    `instruction_template` filled with the spoken labels (for brown box / blue bin it is the
    checkpoint's training instruction verbatim).
 2. A latched stop refuses the call (`refused`: "stopped: ask the operator to clear the stop").
-   Only the operator clears it: `reset_stop` is not on the agent's tool list, the composed
-   runtime refuses it without `operator=True` (MCP `reset_stop` / SIGUSR1, the CLI console,
-   `--operator-arm`), and Harness² advice may never name it. The gate vets the measured start
-   state (pre-motion admission).
+   Only the operator clears it, and no agent route can: `reset_stop` is not on the agent's tool
+   list, the composed runtime refuses it without `operator=True`, and the MCP and fleet MCP
+   servers neither list nor accept it for a robot behind this gate (an MCP host is an agent).
+   Operator channels: SIGUSR1 to the MCP server (`pkill -USR1 -f cascade.apps.mcp_server`, a shell
+   on the rig), the CLI console, `--operator-arm`, operator scripts (`operator=True`); without one
+   (the fleet MCP has none), the stop stays latched until the operator restarts the server, which
+   rebuilds the domain. A stop that closed the bridge session mid-segment (a garbled line, a local
+   fault) stays latched until that restart: the domain refuses every reset. Harness² advice may
+   never name `reset_stop`. The gate vets the measured start state (pre-motion admission).
 3. Per control step (50 Hz) the bridge sends the measured state and the policy's proposed action;
    the gate answers `pass` or `stop`. Gates: state finite, pelvis tilt <= 30 deg, pelvis height
    above ankle level >= 0.45 m, measured joints (fingers included) within articulation limits +
@@ -95,7 +100,7 @@ cd <IsaacLab-Arena> && .venv/bin/python <cascade>/scripts/arena_locomanip_bridge
    --enable_cameras --device cuda:0 --presets newton --bridge_offline_assets [--bridge_preload <module>] \
    galileo_g1_locomanip_pick_and_place --object brown_box --embodiment g1_wbc_joint
 # 3. the brain (scripts/serve_qwen_vllm.sh), then an agent episode or the MCP server:
-CASCADE_ROBOT=g1_arena_locomanip python -m cascade.apps.mcp_server     # tools carry.*
+CASCADE_ROBOT=g1_arena_locomanip python -m cascade.apps.mcp_server     # tools carry.*; no reset_stop (SIGUSR1 / restart)
 python scripts/humanoid_agent_episode.py --robot g1_arena_locomanip --llm local_qwen --prompt "..." --out runs/...
 ```
 

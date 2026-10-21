@@ -110,7 +110,11 @@ def _compact(result, limit=30000):
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--robot", required=True)
-    ap.add_argument("--llm", default="local_qwen")
+    # The repository's default brain (Nemotron 3.5 Bolt), as scripts/launch.sh resolves
+    # `--brain auto` and scripts/booth_rehearsal.py defaults; any other brain is named explicitly.
+    ap.add_argument("--llm", default="local_nemotron_bolt",
+                    help="configs/llm profile of the brain (default: local_nemotron_bolt, the launch default; "
+                         "it talks to the LIVE local brain server on 127.0.0.1:8080, as local_qwen does)")
     ap.add_argument("--prompt", required=True)
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--config-dir", type=Path, default=None)
@@ -155,7 +159,8 @@ def main(argv=None) -> int:
 
     operator = []
     if args.operator_arm:
-        operator.append({"t": round(clock(), 3), "action": "reset_stop", "result": runtime.execute("reset_stop", {})})
+        operator.append({"t": round(clock(), 3), "action": "reset_stop",
+                         "result": runtime.execute("reset_stop", {}, operator=True)})
     runtime.execute = timed_execute
     llm = TimedLLM(make_llm(cfg.llm), clock)
     trace = {"robot": args.robot, "prompt": args.prompt, "brain": brain_identity(cfg.llm), "llm_profile": args.llm,

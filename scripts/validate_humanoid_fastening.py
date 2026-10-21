@@ -150,7 +150,7 @@ def run_episode(args, index, commands, digest, sources):
     try:
         for command in range(commands):
             t0 = time.monotonic()
-            reset = runtime.execute('reset_stop', {})
+            reset = runtime.execute('reset_stop', {}, operator=True)  # this script is the operator
             t1 = time.monotonic()
             result = runtime.execute('fastening.turn_screw', {'turns': 1.0, 'direction': 'tighten'})
             calls.append({'reset_stop': reset, 'reset_wall_s': t1 - t0, 'turn_wall_s': time.monotonic() - t1,

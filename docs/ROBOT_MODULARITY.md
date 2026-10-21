@@ -151,8 +151,9 @@ uv run python -m cascade.apps.fleet_mcp --fleet microduck_mock12 \
 3. `cascade-fleet-mcp` (`apps.fleet_mcp`) speaks newline-delimited JSON-RPC on stdio:
    `fleet.catalog`, `fleet.execute` (`{robot_id, episode_id, tool, arguments}`), `fleet.stop`
    (`{robot_id}` or `{}`), `fleet.reset_stop({robot_id})` (a new explicit operator request;
-   `CASCADE_HIDE_TOOLS=reset_stop` hides and rejects it; stops are never hideable). The host owns
-   conversations and inference.
+   `CASCADE_HIDE_TOOLS=reset_stop` hides and rejects it; stops are never hideable; a robot behind
+   the humanoid safety gate refuses it, and a fleet of only such robots does not list it: only a
+   server restart clears their stop). The host owns conversations and inference.
 4. Stops, cancellations and keepalives bypass ordinary work; cancelling queued or running motion
    latches that robot's stop. `max_workers` bounds concurrency, `--max-pending` queued plus running
    work (default 64, max 128; over capacity is rejected without actuation); input frames are capped

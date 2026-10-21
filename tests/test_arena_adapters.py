@@ -227,12 +227,14 @@ def test_explicit_stop_also_stops_external_owner_and_reset_needs_both_acknowledg
         adapter = ArenaPolicyAdapter(runtime, controller, actuation_owner="arena_policy")
         adapter.execute_skill("emergency_stop", {})
         assert events == ["external_stop"]
-        assert adapter.execute_skill("reset_stop", {})["ok"] is False
+        assert adapter.execute_skill("reset_stop", {}, operator=True)["ok"] is False
         assert runtime.stopped
         with pytest.raises(RuntimeError):
             adapter.get_action(None, {})
         controller.reset_stop = lambda: True
-        assert adapter.execute_skill("reset_stop", {})["ok"] is True
+        # a policy (no operator flag) can never clear the stop, even with both owners willing
+        assert adapter.execute_skill("reset_stop", {})["ok"] is False and runtime.stopped
+        assert adapter.execute_skill("reset_stop", {}, operator=True)["ok"] is True
         assert adapter.get_action(None, {}) is not None
     finally:
         runtime.close()

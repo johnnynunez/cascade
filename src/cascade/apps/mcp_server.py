@@ -102,8 +102,12 @@ offers it), so park it first. A SIGTERM keeps latching the e-stop and holding ra
 halting and parking: no new motion after a stop signal (#424 review, the
 owner may revisit). SIGUSR1 clears the e-stop: that is the STAFF
 reset channel when reset_stop is hidden from attendees
-(`pkill -USR1 -f cascade.apps.mcp_server` requires shell access to the
-rig, which is exactly the staff/attendee boundary).
+(`kill -USR1 <pid>` of this one server, PID from `pgrep -af` or the
+`runs/mcp_<pid>` directory; never `pkill -USR1 -f ...`, which resumes every
+cascade MCP server on the host, other robots' e-stops included; it requires
+shell access to the rig, which is exactly the staff/attendee boundary). A composed robot behind
+the humanoid safety gate (`robot_runtime.HUMANOID_GATE_KINDS`) never lists or
+accepts reset_stop at all: SIGUSR1 or a restart is the operator's only way.
 
 Read-only lane (opt-in, B46; `mcp.readonly_lane: true` in configs/demo.yaml or
 CASCADE_MCP_READONLY_LANE=1): everything above still holds -- one serial
@@ -994,7 +998,10 @@ class McpSkillServer:
                 return _text_result({"ok": False, "error": "runtime starting or input closed; reset refused"}, is_error=True)
             with self._stop_lock:
                 serial = self._stop_serial
-            result = rt.execute("reset_stop", dict(arguments or {}))
+            # The MCP reset_stop (and SIGUSR1) is an operator channel: a composed runtime refuses
+            # reset_stop from anything else (robotics.runtime.OPERATOR_TOOLS). Behind a humanoid gate
+            # the MCP tool call never gets here (_call_mobile_tool refuses it); SIGUSR1 still does.
+            result = rt.execute("reset_stop", dict(arguments or {}), **({"operator": True} if self._composed else {}))
             with self._stop_lock:
                 raced = serial != self._stop_serial
                 if result.get("ok") is True and not raced and not result.get("latched_domains"):
@@ -1276,7 +1283,10 @@ class McpSkillServer:
     def list_tools(self) -> list[dict]:
         if self._composed:
             from .robot_runtime import robot_tool_descriptors
-            candidates = [t.as_spec() for t in robot_tool_descriptors(self._get_mobile_config()).values()]
+            # The MCP host is the agent: behind a humanoid gate it is never offered reset_stop.
+            operator_only = self._operator_only_reset()
+            candidates = [t.as_spec() for t in robot_tool_descriptors(self._get_mobile_config()).values()
+                          if not (operator_only and t.name == "reset_stop")]
         elif self._mobile:
             from ..skills.mobile_runtime import tool_specs_for_profiles
 
@@ -1475,7 +1485,22 @@ class McpSkillServer:
             return _text_result(_agent_text({"ok": False, "error": str(exc)}), is_error=True)
         return self._image_result(runtime, frame, camera=camera)
 
+    def _operator_only_reset(self) -> bool:
+        """A composed robot with a domain behind the humanoid safety gate: only the operator clears its
+        stop (SIGUSR1 -> reset_now, or a restart), never the MCP host's ``reset_stop`` tool call."""
+        if not self._composed:
+            return False
+        from .robot_runtime import humanoid_gate_domains
+        return bool(humanoid_gate_domains(self._get_mobile_config()))
+
     def _call_mobile_tool(self, name, arguments):
+        if name == "reset_stop" and self._operator_only_reset():
+            from ..robotics.runtime import OPERATOR_ONLY_ERROR
+            rt = self._runtime
+            with self._stop_lock:
+                pending = self._stop_pending
+            latched = bool(pending or (rt is not None and rt.stopped))
+            return _text_result({"ok": False, "latched": latched, "error": OPERATOR_ONLY_ERROR}, is_error=True)
         allowed = {s["name"] for s in self.list_tools()}
         if name not in allowed:
             return _text_result({"ok": False, "error": f"unsupported mobile tool: {name!r}"}, is_error=True)

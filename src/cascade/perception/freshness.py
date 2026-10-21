@@ -55,13 +55,14 @@ def observed_at(frame) -> float:
     capture clock is never used: it may be remote and is never comparable with
     the client's monotonic(). NaN (ignored by the heartbeat: fail closed) for a
     frame that carries no usable stamp, and for a frame that claims a
-    producer capture but fails its identity/clock check (an Isaac bridge sends
-    `proprioception: None` after a failed read): its receipt time would date
-    a capture of unknown age, so it is never read as a local frame's."""
+    producer capture but fails its identity/clock check (`producer_clock`: an
+    Isaac bridge sends `proprioception: None` after a failed read; a
+    malformed `producer_epoch`): its receipt time would date a capture of
+    unknown age, so it is never read as a local frame's."""
     capture = getattr(frame, "capture", None)
     if isinstance(capture, dict) and capture.get("backend") in _PRODUCER_BACKENDS:
         try:
-            capture_marker(frame)
+            producer_clock(frame)
         except ValueError:
             return math.nan
     stamp = getattr(frame, "observed_t", None)
@@ -91,17 +92,29 @@ def producer_clock(frame) -> tuple[tuple, float] | None:
     `proprioception.producer_epoch` (a new uuid at every bridge start and
     frame-history invalidation, scripts/isaac_bridge.py): a remote sim host
     that rebooted starts its clock again under a new run (#425 review Minor
-    1); a frame without a usable one (an older bridge) keeps the clock of
-    every such frame. An OVRTX capture is on its source's snapshot clock
-    (source, producer epoch). So two cameras' captures on one clock are
-    ordered by their stamps; captures on different clocks are not. Raises
-    ValueError for a capture `capture_marker` refuses."""
+    1); a frame that sends none (an older bridge) keeps the clock of every
+    such frame. An OVRTX capture is on its source's snapshot clock (source,
+    producer epoch). So two cameras' captures on one clock are ordered by
+    their stamps; captures on different clocks are not. Raises ValueError
+    for a capture `capture_marker` refuses, and for a `producer_epoch` that
+    is present but not a non-empty string, as `backend_evidence` refuses it
+    (#429 review Minor 2: read as no run, a re-send of a capture under it was
+    first received now; refused, it carries no stamp, `observed_at`).
+
+    A producer must never re-send a capture under another epoch: a capture
+    on a new run's clock is first received when it arrives, so a frozen
+    render re-sent under a new epoch would read as new. The bridge cannot:
+    a frame's epoch is the one its capture was made under, and a new epoch
+    clears its frame history (scripts/isaac_bridge.py
+    `_invalidate_frame_history`)."""
     marker = capture_marker(frame)
     if marker["channel"] != "producer_capture":
         return None
     if marker["backend"] == "isaac":
-        run = frame.capture["proprioception"].get("producer_epoch")
-        run = run if isinstance(run, str) and run else None
+        state = frame.capture["proprioception"]
+        run = state.get("producer_epoch")
+        if "producer_epoch" in state and not (isinstance(run, str) and run):
+            raise ValueError("Isaac frame has a malformed producer_epoch (its bridge run)")
         return ("isaac", marker["robot_id"], marker["clock"], run), marker["t"]
     return ("ovrtx", marker["source"], marker["epoch"], marker["clock"]), marker["t"]
 

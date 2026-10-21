@@ -20,6 +20,8 @@ than ``command_joint_tolerance_rad`` (0.02 rad in the shipped profile) is a STOP
 The gate never forwards an unchecked channel: every commanded channel is limited (the proposed
 action must carry exactly ``joint_targets``, ``nav``, ``base_height`` and ``torso_rpy``; an
 action with another channel, or a control step without an action, is malformed and STOPs).
+Every value it compares is a number: a string (``"nan"``, ``"0.1"``), a bool or None where a
+number belongs is malformed and STOPs, never parsed; and a NaN never compares as inside a limit.
 
 Checks, every one reported as ``value`` against ``limit``:
 
@@ -95,8 +97,21 @@ def _ranges(value, name, axes) -> tuple[tuple[float, float], ...]:
 
 
 def _range_ratio(values, ranges) -> float:
-    """Worst ``command / limit`` in the command's own direction (1.0 = on a limit)."""
-    return max(v / hi if v >= 0 else v / lo for v, (lo, hi) in zip(values, ranges))
+    """Worst ``command / limit`` in the command's own direction (1.0 = on a limit); NaN if any is NaN."""
+    ratios = [v / hi if v >= 0 else v / lo for v, (lo, hi) in zip(values, ranges)]
+    return math.nan if any(math.isnan(r) for r in ratios) else max(ratios)
+
+
+def _excess(value: float, lo: float, hi: float) -> float:
+    """How far ``value`` lies outside [lo, hi] (0 inside); NaN for a NaN (``max(0.0, ...)`` drops it)."""
+    return math.nan if math.isnan(value) else max(0.0, lo - value, value - hi)
+
+
+def _worse(value: float, worst: float) -> bool:
+    """True when ``value`` replaces ``worst`` in a worst-of scan. A NaN replaces any worst and is never
+    replaced (``x > NaN`` is False), so it reaches its row and fails the ``value <= limit`` check; a
+    plain ``>`` scan would skip it (``NaN > worst`` is False) and read it as inside the limit."""
+    return math.isnan(value) or value > worst
 
 
 @dataclass(frozen=True)
@@ -245,7 +260,7 @@ def _vec(data, key, n):
     value = data.get(key)
     if not isinstance(value, (list, tuple)) or len(value) != n:
         raise ValueError(f"{key} must have {n} values")
-    return [float(v) for v in value]
+    return [_num(v, key) for v in value]
 
 
 def tilt_deg(quat_wxyz) -> float:
@@ -300,41 +315,37 @@ class HumanoidSafetyGate:
         lim = self.limits
         quat = _vec(state, "pelvis_quat_wxyz", 4)
         pos = _vec(state, "pelvis_pos", 3)
-        floor = float(state.get("floor_z", 0.0))
+        floor = _num(state.get("floor_z", 0.0), "floor_z")
         tilt = tilt_deg(quat)
         rows.append(GateRow("pelvis_tilt_deg", tilt, lim.max_pelvis_tilt_deg, tilt <= lim.max_pelvis_tilt_deg))
         height = pos[2] - floor
         rows.append(GateRow("pelvis_height_m", height, lim.min_pelvis_height_m, height >= lim.min_pelvis_height_m))
         jm = self.joints
-        q = [float(v) for v in state["joint_pos"]]
-        qd = [float(v) for v in state["joint_vel"]]
+        q = [_num(v, "joint_pos") for v in state["joint_pos"]]
+        qd = [_num(v, "joint_vel") for v in state["joint_vel"]]
         if jm is None or len(q) != len(jm.names) or len(qd) != len(jm.names):
             raise ValueError("measured joints do not match the bound joint model")
         worst, worst_name = 0.0, ""
         for name, v, lo, hi in zip(jm.names, q, jm.lower, jm.upper):
-            excess = max(lo - v, v - hi, 0.0)
-            if excess > worst:
+            excess = _excess(v, lo, hi)
+            if _worse(excess, worst):
                 worst, worst_name = excess, name
         rows.append(GateRow("joint_position_rad", worst, lim.joint_position_tolerance_rad,
                             worst <= lim.joint_position_tolerance_rad, worst_name))
         frac, frac_name = 0.0, ""
         for name, v, vmax in zip(jm.names, qd, jm.velocity):
             f = abs(v) / vmax
-            if f > frac:
+            if _worse(f, frac):
                 frac, frac_name = f, name
         rows.append(GateRow("joint_velocity_frac", frac, lim.max_joint_velocity_fraction,
                             frac <= lim.max_joint_velocity_fraction, frac_name))
         (x0, y0), (x1, y1) = lim.workspace_xy_m
-        out = math.hypot(max(x0 - pos[0], 0.0, pos[0] - x1), max(y0 - pos[1], 0.0, pos[1] - y1))
+        out = math.hypot(_excess(pos[0], x0, x1), _excess(pos[1], y0, y1))
         rows.append(GateRow("workspace_m", out, 0.0, out <= 0.0))
 
     def _action_rows(self, action: dict, rows: list[GateRow], clamps: list[FingerClamp]) -> None:
         lim, jm = self.limits, self.joints
-        unchecked = sorted(map(str, set(action) - ACTION_CHANNELS))
-        if unchecked:
-            # a channel the gate does not check is never passed on to be applied
-            raise ValueError(f"action channels the gate does not check: {unchecked}")
-        targets = [float(v) for v in action["joint_targets"]]
+        targets = [_num(v, "joint_targets") for v in action["joint_targets"]]
         if jm is None or len(targets) != len(jm.names):
             raise ValueError("commanded joint targets do not match the bound joint model")
         mask = self._policy_mask or (True,) * len(jm.names)
@@ -343,18 +354,18 @@ class HumanoidSafetyGate:
         wbc, wbc_name = 0.0, ""
         for i, (name, v, lo, hi, policy, finger) in enumerate(zip(jm.names, targets, jm.lower, jm.upper, mask,
                                                                   fingers)):
-            excess = max(lo - v, v - hi, 0.0)
+            excess = _excess(v, lo, hi)
             if not policy:
                 # whole-body-controller joints (legs): not policy targets, yet in the applied action
-                if excess > wbc:
+                if _worse(excess, wbc):
                     wbc, wbc_name = excess, name
                 continue
-            if finger:
+            if finger and not math.isnan(v):  # a NaN finger target is never clamped into a number
                 applied = min(max(v, lo), hi)
                 if applied != v:
                     clamps.append(FingerClamp(name, i, v, applied))
                 continue
-            if excess > worst:
+            if _worse(excess, worst):
                 worst, worst_name = excess, name
         rows.append(GateRow("command_joint_rad", worst, lim.command_joint_tolerance_rad,
                             worst <= lim.command_joint_tolerance_rad, worst_name))
@@ -364,9 +375,9 @@ class HumanoidSafetyGate:
         ratio = _range_ratio(nav, lim.max_nav_command)
         rows.append(GateRow("command_nav", ratio, 1.0, ratio <= 1.0,
                             "vx, vy, wz = " + ", ".join(f"{v:.3f}" for v in nav)))
-        h = float(action["base_height"])
+        h = _num(action["base_height"], "base_height")
         lo, hi = lim.base_height_command_m
-        out = max(lo - h, 0.0, h - hi)
+        out = _excess(h, lo, hi)
         rows.append(GateRow("command_base_height_m", out, 0.0, out <= 0.0, f"{h:.3f} m"))
         torso = _vec(action, "torso_rpy", 3)
         ratio = _range_ratio(torso, lim.torso_rpy_command_rad)
@@ -397,7 +408,12 @@ class HumanoidSafetyGate:
                 raise TypeError("the measured state is not an object")
             if acting and not isinstance(action, dict):
                 raise ValueError("a control step without a proposed action is refused")
-            values = [*_flat(state), *(_flat(action) if acting else [])]
+            unchecked = sorted(map(str, set(action) - ACTION_CHANNELS)) if acting else []
+            if unchecked:
+                # a channel the gate does not check is never passed on to be applied
+                raise ValueError(f"action channels the gate does not check: {unchecked}")
+            # every leaf of the action is a number (a string, bool or None is malformed, never skipped)
+            values = [*_flat(state), *(_flat(action, strict=True) if acting else [])]
             finite = all(math.isfinite(v) for v in values)
             rows.append(GateRow("state_finite", 0.0 if finite else 1.0, 0.0, finite))
             if finite:
@@ -418,16 +434,25 @@ class HumanoidSafetyGate:
         return GateDecision(index, "PASS", tuple(rows), clamps=tuple(clamps))
 
 
-def _flat(data) -> list[float]:
+def _flat(data, *, strict: bool = False) -> list[float]:
+    """Every number in ``data``. ``strict`` (a proposed action): any other leaf is malformed. The
+    measured state may carry other fields; every state value the gate reads goes through ``_num``."""
     out: list[float] = []
     if isinstance(data, dict):
         for value in data.values():
-            out.extend(_flat(value))
+            out.extend(_flat(value, strict=strict))
     elif isinstance(data, (list, tuple)):
         for value in data:
-            out.extend(_flat(value))
-    elif isinstance(data, bool) or data is None or isinstance(data, str):
-        pass
-    elif isinstance(data, (int, float)):
+            out.extend(_flat(value, strict=strict))
+    elif isinstance(data, (int, float)) and not isinstance(data, bool):
         out.append(float(data))
+    elif strict:
+        raise ValueError(f"non-numeric command value {data!r}")
     return out
+
+
+def _num(value, name: str) -> float:
+    """A number the gate compares: never parsed from a string ("nan", "0.1"), a bool or None."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{name} value {value!r} is not a number")
+    return float(value)

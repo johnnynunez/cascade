@@ -389,6 +389,82 @@ def test_action_channels_the_gate_does_not_check_are_refused(mutate, word):
     assert d.verdict == "STOP" and "malformed step" in d.reason and word in d.reason
 
 
+NON_NUMBERS = ["nan", "NaN", "inf", "0.1", None, True, [0.1], {"v": 0.1}]
+
+
+@pytest.mark.parametrize("value", NON_NUMBERS, ids=repr)
+@pytest.mark.parametrize("channel, index", [("joint_targets", 2), ("joint_targets", 1), ("joint_targets", 4),
+                                            ("nav", 0), ("torso_rpy", 2), ("base_height", None)],
+                         ids=["arm", "knee_wbc", "finger", "nav", "torso", "base_height"])
+def test_a_non_numeric_command_value_fails_closed(channel, index, value):
+    act = action()
+    if index is None:
+        act[channel] = value
+    else:
+        act[channel][index] = value
+    gate = make_gate()
+    d = gate.check(1, state(1), act)
+    assert d.verdict == "STOP" and "malformed step" in d.reason and d.clamps == () and gate.latched is not None
+    # which check fired: a non-numeric leaf (_flat, strict) or a structure where a number belongs (_num)
+    assert ("is not a number" if isinstance(value, (list, dict)) else "non-numeric command value") in d.reason
+
+
+@pytest.mark.parametrize("value", ["nan", "0.1", None, True], ids=repr)
+@pytest.mark.parametrize("key, index", [("joint_pos", 2), ("joint_vel", 1), ("pelvis_pos", 2), ("pelvis_quat_wxyz", 0),
+                                        ("floor_z", None)])
+def test_a_non_numeric_measured_value_fails_closed(key, index, value):
+    st = state(1)
+    if index is None:
+        st[key] = value
+    else:
+        st[key][index] = value
+    for decide in (lambda g: g.check(1, st, action()), lambda g: g.admit(1, st)):
+        d = decide(make_gate())
+        assert d.verdict == "STOP" and "malformed step" in d.reason
+
+
+@pytest.mark.parametrize("value", ["nan", "NaN", "inf", "0.1", "", None, True, False], ids=repr)
+def test_every_non_numeric_leaf_of_an_action_is_malformed_while_the_state_may_carry_other_fields(value):
+    from cascade.safety.humanoid_gate import _flat
+
+    with pytest.raises(ValueError, match="non-numeric command value"):
+        _flat({"nav": [0.1, [value]], "base_height": 0.7}, strict=True)
+    assert _flat({"label": "box", "x": [value, 0.5]}) == [0.5]  # every state value the gate reads is _num'd
+
+
+def _with(base, key, index, value):
+    out = copy.deepcopy(base)
+    if index is None:
+        out[key] = value
+    else:
+        out[key][index] = value
+    return out
+
+
+NAN = float("nan")
+
+
+@pytest.mark.parametrize("where, key, index", [
+    ("action", "joint_targets", 2), ("action", "joint_targets", 1), ("action", "joint_targets", 4),
+    ("action", "nav", 1), ("action", "torso_rpy", 2), ("action", "base_height", None),
+    ("state", "joint_pos", 2), ("state", "joint_vel", 0), ("state", "pelvis_pos", 0), ("state", "pelvis_pos", 2),
+    ("state", "floor_z", None),
+])
+def test_a_nan_never_passes_a_comparison_even_past_the_finite_check(monkeypatch, where, key, index):
+    """Defence in depth: with the ``state_finite`` pre-check blinded, a NaN still never compares as inside a
+    limit (``NaN > worst`` is False, so a plain worst-of loop or ``max`` would skip it)."""
+    from cascade.safety import humanoid_gate
+
+    monkeypatch.setattr(humanoid_gate, "_flat", lambda data, **kw: [])
+    st, act = state(1), action()
+    if where == "action":
+        act = _with(act, key, index, NAN)
+    else:
+        st = _with(st, key, index, NAN)
+    d = make_gate().check(1, st, act)
+    assert d.verdict == "STOP" and d.clamps == (), d
+
+
 def _bridge_module():
     spec = importlib.util.spec_from_file_location("arena_locomanip_bridge_under_test",
                                                   REPO / "scripts" / "arena_locomanip_bridge.py")

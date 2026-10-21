@@ -189,7 +189,8 @@ move on, win or lose (exit lines in §8). One `pick_and_place` per group, ever.
    no host shell). Every start logs the folded arm's joint readings to
    `~/.cascade/logs/rest_readings.jsonl`; after enough cold starts,
    `python scripts/rest_tolerance_report.py` recommends this rig's `rest_check_tol_rad` (the arm
-   profile's no-marker tolerance, 0.12 rad until measured).
+   profile's no-marker tolerance, 0.12 rad until measured). It learns only from starts the check
+   judged at rest and never recommends above the current value: it only tightens.
 6. Attendees never reach into the workspace while the arm is powered; the host stages.
 
 ## 7. Reset between groups (target: 60 s of hands, run during Q&A)

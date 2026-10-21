@@ -415,40 +415,145 @@ def _report(*argv):
                           env={**os.environ, "PYTHONPATH": str(REPO / "src")})
 
 
-def test_the_rest_tolerance_report_recommends_from_the_folded_unpowered_readings(tmp_path):
-    rng = np.random.default_rng(0)
-    for _ in range(30):
-        q = list(rng.uniform(-0.02, 0.02, 6))
-        q[2] = 0.031  # the spread's worst joint
-        arm_hold.log_rest_reading(source="startup_check", key="can0", q=q, again=q, park=[0.0] * 6, tol=0.12,
-                                  marker=False, verdict="rest")
-    # rows the report must not learn from: a held arm, disagreeing reads, a raised arm
-    held = [0.0, 0.0, 0.09, 0.0, 0.0, 0.0]
-    arm_hold.log_rest_reading(source="startup_check", key="can0", q=held, again=held, park=[0.0] * 6, tol=0.12,
-                              marker=True, verdict="rest")
-    arm_hold.log_rest_reading(source="connect:rebot_rs", key="can0", q=[0.0] * 6, again=[0.0, 0.6, 0, 0, 0, 0],
-                              park=[0.0] * 6, tol=0.12, marker=False, verdict="disagree")
-    arm_hold.log_rest_reading(source="connect:rebot_rs", key="can0", q=[0.0, 0.6, 0, 0, 0, 0],
-                              again=[0.0, 0.6, 0, 0, 0, 0], park=[0.0] * 6, tol=0.12, marker=False, verdict="raised")
-    run = _report("--log", str(arm_hold.rest_log_path()), "--json")
+class _Clock:
+    """`arm_hold.time` with a wall clock the test sets (every other name is the real module's)."""
+
+    def __init__(self, t: float = 1.79e9):
+        self.t = t
+
+    def time(self) -> float:
+        return self.t
+
+    def __getattr__(self, name):
+        return getattr(time, name)
+
+
+def _clock(monkeypatch) -> _Clock:
+    clock = _Clock()
+    monkeypatch.setattr(arm_hold, "time", clock)
+    return clock
+
+
+def _q(j3: float, rng=None) -> list:
+    q = list(rng.uniform(-0.02, 0.02, 6)) if rng is not None else [0.0] * 6
+    q[2] = j3
+    return q
+
+
+def _row(clock, q, *, source="connect:rebot_rs", tol=0.12, marker=False, again=None):
+    """One logged rest check, with the verdict the check itself gave (`rest_problem` at `tol`)."""
+    problem = arm_hold.rest_problem(q, [0.0] * 6, tol, again=q if again is None else again)
+    arm_hold.log_rest_reading(source=source, key="can0", q=q, again=q if again is None else again,
+                              park=[0.0] * 6, tol=tol, marker=marker, verdict="rest" if problem is None else problem)
+    clock.t += 2.0
+
+
+def _up(clock, q, *, tol=0.12):
+    """One `~/cascade-demo.sh up`: the startup check logs its reading, then its own connect logs the
+    same rest seconds later (>= 2 rows per start); the next start is an hour later."""
+    _row(clock, q, source="startup_check", tol=tol)
+    _row(clock, q, source="connect:rebot_rs", tol=tol)
+    clock.t += 3600.0
+
+
+def _report_json(*argv) -> dict:
+    run = _report("--log", str(arm_hold.rest_log_path()), "--json", *argv)
     assert run.returncode == 0, run.stderr
-    out = json.loads(run.stdout)
-    assert out["samples"] == 30 and out["max_dev_rad"] == pytest.approx(0.031, abs=1e-6), out
-    assert out["worst_joint"] == 3 and out["beyond_tolerance"] == 1 and out["ignored"] == 2, out
+    return json.loads(run.stdout)
+
+
+def test_the_rest_tolerance_report_recommends_from_the_folded_unpowered_starts(monkeypatch):
+    clock, rng = _clock(monkeypatch), np.random.default_rng(0)
+    for _ in range(30):
+        _up(clock, _q(0.031, rng))  # joint 3: the spread's worst
+    clock.t += 3600.0
+    # rows the report must not learn from: a held arm (marker), two reads that disagree, a raised arm
+    _row(clock, _q(0.09), source="startup_check", marker=True)
+    clock.t += 3600.0
+    _row(clock, [0.0] * 6, again=[0.0, 0.6, 0, 0, 0, 0])
+    clock.t += 3600.0
+    _row(clock, [0.0, 0.6, 0, 0, 0, 0])
+    out = _report_json("--current", "0.12")
+    assert out["samples"] == 30 and out["readings"] == 60, out  # starts, not log rows
+    assert out["max_dev_rad"] == pytest.approx(0.031, abs=1e-6) and out["worst_joint"] == 3, out
+    assert out["refused"] == 2 and out["ignored"] == 1, out
+    assert [r["source"] for r in out["refused_rows"]] == ["connect:rebot_rs"] * 2, out["refused_rows"]
     assert out["recommended_rad"] == 0.06, out  # 0.031 + 0.02 margin, up to the next 0.01, >= 0.05
-    text = _report("--log", str(arm_hold.rest_log_path()))
-    assert "rest_check_tol_rad: 0.06" in text.stdout, text.stdout
+    text = _report("--log", str(arm_hold.rest_log_path()), "--current", "0.12")
+    assert "rest_check_tol_rad: 0.06" in text.stdout and "refused" in text.stdout, text.stdout
 
 
-def test_the_rest_tolerance_report_keeps_the_value_without_enough_readings():
-    q = [0.0] * 6
+def test_the_report_never_learns_a_refused_row(monkeypatch):
+    """#431 re-review: current 0.05, 30 folded starts at 0.01, and ONE no-marker arm held 0.10 off
+    park that the 0.05 connect refused: main learned it as rest spread and said 'set 0.12'."""
+    clock = _clock(monkeypatch)
+    for _ in range(30):
+        _up(clock, _q(0.01))
+    _row(clock, _q(0.10), tol=0.05)
+    out = _report_json("--current", "0.05")
+    assert out["samples"] == 30 and out["max_dev_rad"] == pytest.approx(0.01, abs=1e-6), out
+    assert out["recommended_rad"] == 0.05 and "0.12" not in out["advice"], out
+    assert out["refused"] == 1 and out["refused_rows"][0]["verdict"].startswith("joint 3 is 0.100 rad"), out
+
+
+def test_the_report_never_advises_loosening_the_current_value(monkeypatch):
+    """#431 re-review: every start passed at 0.05 with up to 0.035 off; + the 0.02 margin main said
+    'set 0.06', above the value that let them all pass. The report never recommends above it."""
+    clock = _clock(monkeypatch)
+    for _ in range(30):
+        _up(clock, _q(0.035), tol=0.05)
+    out = _report_json("--current", "0.05")
+    assert out["recommended_rad"] is None and out["current_rad"] == 0.05, out
+    assert "keep rest_check_tol_rad: 0.05" in out["advice"] and "0.06" not in out["advice"], out
+    tighter = _report_json("--current", "0.04")
+    assert tighter["recommended_rad"] is None and "keep rest_check_tol_rad: 0.04" in tighter["advice"], tighter
+
+
+def test_the_report_reads_the_current_value_from_the_profile(monkeypatch):
+    clock = _clock(monkeypatch)
+    for _ in range(20):
+        _up(clock, _q(0.01))
+    out = _report_json()
+    assert out["current_rad"] == 0.12 and out["recommended_rad"] == 0.05, out  # the shipped rebot_rs.yaml
+
+
+@pytest.mark.parametrize(("ups", "enough"), [(19, False), (20, True)])
+def test_the_report_counts_starts_not_log_rows(monkeypatch, ups, enough):
+    """Every `up` logs >= 2 rows (the startup check and its connect): 19 ups are 38 rows but 19 starts."""
+    clock = _clock(monkeypatch)
+    for _ in range(ups):
+        _up(clock, _q(0.01))
+    out = _report_json("--current", "0.12")
+    assert out["samples"] == ups and out["readings"] == 2 * ups, out
+    assert (out["recommended_rad"] is not None) is enough, out
+    if not enough:
+        assert f"not enough starts ({ups} of 20)" in out["advice"], out
+
+
+@pytest.mark.parametrize("argv", [("--min-samples", "0"), ("--min-samples", "1"), ("--min-samples", "9"),
+                                  ("--margin", "-0.05"), ("--margin", "nan"), ("--current", "0.5"),
+                                  ("--current", "0")], ids=lambda a: " ".join(a))
+def test_the_report_refuses_options_that_would_weaken_its_advice(argv):
+    run = _report("--log", str(arm_hold.rest_log_path()), "--json", *argv)
+    assert run.returncode == 2 and "Traceback" not in run.stderr and argv[0] in run.stderr, run.stderr
+
+
+@pytest.mark.parametrize("kw", [{"min_samples": 0}, {"min_samples": 1}, {"margin": -0.05}, {"current": 0.2}])
+def test_the_report_analysis_refuses_the_same_values(kw):
+    import rest_tolerance_report as report
+
+    args = {"margin": 0.02, "min_samples": 20, **kw}
+    with pytest.raises(ValueError):
+        report.analyse([], **args)
+
+
+def test_the_rest_tolerance_report_keeps_the_value_without_enough_readings(monkeypatch):
+    clock = _clock(monkeypatch)
     for _ in range(3):
-        arm_hold.log_rest_reading(source="startup_check", key="can0", q=q, again=q, park=q, tol=0.12, marker=False,
-                                  verdict="rest")
-    run = _report("--log", str(arm_hold.rest_log_path()), "--json")
-    out = json.loads(run.stdout)
-    assert run.returncode == 0 and out["recommended_rad"] is None and "not enough" in out["advice"], out
-    empty = _report("--log", str(arm_hold.rest_log_path()) + ".missing", "--json")
+        _up(clock, _q(0.0))
+    out = _report_json("--current", "0.12")
+    assert out["recommended_rad"] is None and "not enough" in out["advice"], out
+    empty = _report("--log", str(arm_hold.rest_log_path()) + ".missing", "--json", "--current", "0.12")
     assert empty.returncode == 0 and json.loads(empty.stdout)["samples"] == 0, empty.stdout
 
 

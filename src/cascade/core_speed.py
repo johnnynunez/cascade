@@ -152,7 +152,19 @@ def _kinds(cpus) -> dict:
     `cpus`: the model from sysfs MIDR_EL1 (arm64), else /proc/cpuinfo's model
     fields (x86's `model name`: one for an Intel hybrid's P- and E-cores,
     told apart by their clock); the clock from cpufreq `cpuinfo_max_freq`.
-    None for what this host does not publish (a VM has no cpufreq)."""
+    None for what this host does not publish (a VM has no cpufreq).
+
+    One core's reading speaks for its whole kind, as for a `cpu_capacity`
+    class: `class_times` times a class's first pinnable core, cpu 0 for an
+    x86 P-kind (it serves interrupts and housekeeping, and its SMT sibling's
+    load slows its thread). A first core that reads slow stretches every
+    core of its kind (#430 review Minor 3: cpu 0 read 2.5x, so 7 fast
+    P-cores got 2.27, where timing each core stretched cpu 0 alone), never
+    past the cap (`pointing.Budget`: `wall` / `seconds`, 2.67 as shipped).
+    Timing a second core of each kind and keeping the faster removes that
+    (those cores 1.0) but adds one helper per kind to every process's first
+    call: 0.039 -> 0.075 s on the GB10 read by kind, so it is not done.
+    Hosts with `cpu_capacity` (the GB10 rig) never read kinds."""
     models = None
     out = {}
     for cpu in cpus:

@@ -405,16 +405,16 @@ def main() -> int:
         _send_hold(motors, q_hold, gains)
         time.sleep(0.3)
 
-        held = {}
+        measured = {}
         for mid, m in motors.items():
             x = _read(m, MECH_POS)
             if x is None:
-                held[mid] = q_hold[mid]
+                measured[mid] = q_hold[mid]
                 continue
             if not plausible_position(x, *_joint_limits(limits, mid)):
                 raise UnsafeReading(f"motor {mid} reported mechPos {x!r} while holding")
-            held[mid] = x
-        drift = max(abs(held[mid] - q_hold[mid]) for mid in motors)
+            measured[mid] = x
+        drift = max(abs(measured[mid] - q_hold[mid]) for mid in motors)
         print(f"\n[+] energized. max drift from the hold pose: {drift:.4f} rad")
         if drift > 0.05:
             print("[!] the arm sagged more than 50 mrad -- gains are too low for this "

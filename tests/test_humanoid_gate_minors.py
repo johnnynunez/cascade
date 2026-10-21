@@ -1,18 +1,20 @@
 """#434 re-review minors (CPU only, fake bridges on ephemeral ports, no live port).
 
+4. the fleet's stopped-robot refusal names no tool, like the composed runtime's;
 6. a JSON integer too big for a float (``float()`` raises OverflowError) is a STOP row, not an exception.
 """
 from __future__ import annotations
 
 import json
+import queue
 import socket
 
 import pytest
 
 from cascade.skills import humanoid_locomanip as hl
 
-from test_humanoid_gate_hardening import CARRY, ScriptedBridge
-from test_humanoid_locomanip import IN_BIN, action, make_gate, profile, state, walk_script
+from test_humanoid_gate_hardening import CARRY, ScriptedBridge, composed_runtime
+from test_humanoid_locomanip import IN_BIN, FakeBridge, action, make_gate, profile, state, walk_script
 
 HUGE = 10 ** 400  # a JSON integer float() cannot hold: OverflowError
 LIVE_PORTS = {5555, 5556, 5557, 5558, 5566, 8080, 8081, 8091, 8092, 8093, 8611, 18481, 18482, 18741, 17710, 17810,
@@ -79,3 +81,32 @@ def test_a_huge_integer_mid_segment_stops_at_that_step_and_keeps_the_bridge_sess
         assert domain.reset_stop()["ok"] is True and domain.gate.latched is None
     finally:
         domain.close()
+
+
+# ---------------------------------------------------- 4. the fleet's refusal names no tool
+def test_the_fleet_refusal_for_a_stopped_robot_matches_the_runtime_and_names_no_tool(tmp_path):
+    from cascade.apps.fleet_mcp import FleetMcpServer
+    from cascade.robotics.fleet import FleetRuntime
+
+    fake = FakeBridge(walk_script(2))
+    humanoid = composed_runtime(fake, tmp_path / "g1")
+    robot = humanoid.cfg.robot_id
+    fleet = FleetRuntime({robot: humanoid})
+    output = queue.Queue()
+    server = FleetMcpServer(fleet, output.put, max_workers=2)
+    try:
+        humanoid.execute("emergency_stop", {})
+        own = humanoid.execute("carry.carry_object", CARRY)["error"]  # the composed runtime's own refusal
+        assert own == "ValueError: robot stopped: ask the operator to clear the stop"
+        assert fleet.stop(robot)["ok"]
+        direct = fleet.execute(robot, "carry.carry_object", CARRY)
+        assert direct == {"robot_id": robot, "ok": False, "error": own.removeprefix("ValueError: ")}
+        server.accept({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {
+            "name": "fleet.execute", "arguments": {"robot_id": robot, "episode_id": humanoid.episode_id,
+                                                   "tool": "carry.carry_object", "arguments": CARRY}}})
+        reply = json.loads(output.get(timeout=5)["result"]["content"][-1]["text"])
+        assert reply["ok"] is False and reply["error"] == own.removeprefix("ValueError: ")
+        assert "reset_stop" not in json.dumps(direct) and "reset_stop" not in reply["error"]
+        assert fake.segments == [] and humanoid.domains["carry"].runtime.gate.latched is not None
+    finally:
+        assert server.close()["complete"]

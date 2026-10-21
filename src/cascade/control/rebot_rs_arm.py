@@ -15,7 +15,17 @@ SocketCAN can0 @ 1 Mbps), but with the rig-verified fixes this SDK lacks:
   Opt-in `gripper.max_contact_squeeze_rad` (B38) caps the squeeze past the
   first contact (robstride.close_two_stage_capped, mechPos-only stall).
 - Latched motor faults are cleared on connect, before enable (the SDK's
-  enable does not; see robstride.clear_motor_faults).
+  enable does not; see robstride.clear_motor_faults). That clear is a STOP
+  frame (no torque), so a connect to an arm an earlier session's teardown
+  left powered and holding is refused before the bus is opened, until an
+  operator confirms they support it (control/arm_hold.py). With no hold
+  marker, connect still measures the arm first (mechPos parameter reads
+  only) and refuses the same way when it is not folded at rest: motors an
+  earlier process left ENABLED (killed, an older version) may hold it, and
+  no RobStride read reports the enable state itself. The measurement comes
+  before the SDK's `mode_mit()` too: motorbridge's `ensure_mode` (v0.5.6)
+  DISABLES a motor whose run mode is not MIT, or does not answer, before it
+  writes the mode.
 - This driver streams MIT commands itself at the harness's 50 Hz. It never
   starts the SDK's RebotArmEndPose 500 Hz loop, whose _loop_cb re-sends its
   own _q_target every 2 ms and so overwrites any direct send_mit (WRC rig
@@ -40,6 +50,7 @@ import numpy as np
 
 from ..config import Cfg
 from ..types import RobotState
+from . import arm_hold
 from .arm_base import ArmBase
 from .robstride import (
     UnsafeReading,
@@ -128,7 +139,67 @@ class RebotRSArm(ArmBase):
 
     # ── lifecycle ────────────────────────────────────────────────────────
 
+    #: Its connect clears motor faults with a STOP frame: a held arm drops
+    #: (control/arm_hold.py), so that connect refuses over a hold.
+    connect_cuts_torque = True
+
+    @property
+    def hold_key(self) -> str | None:
+        """The bus the SDK opens for this arm: the `channel` of its hardware
+        YAML (`hw_yaml`), the profile's own `channel` only when that file
+        cannot be read. The bus its hold marker names."""
+        key = getattr(self, "_hold_key_cache", None)
+        if key is None:
+            key = arm_hold.hold_key("rebot_rs", getattr(self, "_cfg", None))
+            self._hold_key_cache = key
+        return key
+
+    def _park_q(self) -> np.ndarray:
+        park = self._cfg.get("park_q")
+        return np.asarray(park if park is not None else np.zeros(self.n_joints), dtype=float)
+
+    def _rest_reading(self, grp) -> list:
+        """Every arm joint's mechPos by parameter read (type 17: no frame
+        that changes a motor's torque), None for one that did not answer.
+        Taken before anything that may cut torque; `arm_hold.rest_problem`
+        judges it (a non-finite or far reading is not the rest)."""
+        out = []
+        with self._lock:
+            for m in self._motors(grp)[: self.n_joints]:
+                try:
+                    out.append(float(m.robstride_get_param_f32(MECH_POS)))
+                except Exception:  # noqa: BLE001 -- no answer: judged unread (fail closed)
+                    out.append(None)
+        return out
+
+    @staticmethod
+    def _release_bus(arm) -> None:
+        """Release the SDK's bus handles WITHOUT its `disconnect()`, which
+        disables every motor (`disable_all` + the controller's `shutdown`):
+        motorbridge's `close_bus()` + `close()` send no frame."""
+        for ctrl in list(getattr(arm, "_ctrl_map", {}).values()):
+            try:
+                ctrl.close_bus()
+            except Exception:  # noqa: BLE001 -- the handle is freed below either way
+                pass
+            finally:
+                try:
+                    ctrl.close()
+                except Exception:  # noqa: BLE001
+                    pass
+
     def connect(self) -> None:
+        # Everything below ends in clear_motor_faults, a STOP frame that cuts
+        # torque: an arm an earlier session left holding is refused before
+        # the SDK opens the bus (#424 review Important 1), and a raised one
+        # (no marker: a killed process, an older version) right after it
+        # opened, on parameter reads alone (#426 review Important 1). The
+        # operator's confirmation is used, and the marker cleared, only when
+        # this connect succeeds (#426 review Important 3).
+        with arm_hold.ConnectGate(self.hold_key, driver="rebot_rs") as gate:
+            self._connect(gate)
+
+    def _connect(self, gate) -> None:
         try:
             from reBotArm_control_py.actuator import RebotArm
         except ImportError as e:
@@ -138,8 +209,13 @@ class RebotRSArm(ArmBase):
             ) from e
         hw_yaml = self._cfg.get("hw_yaml", "rebotarm_rs.yaml")
         arm = RebotArm(hw_yaml)
-        arm.connect()
+        arm.connect()  # opens the bus and registers the motors: no frame yet
         grp = arm.arm
+        try:
+            gate.require_rest(self._rest_reading(grp), self._park_q())
+        except BaseException:
+            self._release_bus(arm)
+            raise
         kp = self._cfg.get("mit_kp")
         kd = self._cfg.get("mit_kd")
         self._mit_kp = np.asarray(kp, dtype=float) if kp is not None else grp._mit_kp.copy()

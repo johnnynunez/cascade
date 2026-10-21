@@ -30,9 +30,10 @@ import re
 SCHEMA = 1
 
 #: tools a harness may neither guide nor name: raw joint/jog motion, history rewrites, the
-#: scene reset the agent never runs on its own, the stop tool and the throw
+#: scene reset the agent never runs on its own, the stop tool, the throw, and clearing a safety
+#: stop latch (composed robots' ``reset_stop``: only an operator clears a stop)
 LOCKED_TOOLS = frozenset({"rotate_joint", "move_relative", "undo_move", "reset_scene",
-                          "halt_motion", "throw"})
+                          "halt_motion", "throw", "reset_stop"})
 
 RULES_MAX = 12
 RULE_MAX_CHARS = 240
@@ -208,7 +209,7 @@ class AgentHarness:
         if len(self.tool_guidance) > GUIDANCE_MAX_TOOLS:
             out.append(f"guidance for {len(self.tool_guidance)} tools > {GUIDANCE_MAX_TOOLS}")
         for tool, text in self.tool_guidance:
-            if tool in LOCKED_TOOLS:
+            if tool in LOCKED_TOOLS or tool.rsplit(".", 1)[-1] in LOCKED_TOOLS:
                 out.append(f"guidance for locked tool {tool}")
             elif tool not in tools:
                 out.append(f"guidance for unknown tool {tool}")
@@ -227,6 +228,8 @@ class AgentHarness:
             if not s.body or len(s.body) > SKILL_BODY_MAX_CHARS:
                 out.append(f"skill {s.name}: body must be 1-{SKILL_BODY_MAX_CHARS} characters")
         texts = list(self.rules) + [t for _, t in self.tool_guidance] + [s.body for s in self.skills]
+        # composed robots namespace their tools (`carry.carry_object`); advice may use the local name
+        local_names = {name.rsplit(".", 1)[-1] for name in tools}
         for text in texts:
             for ident in set(_IDENT.findall(text)):
                 if ident in LOCKED_TOOLS:
@@ -235,7 +238,7 @@ class AgentHarness:
                                      "_home", "_rest", "_done", "_step", "_memory", "_grasp",
                                      "_place", "_observation", "_objects", "_view", "_color",
                                      "_arms", "_joint", "_relative", "_move", "_screw", "_near_object")) \
-                        and ident not in tools:
+                        and ident not in tools and ident not in local_names:
                     out.append(f"names a tool this rig does not offer: {ident}")
             out.extend(lint_text(text))
         return out

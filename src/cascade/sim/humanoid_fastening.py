@@ -8,12 +8,14 @@ upload_zero, advance), so the unchanged ``FactorySolveOwner``,
 threading) drive and judge the humanoid exactly as they judge the SO-101.
 
 Mapping onto the existing contract:
-- ``joint_names``: every position-controlled humanoid joint (arm follower,
-  waist, cosmetic fingers, held legs/left arm), checked every solve;
-- "spindle": the turning RIGHT WRIST ROLL, a torque-controlled joint. Its
-  commanded and solved effort are the spindle effort channels, so a stop is an
-  exact-zero wrist torque and rest requires it to be exactly zero;
+- ``joint_names``: every position-controlled humanoid joint (whole-arm turn
+  table, waist, gripping fingers, held legs/left arm), checked every solve;
+- "spindle": the RIGHT WRIST ROLL, the one torque-controlled joint of the turn.
+  Its commanded and solved effort are the spindle effort channels, so a stop is
+  an exact-zero wrist-roll torque and rest requires it to be exactly zero;
 - tool: the hand-held driver; tool contacts = solved nut/hex-wall pairs only.
+  The grasp is solved finger/palm-to-handle contact, an allowed (never a
+  witness) contact pair; a hand contact with the nut, bolt or table is forbidden.
 """
 from __future__ import annotations
 
@@ -23,10 +25,15 @@ import json
 from pathlib import Path
 import time
 
+import math
+
 import numpy as np
 
 from ..control.fastening import FasteningBinding, FasteningFault, FasteningLimits, FasteningSolve
 from .factory_observation import _ZeroLoadPairs, collision_coverage, contact_records, world_aabb
+from .newton_humanoid_screw import (
+    GRASP, GRIP_FRICTION, GRIP_SQUEEZE_RAD, GRIP_X_M, HANDLE_LENGTH_M, HANDLE_RADIUS_M, rot_xyzw,
+)
 
 TOOL_ID = 'g1_hand_held_hex_driver'
 FASTENER_ID = 'factory_nut_m20_loose'
@@ -41,6 +48,12 @@ MOVING_BODIES = ('right_shoulder_pitch_link', 'right_shoulder_roll_link', 'right
                  'right_wrist_yaw_link', 'right_hand_thumb_0_link', 'right_hand_thumb_1_link',
                  'right_hand_thumb_2_link', 'right_hand_middle_0_link', 'right_hand_middle_1_link',
                  'right_hand_index_0_link', 'right_hand_index_1_link')
+# Per-stroke grasp acceptance (defined before the runs): each of thumb, index and
+# middle carries >= 15 % of the summed grip normal force and is in loaded contact
+# on >= 95 % of the stroke's solves; otherwise the stroke is a failed grasp.
+MIN_FINGER_SHARE = .15
+MIN_CONTACT_FRACTION = .95
+GRIP_FINGERS = ('thumb', 'index', 'middle')
 SOURCE_FILES = ('src/cascade/sim/newton_humanoid_screw.py', 'src/cascade/sim/humanoid_fastening.py')
 REPO = Path(__file__).resolve().parents[3]
 
@@ -49,10 +62,10 @@ def humanoid_limits(scene):
     """Explicit task budgets of this recipe; ThreadContract and rest rules are unchanged.
 
     Different from the SO-101 candidate (and why): joint speed 2 rad/s (the
-    humanoid's cosmetic finger re-grip; G1 joints are rated far faster), wrist
-    effort cap 1 N m (the turning joint; actuator rated 25 N m), and a 15 s /
-    120 s one-turn command budget, because the 3.9 rad wrist range needs a
-    re-grip inside one turn. Rest window/thresholds, observation age, tracking
+    finger re-grip and the whole-arm turn; G1 joints are rated far faster),
+    wrist-roll effort cap 1 N m (the spindle channel; actuator rated 25 N m),
+    and a 15 s / 120 s one-turn command budget, because the arm's reachable
+    rotation about the tool axis needs a re-grip inside one turn. Rest window/thresholds, observation age, tracking
     error, margin and the 10 rad/s rotational bound are the shared defaults.
     """
     return FasteningLimits(
@@ -73,9 +86,13 @@ def model_document(scene, *, sources=None):
         'robot_asset_sha256': hashlib.sha256(scene.robot_asset.read_bytes()).hexdigest(),
         'dt_s': scene.dt, 'thread_friction': scene.thread_friction,
         'socket_clearance_m': scene.socket_clearance_m, 'pelvis_world_m': list(scene.pelvis_world_m),
-        'wrist': {'kp': scene.roll_kp, 'kd': scene.roll_kd, 'limit_nm': scene.motor_limit_nm,
-                  'low': scene.roll_low, 'high': scene.roll_high, 'stroke_rad_s': scene.stroke_speed_rad_s,
-                  'return_rad_s': scene.return_speed_rad_s},
+        'wrist_roll': {'kp': scene.roll_kp, 'kd': scene.roll_kd, 'limit_nm': scene.motor_limit_nm},
+        'turn': {'stroke_low_rad': scene.stroke_low, 'stroke_high_rad': scene.stroke_high,
+                 'stroke_rad_s': scene.stroke_speed_rad_s, 'return_rad_s': scene.return_speed_rad_s,
+                 'table_sha256': scene.table_sha256, 'max_dq_dphi': scene.max_dq_dphi},
+        'grasp': {'kind': GRASP, 'synthesis': scene.grasp, 'handle_radius_m': HANDLE_RADIUS_M,
+                  'grip_x_m': GRIP_X_M, 'friction': GRIP_FRICTION, 'squeeze_rad': GRIP_SQUEEZE_RAD,
+                  'grip': scene.grip},
         'joint_names': list(scene.joint_names), 'shape_labels': list(scene.model.shape_label),
         'body_labels': list(scene.model.body_label), 'sources': sources,
     }
@@ -86,11 +103,12 @@ def humanoid_binding(scene, limits, document):
     name = {key: labels[index] for key, index in scene.shape.items()}
     walls = tuple((name['nut'], name[f'socket_wall_{i}']) for i in range(6))
     thread = (name['bolt'], name['nut'])
+    grasp = tuple((name['driver_handle'], labels[s]) for shapes in scene.grip_shapes.values() for s in shapes)
     return FasteningBinding(
         model_sha256=hashlib.sha256(json.dumps(document, sort_keys=True, separators=(',', ':')).encode()).hexdigest(),
         limits_sha256=limits.sha256, robot_id='unitree_g1_29dof_dex3_wrist_driver', fixture_id=FIXTURE_ID,
         fastener_id=FASTENER_ID, tool_id=TOOL_ID, joint_names=scene.joint_names, collider_names=labels,
-        allowed_contact_pairs=(thread, *walls, (name['nut'], name['socket_floor'])),
+        allowed_contact_pairs=(thread, *walls, (name['nut'], name['socket_floor']), *grasp),
         thread_contact_pair=thread, tool_contact_pairs=walls, dt_s=scene.dt,
         fixture_origin_m=tuple(map(float, scene.fixture_position)), fixture_recipe=scene.fixture_recipe,
         thread_pitch_m=scene.pitch_m)
@@ -108,9 +126,9 @@ class HumanoidGeometry:
             raise FasteningFault('no moving arm geometry to bound')
         self.local = np.asarray(m.geom_aabb[self.geoms], dtype=float)
         self.qpos_index = {name: int(m.joint(name).qposadr[0]) for name in (*scene.joint_names, 'right_wrist_roll_joint')}
-        # Driver colliders in the driver frame: six hex walls and the socket floor.
-        radius = .015 + scene.socket_clearance_m + .003 + .003
-        top = .008 + scene.floor_gap_m + .015
+        # Driver colliders in the driver frame: six hex walls, socket floor and handle.
+        radius = max(.015 + scene.socket_clearance_m + .003 + .003, HANDLE_RADIUS_M)
+        top = scene._handle_z() + HANDLE_LENGTH_M / 2
         self.tool_local = np.array([[0., 0., (top - .010) / 2, radius, radius, (top + .010) / 2]])
 
     def evaluate(self, joint_values, roll, tool_pose):
@@ -121,7 +139,6 @@ class HumanoidGeometry:
         d.qpos[self.qpos_index['right_wrist_roll_joint']] = roll
         self.scene.mujoco.mj_kinematics(m, d)
         arm = world_aabb(self.local, d.geom_xpos[self.geoms], d.geom_xmat[self.geoms].reshape(-1, 3, 3))
-        from .newton_humanoid_screw import rot_xyzw
         tool = world_aabb(self.tool_local, np.asarray(tool_pose[:3])[None], rot_xyzw(tool_pose[3:])[None])
         return (tuple(min(a, b) for a, b in zip(arm[0], tool[0])),
                 tuple(max(a, b) for a, b in zip(arm[1], tool[1])))
@@ -193,7 +210,7 @@ class HumanoidFasteningBackend:
             # joints (the guard limits the first step from them) and resumes the wrist
             # routine from the measured wrist angle.
             s.targets = np.asarray(row.joint_position_rad, dtype=float)
-            s.program.start(s.roll_state()[0], s.time_s)
+            s.program.start(s.phi_state()[0], s.time_s)
             self._resume = False
         targets, torque = s.plan()
         tool_pose = s.state.body_q.numpy()[s.tool_body]
@@ -258,9 +275,10 @@ class HumanoidFasteningBackend:
         raw = {'solve': solve, 'contact_candidates': len(pairs), 'loaded_contacts': loaded_pairs,
                'upload': asdict(stamp), 'collision_buffers': coverage,
                'constraint_count': int(d.nefc.numpy()[0]), 'constraint_capacity': int(d.njmax),
-               'program': {'phase': s.program.phase, 'hand': s.program.hand, 'roll_ref': s.program.roll_ref,
+               'program': {'phase': s.program.phase, 'hand': s.program.hand, 'phi_ref': s.program.roll_ref,
                            'strokes': s.program.strokes, 'regrips': s.program.regrips},
-               'grasp_weld_enabled': bool(s.grasp_enabled), 'wrist_roll_rad': float(q[s._roll_q_index]),
+               'wrist_roll_rad': float(q[s._roll_q_index]), 'hand_phi_rad': s.phi_state()[0],
+               'nut_turns_unwrapped': -s._unwrapped / (2 * math.pi), **s.grip_record(),
                'socket_floor_load_n': float(sum(p.normal_force_n for p in pairs
                    if tuple(sorted((p.collider_a, p.collider_b))) == self.floor_pair)),
                'tool_wall_load_n': float(sum(p.normal_force_n for p in pairs
@@ -269,3 +287,53 @@ class HumanoidFasteningBackend:
                    if tuple(sorted((p.collider_a, p.collider_b))) == self.binding.thread_contact_pair)),
                'body_poses_xyzw': poses.tolist() if s.step_id % self.pose_every == 0 else None}
         return row, raw
+
+
+def stroke_grip_stats(rows):
+    """Per-stroke grip forces, slip and transmitted torque from recorded solves (no physics).
+
+    ``rows`` are dicts with ``phase``, ``time_s``, ``forces`` and ``contacts`` (per
+    finger: thumb, index, middle, palm), ``torque_nm`` (hand on driver about the
+    tightening axis), ``relative_rad`` (driver angle in the hand), ``phi_rad``
+    (hand rotation about the tool axis) and ``nut_turns`` (tightening positive).
+    Slip is the driver's rotation lag behind the hand while the stroke grips.
+    """
+    strokes, current = [], []
+    for row in list(rows) + [None]:
+        if row is not None and row['phase'] == 'stroke':
+            current.append(row)
+            continue
+        if len(current) > 1:
+            strokes.append(current)
+        current = []
+    out = []
+    for index, stroke in enumerate(strokes, 1):
+        n = len(stroke)
+        forces = {f: [r['forces'][f] for r in stroke] for f in (*GRIP_FINGERS, 'palm')}
+        total = [sum(r['forces'][f] for f in (*GRIP_FINGERS, 'palm')) for r in stroke]
+        mean_total = sum(total) / n
+        fingers = {}
+        for f in (*GRIP_FINGERS, 'palm'):
+            values = sorted(forces[f])
+            fingers[f] = {'mean_n': sum(values) / n, 'p05_n': values[int(.05 * (n - 1))], 'max_n': values[-1],
+                          'share': (sum(values) / n) / mean_total if mean_total > 0 else 0.,
+                          'contact_fraction': sum(r['contacts'][f] > 0 for r in stroke) / n}
+        phi = stroke[-1]['phi_rad'] - stroke[0]['phi_rad']
+        slip = -(stroke[-1]['relative_rad'] - stroke[0]['relative_rad'])
+        torques = [r['torque_nm'] for r in stroke]
+        ok = all(fingers[f]['share'] >= MIN_FINGER_SHARE and fingers[f]['contact_fraction'] >= MIN_CONTACT_FRACTION
+                 for f in GRIP_FINGERS)
+        out.append({'stroke': index, 'start_s': stroke[0]['time_s'], 'duration_s': stroke[-1]['time_s'] - stroke[0]['time_s'],
+                    'hand_rotation_rad': phi, 'nut_rotation_turns': stroke[-1]['nut_turns'] - stroke[0]['nut_turns'],
+                    'slip_rad': slip, 'slip_fraction': slip / phi if abs(phi) > 1e-9 else None,
+                    'mean_total_normal_n': mean_total, 'fingers': fingers,
+                    'peak_torque_nm': max(torques, key=abs), 'mean_torque_nm': sum(torques) / n,
+                    'grasp_ok': ok})
+    return out
+
+
+def grip_row(phase, time_s, record, phi, nut_turns):
+    """Normalise a recorded solve (route raw row or standalone sample) for ``stroke_grip_stats``."""
+    return {'phase': phase, 'time_s': time_s, 'forces': record['grip_normal_force_n'],
+            'contacts': record['grip_contacts'], 'torque_nm': record['grip_torque_nm'],
+            'relative_rad': record['hand_driver_angle_rad'], 'phi_rad': phi, 'nut_turns': nut_turns}

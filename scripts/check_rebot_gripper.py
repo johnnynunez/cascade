@@ -7,7 +7,9 @@ the gripper moves:
 
 1. Read every arm joint with NO motor enabled (the read-only path of
    scripts/diag_rebot_mb.py). The script refuses, with nothing energized,
-   unless every joint is within REST_TOL of park_q, the folded rest.
+   unless every joint is within REST_TOL of park_q, the folded rest. An arm
+   an earlier session's teardown left holding (cascade.control.arm_hold) is
+   released from its hold here: folded at rest, its torque drops nothing.
 2. Connect the `rebot_rs` driver. The arm joints are held where they are
    measured, with torque on (checked against park_q again). Then nothing
    has moved, and releasing torque at the end drops nothing.
@@ -146,10 +148,22 @@ def main(argv=None) -> int:
 
     cfg = load_demo_config(camera="mock", arm="rebot_rs", llm="mock")
     park = np.asarray(cfg.arm.get("park_q") or np.zeros(int(cfg.arm.n_joints)), dtype=float)
-    if not rests_unpowered(read_rest_pose(), park):
+    q = read_rest_pose()
+    if not rests_unpowered(q, park):
         return 2
+    # An earlier session's teardown may have left this arm powered and holding
+    # (cascade.control.arm_hold): measured folded at rest, its torque drops
+    # nothing, so the hold is cleared and the connect below may go ahead.
+    from cascade.control import arm_hold
+
+    arm_hold.clear_if_at_rest(arm_hold.hold_key("rebot_rs", cfg.arm), q, park, REST_TOL)
     arm = rebot_rs_arm.RebotRSArm(cfg.arm)
-    arm.connect()
+    try:
+        arm.connect()
+    except arm_hold.ArmHeldError as e:
+        # refused before any frame that can cut torque: say so, no traceback
+        print(f"[!] the arm was NOT connected: {e}")
+        return 2
     code = 1
     try:
         code = run(arm, park, reference_only=args.reference_only)
@@ -161,6 +175,10 @@ def main(argv=None) -> int:
             print("[+] torque released (the arm is folded at rest)")
         else:
             arm.stop()
+            # exits with the arm powered and holding: remembered for every
+            # later process (#426 review Important 1)
+            arm_hold.remember(arm.hold_key, arm="arm", source="check_rebot_gripper.py", log=print,
+                              reason="the startup check measured it off its rest after connecting: torque stays ON")
     return code
 
 

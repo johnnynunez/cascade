@@ -26,18 +26,33 @@ and scripts/jog_rebot_mb.py, the bring-up tools that established these):
   compact type-0x18 report frames that the generic `Motor.get_state()` path
   does not decode, and `robstride_set_active_report(True)` yields a single
   type-2 frame and then freezes.
-- Motors are LIMP after a clean bus shutdown -- not holding. `connect()`
-  therefore captures the live pose and preloads it as the MIT setpoint
-  BEFORE `enable_all()`, or the arm snaps from wherever it rests to whatever
-  setpoint the motors happened to hold.
+- `disconnect()` sends no disable frame: `close_bus()` + `close()` only
+  release the host's handle (scripts/diag_rebot_mb.py relies on the same).
+  Whether the motors then keep holding their last MIT command depends on the
+  firmware's CAN timeout, which is not verified on this rig, so teardown
+  treats this backend as one whose disconnect may cut torque
+  (`disconnect_cuts_torque`) and parks first. Motors that DID go limp
+  (powered off, disabled) hold nothing: `connect()` therefore captures the
+  live pose and preloads it as the MIT setpoint BEFORE `enable_all()`, or
+  the arm snaps from wherever it rests to whatever setpoint they held.
 - Fault bits LATCH across sessions (Seeed WRC rig, fault_raw=0x4 on every
   motor) and a faulted motor silently ignores MIT commands, so `connect()`
   clears them after the mode write and before enable
   (`robstride.clear_motor_faults`).
 - Reconnecting to an arm a previous session left ENABLED (the bring-up scripts
-  leave torque on by design) fails on the run-mode write -- 0x7005 never
-  answers -- while position reads keep working. `connect()` recovers by
-  dropping torque once, which is why it can only be called on a parked arm.
+  leave torque on by design): before anything that can cut torque, connect
+  reads every joint's mechPos (parameter reads only) and refuses, releasing
+  the bus, unless the arm is folded at rest or an operator confirmed at that
+  moment that they support it (control/arm_hold.py). No RobStride read
+  reports the enable state itself; a disabled raised arm falls to its rest,
+  so a raised one may be held. That read comes before the mode write too:
+  motorbridge's `ensure_mode` (v0.5.6) reads the run mode, returns when it is
+  already MIT (so a held MIT arm passes it unnoticed), and otherwise, or when
+  the read fails, DISABLES the motor before writing the mode. Older
+  motorbridge failed the mode write on an enabled motor (0x7005 never
+  answered); `connect()` then drops torque once, only on that confirmation.
+  A connect over a hold marker (an earlier teardown kept this arm powered)
+  is refused before the bus is opened.
 - The gripper's travel was measured at ~0..+6.39 rad, closed at 0. That is
   the OPPOSITE polarity to the DM-derived numbers in `configs/arms/rebot_rs.yaml`
   (open -6.8), which is why this profile ships its own gripper block. Commanding
@@ -62,6 +77,7 @@ import numpy as np
 
 from ..config import Cfg
 from ..types import RobotState
+from . import arm_hold
 from .arm_base import ArmBase
 from .robstride import (
     UnsafeReading,
@@ -141,7 +157,43 @@ class RebotRSMotorBridgeArm(ArmBase):
 
     # ── lifecycle ────────────────────────────────────────────────────────
 
+    #: Its connect clears motor faults with a STOP frame: a held arm drops
+    #: (control/arm_hold.py), so that connect refuses over a hold.
+    connect_cuts_torque = True
+
+    @property
+    def hold_key(self) -> str | None:
+        """This arm's CAN channel: the bus its hold marker names (the same
+        arm as `rebot_rs`'s, whichever transport connects it next)."""
+        return arm_hold.hold_key("rebot_rs_mb", getattr(self, "_cfg", None))
+
+    def _rest_reading(self, motors) -> list:
+        """Every arm joint's mechPos (local convention) by parameter read
+        (type 17: no frame that changes a motor's torque), None for one that
+        did not answer; `arm_hold.rest_problem` judges it."""
+        out = []
+        with self._lock:
+            for mid, sign in zip(self._joint_ids, self._wire):
+                try:
+                    x = float(motors[mid].robstride_get_param_f32(MECH_POS, self._read_timeout_ms))
+                except Exception:  # noqa: BLE001 -- no answer: judged unread (fail closed)
+                    out.append(None)
+                    continue
+                out.append(x * float(sign))
+        return out
+
     def connect(self) -> None:
+        # The mode write (motorbridge v0.5.6 disables a motor whose run mode
+        # is not MIT), its fallback and the fault clear below all cut torque:
+        # an arm an earlier session left holding is refused before the bus is
+        # opened (#424 review Important 1), a raised one right after it opened
+        # on parameter reads alone (#426 review Important 1). The operator's
+        # confirmation is used, and the marker cleared, only when this
+        # connect succeeds (#426 review Important 3).
+        with arm_hold.ConnectGate(self.hold_key, driver="rebot_rs_mb") as gate:
+            self._connect(gate)
+
+    def _connect(self, gate) -> None:
         try:
             from motorbridge import Controller, Mode
         except ImportError as e:
@@ -162,20 +214,36 @@ class RebotRSMotorBridgeArm(ArmBase):
                 motors[mid] = ctrl.add_robstride_motor(
                     motor_id=mid, feedback_id=self._host_id, model=self._model
                 )
+            # Where the arm is, by parameter reads alone, before the mode
+            # write: a raised arm (no marker) is refused here, unconfirmed,
+            # into the bus release below.
+            park = self._cfg.get("park_q")
+            gate.require_rest(self._rest_reading(motors),
+                              park if park is not None else np.zeros(self.n_joints))
             try:
                 for m in motors.values():
                     m.ensure_mode(Mode.MIT)
             except Exception as e:
-                # A motor left ENABLED by a previous session rejects run-mode
-                # writes, so 0x7005 never comes back and a reconnect dies here
-                # while position reads still work fine. Torque must drop for the
-                # mode to take. The capture-then-enable below then hands the arm
-                # back whatever pose it has settled into.
+                # Older motorbridge: a motor left ENABLED by a previous
+                # session rejects run-mode writes, so 0x7005 never comes back
+                # (v0.5.6 disables the motor itself instead, before its write).
+                # Torque must drop for the mode to take, and that drops a
+                # raised arm: only on an operator's confirmation given at that
+                # moment (control/arm_hold.py), never on a printed warning
+                # alone. Without one this raises into the bus release below:
+                # nothing more is sent. The capture-then-enable below then
+                # hands the arm back whatever pose it has settled into.
+                if not gate.confirmed_now():
+                    raise arm_hold.ArmHeldError(
+                        f"the arm on {self.hold_key} looks ENABLED from an earlier session (its run-mode "
+                        f"write failed: {e}). Setting MIT mode needs its torque off, and a raised arm "
+                        "would drop: nothing more was sent (it measured folded at rest just before) and the "
+                        f"bus is released. {arm_hold.ASK_THE_OPERATOR}") from e
                 print(
                     f"[warn] ensure_mode failed ({e}).\n"
                     "[warn] The motors look enabled from an earlier session. "
-                    "Dropping torque for a moment to set MIT mode -- SUPPORT "
-                    "THE ARM if it is holding a load or is outstretched."
+                    "Dropping torque for a moment to set MIT mode on the operator's "
+                    "confirmation -- keep SUPPORTING THE ARM."
                 )
                 ctrl.disable_all()
                 time.sleep(0.2)
@@ -184,10 +252,12 @@ class RebotRSMotorBridgeArm(ArmBase):
 
             # Latched RobStride faults survive across sessions and a faulted
             # motor silently ignores MIT commands (WRC rig finding #1). The
-            # clear is a type-4 stop frame, so it is issued only now: the mode
-            # write above succeeded, which proves every motor is in reset, so
-            # it cannot drop a holding arm, and torque is not enabled yet. A
-            # clear that keeps failing raises into the bus-release path below.
+            # clear is a type-4 stop frame, issued only now, before torque is
+            # enabled: the arm measured folded at rest above (or an operator
+            # who supports it confirmed), so it drops nothing. (A succeeded
+            # mode write does NOT prove reset on motorbridge v0.5.6: a held
+            # motor already in MIT passes it.) A clear that keeps failing
+            # raises into the bus-release path below.
             clear_motor_faults(sorted(motors.items()))
 
             self._ctrl, self._motors = ctrl, motors
@@ -222,8 +292,10 @@ class RebotRSMotorBridgeArm(ArmBase):
             raise
 
     def disconnect(self) -> None:
-        """Release the bus. Does NOT torque off: a loaded arm would fall.
-        Park the arm (move_home) before calling this."""
+        """Release the bus: `close_bus()` + `close()`, no disable frame. Whether
+        the motors keep holding after that is the firmware's (its CAN
+        timeout, not verified here), so a loaded arm may still fall: park it
+        first (teardown does; `disconnect_cuts_torque` stays True)."""
         ctrl, self._ctrl = self._ctrl, None
         self._motors = {}
         if ctrl is not None:

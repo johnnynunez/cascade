@@ -1,10 +1,11 @@
 # Optional humanoid fastening fixture: a Unitree G1 (29 DoF + Dex3 hands, the
-# newton-assets MJCF) tightens the pre-engaged Factory M20 nut with a hand-held
-# hex driver by rolling its right wrist, re-gripping between strokes. Same
-# fastening.turn_screw tool and unchanged FasteningDomain verifier as
-# factory_m20_mounted. Simplifications (pelvis fixed, weld grasp, no robot link
-# collisions, gravity-compensation feed-forward, driver pre-mounted) and
-# results: docs/HUMANOID_FASTENING.md.
+# newton-assets MJCF) holds a vertical hex driver from above with a three-finger
+# contact grasp (thumb opposing index + middle, no weld) and tightens the
+# pre-engaged Factory M20 nut by turning the hand about the driver axis with the
+# whole arm, re-gripping between strokes. Same fastening.turn_screw tool and
+# unchanged FasteningDomain verifier as factory_m20_mounted. Simplifications
+# (pelvis fixed, no robot link collisions except the right hand, gravity-
+# compensation feed-forward, driver pre-engaged) and results: docs/HUMANOID_FASTENING.md.
 #
 # Discovery is passive. Build refuses until an owned preparation pins the exact
 # model identity and selects an explicit CUDA device; neither grants admission.

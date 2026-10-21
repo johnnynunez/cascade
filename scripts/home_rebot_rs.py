@@ -39,7 +39,11 @@ What it does, in order, and why:
 
 If it stops with the arm raised: support the arm, press the e-stop and lower
 it by hand. Do NOT reconnect anything while it is raised: connect() clears
-latched motor faults with a stop frame that cuts torque.
+latched motor faults with a stop frame that cuts torque. Every such stop is
+remembered (cascade.control.arm_hold, a hold marker on the arm's bus): the
+next start, arm-check or calibrate refuses to connect the arm until an
+operator supports it and confirms, or the startup check measures it folded
+at rest. Over such a hold this script refuses before it connects anything.
 
 Usage (motorbridge-gateway / Studio closed; can0 up; operator at the e-stop):
 
@@ -81,6 +85,13 @@ WARMUP_FRAMES = 10
 
 def _fmt(q) -> str:
     return "[" + " ".join(f"{v:+.3f}" for v in q) + "]"
+
+
+def _hold_key(safe) -> str | None:
+    """The bus a hold marker names for the arm behind `safe` (None: a
+    backend never held, e.g. the dry run's MockArm)."""
+    key = getattr(getattr(safe, "raw", None), "hold_key", None)
+    return key if isinstance(key, str) and key else None
 
 
 class CameraHeartbeat:
@@ -215,6 +226,15 @@ def home_and_back(safe, kin, home, park, *, hold_s: float, log=print, pace_s=0.0
         safe.disconnect()
         return 1
 
+    def remember_hold(why):
+        # The process exits with the arm powered and holding: every later
+        # process must know (#426 review Important 1), or the next connect's
+        # fault clear (a STOP frame) drops it.
+        from cascade.control import arm_hold
+
+        arm_hold.remember(_hold_key(safe), arm="arm", reason=f"arm-check (home_rebot_rs.py): {why}",
+                          source="home_rebot_rs.py", log=log)
+
     def soft_stop(why, held="the last commanded pose"):
         try:
             safe.stop()
@@ -223,6 +243,7 @@ def home_and_back(safe, kin, home, park, *, hold_s: float, log=print, pace_s=0.0
         log(f"[!] {why}: holding {held}, torque ON; nothing else will be "
             "commanded. Support the arm, then e-stop and lower it by hand. Do NOT reconnect "
             "while it is raised (connect() clears faults with a torque-off frame).")
+        remember_hold(why)
         return 1
 
     try:
@@ -241,6 +262,7 @@ def home_and_back(safe, kin, home, park, *, hold_s: float, log=print, pace_s=0.0
         qe = np.asarray(safe.get_state().q, dtype=float)
         if float(np.max(np.abs(qe - park))) > TRACK_TOL:
             log(f"[!] not measured at rest ({_fmt(qe)}); torque stays ON.")
+            remember_hold(f"not measured at rest after the way down ({_fmt(qe)}): torque stays ON")
             return 1
         safe.disconnect()
         log(f"[+] back at rest {_fmt(qe)}; torque released (the arm rests on its stops).")
@@ -304,12 +326,23 @@ def main(argv=None, *, build=None, make_camera=None) -> int:
             return 1
         log(f"[+] camera {args.camera!r} live; its frames feed the watchdog")
 
-        if build is None:
-            start_q = (None if args.start_q is None
-                       else [float(v) for v in args.start_q.split(",")])
-            _raw, safe, kin = _default_build(cfg, args.dry_run, start_q)
-        else:
-            _raw, safe, kin = build(cfg, args.dry_run)
+        from cascade.control.arm_hold import ArmHeldError
+
+        try:
+            if build is None:
+                start_q = (None if args.start_q is None
+                           else [float(v) for v in args.start_q.split(",")])
+                _raw, safe, kin = _default_build(cfg, args.dry_run, start_q)
+            else:
+                _raw, safe, kin = build(cfg, args.dry_run)
+        except ArmHeldError as e:
+            # Refused before any frame that can cut torque (#426 review
+            # Minor 7: a clean message, not a traceback).
+            log(f"[!] the arm was NOT connected: {e}")
+            log("[!] Support the arm. Folded at rest, `~/cascade-demo.sh up`'s startup check clears the "
+                "hold; or hold it, confirm at this terminal (python scripts/arm_hold.py confirm) and run "
+                "this again within 2 min.")
+            return 3
         h = safe.harness
         if args.max_vel > h.limits.max_joint_vel:
             log(f"[!] --max-vel {args.max_vel} would LOOSEN the profile's cap "

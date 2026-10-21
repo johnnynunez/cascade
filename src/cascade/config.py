@@ -421,6 +421,9 @@ def load_robot_config(robot: str, *, llm: str = "mock", config_dir: Path | None 
         elif kind == "hand":
             from .apps.hand_runtime import validate_hand_profile
             validate_hand_profile(profile)
+        elif kind == "humanoid_locomanip":
+            from .skills.humanoid_locomanip import validate_profile
+            validate_profile(profile)
         elif kind not in {"sensors", "spatial"}:
             raise ValueError(f"unknown robot domain kind: {kind!r}")
         profile.setdefault("robot_id", data["robot_id"])

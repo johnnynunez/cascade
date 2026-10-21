@@ -200,12 +200,15 @@ def _cleanup(rig: Rig | None, *, park: bool) -> None:
     the watchdog first -- only if one actually arrives; with a dead camera
     the harness refuses the park, as it does in the runtime, and then the
     arm stays powered and holding (the runtime's rule, `apps.demo
-    ._arms_to_hold`): torque off would drop it where it stopped."""
+    ._arms_to_hold`): torque off would drop it where it stopped. That hold is
+    remembered like the runtime's (`apps.demo._record_holds`, a marker per
+    held arm): the next calibrate, arm-check or start refuses to connect the
+    arm until an operator supports it and confirms (#426 review Important 1)."""
     if rig is None:
         return
     from types import SimpleNamespace
 
-    from ..apps.demo import _announce_held, _arms_to_hold, _park_arm
+    from ..apps.demo import _announce_held, _arms_to_hold, _park_arm, _record_holds
     from ..perception.freshness import observed_at
 
     held = {}
@@ -217,7 +220,9 @@ def _cleanup(rig: Rig | None, *, park: bool) -> None:
             print(f"[calib] no camera frame before park ({e}); the watchdog may refuse it")
         parked = _park_arm(SimpleNamespace(arm=rig.safe_arm))
         held = _arms_to_hold(SimpleNamespace(arm_rig=None), rig.raw_arm, parked)
-        _announce_held(held)
+        raws = {"arm": rig.raw_arm}
+        _announce_held(held, raws)
+        _record_holds(raws, held, source="calibrate")
     if not held:
         try:
             rig.raw_arm.disconnect()

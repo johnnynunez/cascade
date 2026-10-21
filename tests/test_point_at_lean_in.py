@@ -1868,18 +1868,34 @@ def test_each_core_class_is_timed_on_that_class(monkeypatch):
     """Each class's time is the probe on one of its cores (a helper thread
     pinned there), never on the caller's core: here only the last core is
     fast, and the caller may run anywhere. (No capacity classes here, as on
-    an x86 host: every core is a class of its own.)"""
+    an x86 host: one class per kind of core, `core_speed._kinds`, each timed
+    by ONE helper on one of its cores, #429 review Minor 4.)"""
+    import threading
+
     from cascade import core_speed
     from cascade.skills import pointing
 
     fast = max(os.sched_getaffinity(0))
     monkeypatch.setattr(core_speed, "_capacities", lambda cpus: None)
+    monkeypatch.setattr(core_speed, "_kinds", lambda cpus: {c: ("p", 2) if c == fast else ("e", 1) for c in cpus})
     monkeypatch.setattr(core_speed, "SEARCH_S", 30.0)
     monkeypatch.setattr(pointing, "class_factors", _CLASS_FACTORS)
     monkeypatch.setattr(pointing, "_speed_probe_s", lambda: 1e-3 if os.sched_getaffinity(0) == {fast} else 3e-3)
     monkeypatch.setattr(pointing, "_CLASSES", {})
+    real_start, helpers = threading.Thread.start, []
+
+    def start(self):
+        if self.name == "core-speed-probe":
+            helpers.append(self)
+        return real_start(self)
+
+    monkeypatch.setattr(threading.Thread, "start", start)
     factors = pointing.class_factors()
+    for helper in helpers:
+        helper.join(5.0)
     assert factors[fast] == 1.0 and {f for cpu, f in factors.items() if cpu != fast} == {3.0}, factors
+    assert set(factors) == set(os.sched_getaffinity(0)), "every core of a timed class has its factor"
+    assert len(helpers) == 2, f"one helper per kind of core, not per core: {len(helpers)}"
 
 
 @pytest.mark.skipif(not hasattr(os, "sched_setaffinity"), reason="Linux: per-thread CPU affinity")

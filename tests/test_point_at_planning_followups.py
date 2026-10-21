@@ -319,7 +319,66 @@ def test_the_search_order_is_one_class_per_capacity_fastest_first(monkeypatch):
     monkeypatch.setattr(core_speed, "_capacities", lambda cpus: {c: caps[c] for c in cpus})
     assert core_speed._search_order({0, 1, 2, 3, 4, 5}) == [[2], [3, 4], [5], [0, 1]]
     monkeypatch.setattr(core_speed, "_capacities", lambda cpus: None)
-    assert core_speed._search_order({3, 0, 2}) == [[0], [2], [3]]      # no classes: every core
+    kinds = {0: ("a725", 2808000), 2: ("x925", 3900000), 3: ("a725", 2808000)}
+    monkeypatch.setattr(core_speed, "_kinds", lambda cpus: {c: kinds[c] for c in cpus})
+    assert core_speed._search_order({3, 0, 2}) == [[2], [0, 3]]        # no capacities: one class per kind of core
+
+
+#: /proc/cpuinfo, one block per logical core: an x86 host's (`cpu MHz`, its clock now, differs from core to core),
+#: and an arm64 host's (the A725 is part 0xd87, the X925 0xd85)
+_CPUINFO_BLOCKS = {
+    "x86": lambda n: ("processor\t: {n}\nvendor_id\t: GenuineIntel\ncpu family\t: 6\nmodel\t\t: 151\n"
+                      "model name\t: 12th Gen Intel(R) Core(TM) i9-12900K\nstepping\t: 2\ncpu MHz\t\t: {mhz}\n"
+                      "core id\t\t: {n}\nflags\t\t: fpu vme\n").format(n=n, mhz=800.0 + 37.5 * n),
+    "arm64": lambda n: ("processor\t: {n}\nBogoMIPS\t: 2000.00\nFeatures\t: fp asimd\nCPU implementer\t: 0x41\n"
+                        "CPU architecture: 8\nCPU variant\t: 0x0\nCPU part\t: {part}\nCPU revision\t: 1\n"
+                        ).format(n=n, part="0xd87" if n < 4 else "0xd85"),
+}
+_A725, _X925 = "0x00000000410fd871", "0x00000000410fd851"
+
+#: host: ({cpu: (sysfs MIDR_EL1 or None, sysfs cpuinfo_max_freq or None)}, its /proc/cpuinfo, its classes)
+_KINDS_HOSTS = {
+    # the GB10 without cpu_capacity: Cortex-A725 and Cortex-X925 by MIDR, the X925 first (its higher clock)
+    "arm64_by_midr": ({c: (_A725 if c < 4 else _X925, 2808000 if c < 4 else 3900000) for c in range(8)}, None,
+                      [[4, 5, 6, 7], [0, 1, 2, 3]]),
+    # ... with no cpufreq (a VM, a kernel without it): MIDR alone tells them apart, in CPU-number order
+    "arm64_by_midr_no_cpufreq": ({c: (_A725 if c < 4 else _X925, None) for c in range(8)}, None,
+                                 [[0, 1, 2, 3], [4, 5, 6, 7]]),
+    # ... nor MIDR files (an older kernel): /proc/cpuinfo's CPU part does
+    "arm64_by_cpuinfo": ({c: (None, None) for c in range(8)}, "arm64", [[0, 1, 2, 3], [4, 5, 6, 7]]),
+    # an x86 hybrid: one model name, P-cores and E-cores told apart by their maximum clock
+    "x86_hybrid": ({c: (None, 5200000 if c < 4 else 3900000) for c in range(8)}, "x86", [[0, 1, 2, 3], [4, 5, 6, 7]]),
+    # an x86 VM (a Brev host): one model, no cpufreq: one class, timed once
+    "x86_vm": ({c: (None, None) for c in range(8)}, "x86", [list(range(8))]),
+    # nothing tells the cores apart: one class (no core counts as slower)
+    "nothing_readable": ({c: (None, None) for c in range(8)}, None, [list(range(8))]),
+}
+
+
+@pytest.mark.parametrize("host", list(_KINDS_HOSTS))
+def test_without_capacities_one_core_of_each_kind_is_timed(monkeypatch, tmp_path, host):
+    """#429 review Minor 4: without `cpu_capacity` (an x86 host) every core was a class of its own, timed one after
+    the other (~18 ms each: 20 cores took 0.37 s, and SEARCH_S covers ~55, so a large VM's first calls spent up to
+    1.2 s each, every 60 s until complete). The cores of one kind (one model: sysfs MIDR_EL1, else /proc/cpuinfo's
+    model fields; one maximum clock: cpufreq `cpuinfo_max_freq`) are one class now, the highest clock first, and
+    cores this host tells apart by neither are one class."""
+    from cascade import core_speed
+
+    cores, cpuinfo, classes = _KINDS_HOSTS[host]
+    for cpu, (midr, freq) in cores.items():
+        (tmp_path / "sys" / f"cpu{cpu}").mkdir(parents=True)
+        if midr is not None:
+            (tmp_path / "sys" / f"cpu{cpu}" / "regs" / "identification").mkdir(parents=True)
+            (tmp_path / "sys" / f"cpu{cpu}" / "regs" / "identification" / "midr_el1").write_text(midr + "\n")
+        if freq is not None:
+            (tmp_path / "sys" / f"cpu{cpu}" / "cpufreq").mkdir()
+            (tmp_path / "sys" / f"cpu{cpu}" / "cpufreq" / "cpuinfo_max_freq").write_text(f"{freq}\n")
+    if cpuinfo is not None:
+        (tmp_path / "cpuinfo").write_text("\n".join(_CPUINFO_BLOCKS[cpuinfo](c) for c in sorted(cores)))
+    monkeypatch.setattr(core_speed, "SYSFS_CPU", str(tmp_path / "sys"))
+    monkeypatch.setattr(core_speed, "PROC_CPUINFO", str(tmp_path / "cpuinfo"), raising=False)
+    monkeypatch.setattr(core_speed, "_capacities", lambda cpus: None)
+    assert core_speed._search_order(set(cores)) == classes
 
 
 # ── 2. a halt while planning is reported as the halt ───────────────────────

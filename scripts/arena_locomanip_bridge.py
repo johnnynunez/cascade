@@ -16,12 +16,19 @@ one remote GR00T policy client, and it never decides anything on its own:
   state; Arena's success signal is reported separately, never as evidence;
 - after the segment it holds for ``rest_steps`` control steps, then reports the final snapshot.
 
-Usage (Arena checkout as cwd, its venv; a GR00T server must already listen):
+On Newton (``--presets newton``) the bridge imports ``arena_newton_compile_fix`` (this directory)
+before the environment is built, and it refuses a GR00T client that maps simulator joints with
+Arena's fixed PhysX-order index table: Newton orders the articulation differently, so that client
+silently drives the wrong joints. ``arena_gr00t_client`` (this directory) rebuilds the table by
+joint name; the hello reports the result. Observer cameras (``--bridge_record_dir`` only) are FIXED:
+a camera moved during a Newton episode changed the closed loop itself (docs/HUMANOID_LOCOMANIP.md).
+
+Usage (Arena checkout as cwd, its venv; a GR00T N1.7 server must already listen):
 
     .venv/bin/python <cascade>/scripts/arena_locomanip_bridge.py --bridge_port 8765 \
-        --bridge_record_dir <dir> --policy_label "GR00T N1.6 fine-tuned (Arena G1 loco-manip)" \
-        --policy_type isaaclab_arena_gr00t.policy.gr00t_remote_closedloop_policy.Gr00tRemoteClosedloopPolicy \
-        --policy_config_yaml_path isaaclab_arena_gr00t/policy/config/g1_locomanip_gr00t_closedloop_config.yaml \
+        --bridge_record_dir <dir> --policy_label "GR00T N1.7 fine-tuned on Newton demos" \
+        --policy_type arena_gr00t_client.Gr00tN17SimOrderRemotePolicy \
+        --policy_config_yaml_path <cascade>/scripts/arena_g1_locomanip_gr00t_n17.yaml \
         --remote_host 127.0.0.1 --remote_port 5555 --enable_cameras --device cuda:0 --presets newton \
         galileo_g1_locomanip_pick_and_place --object brown_box --embodiment g1_wbc_joint
 """
@@ -40,6 +47,7 @@ import time
 import traceback
 
 PROTOCOL = 2  # cascade.skills.humanoid_bridge.PROTOCOL: gate replies carry finger-target clamps
+HERE = os.path.dirname(os.path.abspath(__file__))
 OBSERVER = "cascade_observer_cam"
 OBS_W, OBS_H = 1280, 720
 
@@ -161,6 +169,7 @@ class Bridge:
         self._orig_reset_idx = self.unwrapped._reset_idx
         self.unwrapped._reset_idx = self._reset_idx
         self.physics = self._physics_name()
+        self.joint_order = self._sync_joint_order()
         log(f"robot joints={len(self.joint_names)} bodies={len(self.body_names)} hands={[self.body_names[i] for i in self.hand_idx]}")
 
     # -- Arena terminations during a segment end it without resetting the scene -------------
@@ -187,6 +196,16 @@ class Bridge:
         return {"backend": "newton" if "Newton" in name else "physx", "config": name,
                 "device": str(self.unwrapped.device), "dt": float(cfg.dt),
                 "decimation": int(self.unwrapped.cfg.decimation)}
+
+    def _sync_joint_order(self):
+        """Name-based simulator joint tables for the policy client, checked once at start-up."""
+        sync = getattr(self.policy, "sync_joint_order", None)
+        if callable(sync):
+            return sync(self.joint_names)
+        if hasattr(self.policy, "robot_state_joints_config") and self.physics["backend"] == "newton":
+            raise SystemExit("this GR00T client maps simulator joints with a fixed PhysX-order index table, which "
+                             "drives the wrong joints on Newton; use arena_gr00t_client.Gr00tN17SimOrderRemotePolicy")
+        return None
 
     # -- geometry -----------------------------------------------------------------------------
     def _local_aabb(self, name):
@@ -241,7 +260,11 @@ class Bridge:
                 "scene": "Isaac Lab-Arena galileo_g1_locomanip (shelf, table with bin)",
                 "physics": self.physics["backend"], "physics_device": self.physics["device"], "physics_detail": self.physics,
                 "policy": {"name": type(self.policy).__name__, "label": self.policy_label,
-                           "server": f"{self.args.remote_host}:{self.args.remote_port}"},
+                           "release": getattr(self.policy, "gr00t_release", None),
+                           "server": f"{self.args.remote_host}:{self.args.remote_port}",
+                           "joint_order": self.joint_order},
+                "observers": [{"name": n, "eye": e, "target": tg, "fixed": True} for n, e, tg in observer_views()]
+                if self.record_dir else [],
                 "objects": [self.object], "destinations": [self.destination], "control_hz": round(
                     1.0 / (self.physics["dt"] * self.physics["decimation"]), 3), "joints": self.joints()}
 
@@ -300,22 +323,6 @@ class Bridge:
         except Exception:  # noqa: BLE001
             return None
 
-    def _place_observer(self):
-        return  # fixed observer (see with_observer)
-        if OBSERVER not in self.scene.keys():  # noqa: unreachable -- kept for a chase camera on PhysX
-            return
-        import numpy as np
-        torch = self.torch
-
-        p = t(self.robot.data.root_pos_w)[0].detach().cpu().numpy().astype(float)
-        target = np.array([p[0], p[1], p[2] - 0.3])
-        self._cam_t = target if getattr(self, "_cam_t", None) is None else 0.96 * self._cam_t + 0.04 * target
-        off = np.array([float(v) for v in os.environ.get("ARENA_CHASE_OFFSET", "-1.0,-1.0,2.4").split(",")])
-        dev = self.unwrapped.device
-        self.scene[OBSERVER].set_world_poses_from_view(
-            eyes=torch.tensor([list(self._cam_t + off)], dtype=torch.float32, device=dev),
-            targets=torch.tensor([list(self._cam_t)], dtype=torch.float32, device=dev))
-
     def record(self, seg_dir, i, every=2):
         if seg_dir is None or i % every:
             return
@@ -339,8 +346,6 @@ class Bridge:
         self.policy.reset()
         self.step_count = 0
         self.last_action = None
-        self._cam_t = None
-        self._place_observer()
         bodies = t(self.robot.data.body_pos_w)[0]
         if self.ankle_idx:
             self.floor_z = float(min(bodies[i][2] for i in self.ankle_idx))
@@ -354,7 +359,6 @@ class Bridge:
         with torch.inference_mode():
             self.obs, _, _, _, _ = self.env.step(action)
         self.step_count += 1
-        self._place_observer()
 
     def segment(self, conn, msg):
         torch = self.torch
@@ -480,9 +484,13 @@ def main():
                         help="serve already-cached remote assets without a per-file server freshness probe")
     args_cli, _ = parser.parse_known_args()
     args_cli.enable_cameras = True
+    sys.path.insert(0, HERE)  # arena_gr00t_client, arena_newton_compile_fix
     with SimulationAppContext(args_cli):
         import importlib
 
+        if "newton" in str(getattr(args_cli, "presets", "") or ""):
+            importlib.import_module("arena_newton_compile_fix")
+            log("Newton preset: arena_newton_compile_fix installed")
         for module in args_cli.bridge_preload:
             importlib.import_module(module)
             log(f"preloaded {module}")
@@ -523,8 +531,9 @@ def main():
                 import isaaclab.sim as sim_utils
                 from isaaclab.sensors import TiledCameraCfg
 
-                # FIXED observers (not policy inputs): moving a camera at run time did not reach the
-                # renderer on the Newton preset (Fabric transform hierarchy), so each view is chosen once.
+                # FIXED observers (not policy inputs), posed once here and never moved: on the Newton
+                # preset a camera moved every step changed the closed loop itself (policies that
+                # succeed without it scored ~0 with it), and its pose never reached the renderer.
                 for name, eye, target in observer_views():
                     setattr(env_cfg.scene, name, TiledCameraCfg(
                         prim_path="{ENV_REGEX_NS}/Cascade_" + name, update_period=0.0, height=OBS_H, width=OBS_W,

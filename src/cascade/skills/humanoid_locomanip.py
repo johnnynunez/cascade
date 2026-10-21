@@ -123,7 +123,8 @@ class LocomanipDomain:
             raise BridgeError(f"bridge scene lacks profile entries {sorted(missing)}")
         ready = self.client.request({"type": "session", "seed": seed}, "ready",
                                     timeout_s=float(bridge["reply_timeout_s"]) * 4)
-        self._write("session.json", {"hello": hello, "ready_state": ready.get("state"), "seed": seed,
+        # the bridge picks a seed when none is requested; record the one the scene was reset with
+        self._write("session.json", {"hello": hello, "ready_state": ready.get("state"), "seed": ready.get("seed", seed),
                                      "limits": self.limits.as_dict(), "verifier": self.verifier})
 
     # -- lifecycle ---------------------------------------------------------------------------

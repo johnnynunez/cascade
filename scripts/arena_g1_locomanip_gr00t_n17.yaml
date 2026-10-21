@@ -1,0 +1,17 @@
+# GR00T N1.7 closed-loop policy config for Isaac Lab-Arena's G1 loco-manipulation box task, used by
+# scripts/arena_locomanip_bridge.py with --policy_type arena_gr00t_client.Gr00tN17SimOrderRemotePolicy.
+# Arena's own GR00T policy config fields; the relative paths resolve inside the Arena checkout (the
+# bridge's working directory). N1.7's maximum action horizon is 40 (N1.6 used 50). The two joint
+# tables are Arena's PhysX-order index tables: on Newton the client rebuilds them by joint NAME from
+# the live articulation (scripts/arena_gr00t_client.py) and the bridge reports that in its hello.
+language_instruction: "Pick up the brown box from the shelf, and place it into the blue bin on the table located at the right of the shelf."
+action_horizon: 40
+embodiment_tag: NEW_EMBODIMENT
+video_backend: decord
+modality_config_path: isaaclab_arena_gr00t/embodiments/g1/g1_sim_wbc_data_gr00t_n_1_7_config.py
+policy_joints_config_path: isaaclab_arena_gr00t/embodiments/g1/gr00t_43dof_joint_space.yaml
+action_joints_config_path: isaaclab_arena_gr00t/embodiments/g1/43dof_joint_space.yaml
+state_joints_config_path: isaaclab_arena_gr00t/embodiments/g1/43dof_joint_space.yaml
+action_chunk_length: 40
+pov_cam_name_sim: "robot_head_cam_rgb"
+task_mode_name: g1_locomanipulation
